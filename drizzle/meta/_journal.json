@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1771499455755,
+      "tag": "0000_cool_jackal",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1771499606129,
+      "tag": "0001_warm_jean_grey",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1771502786143,
+      "tag": "0002_dear_toxin",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1771506374011,
+      "tag": "0003_gifted_riptide",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1771859585713,
+      "tag": "0004_certain_major_mapleleaf",
+      "breakpoints": true
+    }
+  ]
+}
