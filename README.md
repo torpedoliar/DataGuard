@@ -1,4 +1,4 @@
-<![CDATA[# 🏢 DC-Check — Data Center Audit & Infrastructure Management
+# 🏢 DC-Check — Data Center Audit & Infrastructure Management
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.1.6-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.2.3-61DAFB?logo=react)](https://react.dev/)
@@ -370,4 +370,3 @@ This project is **private and proprietary**. All rights reserved.
 ## 💬 Support
 
 For issues, questions, or feature requests, please contact the development team or open an issue on the repository.
-]]>
