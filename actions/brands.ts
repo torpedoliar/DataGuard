@@ -58,7 +58,7 @@ export async function getBrands() {
 
 export async function addBrand(prevState: unknown, formData: FormData) {
     const session = await verifySession();
-    if (!session || session.role !== "admin") return { message: "Anda tidak memiliki akses (Unauthorized)." };
+    if (!session || !["admin", "superadmin"].includes(session.role)) return { message: "Anda tidak memiliki akses (Unauthorized)." };
 
     const parsed = brandSchema.safeParse({ name: formData.get("name") });
     if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
@@ -94,7 +94,7 @@ export async function addBrand(prevState: unknown, formData: FormData) {
 
 export async function updateBrand(prevState: unknown, formData: FormData) {
     const session = await verifySession();
-    if (!session || session.role !== "admin") return { message: "Anda tidak memiliki akses (Unauthorized)." };
+    if (!session || !["admin", "superadmin"].includes(session.role)) return { message: "Anda tidak memiliki akses (Unauthorized)." };
 
     const parsed = brandSchema.safeParse({
         name: formData.get("name"),
@@ -144,7 +144,7 @@ export async function updateBrand(prevState: unknown, formData: FormData) {
 
 export async function deleteBrand(id: number) {
     const session = await verifySession();
-    if (!session || session.role !== "admin") return { message: "Anda tidak memiliki akses (Unauthorized)." };
+    if (!session || !["admin", "superadmin"].includes(session.role)) return { message: "Anda tidak memiliki akses (Unauthorized)." };
 
     try {
         // Check if brand is connected to any devices

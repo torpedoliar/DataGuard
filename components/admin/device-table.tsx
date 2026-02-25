@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2, Edit, Search, Filter, X, ArrowUpDown, ArrowUp, ArrowDown, Network, Power, PackageOpen } from "lucide-react";
+import { Trash2, Edit, Search, Filter, X, ArrowUpDown, ArrowUp, ArrowDown, Network, Power, PackageOpen, MonitorPlay, Globe, Terminal, Phone, Shield } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -46,6 +46,8 @@ export default function DeviceTable({ devices, brands, locations }: { devices: D
     const [editingDevice, setEditingDevice] = useState<Device | null>(null);
     const [deletingDevice, setDeletingDevice] = useState<Device | null>(null);
     const [printingDevice, setPrintingDevice] = useState<Device | null>(null);
+    const [manageDevice, setManageDevice] = useState<Device | null>(null);
+    const [customPort, setCustomPort] = useState("");
     const [isPending, startTransition] = useTransition();
     const router = useRouter();
 
@@ -322,8 +324,8 @@ export default function DeviceTable({ devices, brands, locations }: { devices: D
                                                     onClick={() => handleToggleStatus(device.id)}
                                                     disabled={isPending}
                                                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${isActive
-                                                            ? "bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20"
-                                                            : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                                                        ? "bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20"
+                                                        : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
                                                         }`}
                                                     title={`Click to ${isActive ? "deactivate" : "activate"}`}
                                                 >
@@ -333,6 +335,11 @@ export default function DeviceTable({ devices, brands, locations }: { devices: D
                                             </td>
                                             <td className="px-5 py-3 whitespace-nowrap text-right">
                                                 <div className="flex items-center justify-end gap-1">
+                                                    {device.ipAddress && (
+                                                        <button onClick={() => setManageDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-indigo-400 transition-colors" title="Manage Device (Remote)">
+                                                            <MonitorPlay className="h-4 w-4" />
+                                                        </button>
+                                                    )}
                                                     <Link
                                                         href={`/admin/devices/${device.id}/network`}
                                                         className="p-1.5 rounded-lg hover:bg-slate-700 text-teal-400 transition-colors"
@@ -384,6 +391,52 @@ export default function DeviceTable({ devices, brands, locations }: { devices: D
                     deviceName={printingDevice.name}
                     onClose={() => setPrintingDevice(null)}
                 />
+            )}
+
+            {manageDevice && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setManageDevice(null); setCustomPort(""); }}>
+                    <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Manage Device</h3>
+                                <p className="text-xs text-slate-400 mt-0.5">{manageDevice.name} ({manageDevice.ipAddress})</p>
+                            </div>
+                            <button onClick={() => { setManageDevice(null); setCustomPort(""); }} className="text-slate-500 hover:text-white bg-slate-800 p-1.5 rounded-lg transition-colors border border-slate-700">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1.5">Custom Port (Optional)</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. 8080 or 2222"
+                                    value={customPort}
+                                    onChange={(e) => setCustomPort(e.target.value)}
+                                    className="w-full h-9 px-3 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <a href={`http://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ''}`} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-slate-800 hover:bg-blue-500/10 border border-slate-700 hover:border-blue-500/50 text-slate-300 hover:text-blue-400 transition-all cursor-pointer">
+                                    <Globe className="h-6 w-6" />
+                                    <span className="text-[11px] uppercase tracking-wider font-bold mt-1">HTTP Web</span>
+                                </a>
+                                <a href={`https://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ''}`} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-slate-800 hover:bg-green-500/10 border border-slate-700 hover:border-green-500/50 text-slate-300 hover:text-green-400 transition-all cursor-pointer">
+                                    <Shield className="h-6 w-6" />
+                                    <span className="text-[11px] uppercase tracking-wider font-bold mt-1">HTTPS Web</span>
+                                </a>
+                                <a href={`ssh://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ''}`} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-slate-800 hover:bg-purple-500/10 border border-slate-700 hover:border-purple-500/50 text-slate-300 hover:text-purple-400 transition-all cursor-pointer">
+                                    <Terminal className="h-6 w-6" />
+                                    <span className="text-[11px] uppercase tracking-wider font-bold mt-1">SSH Access</span>
+                                </a>
+                                <a href={`telnet://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ''}`} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-slate-800 hover:bg-orange-500/10 border border-slate-700 hover:border-orange-500/50 text-slate-300 hover:text-orange-400 transition-all cursor-pointer">
+                                    <Phone className="h-6 w-6" />
+                                    <span className="text-[11px] uppercase tracking-wider font-bold mt-1">Telnet Protocol</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

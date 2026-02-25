@@ -7,7 +7,7 @@ import { checkRackCollision } from "@/lib/rack-validation";
 
 export async function POST(request: NextRequest) {
     const session = await verifySession();
-    if (!session || session.role !== "admin") {
+    if (!session || !["admin", "superadmin"].includes(session.role)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
