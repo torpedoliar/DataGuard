@@ -9,6 +9,8 @@ export const sites = sqliteTable("sites", {
   address: text("address"),
   description: text("description"),
   telegramChatId: text("telegram_chat_id"),
+  latitude: text("latitude"),   // e.g. "-6.2088"
+  longitude: text("longitude"), // e.g. "106.8456"
   isActive: integer("is_active", { mode: "boolean" }).default(true),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
@@ -267,3 +269,12 @@ export const networkPortsRelations = relations(networkPorts, ({ one }) => ({
     references: [vlans.id],
   }),
 }));
+
+// ==================== GLOBAL SETTINGS (NEW) ====================
+export const globalSettings = sqliteTable("global_settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  appName: text("app_name").notNull().default("DataGuard"),
+  logoPath: text("logo_path"),
+  faviconPath: text("favicon_path"),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});

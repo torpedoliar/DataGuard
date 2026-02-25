@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "../db";
-import { devices, categories, checklistItems, checklistEntries, brands, locations } from "../db/schema";
+import { devices, categories, checklistItems, checklistEntries, brands, locations, racks as racksTable } from "../db/schema";
 import { sql, eq, asc, desc, inArray } from "drizzle-orm";
 import { verifySession } from "../lib/session";
 
@@ -84,19 +84,35 @@ export async function getRackLayout() {
         }
     }
 
+    // Fetch all predefined racks for this site
+    const predefinedRacks = await db.select().from(racksTable).where(siteId ? eq(racksTable.siteId, siteId) : undefined);
+
     // Group devices by rack
     const racks = new Map<string, RackData>();
+
+    // Initialize map with predefined racks
+    for (const rackDef of predefinedRacks) {
+        racks.set(rackDef.name.toLowerCase(), {
+            name: rackDef.name,
+            zone: rackDef.zone,
+            totalU: rackDef.totalU || 42,
+            devices: [],
+            occupiedU: [],
+        });
+    }
 
     for (const device of allDevices) {
         if (!device.rackName) continue;
 
-        const rackKey = `${device.rackName}-${device.zone || ""}`;
+        const rackKey = device.rackName.toLowerCase();
 
+        // If a device specifies a rack that wasn't in our predefined table, we create it dynamically
+        // (This supports legacy data before racks table was introduced)
         if (!racks.has(rackKey)) {
             racks.set(rackKey, {
-                name: device.rackName!,
-                zone: device.zone,
-                totalU: 42, // Standard rack is 42U
+                name: device.rackName,
+                zone: device.zone, // Fallback to device's zone
+                totalU: 42,
                 devices: [],
                 occupiedU: [],
             });

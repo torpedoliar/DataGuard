@@ -12,10 +12,12 @@ export default function Navbar({
     user,
     activeSite,
     userSites,
+    appSettings,
 }: {
     user: { username: string; role: string };
     activeSite: { id: number | null; name: string | null };
     userSites: SiteInfo[];
+    appSettings: { appName: string; logoPath: string | null };
 }) {
     const [showSiteSwitcher, setShowSiteSwitcher] = useState(false);
     const [showAdminMenu, setShowAdminMenu] = useState(false);
@@ -45,11 +47,15 @@ export default function Navbar({
                 {/* Left: Logo + Site + Nav */}
                 <div className="flex items-center gap-6">
                     {/* Logo */}
-                    <Link href="/checklist" className="flex items-center gap-2.5 shrink-0">
-                        <div className="size-7 flex items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
-                            <span className="material-symbols-outlined text-lg">shield</span>
-                        </div>
-                        <span className="text-lg font-bold tracking-tight text-white font-display">DataGuard</span>
+                    <Link href="/select-site" className="flex items-center gap-2.5 shrink-0">
+                        {appSettings.logoPath ? (
+                            <img src={appSettings.logoPath} alt="App Logo" className="h-7 w-auto object-contain" />
+                        ) : (
+                            <div className="size-7 flex items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
+                                <span className="material-symbols-outlined text-lg">shield</span>
+                            </div>
+                        )}
+                        <span className="text-lg font-bold tracking-tight text-white font-display">{appSettings.appName}</span>
                     </Link>
 
                     {/* Site Switcher */}
@@ -147,6 +153,14 @@ export default function Navbar({
                                                     >
                                                         <span className="material-symbols-outlined text-[16px]">domain</span>
                                                         Site Management
+                                                    </Link>
+                                                    <Link
+                                                        href="/admin/settings"
+                                                        onClick={() => setShowAdminMenu(false)}
+                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/settings") ? "text-blue-400 bg-blue-500/5" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+                                                    >
+                                                        <span className="material-symbols-outlined text-[16px]">settings</span>
+                                                        Global Settings
                                                     </Link>
                                                 </>
                                             )}

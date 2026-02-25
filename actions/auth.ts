@@ -54,45 +54,14 @@ export async function login(prevState: unknown, formData: FormData) {
     // Cast role safely
     const role = user.role as "superadmin" | "admin" | "staff";
 
-    // Determine the user's first available site
-    let activeSiteId: number | null = null;
-    let activeSiteName: string | null = null;
-
-    if (role === "superadmin") {
-        // Superadmin gets the first active site
-        const firstSite = await db.select().from(sites)
-            .where(eq(sites.isActive, true))
-            .limit(1);
-        if (firstSite.length > 0) {
-            activeSiteId = firstSite[0].id;
-            activeSiteName = firstSite[0].name;
-        }
-    } else {
-        // Regular users get their first assigned site
-        const assignment = await db.select({
-            siteId: userSites.siteId,
-            siteName: sites.name,
-        })
-            .from(userSites)
-            .innerJoin(sites, eq(userSites.siteId, sites.id))
-            .where(and(
-                eq(userSites.userId, user.id),
-                eq(sites.isActive, true)
-            ))
-            .limit(1);
-
-        if (assignment.length > 0) {
-            activeSiteId = assignment[0].siteId;
-            activeSiteName = assignment[0].siteName;
-        }
-    }
-
-    await createSession(user.id, user.username, role, activeSiteId, activeSiteName);
+    // Create session WITHOUT a pre-selected site.
+    // User will pick their site on the interactive map page.
+    await createSession(user.id, user.username, role, null, null);
 
     // Update last login time (non-blocking)
     updateUserLastLogin(user.id).catch(console.error);
 
-    redirect("/checklist");
+    redirect("/select-site");
 }
 
 export async function logout() {

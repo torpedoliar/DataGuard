@@ -22,7 +22,7 @@ export async function getSiteById(id: number) {
     return await db.select().from(sites).where(eq(sites.id, id)).limit(1).then(r => r[0] || null);
 }
 
-export async function addSite(data: { name: string; code: string; address?: string; description?: string; telegramChatId?: string }) {
+export async function addSite(data: { name: string; code: string; address?: string; description?: string; telegramChatId?: string; latitude?: string; longitude?: string }) {
     const session = await verifySession();
     if (!session || session.role !== "superadmin") {
         return { message: "Hanya Super Admin yang dapat menambah site baru." };
@@ -39,6 +39,8 @@ export async function addSite(data: { name: string; code: string; address?: stri
             address: data.address || null,
             description: data.description || null,
             telegramChatId: data.telegramChatId || null,
+            latitude: data.latitude || null,
+            longitude: data.longitude || null,
             isActive: true,
         });
 
@@ -52,7 +54,7 @@ export async function addSite(data: { name: string; code: string; address?: stri
     }
 }
 
-export async function updateSite(id: number, data: { name: string; code?: string; address?: string; description?: string; telegramChatId?: string; isActive?: boolean }) {
+export async function updateSite(id: number, data: { name: string; code?: string; address?: string; description?: string; telegramChatId?: string; latitude?: string; longitude?: string; isActive?: boolean }) {
     const session = await verifySession();
     if (!session || session.role !== "superadmin") {
         return { message: "Hanya Super Admin yang dapat mengubah site." };
@@ -65,10 +67,13 @@ export async function updateSite(id: number, data: { name: string; code?: string
             address: data.address || null,
             description: data.description || null,
             telegramChatId: data.telegramChatId || null,
+            latitude: data.latitude || null,
+            longitude: data.longitude || null,
             isActive: data.isActive,
         }).where(eq(sites.id, id));
 
         revalidatePath("/admin/sites");
+        revalidatePath("/", "layout"); // Revalidate Top Navbar
         return { success: true, message: "Site berhasil diperbarui!" };
     } catch (error: any) {
         if (error?.message?.includes("UNIQUE constraint")) {

@@ -7,7 +7,9 @@ import { Building2, Plus, Pencil, Trash2, Users, Loader2, UserPlus, ShieldCheck,
 
 type Site = {
     id: number; name: string; code: string; address: string | null;
-    description: string | null; telegramChatId: string | null; isActive: boolean | null; createdAt: Date | null;
+    description: string | null; telegramChatId: string | null;
+    latitude: string | null; longitude: string | null;
+    isActive: boolean | null; createdAt: Date | null;
 };
 type SiteUser = {
     assignmentId: number; userId: number; username: string; email: string | null;
@@ -32,6 +34,8 @@ export default function SiteManagementPage() {
     const [formAddress, setFormAddress] = useState("");
     const [formDescription, setFormDescription] = useState("");
     const [formTelegramChatId, setFormTelegramChatId] = useState("");
+    const [formLatitude, setFormLatitude] = useState("");
+    const [formLongitude, setFormLongitude] = useState("");
 
     // Search, filter, sort state for sites table
     const [siteSearch, setSiteSearch] = useState("");
@@ -68,10 +72,10 @@ export default function SiteManagementPage() {
     const handleAdd = () => {
         setError(null); setSuccess(null);
         startTransition(async () => {
-            const res = await addSite({ name: formName, code: formCode, address: formAddress, description: formDescription, telegramChatId: formTelegramChatId });
+            const res = await addSite({ name: formName, code: formCode, address: formAddress, description: formDescription, telegramChatId: formTelegramChatId, latitude: formLatitude, longitude: formLongitude });
             if (res.success) {
                 setSuccess(res.message); setShowAddForm(false);
-                setFormName(""); setFormCode(""); setFormAddress(""); setFormDescription(""); setFormTelegramChatId("");
+                setFormName(""); setFormCode(""); setFormAddress(""); setFormDescription(""); setFormTelegramChatId(""); setFormLatitude(""); setFormLongitude("");
                 loadSites();
             } else { setError(res.message || "Gagal"); }
         });
@@ -95,7 +99,7 @@ export default function SiteManagementPage() {
         if (!editSite) return;
         setError(null);
         startTransition(async () => {
-            const res = await updateSite(editSite.id, { name: formName, code: formCode, address: formAddress, description: formDescription, telegramChatId: formTelegramChatId });
+            const res = await updateSite(editSite.id, { name: formName, code: formCode, address: formAddress, description: formDescription, telegramChatId: formTelegramChatId, latitude: formLatitude, longitude: formLongitude });
             if (res.success) { setEditSite(null); loadSites(); setSuccess("Site berhasil diperbarui!"); }
             else { setError(res.message || "Gagal"); }
         });
@@ -147,11 +151,12 @@ export default function SiteManagementPage() {
         setFormName(site.name); setFormCode(site.code);
         setFormAddress(site.address || ""); setFormDescription(site.description || "");
         setFormTelegramChatId(site.telegramChatId || "");
+        setFormLatitude(site.latitude || ""); setFormLongitude(site.longitude || "");
     };
 
     const startAdd = () => {
         setShowAddForm(true); setEditSite(null);
-        setFormName(""); setFormCode(""); setFormAddress(""); setFormDescription(""); setFormTelegramChatId("");
+        setFormName(""); setFormCode(""); setFormAddress(""); setFormDescription(""); setFormTelegramChatId(""); setFormLatitude(""); setFormLongitude("");
     };
 
     return (
@@ -199,6 +204,16 @@ export default function SiteManagementPage() {
                             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Telegram Chat ID (Optional)</label>
                             <input value={formTelegramChatId} onChange={e => setFormTelegramChatId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="-100123456789" />
                             <p className="text-xs text-slate-500 mt-1">If set, critical audit alerts (Error/Warning) will be sent to this group or user.</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Latitude (Peta)</label>
+                            <input value={formLatitude} onChange={e => setFormLatitude(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="-6.2088" />
+                            <p className="text-xs text-slate-500 mt-1">Gunakan format desimal, contoh: -6.2088</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Longitude (Peta)</label>
+                            <input value={formLongitude} onChange={e => setFormLongitude(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="106.8456" />
+                            <p className="text-xs text-slate-500 mt-1">Gunakan format desimal, contoh: 106.8456</p>
                         </div>
                     </div>
                     <div className="mt-4 flex gap-3">
