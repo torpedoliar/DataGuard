@@ -224,3 +224,79 @@ export async function updateUserLastLogin(userId: number) {
         console.error("Update last login error:", error);
     }
 }
+
+// Update user photo
+export async function updateProfilePhoto(prevState: unknown, formData: FormData) {
+    const session = await verifySession();
+    if (!session) {
+        return { message: "Unauthorized" };
+    }
+
+    const { existsSync } = await import("fs");
+    const { mkdir, writeFile, unlink } = await import("fs/promises");
+    const path = await import("path");
+
+    const photo = formData.get("photo") as File | null;
+    const removePhoto = formData.get("removePhoto") === "true";
+
+    // Get current user to check for existing photo
+    const user = await db.query.users.findFirst({
+        where: eq(users.id, session.userId),
+    });
+
+    if (!user) {
+        return { message: "User not found" };
+    }
+
+    let photoPath = user.photoPath;
+
+    try {
+        if (removePhoto && photoPath) {
+            // Delete existing photo if explicitly requested or replaced
+            const fullPath = path.join(process.cwd(), "public", photoPath);
+            if (existsSync(fullPath)) await unlink(fullPath);
+            photoPath = null;
+        }
+
+        if (photo && photo.size > 0 && !removePhoto) {
+            // Setup upload directory
+            const uploadDir = path.join(process.cwd(), "public", "uploads", "profiles");
+            if (!existsSync(uploadDir)) {
+                await mkdir(uploadDir, { recursive: true });
+            }
+
+            // Create unique filename
+            const ext = photo.name.split(".").pop();
+            const fileName = `user-${session.userId}-${Date.now()}.${ext}`;
+            const fullPath = path.join(uploadDir, fileName);
+
+            // Convert arrayBuffer to buffer
+            const arrayBuffer = await photo.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+
+            // Write new file
+            await writeFile(fullPath, buffer);
+
+            // Delete old photo if replacing
+            if (user.photoPath) {
+                const oldPath = path.join(process.cwd(), "public", user.photoPath);
+                if (existsSync(oldPath)) await unlink(oldPath);
+            }
+
+            photoPath = `/uploads/profiles/${fileName}`;
+        }
+
+        // Update database
+        await db.update(users)
+            .set({ photoPath })
+            .where(eq(users.id, session.userId));
+
+        revalidatePath("/");
+        revalidatePath("/profile");
+
+        return { success: true, message: "Profil berhasil diperbarui." };
+    } catch (error) {
+        console.error("Update profile photo error:", error);
+        return { message: "Gagal memperbarui foto profil." };
+    }
+}

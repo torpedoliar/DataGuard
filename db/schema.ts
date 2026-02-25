@@ -22,6 +22,7 @@ export const users = sqliteTable("users", {
   email: text("email").unique(),
   role: text("role", { enum: ["superadmin", "admin", "staff"] }).notNull().default("staff"),
   passwordHash: text("password_hash").notNull(),
+  photoPath: text("photo_path"),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
   lastLogin: integer("last_login", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),

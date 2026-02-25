@@ -14,13 +14,14 @@ export default function Navbar({
     userSites,
     appSettings,
 }: {
-    user: { username: string; role: string };
+    user: { username: string; role: string; photoPath?: string | null };
     activeSite: { id: number | null; name: string | null };
     userSites: SiteInfo[];
     appSettings: { appName: string; logoPath: string | null };
 }) {
     const [showSiteSwitcher, setShowSiteSwitcher] = useState(false);
     const [showAdminMenu, setShowAdminMenu] = useState(false);
+    const [showUserMenu, setShowUserMenu] = useState(false);
     const [isPending, startTransition] = useTransition();
     const isAdmin = ["admin", "superadmin"].includes(user.role);
     const pathname = usePathname();
@@ -193,16 +194,50 @@ export default function Navbar({
                         <span className="hidden sm:inline">New Audit</span>
                     </Link>
 
-                    {/* User Avatar */}
-                    <button
-                        onClick={() => logout()}
-                        className="relative size-9 rounded-full overflow-hidden border-2 border-slate-700 hover:border-blue-500 transition-colors shrink-0"
-                        title={`Logout (${user.username})`}
-                    >
-                        <div className="h-full w-full bg-slate-700 flex items-center justify-center text-white text-xs font-bold">
-                            {user.username.substring(0, 2).toUpperCase()}
-                        </div>
-                    </button>
+                    {/* User Dropdown */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowUserMenu(!showUserMenu)}
+                            className="relative size-9 flex items-center justify-center rounded-full overflow-hidden border-2 border-slate-700 hover:border-blue-500 transition-colors shrink-0"
+                            title={user.username}
+                        >
+                            {user.photoPath ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={user.photoPath} alt={user.username} className="h-full w-full object-cover" />
+                            ) : (
+                                <div className="h-full w-full bg-slate-700 flex items-center justify-center text-white text-xs font-bold">
+                                    {user.username.substring(0, 2).toUpperCase()}
+                                </div>
+                            )}
+                        </button>
+
+                        {showUserMenu && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                                <div className="absolute top-full right-0 mt-2 w-48 bg-[#111827] rounded-xl shadow-2xl border border-slate-700 z-50 overflow-hidden py-1.5">
+                                    <div className="px-4 py-2 border-b border-slate-700/50 mb-1">
+                                        <p className="text-sm font-medium text-white truncate">{user.username}</p>
+                                        <p className="text-xs text-slate-400 capitalize">{user.role}</p>
+                                    </div>
+                                    <Link
+                                        href="/profile"
+                                        onClick={() => setShowUserMenu(false)}
+                                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">person</span>
+                                        Profile Settings
+                                    </Link>
+                                    <button
+                                        onClick={() => { setShowUserMenu(false); logout(); }}
+                                        className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors text-left"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">logout</span>
+                                        Log Out
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
         </header>
