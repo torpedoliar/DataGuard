@@ -6,6 +6,7 @@ import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import Pagination from "@/components/ui/pagination";
 import Link from "next/link";
+import PhotoModalTrigger from "@/components/report/photo-modal-trigger";
 
 export default async function ReportPage({
     searchParams,
@@ -238,9 +239,7 @@ export default async function ReportPage({
                                             <div className="flex items-center gap-2">
                                                 <span className="truncate">{item.remarks || '-'}</span>
                                                 {item.photo && (
-                                                    <a href={item.photo} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 shrink-0" title="View photo">
-                                                        <span className="material-symbols-outlined text-sm">photo</span>
-                                                    </a>
+                                                    <PhotoModalTrigger photoPath={item.photo} deviceName={item.device} />
                                                 )}
                                             </div>
                                         </td>

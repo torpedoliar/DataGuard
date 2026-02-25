@@ -180,6 +180,13 @@ function DeviceRow({ device, isHighlighted }: { device: Device; isHighlighted?: 
                                 type="file"
                                 name={`photo-${device.id}`}
                                 accept="image/*"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file && file.size > 10 * 1024 * 1024) {
+                                        alert("Ukuran file maksimal 10MB");
+                                        e.target.value = "";
+                                    }
+                                }}
                                 className="block w-full text-xs text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/20 file:text-blue-700 dark:file:text-blue-400 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/30"
                             />
                         </div>

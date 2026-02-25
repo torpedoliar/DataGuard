@@ -287,6 +287,13 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                                 type="file"
                                 name="photo"
                                 accept="image/*"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file && file.size > 10 * 1024 * 1024) {
+                                        alert("Ukuran file maksimal 10MB");
+                                        e.target.value = "";
+                                    }
+                                }}
                                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/40 dark:file:text-blue-400"
                             />
                             <p className="text-xs text-slate-500 mt-1">

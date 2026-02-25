@@ -29,6 +29,11 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
     const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            if (file.size > 10 * 1024 * 1024) {
+                alert("Ukuran file maksimal 10MB");
+                e.target.value = "";
+                return;
+            }
             setLogoFile(file);
             setLogoPreview(URL.createObjectURL(file));
             setRemoveLogo(false);
@@ -48,6 +53,11 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
     const handleFaviconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            if (file.size > 10 * 1024 * 1024) {
+                alert("Ukuran file maksimal 10MB");
+                e.target.value = "";
+                return;
+            }
             setFaviconFile(file);
             setFaviconPreview(URL.createObjectURL(file));
             setRemoveFavicon(false);

@@ -34,8 +34,8 @@ export default function EditBrandForm({ brand, onClose }: EditBrandFormProps) {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 2 * 1024 * 1024) { // 2MB limit
-                alert("File size should not exceed 2MB");
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                alert("Ukuran file maksimal 10MB");
                 e.target.value = "";
                 return;
             }
