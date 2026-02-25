@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { RackData, RackDevice } from "@/actions/rack-layout";
 import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor, useDraggable, useDroppable } from "@dnd-kit/core";
-import { Server, Network, Zap, Wind, XCircle, AlertTriangle } from "lucide-react";
+import { Server, Network, Zap, Wind, XCircle, AlertTriangle, Search, Filter, X } from "lucide-react";
 
 interface RackLayoutProps {
     racks: RackData[];
@@ -58,7 +58,7 @@ function DroppableSlot({ u, rackName, isOccupied, gridRow }: { u: number; rackNa
 }
 
 // Draggable Device Component
-function DraggableDevice({ device, categoryName, gridRow }: { device: RackDevice; categoryName: string | null; gridRow: number }) {
+function DraggableDevice({ device, categoryName, gridRow, isMuted }: { device: RackDevice & { isMuted?: boolean }; categoryName: string | null; gridRow: number; isMuted?: boolean }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `device-${device.id}`,
         data: {
@@ -75,12 +75,14 @@ function DraggableDevice({ device, categoryName, gridRow }: { device: RackDevice
     const style = transform ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
         zIndex: isDragging ? 999 : 10,
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0.5 : (isMuted ? 0.2 : 1),
         gridColumn: "2",
         gridRow: `${gridRow} / span ${uHeight}`
     } : {
         gridColumn: "2",
         gridRow: `${gridRow} / span ${uHeight}`,
+        opacity: isMuted ? 0.2 : 1,
+        transition: "opacity 0.2s ease",
         zIndex: 10
     };
 
@@ -154,6 +156,14 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
     const [isDragging, setIsDragging] = useState(false);
     const [isClient, setIsClient] = useState(false);
 
+    // Filters
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedZone, setSelectedZone] = useState("");
+    const [selectedCategory, setSelectedCategory] = useState("");
+    const [selectedStatus, setSelectedStatus] = useState("");
+
+    const uniqueZones = Array.from(new Set(racks.map(r => r.zone).filter(Boolean))).sort() as string[];
+
     // Ensure component only renders DndContext on client side
     useEffect(() => {
         setIsClient(true);
@@ -206,7 +216,44 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
         }
     };
 
-    const renderRackSlots = (rack: RackData) => {
+    // Process racks and devices based on filters
+    const processedRacks = racks.map(rack => {
+        const processedDevices = rack.devices.map(device => {
+            const matchesSearch = !searchQuery ||
+                device.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (device.brandName && device.brandName.toLowerCase().includes(searchQuery.toLowerCase()));
+
+            const matchesCategory = !selectedCategory || device.categoryName === selectedCategory;
+            const matchesStatus = !selectedStatus || device.status === selectedStatus;
+
+            const isMatch = matchesSearch && matchesCategory && matchesStatus;
+
+            return {
+                ...device,
+                isMuted: !isMatch && !!(searchQuery || selectedCategory || selectedStatus || selectedZone)
+            };
+        });
+
+        const matchesZone = !selectedZone || rack.zone === selectedZone;
+        const rackNameMatches = !searchQuery || rack.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+        const hasMatchingDevices = processedDevices.some(d => !d.isMuted);
+
+        // If there are filters active, hide racks that don't match the zone or don't have matching devices 
+        // (unless the rack name itself matches the search query)
+        const hasFiltersActive = !!(searchQuery || selectedCategory || selectedStatus || selectedZone);
+
+        const shouldShow = !hasFiltersActive || (matchesZone && (rackNameMatches || hasMatchingDevices));
+
+        return {
+            ...rack,
+            devices: processedDevices,
+            shouldShow,
+            hasMatchingDevices
+        };
+    }).filter(r => r.shouldShow);
+
+    const renderRackSlots = (rack: RackData & { devices: (RackDevice & { isMuted?: boolean })[] }) => {
         const slots = [];
         const totalU = rack.totalU || 42;
 
@@ -229,12 +276,15 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                 // Device covers from u to u + uHeight - 1. Topmost is u + uHeight - 1.
                 const topRow = totalU - (u + uHeight - 1) + 1;
 
+                const isMuted = (device as any).isMuted;
+
                 slots.push(
                     <DraggableDevice
                         key={`device-${device.id}`}
                         device={device}
                         categoryName={device.categoryName}
                         gridRow={topRow}
+                        isMuted={isMuted}
                     />
                 );
             }
@@ -277,6 +327,15 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
 
         return labels;
     };
+
+    const resetFilters = () => {
+        setSearchQuery("");
+        setSelectedCategory("");
+        setSelectedZone("");
+        setSelectedStatus("");
+    };
+
+    const hasFilters = searchQuery || selectedCategory || selectedZone || selectedStatus;
 
     if (racks.length === 0) {
         return (
@@ -349,7 +408,61 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
             onDragStart={() => setIsDragging(true)}
             onDragEnd={handleDragEnd}
         >
-            <div className="space-y-8">
+            <div className="space-y-6">
+
+                {/* Search & Filter Toolbar */}
+                <div className="glow-card p-4 flex flex-col xl:flex-row gap-3 items-start xl:items-center">
+                    <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                        <input
+                            type="text"
+                            placeholder="Search by device, brand, or rack name..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full h-9 pl-9 pr-8 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        />
+                        {searchQuery && (
+                            <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex w-full xl:w-auto gap-2.5 overflow-x-auto pb-1 xl:pb-0 items-center no-scrollbar">
+                        <div className="flex items-center gap-1.5 text-slate-500 text-xs whitespace-nowrap">
+                            <Filter className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Filters:</span>
+                        </div>
+
+                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)}
+                            className="h-9 px-3 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-blue-500 min-w-[130px]">
+                            <option value="">All Zones</option>
+                            {uniqueZones.map(z => <option key={z} value={z}>{z}</option>)}
+                        </select>
+
+                        <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}
+                            className="h-9 px-3 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-blue-500 min-w-[130px]">
+                            <option value="">All Categories</option>
+                            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        </select>
+
+                        <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
+                            className="h-9 px-3 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-blue-500 min-w-[120px]">
+                            <option value="">All Health Status</option>
+                            <option value="OK">OK</option>
+                            <option value="Warning">Warning</option>
+                            <option value="Error">Error</option>
+                            <option value="Pending">Pending</option>
+                        </select>
+
+                        {hasFilters && (
+                            <button onClick={resetFilters} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 whitespace-nowrap">
+                                <X className="h-3 w-3" /> Reset
+                            </button>
+                        )}
+                    </div>
+                </div>
+
                 {/* Info Banner */}
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 flex items-start gap-3">
                     <div className="size-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
@@ -443,9 +556,20 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                     </div>
                 )}
 
+                {/* Expected Results Hint */}
+                {hasFilters && processedRacks.length === 0 && (
+                    <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                        <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p className="text-lg font-medium">No racks or devices match your filters</p>
+                        <button onClick={resetFilters} className="mt-4 text-blue-400 hover:text-blue-300 text-sm">
+                            Clear all filters
+                        </button>
+                    </div>
+                )}
+
                 {/* Rack Layout */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {racks.map((rack) => (
+                    {processedRacks.map((rack) => (
                         <div
                             key={`${rack.name}-${rack.zone || 'no-zone'}`}
                             className={`bg-white dark:bg-card-dark rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden transition-all ${isDragging ? "border-dashed border-2" : ""
@@ -504,15 +628,17 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                 </div>
 
                 {/* Legend */}
-                <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-3">Legend</h4>
-                    <div className="flex flex-wrap gap-4">
-                        {categories.map((cat) => (
-                            <div key={cat.id} className="flex items-center gap-2">
-                                <div className="w-4 h-4 rounded shadow-sm" style={{ backgroundColor: cat.color || "#3b82f6" }}></div>
-                                <span className="text-sm text-slate-600 dark:text-slate-400">{cat.name}</span>
-                            </div>
-                        ))}
+                <div className="glow-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h4 className="font-semibold text-white mb-2 text-sm">Legend</h4>
+                        <div className="flex flex-wrap gap-4">
+                            {categories.map((cat) => (
+                                <div key={cat.id} className="flex items-center gap-2">
+                                    <div className="w-3.5 h-3.5 rounded shadow-sm" style={{ backgroundColor: cat.color || "#3b82f6" }}></div>
+                                    <span className="text-xs text-slate-400">{cat.name}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
