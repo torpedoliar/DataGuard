@@ -9,6 +9,7 @@ import DeleteDeviceModal from "./delete-device-modal";
 import PrintQRModal from "./print-qr-modal";
 import { QrCode } from "lucide-react";
 import { toggleDeviceStatus, takeoutFromRack } from "@/actions/master-data";
+import PhotoModalTrigger from "@/components/report/photo-modal-trigger";
 
 type Device = {
     id: number;
@@ -270,9 +271,7 @@ export default function DeviceTable({ devices, brands, locations }: { devices: D
                                                     )}
                                                     <span className={!isActive ? "line-through text-slate-400" : ""}>{device.name}</span>
                                                     {device.photoPath && (
-                                                        <a href={device.photoPath} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300" title="View photo">
-                                                            <span className="material-symbols-outlined text-sm leading-none">image</span>
-                                                        </a>
+                                                        <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />
                                                     )}
                                                 </div>
                                             </td>
