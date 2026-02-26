@@ -14,6 +14,7 @@ services:
       - DATABASE_URL=postgresql://administrator:Arabika1927%21@db:5432/dccheck
       - SESSION_SECRET=fe5cae864dfd8e1445580fdd5b1c5f9e
       - PORT=3001
+      - HOSTNAME=0.0.0.0
     volumes:
       # Mapping folder uploads agar foto/media persisten dan bisa diakses host
       - dccheck_uploads:/app/public/uploads
