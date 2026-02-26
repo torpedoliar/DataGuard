@@ -38,6 +38,30 @@ podman-compose up -d --build
 
 Tunggu beberapa saat hingga status kedua servis menjadi `Started`/`Running`. Aplikasi sekarang sudah berjalan dan dapat diakses melalui `http://localhost:3001`.
 
+### ⚠️ Khusus Podman di Windows — Akses via IP Server
+
+> **Perbedaan penting Podman vs Docker di Windows:**
+> Podman berjalan di dalam VM (WSL2), sehingga port forwarding **hanya di-map ke `localhost`**. Artinya, Anda bisa mengakses `http://localhost:3001` dari server itu sendiri, tapi **TIDAK bisa** dari komputer lain via IP server (misal `http://192.168.x.x:3001`).
+>
+> Docker Desktop tidak memiliki masalah ini karena memiliki network driver terintegrasi yang otomatis binding ke semua interface.
+
+**Solusi:** Jalankan perintah berikut di **PowerShell Administrator** pada server Windows:
+
+```powershell
+# Forward port aplikasi web
+netsh interface portproxy add v4tov4 listenport=3001 listenaddress=0.0.0.0 connectport=3001 connectaddress=127.0.0.1
+
+# Forward port database (opsional, untuk akses pgAdmin/DBeaver dari luar)
+netsh interface portproxy add v4tov4 listenport=3002 listenaddress=0.0.0.0 connectport=3002 connectaddress=127.0.0.1
+```
+
+> Perintah ini bersifat **persisten** (tetap aktif meskipun server di-restart). Untuk menghapus:
+> ```powershell
+> netsh interface portproxy delete v4tov4 listenport=3001 listenaddress=0.0.0.0
+> ```
+
+Setelah itu, aplikasi bisa diakses dari komputer lain via `http://IP_SERVER:3001`.
+
 ### 2. Migrasi Skema Database (Wajib untuk pertama kali)
 
 Walaupun kontainer sudah nyala, tabel-tabel di dalam database PostgreSQL saat ini masih kosong. 
