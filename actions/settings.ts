@@ -58,6 +58,17 @@ async function handleFileUpload(file: File | null, type: 'logo' | 'favicon'): Pr
 }
 
 export async function getSettings() {
+    // Pada saat NEXT BUILD di Docker, DB connection string mungkin invalid atau DB belum menyala.
+    // Cegah crash dengan langsung me-return default saat fase build.
+    if (process.env.npm_lifecycle_event === 'build') {
+        return {
+            id: 0,
+            appName: "DataGuard",
+            logoPath: null,
+            faviconPath: null,
+        };
+    }
+
     try {
         const settingsList = await db.select().from(globalSettings).limit(1);
         if (settingsList.length > 0) {
@@ -69,7 +80,8 @@ export async function getSettings() {
             };
         }
     } catch (error) {
-        console.error("Failed to fetch global settings:", error);
+        // Hanya warning silent (jangan crash) karena bisa terjadi saat DB sedang booting
+        console.warn("Soft fail: Could not fetch global settings from DB. Using defaults.");
     }
 
     // Default settings if db is empty or errors occur
