@@ -102,7 +102,9 @@ docker-compose down
 
 ### Mengakses Basis Data via Klien Eksternal
 
-Meskipun PostgreSQL berjalan di dalam kontainer tertutup, pada `docker-compose.yml` kami sudah mengekspos port ke `5432` mesin *host*.
+Meskipun PostgreSQL berjalan di dalam kontainer tertutup, pada `docker-compose.yml` kami sudah mengekspos port ke `3002` mesin *host* dengan binding `0.0.0.0` (Wildcard) agar bisa diakses dari perangkat mana saja yang terhubung ke jaringan server ini, bukan hanya dari `localhost`.
+
+> **Catatan Penting:** Jika binding port di `docker-compose.yml` hanya ditulis `"3001:3001"` (tanpa prefix `0.0.0.0:`), maka aplikasi **hanya bisa diakses dari `localhost`** dan tidak bisa diakses menggunakan IP server dari komputer lain. Pastikan format binding adalah `"0.0.0.0:PORT_HOST:PORT_CONTAINER"`.
 
 Anda bisa membuka aplikasi seperti **DBeaver**, **TablePlus**, atau **pgAdmin** dengan koneksi:
 - **Host:** `localhost` atau IP Server
