@@ -45,10 +45,14 @@ export async function createSession(
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const session = await encrypt({ userId, username, role, activeSiteId, activeSiteName, expiresAt });
 
+    // secure: true hanya jika diakses via HTTPS (misal di belakang reverse proxy)
+    // Jika masih HTTP (akses langsung via IP), harus false agar cookie bisa tersimpan
+    const isSecure = process.env.SECURE_COOKIES === "true";
+
     const cookieStore = await cookies();
     cookieStore.set("session", session, {
         httpOnly: true,
-        secure: true,
+        secure: isSecure,
         expires: expiresAt,
         sameSite: "lax",
         path: "/",
