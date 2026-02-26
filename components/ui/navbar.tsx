@@ -163,6 +163,14 @@ export default function Navbar({
                                                         <span className="material-symbols-outlined text-[16px]">settings</span>
                                                         Global Settings
                                                     </Link>
+                                                    <Link
+                                                        href="/admin/update"
+                                                        onClick={() => setShowAdminMenu(false)}
+                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/update") ? "text-blue-400 bg-blue-500/5" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+                                                    >
+                                                        <span className="material-symbols-outlined text-[16px]">system_update_alt</span>
+                                                        System Update
+                                                    </Link>
                                                 </>
                                             )}
                                         </div>

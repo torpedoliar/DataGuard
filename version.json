@@ -1,0 +1,16 @@
+{
+    "version": "1.0.0",
+    "releaseDate": "2026-02-26",
+    "minDatabaseVersion": "1.0.0",
+    "changelog": [
+        "Feature: Initial release of Data Center Audit System (DC-Check)",
+        "Feature: Core Dashboard and Analytics module",
+        "Feature: Full Check-in and Checklist functionalities",
+        "Feature: Site Management with interactive Map Selector for Indonesia",
+        "Feature: Rack Management and Device Inventory",
+        "Feature: Container deployment architecture with Docker/Podman support",
+        "Feature: Over-The-Air (OTA) System Update functionality via Git"
+    ],
+    "repository": "https://github.com/torpedoliar/DataGuard",
+    "branch": "main"
+}

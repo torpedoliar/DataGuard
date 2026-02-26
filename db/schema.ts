@@ -1,9 +1,20 @@
 import { sql, relations } from "drizzle-orm";
-import { integer, sqliteTable, text, AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { integer, pgTable, text, serial, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { AnyPgColumn } from "drizzle-orm/pg-core";
 
-// ==================== SITES (NEW) ====================
-export const sites = sqliteTable("sites", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+// ==================== ENUMS ====================
+export const roleEnum = pgEnum("role", ["superadmin", "admin", "staff"]);
+export const roleInSiteEnum = pgEnum("role_in_site", ["admin", "staff"]);
+export const shiftEnum = pgEnum("shift", ["Pagi", "Siang", "Malam"]);
+export const statusEnum = pgEnum("status", ["OK", "Warning", "Error"]);
+export const portModeEnum = pgEnum("port_mode", ["Access", "Trunk", "Routed", "LACP"]);
+export const portStatusEnum = pgEnum("port_status", ["Active", "Inactive", "Down"]);
+export const speedEnum = pgEnum("speed", ["10/100M", "1G", "10G", "25G", "40G", "100G", "Auto"]);
+export const mediaTypeEnum = pgEnum("media_type", ["Copper (RJ45)", "Fiber (SFP/SFP+)", "Twinax (DAC)"]);
+
+// ==================== SITES ====================
+export const sites = pgTable("sites", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").unique().notNull(), // short code e.g. "DC-JKT", "DC-SBY"
   address: text("address"),
@@ -11,71 +22,71 @@ export const sites = sqliteTable("sites", {
   telegramChatId: text("telegram_chat_id"),
   latitude: text("latitude"),   // e.g. "-6.2088"
   longitude: text("longitude"), // e.g. "106.8456"
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ==================== USERS ====================
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
   email: text("email").unique(),
-  role: text("role", { enum: ["superadmin", "admin", "staff"] }).notNull().default("staff"),
+  role: roleEnum("role").notNull().default("staff"),
   passwordHash: text("password_hash").notNull(),
   photoPath: text("photo_path"),
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
-  lastLogin: integer("last_login", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  isActive: boolean("is_active").default(true),
+  lastLogin: timestamp("last_login"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-// ==================== USER-SITE ASSIGNMENT (NEW) ====================
-export const userSites = sqliteTable("user_sites", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+// ==================== USER-SITE ASSIGNMENT ====================
+export const userSites = pgTable("user_sites", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
   siteId: integer("site_id").references(() => sites.id).notNull(),
-  roleInSite: text("role_in_site", { enum: ["admin", "staff"] }).notNull().default("staff"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  roleInSite: roleInSiteEnum("role_in_site").notNull().default("staff"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ==================== CATEGORIES (GLOBAL) ====================
-export const categories = sqliteTable("categories", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const categories = pgTable("categories", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   color: text("color").default("#3b82f6"),
 });
 
 // ==================== LOCATIONS (PER SITE) ====================
-export const locations = sqliteTable("locations", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const locations = pgTable("locations", {
+  id: serial("id").primaryKey(),
   siteId: integer("site_id").references(() => sites.id),
   name: text("name").notNull(),
   description: text("description"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ==================== RACKS (PER SITE) ====================
-export const racks = sqliteTable("racks", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const racks = pgTable("racks", {
+  id: serial("id").primaryKey(),
   siteId: integer("site_id").references(() => sites.id),
   name: text("name").notNull(),
   zone: text("zone"),
   totalU: integer("total_u").default(42),
   location: text("location"),
   locationId: integer("location_id").references(() => locations.id),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ==================== BRANDS (GLOBAL) ====================
-export const brands = sqliteTable("brands", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const brands = pgTable("brands", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   logoPath: text("logo_path"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ==================== DEVICES (PER SITE) ====================
-export const devices = sqliteTable("devices", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const devices = pgTable("devices", {
+  id: serial("id").primaryKey(),
   siteId: integer("site_id").references(() => sites.id),
   categoryId: integer("category_id").references(() => categories.id).notNull(),
   name: text("name").notNull(),
@@ -89,57 +100,57 @@ export const devices = sqliteTable("devices", {
   ipAddress: text("ip_address"),
   description: text("description"),
   photoPath: text("photo_path"),
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  isActive: boolean("is_active").default(true),
 });
 
 // ==================== CHECKLIST ENTRIES (PER SITE) ====================
-export const checklistEntries = sqliteTable("checklist_entries", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const checklistEntries = pgTable("checklist_entries", {
+  id: serial("id").primaryKey(),
   siteId: integer("site_id").references(() => sites.id),
   userId: integer("user_id").references(() => users.id).notNull(),
   checkDate: text("check_date").notNull(),
   checkTime: text("check_time").notNull(),
-  shift: text("shift", { enum: ["Pagi", "Siang", "Malam"] }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  shift: shiftEnum("shift").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const checklistItems = sqliteTable("checklist_items", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const checklistItems = pgTable("checklist_items", {
+  id: serial("id").primaryKey(),
   entryId: integer("entry_id").references(() => checklistEntries.id).notNull(),
   deviceId: integer("device_id").references(() => devices.id).notNull(),
-  status: text("status", { enum: ["OK", "Warning", "Error"] }).notNull(),
+  status: statusEnum("status").notNull(),
   remarks: text("remarks"),
   photoPath: text("photo_path"),
 });
 
 // ==================== VLANS (PER SITE) ====================
-export const vlans = sqliteTable("vlans", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const vlans = pgTable("vlans", {
+  id: serial("id").primaryKey(),
   siteId: integer("site_id").references(() => sites.id),
   vlanId: integer("vlan_id").notNull(),
   name: text("name").notNull(),
   subnet: text("subnet"),
   description: text("description"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ==================== NETWORK PORTS (PER SITE via device) ====================
-export const networkPorts = sqliteTable("network_ports", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const networkPorts = pgTable("network_ports", {
+  id: serial("id").primaryKey(),
   deviceId: integer("device_id").references(() => devices.id).notNull(),
   portName: text("port_name").notNull(),
   macAddress: text("mac_address"),
   ipAddress: text("ip_address"),
-  portMode: text("port_mode", { enum: ["Access", "Trunk", "Routed", "LACP"] }),
+  portMode: portModeEnum("port_mode"),
   vlanId: integer("vlan_id").references(() => vlans.id),
   trunkVlans: text("trunk_vlans"),
-  status: text("status", { enum: ["Active", "Inactive", "Down"] }),
-  speed: text("speed", { enum: ["10/100M", "1G", "10G", "25G", "40G", "100G", "Auto"] }),
-  mediaType: text("media_type", { enum: ["Copper (RJ45)", "Fiber (SFP/SFP+)", "Twinax (DAC)"] }),
+  status: portStatusEnum("status"),
+  speed: speedEnum("speed"),
+  mediaType: mediaTypeEnum("media_type"),
   connectedToDeviceId: integer("connected_to_device_id").references(() => devices.id),
-  connectedToPortId: integer("connected_to_port_id").references((): AnySQLiteColumn => networkPorts.id),
+  connectedToPortId: integer("connected_to_port_id").references((): AnyPgColumn => networkPorts.id),
   description: text("description"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ==================== RELATIONS ====================
@@ -271,11 +282,11 @@ export const networkPortsRelations = relations(networkPorts, ({ one }) => ({
   }),
 }));
 
-// ==================== GLOBAL SETTINGS (NEW) ====================
-export const globalSettings = sqliteTable("global_settings", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+// ==================== GLOBAL SETTINGS ====================
+export const globalSettings = pgTable("global_settings", {
+  id: serial("id").primaryKey(),
   appName: text("app_name").notNull().default("DataGuard"),
   logoPath: text("logo_path"),
   faviconPath: text("favicon_path"),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
