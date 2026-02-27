@@ -35,8 +35,8 @@ try {
     $dbName = "dccheck"
 
     # Redirection 2>$null agar PS tidak membangkitkan exception karena stderr
-    $fetchedUser = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_USER 2>$null")
-    $fetchedName = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_DB 2>$null")
+    $fetchedUser = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_USER 2>`$null")
+    $fetchedName = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_DB 2>`$null")
     
     if ($fetchedUser) { $dbUser = $fetchedUser.Trim() }
     if ($fetchedName) { $dbName = $fetchedName.Trim() }
@@ -68,7 +68,7 @@ $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $backupFile = "$backupDir/db_backup_$timestamp.sql"
 
 # Cek apakah container db sedang berjalan. (Abaikan stderr dengan 2>$null untuk mencegah NativeCommandError)
-$dbRunning = Invoke-Expression "$composeCmd ps 2>$null" | Select-String -Pattern "db" -Quiet
+$dbRunning = Invoke-Expression "$composeCmd ps 2>`$null" | Select-String -Pattern "db" -Quiet
 
 if ($dbRunning) {
     Invoke-Expression "$composeCmd exec -T db pg_dump -U $dbUser $dbName > `"$backupFile`" 2>`$null"
