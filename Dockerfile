@@ -4,21 +4,21 @@ FROM node:20-alpine AS base
 # Install dependensi untuk build (termasuk libc opsional untuk Alpine)
 RUN apk add --no-cache libc6-compat python3 make g++
 
-# 1. Install dependencies
-FROM base AS deps
+# 1. Install dependencies & Build (Digabung jadi satu tahap untuk menghindari bug Podman)
+FROM base AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
-
-# 2. Build aplikasi
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Environment flag untuk mencegah error lint/typescript saat build
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
+
+# Workaround Bug Podman Windows (Unexpected EOF): 
+# Memindahkan 30,000+ file node_modules antar stage menyebabkan Podman WSL crash.
+# Solusinya: Bungkus menjadi SATU file tarball.
+RUN tar -cf runner_deps.tar node_modules
 
 # 3. Production image, hanya copy file hasil kompilasi
 FROM base AS runner
@@ -63,9 +63,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/db ./db
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
 # KARENA `drizzle-kit` dan `tsx` merupakan devDependencies, kita perlu mengcopy node_modules
-# bawaan builder ager command `npm run db:push` dan `npm run seed:users` bisa dieksekusi 
-# oleh admin di server production.
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+# bypass bug COPY Podman Windows dengan memindahkan format TAR lalu mengekstraknya di dalam image
+COPY --from=builder --chown=nextjs:nodejs /app/runner_deps.tar ./
+RUN tar -xf runner_deps.tar && rm runner_deps.tar && chown -R nextjs:nodejs ./node_modules
 
 # Switch ke user non-root
 USER nextjs
