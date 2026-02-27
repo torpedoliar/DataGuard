@@ -1,62 +1,55 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
 
 // === LAZY SINGLETON PATTERN ===
-// Pool dibuat HANYA saat pertama kali `db` diakses (runtime),
+// Pool & Drizzle instance dibuat HANYA saat pertama kali `db` diakses (runtime),
 // BUKAN saat module di-import (build time).
-// Ini krusial karena Next.js standalone meng-evaluate module-level code saat BUILD,
-// di mana environment variables belum tersedia.
 
-let _pool: Pool | null = null;
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: NodePgDatabase<typeof schema> | null = null;
 
-/**
- * Membangun DATABASE_URL dari komponen individual ATAU langsung dari env var.
- * Menggunakan komponen individual (DB_HOST, DB_USER, dll) lebih aman karena
- * menghindari masalah URL-encoding karakter spesial (!, @, #) di YAML/Shell.
- */
-function buildDatabaseUrl(): string {
-    // Prioritas 1: Gunakan DATABASE_URL jika sudah lengkap
-    if (process.env.DATABASE_URL) {
-        return process.env.DATABASE_URL;
-    }
+function getDb(): NodePgDatabase<typeof schema> {
+    if (!_db) {
+        // Build DATABASE_URL dari komponen individual atau gunakan langsung
+        let url = process.env.DATABASE_URL;
 
-    // Prioritas 2: Compose dari komponen individual
-    const host = process.env.DB_HOST;
-    const port = process.env.DB_PORT || '5432';
-    const user = process.env.DB_USER;
-    const password = process.env.DB_PASSWORD;
-    const name = process.env.DB_NAME;
+        if (!url) {
+            const host = process.env.DB_HOST;
+            const port = process.env.DB_PORT || '5432';
+            const user = process.env.DB_USER;
+            const password = process.env.DB_PASSWORD;
+            const name = process.env.DB_NAME;
 
-    if (host && user && password && name) {
-        // encodeURIComponent menangani karakter spesial (!, @, #) secara otomatis
-        const encodedPassword = encodeURIComponent(password);
-        return `postgresql://${user}:${encodedPassword}@${host}:${port}/${name}`;
-    }
-
-    throw new Error(
-        'Database connection not configured! Set either:\n' +
-        '  - DATABASE_URL environment variable, OR\n' +
-        '  - DB_HOST, DB_USER, DB_PASSWORD, DB_NAME environment variables\n' +
-        'Check docker-compose.yml or .env file.'
-    );
-}
-
-function getPool() {
-    if (!_pool) {
-        const connectionString = buildDatabaseUrl();
-        _pool = new Pool({ connectionString });
-    }
-    return _pool;
-}
-
-// Proxy: setiap kali `db` diakses, pastikan Pool sudah dibuat dengan env vars runtime
-export const db = new Proxy({} as ReturnType<typeof drizzle>, {
-    get(_target, prop, receiver) {
-        if (!_db) {
-            _db = drizzle(getPool(), { schema });
+            if (host && user && password && name) {
+                const encodedPassword = encodeURIComponent(password);
+                url = `postgresql://${user}:${encodedPassword}@${host}:${port}/${name}`;
+            } else {
+                throw new Error(
+                    'Database connection not configured! Set either:\n' +
+                    '  - DATABASE_URL, OR\n' +
+                    '  - DB_HOST, DB_USER, DB_PASSWORD, DB_NAME'
+                );
+            }
         }
-        return Reflect.get(_db, prop, receiver);
-    },
-});
+
+        const pool = new Pool({ connectionString: url });
+        _db = drizzle(pool, { schema });
+    }
+    return _db;
+}
+
+// Export sebagai getter agar setiap akses melewati lazy init
+// Menggunakan defineProperty agar TypeScript tahu tipe-nya
+export const db: NodePgDatabase<typeof schema> = new Proxy(
+    {} as NodePgDatabase<typeof schema>,
+    {
+        get(_target, prop, receiver) {
+            const instance = getDb();
+            const value = (instance as any)[prop];
+            if (typeof value === 'function') {
+                return value.bind(instance);
+            }
+            return value;
+        },
+    }
+);
