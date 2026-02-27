@@ -17,13 +17,11 @@ Write-Host "  DC-Check System - Production Update" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ---- Detect compose command ----
+# ---- Ensure docker-compose is available ----
 $composeCmd = "docker-compose"
-if (Get-Command podman-compose -ErrorAction SilentlyContinue) {
-    $composeCmd = "podman-compose"
-}
-elseif (-not (Get-Command docker-compose -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: Neither docker-compose nor podman-compose could be found." -ForegroundColor Red
+if (-not (Get-Command docker-compose -ErrorAction SilentlyContinue)) {
+    Write-Host "ERROR: docker-compose could not be found." -ForegroundColor Red
+    Write-Host "Please ensure Docker Desktop or Rancher Desktop is running." -ForegroundColor Yellow
     exit 1
 }
 Write-Host "Using: $composeCmd" -ForegroundColor DarkGray
