@@ -60,10 +60,19 @@ Jalankan perintah ini di **PowerShell Administrator** pada server Anda:
 
 > **Catatan:** IP virtual dari WSL2 berubah setiap kali Windows/WSL di-restart. Dengan parameter `-InstallTask`, Windows akan otomatis menjalankan script pencari IP ini secara sembunyi-sembunyi saat server menyala, sehingga Anda tidak perlu repot lagi!
 
+### ⚠️ Agar Podman Auto-Start Saat Windows Server Restart
 
-> ```
+Secara bawaan, Podman Machine tidak akan menyala otomatis jika server Windows di-restart hingga Administrator login dan membuka aplikasi Podman Desktop. Untuk server, ini merepotkan.
 
-Setelah itu, aplikasi bisa diakses dari komputer lain via `http://IP_SERVER:3001`.
+**Solusi Otomatis:**
+Jalankan script PowerShell ini (sebagai Administrator) untuk membuat Task Scheduler yang menjalankan `podman machine start` dan `podman-compose up -d` di background setiap kali server Windows baru menyala (tanpa perlu login):
+
+```powershell
+.\scripts\setup-autostart.ps1
+```
+*(Anda mungkin diminta memasukkan password Administrator Windows untuk memberikan izin "Run whether user is logged on or not" di belakang layar).*
+
+Setelah kedua setup (PortProxy dan Autostart) ini ditambahkan, server DC-Check Anda sepenuhnya **Tahan-Restart**. Aplikasi akan kembali online di `http://IP_SERVER:3001` tak lama setelah server menyala!
 
 ### 2. Migrasi Skema Database (Wajib untuk pertama kali)
 
