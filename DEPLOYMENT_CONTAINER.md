@@ -41,23 +41,22 @@ Tunggu beberapa saat hingga status kedua servis menjadi `Started`/`Running`. Apl
 ### ⚠️ Khusus Podman di Windows — Akses via IP Server
 
 > **Perbedaan penting Podman vs Docker di Windows:**
-> Podman berjalan di dalam VM (WSL2), sehingga port forwarding **hanya di-map ke `localhost`**. Artinya, Anda bisa mengakses `http://localhost:3001` dari server itu sendiri, tapi **TIDAK bisa** dari komputer lain via IP server (misal `http://192.168.x.x:3001`).
+> Podman berjalan di dalam VM (WSL2), sehingga port forwarding **hanya di-map ke IP dinamis internal WSL**. Artinya, Anda bisa mengakses `http://localhost:3001` dari server itu sendiri, tapi **TIDAK bisa** dari komputer lain via IP server, karena portproxy Windows perlu diarahkan ke IP virtual WSL tersebut.
 >
 > Docker Desktop tidak memiliki masalah ini karena memiliki network driver terintegrasi yang otomatis binding ke semua interface.
 
-**Solusi:** Jalankan perintah berikut di **PowerShell Administrator** pada server Windows:
+**Solusi Otomatis:**
+Kami telah menyediakan script PowerShell untuk secara dinamis mendeteksi IP WSL terbaru dan menghubungkannya ke Windows Server.
+
+Jalankan perintah ini di **PowerShell Administrator** pada server Anda:
 
 ```powershell
-# Forward port aplikasi web
-netsh interface portproxy add v4tov4 listenport=3001 listenaddress=0.0.0.0 connectport=3001 connectaddress=127.0.0.1
-
-# Forward port database (opsional, untuk akses pgAdmin/DBeaver dari luar)
-netsh interface portproxy add v4tov4 listenport=3002 listenaddress=0.0.0.0 connectport=3002 connectaddress=127.0.0.1
+# Jalankan script ini setiap kali server Windows atau Podman direstart:
+.\scripts\setup-portproxy.ps1
 ```
 
-> Perintah ini bersifat **persisten** (tetap aktif meskipun server di-restart). Untuk menghapus:
-> ```powershell
-> netsh interface portproxy delete v4tov4 listenport=3001 listenaddress=0.0.0.0
+> **Catatan:** IP virtual dari WSL2 berubah setiap kali Windows/WSL di-restart. Script ini mencari IP WSL2 terbaru dan mendaftarkan `netsh interface portproxy` secara otomatis untuk port `3001` (App) dan `3002` (Database).
+
 > ```
 
 Setelah itu, aplikasi bisa diakses dari komputer lain via `http://IP_SERVER:3001`.
