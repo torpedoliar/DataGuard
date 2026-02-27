@@ -50,12 +50,35 @@ if ($InstallTask) {
 
 Write-Host "Mencari IP dari Podman Machine WSL2..." -ForegroundColor Cyan
 
-# Ambil IP spesifik dari instance WSL Podman (biasanya `podman-machine-default`)
-$wslIp = (wsl -d podman-machine-default -- ip -4 addr show eth0 | Select-String -Pattern "inet ([\d\.]+)/").Matches.Groups[1].Value
+$wslIp = $null
+
+# Fungsi pembantu untuk ekstrak IP dari output WSL safely
+function Get-WslIp ($wslName) {
+    try {
+        if ($wslName) {
+            $output = wsl -d $wslName -- ip -4 addr show eth0 2>$null
+        }
+        else {
+            $output = wsl -- ip -4 addr show eth0 2>$null
+        }
+        
+        if ($output) {
+            $match = $output | Select-String -Pattern "inet ([\d\.]+)/"
+            if ($match -and $match.Matches.Count -gt 0) {
+                return $match.Matches[0].Groups[1].Value
+            }
+        }
+    }
+    catch {}
+    return $null
+}
+
+# Coba ambil dari podman-machine-default
+$wslIp = Get-WslIp "podman-machine-default"
 
 if (-not $wslIp) {
-    # Fallback ke IP default WSL jika spesifik tidak ditemukan
-    $wslIp = (wsl -- ip -4 addr show eth0 | Select-String -Pattern "inet ([\d\.]+)/").Matches.Groups[1].Value
+    # Fallback ke default WSL
+    $wslIp = Get-WslIp $null
 }
 
 if (-not $wslIp) {
