@@ -13,8 +13,8 @@ Semuanya dikoordinasikan secara otomatis oleh file `docker-compose.yml`.
 ## 📋 Prasyarat
 
 Sebelum memulai, pastikan server/komputer Anda sudah menginstal salah satu dari perangkat lunak berikut:
-- **Docker** dan **Docker Compose**
-- *atau* **Podman** dan **Podman Compose** (disarankan bagi pengguna Red Hat/Fedora/Rocky Linux)
+- **Docker Desktop** (Disarankan untuk Windows Server)
+- *atau* **Rancher Desktop** (Pilih engine `dockerd (moby)` saat instalasi)
 
 ---
 
@@ -24,55 +24,27 @@ Sebelum memulai, pastikan server/komputer Anda sudah menginstal salah satu dari 
 
 Buka terminal di dalam folder utama project ini, lalu jalankan perintah penyalaan kontainer:
 
-**Jika menggunakan Docker:**
 ```bash
 docker-compose up -d --build
-```
-
-**Jika menggunakan Podman:**
-```bash
-podman-compose up -d --build
 ```
 > Parameter `-d` berarti menjalankan dalam mode *detached* (berjalan di *background*).
 > Parameter `--build` memastikan Next.js di-compile ulanng menjadi image lokal jika ada perubahan kode.
 
 Tunggu beberapa saat hingga status kedua servis menjadi `Started`/`Running`. Aplikasi sekarang sudah berjalan dan dapat diakses melalui `http://localhost:3001`.
 
-### ⚠️ Khusus Podman di Windows — Akses via IP Server
+### ⚠️ Agar Docker Auto-Start Saat Windows Server Restart
 
-> **Perbedaan penting Podman vs Docker di Windows:**
-> Podman berjalan di dalam VM (WSL2), sehingga port forwarding **hanya di-map ke IP dinamis internal WSL**. Artinya, Anda bisa mengakses `http://localhost:3001` dari server itu sendiri, tapi **TIDAK bisa** dari komputer lain via IP server, karena portproxy Windows perlu diarahkan ke IP virtual WSL tersebut.
->
-> Docker Desktop tidak memiliki masalah ini karena memiliki network driver terintegrasi yang otomatis binding ke semua interface.
+Secara bawaan, Docker UI / Rancher Desktop mungkin terikat pada sesi User Login Windows dan mati ketika server di-restart (sebelum login masuk Desktop).
 
-**Solusi Otomatis:**
-Kami telah menyediakan script PowerShell untuk secara dinamis mendeteksi IP WSL terbaru dan menghubungkannya ke Windows Server.
-
-Jalankan perintah ini di **PowerShell Administrator** pada server Anda:
-
-```powershell
-# Jalankan script ini untuk langsung mengaktifkan port proxy:
-.\scripts\setup-portproxy.ps1
-
-# JALANKAN INI AGAR SCRIPT BERJALAN OTOMATIS SETIAP KALI SERVER RESTART:
-.\scripts\setup-portproxy.ps1 -InstallTask
-```
-
-> **Catatan:** IP virtual dari WSL2 berubah setiap kali Windows/WSL di-restart. Dengan parameter `-InstallTask`, Windows akan otomatis menjalankan script pencari IP ini secara sembunyi-sembunyi saat server menyala, sehingga Anda tidak perlu repot lagi!
-
-### ⚠️ Agar Podman Auto-Start Saat Windows Server Restart
-
-Secara bawaan, Podman Machine tidak akan menyala otomatis jika server Windows di-restart hingga Administrator login dan membuka aplikasi Podman Desktop. Untuk server, ini merepotkan.
-
-**Solusi Otomatis:**
-Jalankan script PowerShell ini (sebagai Administrator) untuk membuat Task Scheduler yang menjalankan `podman machine start` dan `podman-compose up -d` di background setiap kali server Windows baru menyala (tanpa perlu login):
+**Solusi Otomatis Background Mode:**
+Jalankan script PowerShell ini (sebagai Administrator) untuk membuat Task Scheduler yang menjalankan `docker-compose up -d` di background setiap kali server Windows baru menyala (tanpa perlu login Desktop sekalipun):
 
 ```powershell
 .\scripts\setup-autostart.ps1
 ```
 *(Anda mungkin diminta memasukkan password Administrator Windows untuk memberikan izin "Run whether user is logged on or not" di belakang layar).*
 
-Setelah kedua setup (PortProxy dan Autostart) ini ditambahkan, server DC-Check Anda sepenuhnya **Tahan-Restart**. Aplikasi akan kembali online di `http://IP_SERVER:3001` tak lama setelah server menyala!
+Setelah setup ini ditambahkan, server DC-Check Anda sepenuhnya **Tahan-Restart**. Aplikasi akan kembali online di `http://IP_SERVER:3001` tak lama setelah server menyala!
 
 ### 2. Migrasi Skema Database (Wajib untuk pertama kali)
 
@@ -83,11 +55,6 @@ Anda perlu mengeksekusi sinkronisasi skema (`db:push`) ke dalam kontainer Next.j
 **Untuk Docker:**
 ```bash
 docker exec -it dccheck_app npm run db:push
-```
-
-**Untuk Podman:**
-```bash
-podman exec -it dccheck_app npm run db:push
 ```
 Jika diminta konfirmasi, tekan `y` lalu `Enter`.
 
@@ -100,11 +67,6 @@ Jalankan perintah ini untuk memasukkan *seed data*:
 **Untuk Docker:**
 ```bash
 docker exec -it dccheck_app npm run seed:users
-```
-
-**Untuk Podman:**
-```bash
-podman exec -it dccheck_app npm run seed:users
 ```
 
 **Berhasil!** Sekarang Anda dapat membuka `http://localhost:3001` di browser dan masuk menggunakan:
@@ -120,7 +82,6 @@ podman exec -it dccheck_app npm run seed:users
 Untuk melihat baris-log yang dihasilkan oleh *web server* Next.js secara *real-time*:
 
 **Docker:** `docker logs -f dccheck_app`
-**Podman:** `podman logs -f dccheck_app`
 
 ### Mematikan / Menghentikan Servis
 
@@ -133,7 +94,6 @@ docker-compose stop
 Jika Anda ingin **mematikan total** beserta jaringan interkoneksi (*Network Bridge*) nya (Volume / Data TIDAK akan terhapus):
 ```bash
 docker-compose down
-# atau podman-compose down
 ```
 
 ### Mengakses Basis Data via Klien Eksternal
@@ -157,8 +117,6 @@ Jika suatu saat Anda benar-benar inign mereset semua dari nol, jalankan:
 ```bash
 # PERINGATAN! Ini akan menghapus data permanen
 docker-compose down -v
-# atau
-podman-compose down -v
 ```
 
 ### Mengganti Password Database

@@ -1,8 +1,8 @@
 # ================================================================
-# SETUP-AUTOSTART.PS1 - Script Menjalankan Podman Otomatis di Background
+# SETUP-AUTOSTART.PS1 - Script Menjalankan Docker Otomatis di Background
 # ================================================================
 # Script ini akan membuat Scheduled Task di Windows yang memaksa
-# 'podman machine start' dan 'podman-compose up -d' berjalan pada 
+# 'docker-compose up -d' berjalan pada 
 # saat server Windows baru menyala, bahkan tanpa Administrator login!
 
 $ErrorActionPreference = "Stop"
@@ -13,33 +13,31 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }
 
-$taskName = "DC-Check-Podman-Autostart"
+$taskName = "DC-Check-Docker-Autostart"
 $projectDir = (Get-Item .).FullName
 $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 
 Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host " SETUP AUTO-START PODMAN (WINDOWS SERVER)" -ForegroundColor Cyan
+Write-Host " SETUP AUTO-START DOCKER (WINDOWS SERVER)" -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host "User pendeteksi: $currentUser"
 Write-Host "Direktori Kerja: $projectDir"
 Write-Host ""
 
-Write-Host "Mendaftarkan Podman Autostart ke Task Scheduler..." -ForegroundColor Yellow
+Write-Host "Mendaftarkan Docker Autostart ke Task Scheduler..." -ForegroundColor Yellow
 
 # Hapus task lama jika ada
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
-# Karena Podman & WSL terikat pada User (bukan SYSTEM), kita buat file batch perantara
+# Karena Docker Engine / Docker Desktop terikat pada User (bukan SYSTEM secara default), kita buat file batch perantara
 $batFile = "$projectDir\scripts\runner.bat"
 $batContent = @"
 @echo off
-echo Starting Podman Machine...
-podman machine start
-echo Waiting for machine to initialize...
-timeout /t 15 /nobreak
+echo Waiting for Docker Engine to initialize...
+timeout /t 20 /nobreak
 echo Starting DC-Check application...
 cd /d "$projectDir"
-podman-compose up -d
+docker-compose up -d
 "@
 Set-Content -Path $batFile -Value $batContent
 Write-Host "File perantara terbuat: $batFile" -ForegroundColor DarkGray
@@ -62,7 +60,7 @@ Write-Host "untuk mengizinkan aplikasi berjalan di background saat Server Restar
 try {
     # Minta sistem register dengan pop-up credential atau dialog CLI prompt Windows
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
-    Write-Host "✅ Selesai! Podman Machine dan App sekarang akan AUTO-START saat server nyala." -ForegroundColor Green
+    Write-Host "✅ Selesai! Docker Compose dan App sekarang akan AUTO-START saat server nyala." -ForegroundColor Green
     Write-Host "Bapak tidak perlu login ke Desktop lagi." -ForegroundColor Green
 }
 catch {
