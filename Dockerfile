@@ -16,11 +16,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # Workaround Bug Podman Windows (Unexpected EOF): 
-# Memindahkan 30,000+ file node_modules antar stage menyebabkan Podman WSL crash.
-# Solusinya: Bungkus menjadi SATU file tarball.
-RUN tar -cf runner_deps.tar node_modules
+# Memindahkan 30,000+ file (node_modules & standalone) antar stage menyebabkan Podman WSL crash.
+# Solusinya: Bungkus seluruh hasil build menjadi file tarball UTUH.
+RUN touch version.json # pastikan ada agar tar tidak fail
+RUN cd .next/standalone && tar -cf /app/standalone.tar .
+RUN tar -cf /app/assets.tar public .next/static version.json package.json drizzle.config.ts db scripts node_modules
 
-# 3. Production image, hanya copy file hasil kompilasi
+# 2. Production image, hanya copy file hasil kompilasi (dalam bentuk tar)
 FROM base AS runner
 WORKDIR /app
 
@@ -39,38 +41,24 @@ ENV DB_PORT="5432"
 ENV DB_USER="administrator"
 ENV DB_PASSWORD="Arabika1927"
 ENV DB_NAME="dccheck"
-ENV UPLOAD_DIR="./public/uploads"
 
-# Buat folder uploads dan set hak akses sebelum switch user
-RUN mkdir -p ./public/uploads
-RUN chown -R nextjs:nodejs ./public
+# Ekstrak tarball hasil build
+# Lakukan sebagai root agar ownership dapat di-chown dengan efisien
+COPY --from=builder /app/standalone.tar ./
+COPY --from=builder /app/assets.tar ./
 
-COPY --from=builder /app/public ./public
+RUN tar -xf standalone.tar && rm standalone.tar
+RUN tar -xf assets.tar && rm assets.tar
 
-# Folder standalone meminimalisir node_modules yang dibutuhkan
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Copy version.json agar bisa dibaca oleh server action checkSystemUpdate()
-COPY --from=builder --chown=nextjs:nodejs /app/version.json ./version.json
-
-# ============================================================
-# MIGRATION & SEED TOOLKIT
-# ============================================================
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
-COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.ts ./drizzle.config.ts
-COPY --from=builder --chown=nextjs:nodejs /app/db ./db
-COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
-
-# KARENA `drizzle-kit` dan `tsx` merupakan devDependencies, kita perlu mengcopy node_modules
-# bypass bug COPY Podman Windows dengan memindahkan format TAR lalu mengekstraknya di dalam image
-COPY --from=builder --chown=nextjs:nodejs /app/runner_deps.tar ./
-RUN tar -xf runner_deps.tar && rm runner_deps.tar && chown -R nextjs:nodejs ./node_modules
+# Persiapkan folder public uploads dan pastikan hak akses untuk user nextjs 
+RUN mkdir -p public/uploads
+RUN chown -R nextjs:nodejs /app
 
 # Switch ke user non-root
 USER nextjs
 
 EXPOSE 3001
 
-# Perintah menjalankan web server
+# Perintah menjalankan web server (berasal dari dalam standalone.tar)
 CMD ["node", "server.js"]
+
