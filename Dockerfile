@@ -37,7 +37,7 @@ RUN adduser --system --uid 1001 nextjs
 ENV DB_HOST="db"
 ENV DB_PORT="5432"
 ENV DB_USER="administrator"
-ENV DB_PASSWORD="Arabika1927!"
+ENV DB_PASSWORD="Arabika1927"
 ENV DB_NAME="dccheck"
 ENV UPLOAD_DIR="./public/uploads"
 

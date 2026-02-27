@@ -135,7 +135,7 @@ Anda bisa membuka aplikasi seperti **DBeaver**, **TablePlus**, atau **pgAdmin** 
 - **Port:** `3002`
 - **Database:** `dccheck`
 - **Username:** `administrator`
-- **Password:** `Arabika1927!`
+- **Password:** `Arabika1927`
 
 ### Menghapus Bersih Database (Kehilangan Data Permanen!)
 

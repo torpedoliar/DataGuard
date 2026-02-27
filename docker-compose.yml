@@ -13,7 +13,7 @@ services:
       DB_HOST: db
       DB_PORT: "5432"
       DB_USER: administrator
-      DB_PASSWORD: "Arabika1927!"
+      DB_PASSWORD: "Arabika1927"
       DB_NAME: dccheck
       SESSION_SECRET: fe5cae864dfd8e1445580fdd5b1c5f9e
       PORT: "3001"
@@ -32,7 +32,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: administrator
-      POSTGRES_PASSWORD: "Arabika1927!"
+      POSTGRES_PASSWORD: "Arabika1927"
       POSTGRES_DB: dccheck
     ports:
       - "0.0.0.0:3002:5432"
