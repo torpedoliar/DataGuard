@@ -30,14 +30,21 @@ Write-Host "Using: $composeCmd" -ForegroundColor DarkGray
 
 # ---- Read DB credentials from running container ----
 try {
-    $dbUser = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_USER 2>&1").Trim()
-    $dbName = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_DB 2>&1").Trim()
+    # Ambil nilai default agar tidak null jika exec gagal
+    $dbUser = "administrator"
+    $dbName = "dccheck"
+
+    # Redirection 2>$null agar PS tidak membangkitkan exception karena stderr
+    $fetchedUser = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_USER 2>$null")
+    $fetchedName = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_DB 2>$null")
+    
+    if ($fetchedUser) { $dbUser = $fetchedUser.Trim() }
+    if ($fetchedName) { $dbName = $fetchedName.Trim() }
 }
 catch {
     $dbUser = "administrator"
     $dbName = "dccheck"
 }
-if ([string]::IsNullOrWhiteSpace($dbUser)) { $dbUser = "administrator" }
 if ([string]::IsNullOrWhiteSpace($dbName)) { $dbName = "dccheck" }
 
 # Validasi folder project
@@ -60,8 +67,8 @@ if (-not (Test-Path $backupDir)) {
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $backupFile = "$backupDir/db_backup_$timestamp.sql"
 
-# Cek apakah container db sedang berjalan
-$dbRunning = Invoke-Expression "$composeCmd ps db 2>&1" | Select-String -Pattern "running|Up" -Quiet
+# Cek apakah container db sedang berjalan. (Abaikan stderr dengan 2>$null untuk mencegah NativeCommandError)
+$dbRunning = Invoke-Expression "$composeCmd ps 2>$null" | Select-String -Pattern "db" -Quiet
 
 if ($dbRunning) {
     Invoke-Expression "$composeCmd exec -T db pg_dump -U $dbUser $dbName > `"$backupFile`" 2>`$null"
@@ -132,7 +139,8 @@ Write-Host ""
 Write-Host "[5/5] Syncing database schema..." -ForegroundColor Yellow
 Write-Host "      (drizzle push is additive - it only ADDS new columns/tables)" -ForegroundColor DarkGray
 try {
-    Invoke-Expression "$composeCmd exec -T app npx drizzle-kit push 2>&1"
+    # Kita biarkan std err berjalan normal tanpa redirect 2>&1 agar tidak memicu NativeCommandError Exception
+    Invoke-Expression "$composeCmd exec -T app npx drizzle-kit push"
     Write-Host "OK - Database schema synced" -ForegroundColor Green
 }
 catch {
