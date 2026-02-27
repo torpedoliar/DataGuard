@@ -10,14 +10,11 @@ services:
     ports:
       - "0.0.0.0:3001:3001"
     environment:
-      # Database connection — Decomposed agar tidak ada masalah URL encoding
-      # Password dengan karakter spesial (!) akan di-encode otomatis di kode
       DB_HOST: db
       DB_PORT: "5432"
       DB_USER: administrator
       DB_PASSWORD: "Arabika1927!"
       DB_NAME: dccheck
-      # App config
       SESSION_SECRET: fe5cae864dfd8e1445580fdd5b1c5f9e
       PORT: "3001"
       HOSTNAME: "0.0.0.0"
@@ -26,6 +23,8 @@ services:
     depends_on:
       db:
         condition: service_started
+    networks:
+      - dccheck_net
 
   db:
     image: postgres:15-alpine
@@ -39,7 +38,14 @@ services:
       - "0.0.0.0:3002:5432"
     volumes:
       - dccheck_pgdata:/var/lib/postgresql/data
+    networks:
+      - dccheck_net
 
 volumes:
   dccheck_pgdata:
   dccheck_uploads:
+
+
+networks:
+  dccheck_net:
+    driver: bridge
