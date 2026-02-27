@@ -8,8 +8,8 @@ const envSchema = z.object({
   UPLOAD_DIR: z.string().default("./public/uploads"),
   MAX_FILE_SIZE: z.coerce.number().default(5242880),
 
-  // PostgreSQL
-  DATABASE_URL: z.string().default("postgresql://postgres:postgres@localhost:5432/dccheck"),
+  // PostgreSQL — DATABASE_URL opsional, bisa di-compose dari DB_HOST/DB_USER/DB_PASSWORD/DB_NAME
+  DATABASE_URL: z.string().optional(),
 
   // Optional: S3
   AWS_ACCESS_KEY_ID: z.string().optional(),

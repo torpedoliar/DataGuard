@@ -10,13 +10,18 @@ services:
     ports:
       - "0.0.0.0:3001:3001"
     environment:
-      # Password harus URL Encoded (%21) untuk koneksi Drizzle
-      - DATABASE_URL=postgresql://administrator:Arabika1927%21@db:5432/dccheck
-      - SESSION_SECRET=fe5cae864dfd8e1445580fdd5b1c5f9e
-      - PORT=3001
-      - HOSTNAME=0.0.0.0
+      # Database connection — Decomposed agar tidak ada masalah URL encoding
+      # Password dengan karakter spesial (!) akan di-encode otomatis di kode
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927!"
+      DB_NAME: dccheck
+      # App config
+      SESSION_SECRET: fe5cae864dfd8e1445580fdd5b1c5f9e
+      PORT: "3001"
+      HOSTNAME: "0.0.0.0"
     volumes:
-      # Mapping folder uploads agar foto/media persisten dan bisa diakses host
       - dccheck_uploads:/app/public/uploads
     depends_on:
       db:
@@ -28,12 +33,11 @@ services:
     restart: always
     environment:
       POSTGRES_USER: administrator
-      POSTGRES_PASSWORD: Arabika1927!
+      POSTGRES_PASSWORD: "Arabika1927!"
       POSTGRES_DB: dccheck
     ports:
-      - "0.0.0.0:3002:5432" # Akses DB dari luar docker menggunakan IP:3002
+      - "0.0.0.0:3002:5432"
     volumes:
-      # Database storage persistent
       - dccheck_pgdata:/var/lib/postgresql/data
 
 volumes:

@@ -33,9 +33,12 @@ ENV HOSTNAME="0.0.0.0"
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Set environment DB & Upload dir standard
-# Kredensial URL untuk internal antar container. Simbol "!" pada password harus encode (%21)
-ENV DATABASE_URL="postgresql://administrator:Arabika1927%21@db:5432/dccheck"
+# Database connection — decomposed agar tidak ada masalah URL encoding
+ENV DB_HOST="db"
+ENV DB_PORT="5432"
+ENV DB_USER="administrator"
+ENV DB_PASSWORD="Arabika1927!"
+ENV DB_NAME="dccheck"
 ENV UPLOAD_DIR="./public/uploads"
 
 # Buat folder uploads dan set hak akses sebelum switch user
@@ -67,7 +70,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 # Switch ke user non-root
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 3001
 
 # Perintah menjalankan web server
 CMD ["node", "server.js"]

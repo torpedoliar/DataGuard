@@ -155,13 +155,13 @@ Jika Anda ingin mengganti password database PostgreSQL, Anda **wajib mengubah di
 
 **1. `.env`** (untuk development lokal tanpa container)
 ```
-DATABASE_URL=postgresql://administrator:PASSWORD_BARU@localhost:3002/dccheck
+DB_PASSWORD=PASSWORD_BARU
 ```
 
 **2. `docker-compose.yml`** (untuk deployment container)
 ```yaml
 # Di service 'app' → environment
-- DATABASE_URL=postgresql://administrator:PASSWORD_BARU@db:5432/dccheck
+DB_PASSWORD: PASSWORD_BARU
 
 # Di service 'db' → environment
 POSTGRES_PASSWORD: PASSWORD_BARU
@@ -169,7 +169,7 @@ POSTGRES_PASSWORD: PASSWORD_BARU
 
 **3. `Dockerfile`** (default fallback di image)
 ```dockerfile
-ENV DATABASE_URL="postgresql://administrator:PASSWORD_BARU@db:5432/dccheck"
+ENV DB_PASSWORD="PASSWORD_BARU"
 ```
 
 > ⚠️ **PENTING:** PostgreSQL hanya membuat user & password saat **inisialisasi pertama** volume. Jika Anda sudah pernah menjalankan container dengan password lama, Anda **harus menghapus volume data lama** terlebih dahulu agar password baru berlaku:
