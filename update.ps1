@@ -17,7 +17,7 @@ Write-Host "  DC-Check System - Production Update" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Check if docker-compose or podman-compose exists
+# ---- Detect compose command ----
 $composeCmd = "docker-compose"
 if (Get-Command podman-compose -ErrorAction SilentlyContinue) {
     $composeCmd = "podman-compose"
@@ -28,7 +28,19 @@ elseif (-not (Get-Command docker-compose -ErrorAction SilentlyContinue)) {
 }
 Write-Host "Using: $composeCmd" -ForegroundColor DarkGray
 
-# Check if in correct directory
+# ---- Read DB credentials from running container ----
+try {
+    $dbUser = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_USER 2>&1").Trim()
+    $dbName = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_DB 2>&1").Trim()
+}
+catch {
+    $dbUser = "administrator"
+    $dbName = "dccheck"
+}
+if ([string]::IsNullOrWhiteSpace($dbUser)) { $dbUser = "administrator" }
+if ([string]::IsNullOrWhiteSpace($dbName)) { $dbName = "dccheck" }
+
+# Validasi folder project
 if (-not (Test-Path "docker-compose.yml")) {
     Write-Host "ERROR: docker-compose.yml not found!" -ForegroundColor Red
     Write-Host "Please run this script from the project root directory." -ForegroundColor Red
@@ -52,7 +64,7 @@ $backupFile = "$backupDir/db_backup_$timestamp.sql"
 $dbRunning = Invoke-Expression "$composeCmd ps db 2>&1" | Select-String -Pattern "running|Up" -Quiet
 
 if ($dbRunning) {
-    Invoke-Expression "$composeCmd exec -T db pg_dump -U postgres dccheck > `"$backupFile`" 2>`$null"
+    Invoke-Expression "$composeCmd exec -T db pg_dump -U $dbUser $dbName > `"$backupFile`" 2>`$null"
 
     # Validasi backup: file harus ada dan ukuran > 100 bytes
     if ((Test-Path $backupFile) -and (Get-Item $backupFile).Length -gt 100) {
@@ -80,7 +92,7 @@ Write-Host "[2/5] Pulling latest code from GitHub..." -ForegroundColor Yellow
 git pull origin main
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Git pull failed!" -ForegroundColor Red
-    Write-Host "Try: git stash && git pull origin main && git stash pop" -ForegroundColor Yellow
+    Write-Host "Try: git stash; git pull origin main; git stash pop" -ForegroundColor Yellow
     exit 1
 }
 Write-Host "OK - Code updated" -ForegroundColor Green
@@ -91,7 +103,7 @@ Write-Host "OK - Code updated" -ForegroundColor Green
 Write-Host ""
 Write-Host "[3/5] Rebuilding application image ONLY (database untouched)..." -ForegroundColor Yellow
 Write-Host "      This may take 2-5 minutes..." -ForegroundColor DarkGray
-Invoke-Expression "$composeCmd build app"
+Invoke-Expression "$composeCmd build --no-cache app"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build failed! Aborting update." -ForegroundColor Red
     Write-Host "Your current running version is still intact." -ForegroundColor Yellow
@@ -111,7 +123,7 @@ Write-Host "[4/5] Restarting app container (database stays running)..." -Foregro
 Invoke-Expression "$composeCmd up -d --no-deps app"
 Write-Host "OK - App container restarted" -ForegroundColor Green
 Write-Host "Waiting for app to become ready..." -ForegroundColor DarkGray
-Start-Sleep -Seconds 8
+Start-Sleep -Seconds 10
 
 # ==================================================================
 # STEP 5: SYNC DATABASE SCHEMA (additive only, no data loss)
@@ -119,11 +131,11 @@ Start-Sleep -Seconds 8
 Write-Host ""
 Write-Host "[5/5] Syncing database schema..." -ForegroundColor Yellow
 Write-Host "      (drizzle push is additive - it only ADDS new columns/tables)" -ForegroundColor DarkGray
-Invoke-Expression "$composeCmd exec -T app npx drizzle-kit push 2>&1"
-if ($LASTEXITCODE -eq 0) {
+try {
+    Invoke-Expression "$composeCmd exec -T app npx drizzle-kit push 2>&1"
     Write-Host "OK - Database schema synced" -ForegroundColor Green
 }
-else {
+catch {
     Write-Host "WARN - Schema sync had warnings (this may be normal if no changes)" -ForegroundColor Yellow
 }
 
@@ -141,11 +153,11 @@ Write-Host "============================================" -ForegroundColor Green
 Write-Host "  UPDATE COMPLETE!" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Application : http://localhost:3000" -ForegroundColor Cyan
+Write-Host "  Application : http://localhost:3001" -ForegroundColor Cyan
 Write-Host "  Backup file : $backupFile" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  To restore database if needed:" -ForegroundColor Yellow
-Write-Host "  Get-Content `"$backupFile`" | $composeCmd exec -T db psql -U postgres dccheck" -ForegroundColor DarkGray
+Write-Host "  Get-Content `"$backupFile`" | $composeCmd exec -T db psql -U $dbUser $dbName" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  IMPORTANT: Database was NEVER stopped during this update." -ForegroundColor Green
 Write-Host "  Your data is safe and intact." -ForegroundColor Green

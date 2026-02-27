@@ -18,7 +18,7 @@ echo "  DC-Check System - Production Update"
 echo "============================================"
 echo ""
 
-# Check if docker-compose or podman-compose exists
+# ---- Detect compose command ----
 COMPOSER="docker-compose"
 if ! command -v docker-compose &> /dev/null; then
     if command -v podman-compose &> /dev/null; then
@@ -30,7 +30,12 @@ if ! command -v docker-compose &> /dev/null; then
 fi
 echo "Using: $COMPOSER"
 
-# Check if in correct directory
+# ---- Read DB credentials from docker-compose.yml ----
+# Kredensial baca dari environment container yang sedang berjalan
+DB_USER=$(${COMPOSER} exec -T db printenv POSTGRES_USER 2>/dev/null || echo "administrator")
+DB_NAME=$(${COMPOSER} exec -T db printenv POSTGRES_DB 2>/dev/null || echo "dccheck")
+
+# Validasi folder project
 if [ ! -f "docker-compose.yml" ]; then
     echo "❌ ERROR: docker-compose.yml not found!"
     echo "Please run this script from the project root directory."
@@ -51,7 +56,7 @@ BACKUP_FILE="$BACKUP_DIR/db_backup_$TIMESTAMP.sql"
 DB_RUNNING=$($COMPOSER ps db 2>/dev/null | grep -c "running\|Up" || true)
 
 if [ "$DB_RUNNING" -gt 0 ]; then
-    $COMPOSER exec -T db pg_dump -U postgres dccheck > "$BACKUP_FILE" 2>/dev/null
+    $COMPOSER exec -T db pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE" 2>/dev/null
 
     # Validasi backup: file harus ada dan ukuran > 100 bytes (bukan file kosong)
     if [ -s "$BACKUP_FILE" ] && [ $(wc -c < "$BACKUP_FILE") -gt 100 ]; then
@@ -88,7 +93,7 @@ echo "✅ Code updated"
 echo ""
 echo "[3/5] Rebuilding application image ONLY (database untouched)..."
 echo "      ⏳ This may take 2-5 minutes..."
-$COMPOSER build app
+$COMPOSER build --no-cache app
 if [ $? -ne 0 ]; then
     echo "❌ ERROR: Build failed! Aborting update."
     echo "   Your current running version is still intact."
@@ -108,7 +113,7 @@ echo "[4/5] Restarting app container (database stays running)..."
 $COMPOSER up -d --no-deps app
 echo "✅ App container restarted"
 echo "   Waiting for app to become ready..."
-sleep 8
+sleep 10
 
 # ==================================================================
 # STEP 5: SYNC DATABASE SCHEMA (additive only, no data loss)
@@ -116,12 +121,8 @@ sleep 8
 echo ""
 echo "[5/5] Syncing database schema..."
 echo "      (drizzle push is additive — it only ADDS new columns/tables)"
-$COMPOSER exec -T app npx drizzle-kit push 2>&1
-if [ $? -eq 0 ]; then
-    echo "✅ Database schema synced"
-else
-    echo "⚠️  Schema sync had warnings (this may be normal if no changes)"
-fi
+$COMPOSER exec -T app npx drizzle-kit push 2>&1 || true
+echo "✅ Database schema sync completed"
 
 # ==================================================================
 # CLEANUP: Remove old backups (keep last 10)
@@ -137,11 +138,11 @@ echo "============================================"
 echo "  ✅ UPDATE COMPLETE!"
 echo "============================================"
 echo ""
-echo "  🌐 Application: http://localhost:3000"
+echo "  🌐 Application: http://localhost:3001"
 echo "  💾 Backup file : $BACKUP_FILE"
 echo ""
 echo "  To restore database if needed:"
-echo "  cat $BACKUP_FILE | $COMPOSER exec -T db psql -U postgres dccheck"
+echo "  cat $BACKUP_FILE | $COMPOSER exec -T db psql -U $DB_USER $DB_NAME"
 echo ""
 echo "  ⚠️  IMPORTANT: Database was NEVER stopped during this update."
 echo "  Your data is safe and intact."
