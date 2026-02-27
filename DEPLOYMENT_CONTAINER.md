@@ -51,11 +51,15 @@ Kami telah menyediakan script PowerShell untuk secara dinamis mendeteksi IP WSL 
 Jalankan perintah ini di **PowerShell Administrator** pada server Anda:
 
 ```powershell
-# Jalankan script ini setiap kali server Windows atau Podman direstart:
+# Jalankan script ini untuk langsung mengaktifkan port proxy:
 .\scripts\setup-portproxy.ps1
+
+# JALANKAN INI AGAR SCRIPT BERJALAN OTOMATIS SETIAP KALI SERVER RESTART:
+.\scripts\setup-portproxy.ps1 -InstallTask
 ```
 
-> **Catatan:** IP virtual dari WSL2 berubah setiap kali Windows/WSL di-restart. Script ini mencari IP WSL2 terbaru dan mendaftarkan `netsh interface portproxy` secara otomatis untuk port `3001` (App) dan `3002` (Database).
+> **Catatan:** IP virtual dari WSL2 berubah setiap kali Windows/WSL di-restart. Dengan parameter `-InstallTask`, Windows akan otomatis menjalankan script pencari IP ini secara sembunyi-sembunyi saat server menyala, sehingga Anda tidak perlu repot lagi!
+
 
 > ```
 

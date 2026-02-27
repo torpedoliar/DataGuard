@@ -3,6 +3,13 @@
 # ================================================================
 # Jalankan script ini sebagai **Administrator** setiap kali server/WSL direstart
 # atau jika aplikasi Next.js (port 3001) tiba-tiba tidak bisa diakses dari IP LAN.
+#
+# Untuk menginstall script ini agar jalan otomatis tiap restart:
+# .\setup-portproxy.ps1 -InstallTask
+
+param (
+    [switch]$InstallTask
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -11,6 +18,35 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     Write-Warning "Harap jalankan PowerShell script ini sebagai ADMINISTRATOR!"
     exit
 }
+
+# --- BAGIAN INSTALL AUTO-START TASK ---
+if ($InstallTask) {
+    $taskName = "DC-Check-Podman-Proxy"
+    $scriptPath = $MyInvocation.MyCommand.Path
+    
+    Write-Host "Mendaftarkan script ini ke Windows Task Scheduler agar berjalan otomatis saat komputer menyala..." -ForegroundColor Cyan
+    
+    # Hapus task lama jika ada
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+
+    $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`""
+    
+    # Trigger 1: Saat komputer / sistem menyala
+    $trigger1 = New-ScheduledTaskTrigger -AtStartup
+    
+    # Kita butuh privilege tertinggi (Run with highest privileges) agar bisa execute 'netsh'
+    $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -DontStopOnIdleEnd
+
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger1 -Principal $principal -Settings $settings | Out-Null
+    
+    Write-Host "✅ Selesai! Script telah didaftarkan sebagai '$taskName' di Task Scheduler." -ForegroundColor Green
+    Write-Host "Mulai sekarang, proxy IP Podman akan disesuaikan otomatis setiap kali server di-restart." -ForegroundColor Yellow
+    exit
+}
+
+# --- BAGIAN UTAMA (EKSEKUSI PROXY) ---
 
 Write-Host "Mencari IP dari Podman Machine WSL2..." -ForegroundColor Cyan
 
@@ -41,4 +77,4 @@ netsh interface portproxy add v4tov4 listenport=3002 listenaddress=0.0.0.0 conne
 
 Write-Host "✅ Selesai! Aplikasi sekarang seharusnya bisa diakses via IP Windows Server." -ForegroundColor Green
 Write-Host "Contoh: http://192.168.2.3:3001" -ForegroundColor Yellow
-Write-Host "Catatan: Script ini perlu dijalankan lagi jika Windows atau WSL direstart (karena IP WSL berubah)." -ForegroundColor DarkGray
+Write-Host "Catatan: Jalankan dengan parameter -InstallTask jika ingin ini berjalan otomatis setelah restart." -ForegroundColor DarkGray
