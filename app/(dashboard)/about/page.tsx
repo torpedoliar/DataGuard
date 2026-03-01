@@ -26,6 +26,29 @@ export default async function AboutPage() {
 
             {/* Hero */}
             <div className="text-center mb-12">
+
+                {/* ASCII Art Logo */}
+                <div className="mb-8 overflow-x-auto">
+                    <pre className="inline-block text-left font-mono text-[10px] sm:text-xs leading-tight text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.7)] select-none whitespace-pre">{`   _____ ____  ____  _______  __
+  / ___// __ \\/ __ \\/ ____/ |/ /
+ / /   / / / / / / / __/  |   / 
+/ /___/ /_/ / /_/ / /___ /   |  
+\\____/\\____/_____/_____//_/|_|  
+
+    ____  ____                    __         
+   / __ \\/ __ \\___  __________ _/ /_(_)___  ____  ____ _/ /
+  / / / / /_/ / _ \\/ ___/ __ \`/ __/ / __ \\/ __ \\/ __ \`/ / 
+ / /_/ / ____/  __/ /  / /_/ / /_/ / /_/ / / / / /_/ / /  
+ \\____/_/    \\___/_/   \\__,_/\\__/_/\\____/_/ /_/\\__,_/_/   `}</pre>
+                    <p className="mt-3 font-mono text-xs sm:text-sm tracking-[0.25em] text-slate-300">
+                        <span className="text-blue-400 font-bold">[C]</span>ontrol{" "}
+                        <span className="text-blue-400 font-bold">[O]</span>ptimize{" "}
+                        <span className="text-blue-400 font-bold">[D]</span>eploy{" "}
+                        <span className="text-blue-400 font-bold">[E]</span>xecute{" "}
+                        <span className="text-blue-400 font-bold">[X]</span>system
+                    </p>
+                </div>
+
                 <div className="inline-flex items-center justify-center mb-6">
                     {appSettings.logoPath ? (
                         <img src={appSettings.logoPath} alt="Logo" className="h-20 w-auto object-contain" />
@@ -36,12 +59,13 @@ export default async function AboutPage() {
                     )}
                 </div>
                 <h1 className="text-4xl font-bold text-white mb-2">{appSettings.appName}</h1>
-                <p className="text-slate-400 text-lg mb-4">Data Center Monitoring & Audit System</p>
+                <p className="text-slate-400 text-lg mb-4">Data Center Monitoring &amp; Audit System</p>
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm">
                     <Star className="h-3.5 w-3.5" />
                     Version {versionData.version} — Released {versionData.releaseDate}
                 </div>
             </div>
+
 
             {/* Credits Card */}
             <div className="bg-gradient-to-br from-[#111827] to-[#0f172a] border border-slate-700/50 rounded-2xl p-8 mb-8 relative overflow-hidden">
