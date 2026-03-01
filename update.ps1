@@ -19,22 +19,37 @@ Write-Host ""
 
 # ---- Ensure docker-compose is available ----
 $composeCmd = "docker-compose"
-if (-not (Get-Command docker-compose -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: docker-compose could not be found." -ForegroundColor Red
-    Write-Host "Please ensure Docker Desktop or Rancher Desktop is running." -ForegroundColor Yellow
-    exit 1
+if (-not (Get-Command "docker-compose" -ErrorAction SilentlyContinue)) {
+    if (Get-Command "docker" -ErrorAction SilentlyContinue) {
+        # Check if 'docker compose' (V2) works
+        $checkCompose = docker compose version 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $composeCmd = "docker compose"
+        }
+        else {
+            Write-Host "ERROR: docker-compose or 'docker compose' could not be found." -ForegroundColor Red
+            Write-Host "Please ensure Docker Desktop or Rancher Desktop is running." -ForegroundColor Yellow
+            exit 1
+        }
+    }
+    else {
+        Write-Host "ERROR: docker could not be found." -ForegroundColor Red
+        exit 1
+    }
 }
 Write-Host "Using: $composeCmd" -ForegroundColor DarkGray
 
 # ---- Read DB credentials from running container ----
 try {
-    # Ambil nilai default agar tidak null jika exec gagal
+    # Default values
     $dbUser = "administrator"
     $dbName = "dccheck"
 
-    # Redirection 2>$null agar PS tidak membangkitkan exception karena stderr
-    $fetchedUser = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_USER 2>`$null")
-    $fetchedName = (Invoke-Expression "$composeCmd exec -T db printenv POSTGRES_DB 2>`$null")
+    # Use & operator for multi-word commands (like 'docker compose')
+    $cmdParts = $composeCmd.Split(" ")
+    
+    $fetchedUser = & $cmdParts[0] $cmdParts[1..$cmdParts.Length] exec -T db printenv POSTGRES_USER 2>$null
+    $fetchedName = & $cmdParts[0] $cmdParts[1..$cmdParts.Length] exec -T db printenv POSTGRES_DB 2>$null
     
     if ($fetchedUser) { $dbUser = $fetchedUser.Trim() }
     if ($fetchedName) { $dbName = $fetchedName.Trim() }
@@ -65,11 +80,18 @@ if (-not (Test-Path $backupDir)) {
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $backupFile = "$backupDir/db_backup_$timestamp.sql"
 
-# Cek apakah container db sedang berjalan. (Abaikan stderr dengan 2>$null untuk mencegah NativeCommandError)
-$dbRunning = Invoke-Expression "$composeCmd ps 2>`$null" | Select-String -Pattern "db" -Quiet
+# Cek apakah container db sedang berjalan.
+$dbRunning = $false
+try {
+    $psOutput = & $cmdParts[0] $cmdParts[1..$cmdParts.Length] ps 2>$null
+    $dbRunning = $psOutput | Select-String -Pattern "db" -Quiet
+}
+catch {
+    $dbRunning = $false
+}
 
 if ($dbRunning) {
-    Invoke-Expression "$composeCmd exec -T db pg_dump -U $dbUser $dbName > `"$backupFile`" 2>`$null"
+    & $cmdParts[0] $cmdParts[1..$cmdParts.Length] exec -T db pg_dump -U $dbUser $dbName > $backupFile 2>$null
 
     # Validasi backup: file harus ada dan ukuran > 100 bytes
     if ((Test-Path $backupFile) -and (Get-Item $backupFile).Length -gt 100) {
@@ -108,7 +130,7 @@ Write-Host "OK - Code updated" -ForegroundColor Green
 Write-Host ""
 Write-Host "[3/5] Rebuilding application image ONLY (database untouched)..." -ForegroundColor Yellow
 Write-Host "      This may take 2-5 minutes..." -ForegroundColor DarkGray
-Invoke-Expression "$composeCmd build --no-cache app"
+& $cmdParts[0] $cmdParts[1..$cmdParts.Length] build --no-cache app
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build failed! Aborting update." -ForegroundColor Red
     Write-Host "Your current running version is still intact." -ForegroundColor Yellow
@@ -125,7 +147,7 @@ Write-Host "[4/5] Restarting app container (database stays running)..." -Foregro
 
 # Hanya recreate service 'app', bukan seluruh stack
 # Ini memastikan container 'db' TIDAK PERNAH berhenti
-Invoke-Expression "$composeCmd up -d --no-deps app"
+& $cmdParts[0] $cmdParts[1..$cmdParts.Length] up -d --no-deps app
 Write-Host "OK - App container restarted" -ForegroundColor Green
 Write-Host "Waiting for app to become ready..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 10
@@ -137,12 +159,11 @@ Write-Host ""
 Write-Host "[5/5] Syncing database schema..." -ForegroundColor Yellow
 Write-Host "      (drizzle push is additive - it only ADDS new columns/tables)" -ForegroundColor DarkGray
 try {
-    # Kita biarkan std err berjalan normal tanpa redirect 2>&1 agar tidak memicu NativeCommandError Exception
-    Invoke-Expression "$composeCmd exec -T app npx drizzle-kit push"
+    & $cmdParts[0] $cmdParts[1..$cmdParts.Length] exec -T app npx drizzle-kit push
     Write-Host "OK - Database schema synced" -ForegroundColor Green
 }
 catch {
-    Write-Host "WARN - Schema sync had warnings (this may be normal if no changes)" -ForegroundColor Yellow
+    Write-Host "WARN - Schema sync had warnings or failed. Check logs above." -ForegroundColor Yellow
 }
 
 # ==================================================================
