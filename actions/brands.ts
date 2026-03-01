@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
+import { logAudit } from "../lib/audit";
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
@@ -82,6 +83,7 @@ export async function addBrand(prevState: unknown, formData: FormData) {
 
         revalidatePath("/admin");
         revalidatePath("/admin/brands");
+        await logAudit({ action: "CREATE", entity: "brand", entityName: parsed.data.name });
         return { success: true, message: "Brand added successfully" };
     } catch (error) {
         if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
@@ -132,6 +134,7 @@ export async function updateBrand(prevState: unknown, formData: FormData) {
 
         revalidatePath("/admin");
         revalidatePath("/admin/brands");
+        await logAudit({ action: "UPDATE", entity: "brand", entityId: parsed.data.id, entityName: parsed.data.name });
         return { success: true, message: "Brand updated successfully" };
     } catch (error) {
         if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
@@ -162,9 +165,9 @@ export async function deleteBrand(id: number) {
         }
 
         await db.delete(brands).where(eq(brands.id, id));
-
         revalidatePath("/admin");
         revalidatePath("/admin/brands");
+        await logAudit({ action: "DELETE", entity: "brand", entityId: id });
         return { success: true, message: "Brand deleted successfully" };
     } catch (error) {
         console.error("Delete brand error:", error);

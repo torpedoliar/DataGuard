@@ -1,6 +1,6 @@
 {
-    "version": "1.0.0",
-    "releaseDate": "2026-02-26",
+    "version": "1.1.0",
+    "releaseDate": "2026-03-01",
     "minDatabaseVersion": "1.0.0",
     "changelog": [
         "Feature: Initial release of Data Center Audit System (DC-Check)",
@@ -9,7 +9,11 @@
         "Feature: Site Management with interactive Map Selector for Indonesia",
         "Feature: Rack Management and Device Inventory",
         "Feature: Container deployment architecture with Docker/Podman support",
-        "Feature: Over-The-Air (OTA) System Update functionality via Git"
+        "Feature: Over-The-Air (OTA) System Update functionality via Git",
+        "Feature: Auto-refresh all pages after Add/Edit/Delete operations (CRUD)",
+        "Feature: Form data preservation on input error (e.g. rack collision)",
+        "Feature: Audit Log — complete activity tracking for all CRUD operations",
+        "Feature: About page with Team Operational Support SJA credits and Torpedoliar license"
     ],
     "repository": "https://github.com/torpedoliar/DataGuard",
     "branch": "main"

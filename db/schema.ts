@@ -290,3 +290,32 @@ export const globalSettings = pgTable("global_settings", {
   faviconPath: text("favicon_path"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// ==================== AUDIT LOGS ====================
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+  username: text("username"),  // snapshot so deleting user doesn't lose log
+  userRole: text("user_role"),
+  action: text("action").notNull(),        // CREATE | UPDATE | DELETE | LOGIN | LOGOUT | etc.
+  entity: text("entity"),                  // devices | brands | racks | etc.
+  entityId: integer("entity_id"),
+  entityName: text("entity_name"),         // human-readable snapshot name
+  detail: text("detail"),                  // JSON or description of changes
+  ipAddress: text("ip_address"),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "set null" }),
+  siteName: text("site_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [auditLogs.userId],
+    references: [users.id],
+  }),
+  site: one(sites, {
+    fields: [auditLogs.siteId],
+    references: [sites.id],
+  }),
+}));
+

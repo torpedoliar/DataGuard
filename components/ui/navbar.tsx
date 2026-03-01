@@ -111,6 +111,7 @@ export default function Navbar({
                         <Link href="/checklist" className={navLinkClass("/checklist")}>Dashboard</Link>
                         <Link href="/report" className={navLinkClass("/report")}>Reports</Link>
                         <Link href="/grid" className={navLinkClass("/grid")}>Grid View</Link>
+                        <Link href="/about" className={navLinkClass("/about")}>About</Link>
                         {isAdmin && (
                             <div className="relative">
                                 <button
@@ -133,6 +134,7 @@ export default function Navbar({
                                                 { href: "/admin/rack", icon: "grid_view", label: "Rack Layout" },
                                                 { href: "/admin/network/vlans", icon: "hub", label: "VLANs" },
                                                 { href: "/admin/users", icon: "group", label: "Users" },
+                                                { href: "/admin/audit-log", icon: "manage_history", label: "Audit Log" },
                                             ].map(item => (
                                                 <Link
                                                     key={item.href}

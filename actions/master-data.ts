@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { checkRackCollision } from "../lib/rack-validation";
+import { logAudit } from "../lib/audit";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -49,6 +50,7 @@ export async function addCategory(prevState: unknown, formData: FormData) {
         });
         revalidatePath("/admin");
         revalidatePath("/admin/categories");
+        await logAudit({ action: "CREATE", entity: "category", entityName: parsed.data.name, detail: `Color: ${parsed.data.color}` });
         return { success: true, message: "Category added successfully" };
     } catch (error) {
         if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
@@ -77,6 +79,7 @@ export async function editCategory(id: number, prevState: unknown, formData: For
         revalidatePath("/admin");
         revalidatePath("/admin/categories");
         revalidatePath("/admin/rack");
+        await logAudit({ action: "UPDATE", entity: "category", entityId: id, entityName: parsed.data.name });
         return { success: true, message: "Category updated successfully" };
     } catch (error) {
         if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
@@ -109,6 +112,7 @@ export async function deleteCategory(id: number) {
         await db.delete(categories).where(eq(categories.id, id));
         revalidatePath("/admin");
         revalidatePath("/admin/categories");
+        await logAudit({ action: "DELETE", entity: "category", entityId: id });
         return { success: true, message: "Category deleted successfully" };
     } catch (error) {
         console.error("Delete category error:", error);
@@ -197,6 +201,7 @@ export async function addDevice(prevState: unknown, formData: FormData) {
         });
         revalidatePath("/admin");
         revalidatePath("/admin/rack");
+        await logAudit({ action: "CREATE", entity: "device", entityName: parsed.data.name, detail: parsed.data.rackName ? `Rack: ${parsed.data.rackName} U${parsed.data.rackPosition}` : undefined });
         return { success: true, message: "Device added successfully" };
     } catch (error) {
         console.error("Add device error:", error);
@@ -272,6 +277,7 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
 
         revalidatePath("/admin");
         revalidatePath("/admin/rack");
+        await logAudit({ action: "UPDATE", entity: "device", entityId: id, entityName: parsed.data.name, detail: `IP: ${parsed.data.ipAddress ?? '-'}, Rack: ${parsed.data.rackName ?? '-'}` });
         return { success: true, message: "Device updated successfully" };
     } catch (error) {
         console.error("Update device error:", error);
@@ -324,6 +330,7 @@ export async function deleteDevice(id: number, reason?: string, forceDelete: boo
         revalidatePath("/admin");
         revalidatePath("/admin/rack");
         revalidatePath("/admin/rack-manage");
+        await logAudit({ action: "DELETE", entity: "device", entityId: id, entityName: device?.name, detail: reason ? `Reason: ${reason}` : undefined });
         return { success: true };
     } catch (error) {
         console.error("Delete device error:", error);
