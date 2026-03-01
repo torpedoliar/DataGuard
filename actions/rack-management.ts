@@ -6,6 +6,7 @@ import { eq, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
+import { logAudit } from "../lib/audit";
 
 // Schema
 const rackSchema = z.object({
@@ -103,9 +104,9 @@ export async function addRack(prevState: unknown, formData: FormData) {
             locationId: parsed.data.locationId || null,
         });
 
-        revalidatePath("/admin");
         revalidatePath("/admin/rack-manage");
         revalidatePath("/admin/rack");
+        await logAudit({ action: "CREATE", entity: "rack", entityName: parsed.data.name, detail: `Zone: ${parsed.data.zone || '-'}, U: ${parsed.data.totalU}` });
         return { success: true, message: "Rack added successfully" };
     } catch (error) {
         if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
@@ -140,9 +141,9 @@ export async function updateRack(prevState: unknown, formData: FormData) {
             locationId: parsed.data.locationId,
         }).where(eq(racks.id, id));
 
-        revalidatePath("/admin");
         revalidatePath("/admin/rack-manage");
         revalidatePath("/admin/rack");
+        await logAudit({ action: "UPDATE", entity: "rack", entityId: id, entityName: parsed.data.name, detail: `U: ${parsed.data.totalU}` });
         return { success: true, message: "Rack updated successfully" };
     } catch (error) {
         if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
@@ -162,9 +163,9 @@ export async function deleteRack(id: number) {
     try {
         await db.delete(racks).where(eq(racks.id, id));
 
-        revalidatePath("/admin");
         revalidatePath("/admin/rack-manage");
         revalidatePath("/admin/rack");
+        await logAudit({ action: "DELETE", entity: "rack", entityId: id });
         return { success: true };
     } catch (error) {
         return { message: "Gagal menghapus rak ini karena mungkin masih berisi perangkat server aktif." };

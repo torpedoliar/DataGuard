@@ -30,6 +30,7 @@ export type AuditEntity =
     | "checklist"
     | "settings"
     | "site"
+    | "user_site"
     | "session";
 
 export interface AuditParams {

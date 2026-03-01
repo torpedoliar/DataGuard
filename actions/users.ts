@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "../lib/audit";
 
 // Schemas
 const createUserSchema = z.object({
@@ -93,8 +94,8 @@ export async function createUser(prevState: unknown, formData: FormData) {
             isActive,
         });
 
-        revalidatePath("/admin");
         revalidatePath("/admin/users");
+        await logAudit({ action: "CREATE", entity: "user", entityName: username, detail: `Role: ${role}` });
         return { success: true, message: "User created successfully" };
     } catch (error) {
         console.error("Create user error:", error);
@@ -141,8 +142,8 @@ export async function updateUser(prevState: unknown, formData: FormData) {
     try {
         await db.update(users).set(updateData).where(eq(users.id, id));
 
-        revalidatePath("/admin");
         revalidatePath("/admin/users");
+        await logAudit({ action: "UPDATE", entity: "user", entityId: id, entityName: username });
         return { success: true, message: "User updated successfully" };
     } catch (error) {
         console.error("Update user error:", error);
@@ -165,8 +166,8 @@ export async function deleteUser(id: number) {
     try {
         await db.delete(users).where(eq(users.id, id));
 
-        revalidatePath("/admin");
         revalidatePath("/admin/users");
+        await logAudit({ action: "DELETE", entity: "user", entityId: id });
         return { success: true };
     } catch (error) {
         console.error("Delete user error:", error);
@@ -208,7 +209,7 @@ export async function changePassword(prevState: unknown, formData: FormData) {
 
     try {
         await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, session.userId));
-
+        await logAudit({ action: "UPDATE", entity: "user", entityId: session.userId, detail: "Password changed" });
         return { success: true, message: "Password changed successfully" };
     } catch (error) {
         console.error("Change password error:", error);

@@ -5,6 +5,7 @@ import { sites, userSites, users } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { verifySession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "@/lib/audit";
 
 // ==================== SITE CRUD ====================
 
@@ -44,6 +45,8 @@ export async function addSite(data: { name: string; code: string; address?: stri
             isActive: true,
         });
 
+        await logAudit({ action: "CREATE", entity: "site", entityName: data.name, detail: `Code: ${data.code}` });
+
         revalidatePath("/admin/sites");
         return { success: true, message: "Site berhasil ditambahkan!" };
     } catch (error: any) {
@@ -72,6 +75,8 @@ export async function updateSite(id: number, data: { name: string; code?: string
             isActive: data.isActive,
         }).where(eq(sites.id, id));
 
+        await logAudit({ action: "UPDATE", entity: "site", entityId: id, entityName: data.name, detail: `Code: ${data.code}` });
+
         revalidatePath("/admin/sites");
         revalidatePath("/", "layout"); // Revalidate Top Navbar
         return { success: true, message: "Site berhasil diperbarui!" };
@@ -93,6 +98,8 @@ export async function deleteSite(id: number) {
         // Remove all user-site assignments first
         await db.delete(userSites).where(eq(userSites.siteId, id));
         await db.delete(sites).where(eq(sites.id, id));
+
+        await logAudit({ action: "DELETE", entity: "site", entityId: id });
 
         revalidatePath("/admin/sites");
         return { success: true, message: "Site berhasil dihapus." };
@@ -155,6 +162,9 @@ export async function assignUserToSite(userId: number, siteId: number, roleInSit
 
     try {
         await db.insert(userSites).values({ userId, siteId, roleInSite });
+
+        await logAudit({ action: "CREATE", entity: "user_site", detail: `UserID: ${userId}, SiteID: ${siteId}, Role: ${roleInSite}` });
+
         revalidatePath("/admin/sites");
         return { success: true, message: "User berhasil ditugaskan ke site!" };
     } catch (error) {
@@ -170,6 +180,9 @@ export async function updateUserSiteRole(assignmentId: number, roleInSite: "admi
 
     try {
         await db.update(userSites).set({ roleInSite }).where(eq(userSites.id, assignmentId));
+
+        await logAudit({ action: "UPDATE", entity: "user_site", entityId: assignmentId, detail: `New Role: ${roleInSite}` });
+
         revalidatePath("/admin/sites");
         return { success: true };
     } catch (error) {
@@ -185,6 +198,9 @@ export async function removeUserFromSite(assignmentId: number) {
 
     try {
         await db.delete(userSites).where(eq(userSites.id, assignmentId));
+
+        await logAudit({ action: "DELETE", entity: "user_site", entityId: assignmentId });
+
         revalidatePath("/admin/sites");
         return { success: true, message: "User berhasil dihapus dari site." };
     } catch (error) {

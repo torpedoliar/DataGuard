@@ -5,6 +5,7 @@ import { vlans, networkPorts, devices } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { verifySession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "@/lib/audit";
 
 // --- VLAN ACTIONS ---
 
@@ -28,6 +29,7 @@ export async function addVlan(data: { vlanId: number, name: string, subnet?: str
             subnet: data.subnet || null,
             description: data.description || null,
         });
+        await logAudit({ action: "CREATE", entity: "vlan", entityName: data.name, detail: `ID: ${data.vlanId}, Subnet: ${data.subnet || '-'}` });
     } catch (error: any) {
         if (error?.message?.includes("UNIQUE constraint")) {
             throw new Error("Nomor VLAN ID ini sudah digunakan. Silakan masukkan ID lain.");
@@ -50,6 +52,7 @@ export async function updateVlan(id: number, data: { name: string, subnet?: stri
                 description: data.description || null,
             })
             .where(eq(vlans.id, id));
+        await logAudit({ action: "UPDATE", entity: "vlan", entityId: id, entityName: data.name, detail: `Subnet: ${data.subnet || '-'}` });
     } catch (error) {
         throw new Error("Gagal memperbarui VLAN. Silakan coba lagi nanti.");
     }
@@ -63,6 +66,7 @@ export async function deleteVlan(id: number) {
 
     try {
         await db.delete(vlans).where(eq(vlans.id, id));
+        await logAudit({ action: "DELETE", entity: "vlan", entityId: id });
         revalidatePath("/admin/network");
     } catch (error) {
         throw new Error("Gagal menghapus VLAN. Mungkin masih digunakan oleh port jaringan.");
@@ -128,6 +132,7 @@ export async function addPort(data: typeof networkPorts.$inferInsert) {
                     .where(eq(networkPorts.id, data.connectedToPortId));
             }
         }
+        await logAudit({ action: "CREATE", entity: "network_port", entityName: data.portName, detail: `DeviceID: ${data.deviceId}, Mode: ${data.portMode || '-'}` });
     } catch (error) {
         throw new Error("Gagal menyimpan port jaringan baru. Pastikan koneksi server stabil.");
     }
@@ -162,6 +167,7 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
                 }
             }
         }
+        await logAudit({ action: "UPDATE", entity: "network_port", entityId: id, entityName: data.portName, detail: `DeviceID: ${data.deviceId || '-'}` });
     } catch (error) {
         throw new Error("Gagal memperbarui konfigurasi port jaringan. Silakan ulangi.");
     }
@@ -183,6 +189,7 @@ export async function deletePort(id: number) {
         }
 
         await db.delete(networkPorts).where(eq(networkPorts.id, id));
+        await logAudit({ action: "DELETE", entity: "network_port", entityId: id });
     } catch (error) {
         throw new Error("Gagal menghapus port jaringan secara permanen.");
     }

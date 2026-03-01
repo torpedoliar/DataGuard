@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
+import { logAudit } from "../lib/audit";
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
@@ -156,6 +157,8 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
 
         // Revalidate all pages to force layout update with new metadata and navbar
         revalidatePath("/", "layout");
+
+        await logAudit({ action: "UPDATE", entity: "settings", entityName: parsed.data.appName, detail: "Global settings updated" });
 
         return { success: true, message: "Settings saved successfully" };
     } catch (error) {

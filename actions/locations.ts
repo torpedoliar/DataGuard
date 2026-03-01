@@ -5,6 +5,7 @@ import { locations } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { verifySession } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 
 export async function getLocations() {
     const session = await verifySession();
@@ -39,6 +40,7 @@ export async function addLocation(prevState: unknown, formData: FormData) {
             siteId: session.activeSiteId,
         });
         revalidatePath("/admin/locations");
+        await logAudit({ action: "CREATE", entity: "location", entityName: name, detail: description });
         return { success: true, message: "Location added successfully" };
     } catch (error) {
         console.error("Failed to add location:", error);
@@ -68,6 +70,7 @@ export async function updateLocation(prevState: unknown, formData: FormData) {
             .where(eq(locations.id, id));
 
         revalidatePath("/admin/locations");
+        await logAudit({ action: "UPDATE", entity: "location", entityId: id, entityName: name, detail: description });
         return { success: true, message: "Location updated successfully" };
     } catch (error) {
         console.error("Failed to update location:", error);
@@ -90,6 +93,7 @@ export async function deleteLocation(formData: FormData) {
 
         await db.delete(locations).where(eq(locations.id, id));
         revalidatePath("/admin/locations");
+        await logAudit({ action: "DELETE", entity: "location", entityId: id, entityName: existing[0]?.name });
         return { success: true, message: "Location deleted successfully" };
     } catch (error) {
         console.error("Failed to delete location:", error);

@@ -9,6 +9,7 @@ import { createSession, deleteSession } from "../lib/session";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { updateUserLastLogin } from "./users";
+import { logAudit, logAuditManual } from "../lib/audit";
 
 const loginSchema = z.object({
     username: z.string().min(1, "Username wajib diisi"),
@@ -31,6 +32,7 @@ export async function login(prevState: unknown, formData: FormData) {
     });
 
     if (!user || !user.passwordHash) {
+        await logAuditManual({ action: "LOGIN", detail: `Failed login attempt: user ${username} not found` });
         return {
             message: "Username atau password salah.",
         };
@@ -38,6 +40,7 @@ export async function login(prevState: unknown, formData: FormData) {
 
     // Check if user is active
     if (user.isActive === false) {
+        await logAuditManual({ action: "LOGIN", userId: user.id, username: user.username, detail: "Login failed: Account disabled" });
         return {
             message: "Akun Anda telah dinonaktifkan. Hubungi administrator.",
         };
@@ -46,6 +49,7 @@ export async function login(prevState: unknown, formData: FormData) {
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
 
     if (!passwordMatch) {
+        await logAuditManual({ action: "LOGIN", userId: user.id, username: user.username, detail: "Login failed: Incorrect password" });
         return {
             message: "Username atau password salah.",
         };
@@ -61,10 +65,13 @@ export async function login(prevState: unknown, formData: FormData) {
     // Update last login time (non-blocking)
     updateUserLastLogin(user.id).catch(console.error);
 
+    await logAuditManual({ action: "LOGIN", userId: user.id, username: user.username, userRole: role, detail: "Login successful" });
+
     redirect("/select-site");
 }
 
 export async function logout() {
+    await logAudit({ action: "LOGOUT" });
     await deleteSession();
     redirect("/login");
 }
@@ -98,6 +105,8 @@ export async function switchSite(siteId: number) {
         siteId,
         site[0].name
     );
+
+    await logAudit({ action: "SITE_SWITCH", entity: "site", entityId: siteId, entityName: site[0].name });
 
     return { success: true, siteName: site[0].name };
 }
