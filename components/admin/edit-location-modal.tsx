@@ -2,6 +2,7 @@
 
 import { updateLocation } from "@/actions/locations";
 import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 
 interface EditLocationModalProps {
@@ -15,12 +16,14 @@ interface EditLocationModalProps {
 
 export default function EditLocationModal({ location, onClose }: EditLocationModalProps) {
     const [state, action, isPending] = useActionState(updateLocation, undefined);
+    const router = useRouter();
 
     useEffect(() => {
         if (state?.success) {
+            router.refresh();
             onClose();
         }
-    }, [state?.success, onClose]);
+    }, [state?.success, onClose, router]);
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

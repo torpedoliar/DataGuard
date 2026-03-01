@@ -1,16 +1,18 @@
 "use client";
 
 import { addCategory } from "@/actions/master-data";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Tag } from "lucide-react";
 
 export default function AddCategoryForm() {
     const [state, action, isPending] = useActionState(addCategory, undefined);
+    const formRef = useRef<HTMLFormElement>(null);
     const router = useRouter();
 
     useEffect(() => {
         if (state?.success) {
+            formRef.current?.reset();
             router.refresh();
         }
     }, [state?.success, router]);
@@ -22,7 +24,7 @@ export default function AddCategoryForm() {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Add New Category</h3>
             </div>
 
-            <form action={action} className="flex gap-4">
+            <form ref={formRef} action={action} className="flex gap-4">
                 <div className="flex-1">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Category Name *

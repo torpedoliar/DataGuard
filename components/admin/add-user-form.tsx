@@ -1,11 +1,21 @@
 "use client";
 
 import { createUser } from "@/actions/users";
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Plus, UserPlus } from "lucide-react";
 
 export default function AddUserForm() {
     const [state, action, isPending] = useActionState(createUser, undefined);
+    const formRef = useRef<HTMLFormElement>(null);
+    const router = useRouter();
+
+    useEffect(() => {
+        if (state?.success) {
+            formRef.current?.reset();
+            router.refresh();
+        }
+    }, [state?.success, router]);
 
     return (
         <div className="bg-white dark:bg-card-dark p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
@@ -14,7 +24,7 @@ export default function AddUserForm() {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Add New User</h3>
             </div>
 
-            <form action={action} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+            <form ref={formRef} action={action} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
                 <div className="lg:col-span-1">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Username *

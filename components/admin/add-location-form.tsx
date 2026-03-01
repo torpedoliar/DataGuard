@@ -3,16 +3,19 @@
 import { addLocation } from "@/actions/locations";
 import { useActionState, useEffect, useRef } from "react";
 import { Loader2, Plus, MapPin } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function AddLocationForm() {
     const [state, action, isPending] = useActionState(addLocation, undefined);
     const formRef = useRef<HTMLFormElement>(null);
+    const router = useRouter();
 
     useEffect(() => {
         if (state?.success) {
             formRef.current?.reset();
+            router.refresh();
         }
-    }, [state?.success]);
+    }, [state?.success, router]);
 
     return (
         <div className="bg-white dark:bg-card-dark p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">

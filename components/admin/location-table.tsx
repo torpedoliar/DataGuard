@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { deleteLocation } from "@/actions/locations";
+import { useRouter } from "next/navigation";
 import { Edit2, Trash2, Loader2, AlertCircle, Search, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
 import EditLocationModal from "./edit-location-modal";
 
@@ -23,6 +24,7 @@ export default function LocationTable({ locations }: { locations: Location[] }) 
     const [search, setSearch] = useState("");
     const [sortKey, setSortKey] = useState<SortKey>("name");
     const [sortDir, setSortDir] = useState<SortDir>("asc");
+    const router = useRouter();
 
     const handleDelete = (id: number) => {
         if (!confirm("Are you sure you want to delete this location?")) return;
@@ -32,7 +34,11 @@ export default function LocationTable({ locations }: { locations: Location[] }) 
             const formData = new FormData();
             formData.append("id", id.toString());
             const result = await deleteLocation(formData);
-            if (!result.success) setErrorMsg(result.message);
+            if (result.success) {
+                router.refresh();
+            } else {
+                setErrorMsg(result.message);
+            }
             setDeletingId(null);
         });
     };
