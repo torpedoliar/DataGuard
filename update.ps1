@@ -81,11 +81,14 @@ if (-not (Test-Path $backupDir)) {
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $backupFile = "$backupDir/db_backup_$timestamp.sql"
 
-# Cek apakah container db sedang berjalan.
+# Cek apakah container db sedang berjalan menggunakan filter resmi Docker
 $dbRunning = $false
 try {
-    $psOutput = & $mainCmd $extraArgs ps 2>$null
-    $dbRunning = $psOutput | Select-String -Pattern "db" -Quiet
+    # Ambil daftar service yang sedang running
+    $runningServices = & $mainCmd $extraArgs ps --services --filter "status=running" 2>$null
+    if ($runningServices -contains "db") {
+        $dbRunning = $true
+    }
 }
 catch {
     $dbRunning = $false
