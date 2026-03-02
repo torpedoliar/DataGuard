@@ -1,8 +1,10 @@
 {
-    "version": "1.1.3",
+    "version": "1.2.0",
     "releaseDate": "2026-03-02",
     "minDatabaseVersion": "1.0.0",
     "changelog": [
+        "Feature: Group Rack Layout by Location with dynamic headers",
+        "Feature: Location-based filtering in Rack Layout",
         "Feature: Initial release of Data Center Audit System (DC-Check)",
         "Feature: Core Dashboard and Analytics module",
         "Feature: Full Check-in and Checklist functionalities",
@@ -15,7 +17,8 @@
         "Feature: Audit Log — Full coverage for Device, Category, Brand, Location, Rack, VLAN, Port, User, Site, and Auth activities",
         "Feature: About page with CODEX ASCII Logo and Team Operational Support SJA credits",
         "Fix: Resolve dashboard counter formatting bug (string concatenation digit issue)",
-        "Fix: Robust database backup detection in update.ps1 using Docker filters"
+        "Fix: Robust database backup detection in update.ps1 using Docker filters",
+        "Fix: Permit creation of 'superadmin' role in user management (Role validation fix)"
     ],
     "repository": "https://github.com/torpedoliar/DataGuard",
     "branch": "main"

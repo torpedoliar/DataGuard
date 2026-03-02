@@ -14,7 +14,7 @@ const createUserSchema = z.object({
     username: z.string().min(3, "Username must be at least 3 characters"),
     email: z.string().email("Invalid email address").optional().or(z.literal("")),
     password: z.string().min(6, "Password must be at least 6 characters"),
-    role: z.enum(["admin", "staff"]).default("staff"),
+    role: z.enum(["superadmin", "admin", "staff"]).default("staff"),
     isActive: z.boolean().default(true),
 });
 
@@ -120,7 +120,7 @@ export async function updateUser(prevState: unknown, formData: FormData) {
 
     const username = formData.get("username") as string;
     const email = formData.get("email") as string;
-    const role = formData.get("role") as "admin" | "staff";
+    const role = formData.get("role") as "superadmin" | "admin" | "staff";
     const isActive = formData.get("isActive") === "on";
 
     if (username) updateData.username = username;

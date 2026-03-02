@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { RackData, RackDevice } from "@/actions/rack-layout";
 import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor, useDraggable, useDroppable } from "@dnd-kit/core";
-import { Server, Network, Zap, Wind, XCircle, AlertTriangle, Search, Filter, X } from "lucide-react";
+import { Server, Network, Zap, Wind, XCircle, AlertTriangle, Search, Filter, X, MapPin } from "lucide-react";
 
 interface RackLayoutProps {
     racks: RackData[];
@@ -161,8 +161,10 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
     const [selectedZone, setSelectedZone] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("");
     const [selectedStatus, setSelectedStatus] = useState("");
+    const [selectedLocation, setSelectedLocation] = useState("");
 
     const uniqueZones = Array.from(new Set(racks.map(r => r.zone).filter(Boolean))).sort() as string[];
+    const uniqueLocations = Array.from(new Set(racks.map(r => r.locationName).filter(Boolean))).sort() as string[];
 
     // Ensure component only renders DndContext on client side
     useEffect(() => {
@@ -235,15 +237,16 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
         });
 
         const matchesZone = !selectedZone || rack.zone === selectedZone;
+        const matchesLocation = !selectedLocation || rack.locationName === selectedLocation;
         const rackNameMatches = !searchQuery || rack.name.toLowerCase().includes(searchQuery.toLowerCase());
 
         const hasMatchingDevices = processedDevices.some(d => !d.isMuted);
 
         // If there are filters active, hide racks that don't match the zone or don't have matching devices 
         // (unless the rack name itself matches the search query)
-        const hasFiltersActive = !!(searchQuery || selectedCategory || selectedStatus || selectedZone);
+        const hasFiltersActive = !!(searchQuery || selectedCategory || selectedStatus || selectedZone || selectedLocation);
 
-        const shouldShow = !hasFiltersActive || (matchesZone && (rackNameMatches || hasMatchingDevices));
+        const shouldShow = !hasFiltersActive || (matchesZone && matchesLocation && (rackNameMatches || hasMatchingDevices));
 
         return {
             ...rack,
@@ -252,6 +255,14 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
             hasMatchingDevices
         };
     }).filter(r => r.shouldShow);
+
+    // Grouping by location
+    const groupedRacks = processedRacks.reduce((groups, rack) => {
+        const loc = rack.locationName || "Unassigned Location";
+        if (!groups[loc]) groups[loc] = [];
+        groups[loc].push(rack);
+        return groups;
+    }, {} as Record<string, typeof processedRacks>);
 
     const renderRackSlots = (rack: RackData & { devices: (RackDevice & { isMuted?: boolean })[] }) => {
         const slots = [];
@@ -333,9 +344,10 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
         setSelectedCategory("");
         setSelectedZone("");
         setSelectedStatus("");
+        setSelectedLocation("");
     };
 
-    const hasFilters = searchQuery || selectedCategory || selectedZone || selectedStatus;
+    const hasFilters = searchQuery || selectedCategory || selectedZone || selectedStatus || selectedLocation;
 
     if (racks.length === 0) {
         return (
@@ -440,6 +452,12 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                             {uniqueZones.map(z => <option key={z} value={z}>{z}</option>)}
                         </select>
 
+                        <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}
+                            className="h-9 px-3 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-blue-500 min-w-[130px]">
+                            <option value="">All Locations</option>
+                            {uniqueLocations.map(l => <option key={l} value={l}>{l}</option>)}
+                        </select>
+
                         <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}
                             className="h-9 px-3 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-blue-500 min-w-[130px]">
                             <option value="">All Categories</option>
@@ -473,6 +491,21 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                         <p className="text-sm text-slate-400 mt-1">
                             Drag devices to move them to different rack positions. Drop on an empty slot to relocate.
                         </p>
+                    </div>
+                </div>
+
+                {/* Legend */}
+                <div className="glow-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h4 className="font-semibold text-white mb-2 text-sm">Legend</h4>
+                        <div className="flex flex-wrap gap-4">
+                            {categories.map((cat) => (
+                                <div key={cat.id} className="flex items-center gap-2">
+                                    <div className="w-3.5 h-3.5 rounded shadow-sm" style={{ backgroundColor: cat.color || "#3b82f6" }}></div>
+                                    <span className="text-xs text-slate-400">{cat.name}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
@@ -567,80 +600,83 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                     </div>
                 )}
 
-                {/* Rack Layout */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {processedRacks.map((rack) => (
-                        <div
-                            key={`${rack.name}-${rack.zone || 'no-zone'}`}
-                            className={`bg-white dark:bg-card-dark rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden transition-all ${isDragging ? "border-dashed border-2" : ""
-                                }`}
-                        >
-                            {/* Rack Header */}
-                            <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white p-3">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h3 className="font-bold text-lg">{rack.name}</h3>
-                                        <p className="text-xs text-slate-300">
-                                            {rack.zone || "Unassigned Zone"} • {rack.devices.length} devices
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs text-slate-300">Occupancy</div>
-                                        <div className="font-bold">
-                                            {rack.occupiedU.length}U / {rack.totalU}U
+                {/* Rack Layout Grouped by Location */}
+                <div className="space-y-12">
+                    {Object.entries(groupedRacks).sort().map(([location, racksInLocation]) => (
+                        <div key={location} className="space-y-4">
+                            <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
+                                <MapPin className="h-5 w-5 text-blue-400" />
+                                <h3 className="text-lg font-bold text-white uppercase tracking-wider">{location}</h3>
+                                <div className="ml-auto flex items-center gap-2">
+                                    <span className="bg-slate-800 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-700">
+                                        {racksInLocation.length} RACKS
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {racksInLocation.map((rack) => (
+                                    <div
+                                        key={`${rack.name}-${rack.zone || 'no-zone'}`}
+                                        className={`bg-white dark:bg-card-dark rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden transition-all ${isDragging ? "border-dashed border-2" : ""
+                                            }`}
+                                    >
+                                        {/* Rack Header */}
+                                        <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white p-3">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="font-bold text-lg">{rack.name}</h3>
+                                                    <p className="text-xs text-slate-300">
+                                                        {rack.zone || "Unassigned Zone"} • {rack.devices.length} devices
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-xs text-slate-300">Occupancy</div>
+                                                    <div className="font-bold">
+                                                        {rack.occupiedU.length}U / {rack.totalU}U
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {/* Occupancy Bar */}
+                                            <div className="mt-2 h-2 bg-slate-600 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-gradient-to-r from-blue-500 to-green-500 transition-all"
+                                                    style={{
+                                                        width: `${(rack.occupiedU.length / rack.totalU) * 100}%`,
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Rack Body */}
+                                        <div className="p-3">
+                                            <div
+                                                className="grid gap-1"
+                                                style={{
+                                                    gridTemplateColumns: "40px 1fr",
+                                                    gridAutoRows: "32px",
+                                                }}
+                                            >
+                                                {renderRackLabels(rack)}
+                                                {renderRackSlots(rack)}
+                                            </div>
+                                        </div>
+
+                                        {/* Rack Footer */}
+                                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2 border-t border-slate-200 dark:border-slate-700">
+                                            <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                                                <span>Free: {rack.totalU - rack.occupiedU.length}U</span>
+                                                <span>Utilization: {Math.round((rack.occupiedU.length / rack.totalU) * 100)}%</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                {/* Occupancy Bar */}
-                                <div className="mt-2 h-2 bg-slate-600 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-gradient-to-r from-blue-500 to-green-500 transition-all"
-                                        style={{
-                                            width: `${(rack.occupiedU.length / rack.totalU) * 100}%`,
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Rack Body */}
-                            <div className="p-3">
-                                <div
-                                    className="grid gap-1"
-                                    style={{
-                                        gridTemplateColumns: "40px 1fr",
-                                        gridAutoRows: "32px",
-                                    }}
-                                >
-                                    {renderRackLabels(rack)}
-                                    {renderRackSlots(rack)}
-                                </div>
-                            </div>
-
-                            {/* Rack Footer */}
-                            <div className="bg-slate-50 dark:bg-slate-800/50 p-2 border-t border-slate-200 dark:border-slate-700">
-                                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                                    <span>Free: {rack.totalU - rack.occupiedU.length}U</span>
-                                    <span>Utilization: {Math.round((rack.occupiedU.length / rack.totalU) * 100)}%</span>
-                                </div>
+                                ))}
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* Legend */}
-                <div className="glow-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div>
-                        <h4 className="font-semibold text-white mb-2 text-sm">Legend</h4>
-                        <div className="flex flex-wrap gap-4">
-                            {categories.map((cat) => (
-                                <div key={cat.id} className="flex items-center gap-2">
-                                    <div className="w-3.5 h-3.5 rounded shadow-sm" style={{ backgroundColor: cat.color || "#3b82f6" }}></div>
-                                    <span className="text-xs text-slate-400">{cat.name}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+
             </div>
         </DndContext>
     );

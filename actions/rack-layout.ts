@@ -28,6 +28,7 @@ export interface RackData {
     totalU: number;
     devices: RackDevice[];
     occupiedU: number[];
+    locationName: string | null;
 }
 
 export async function getRackLayout() {
@@ -84,8 +85,18 @@ export async function getRackLayout() {
         }
     }
 
-    // Fetch all predefined racks for this site
-    const predefinedRacks = await db.select().from(racksTable).where(siteId ? eq(racksTable.siteId, siteId) : undefined);
+    // Fetch all predefined racks for this site with location names
+    const predefinedRacks = await db
+        .select({
+            id: racksTable.id,
+            name: racksTable.name,
+            zone: racksTable.zone,
+            totalU: racksTable.totalU,
+            locationName: locations.name,
+        })
+        .from(racksTable)
+        .leftJoin(locations, eq(racksTable.locationId, locations.id))
+        .where(siteId ? eq(racksTable.siteId, siteId) : undefined);
 
     // Group devices by rack
     const racks = new Map<string, RackData>();
@@ -98,6 +109,7 @@ export async function getRackLayout() {
             totalU: rackDef.totalU || 42,
             devices: [],
             occupiedU: [],
+            locationName: rackDef.locationName,
         });
     }
 
@@ -115,6 +127,7 @@ export async function getRackLayout() {
                 totalU: 42,
                 devices: [],
                 occupiedU: [],
+                locationName: device.locationName, // Fallback to device's location
             });
         }
 
