@@ -16,8 +16,8 @@ export default async function ChecklistPage() {
     const formattedTime = today.toLocaleTimeString("en-GB", { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 
     // Total category stats sums
-    const totalDevices = stats.categoryStats.reduce((sum, c) => sum + c.total, 0);
-    const totalChecked = stats.categoryStats.reduce((sum, c) => sum + c.checked, 0);
+    const totalDevices = stats.categoryStats.reduce((sum, c) => sum + Number(c.total), 0);
+    const totalChecked = stats.categoryStats.reduce((sum, c) => sum + Number(c.checked), 0);
 
     // Colors for category rings
     const ringColors = ["#22d3ee", "#22c55e", "#f97316", "#a78bfa", "#f43f5e"];
