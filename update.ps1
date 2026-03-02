@@ -22,7 +22,6 @@ $composeCmd = "docker-compose"
 if (-not (Get-Command "docker-compose" -ErrorAction SilentlyContinue)) {
     if (Get-Command "docker" -ErrorAction SilentlyContinue) {
         # Check if 'docker compose' (V2) works
-        $checkCompose = docker compose version 2>$null
         if ($LASTEXITCODE -eq 0) {
             $composeCmd = "docker compose"
         }
@@ -39,17 +38,19 @@ if (-not (Get-Command "docker-compose" -ErrorAction SilentlyContinue)) {
 }
 Write-Host "Using: $composeCmd" -ForegroundColor DarkGray
 
+# Define main command and extra arguments for multi-word commands (like 'docker compose')
+$cmdParts = $composeCmd.Split(" ")
+$mainCmd = $cmdParts[0]
+$extraArgs = $cmdParts | Select-Object -Skip 1
+
 # ---- Read DB credentials from running container ----
 try {
     # Default values
     $dbUser = "administrator"
     $dbName = "dccheck"
 
-    # Use & operator for multi-word commands (like 'docker compose')
-    $cmdParts = $composeCmd.Split(" ")
-    
-    $fetchedUser = & $cmdParts[0] $cmdParts[1..$cmdParts.Length] exec -T db printenv POSTGRES_USER 2>$null
-    $fetchedName = & $cmdParts[0] $cmdParts[1..$cmdParts.Length] exec -T db printenv POSTGRES_DB 2>$null
+    $fetchedUser = & $mainCmd $extraArgs exec -T db printenv POSTGRES_USER 2>$null
+    $fetchedName = & $mainCmd $extraArgs exec -T db printenv POSTGRES_DB 2>$null
     
     if ($fetchedUser) { $dbUser = $fetchedUser.Trim() }
     if ($fetchedName) { $dbName = $fetchedName.Trim() }
@@ -83,7 +84,7 @@ $backupFile = "$backupDir/db_backup_$timestamp.sql"
 # Cek apakah container db sedang berjalan.
 $dbRunning = $false
 try {
-    $psOutput = & $cmdParts[0] $cmdParts[1..$cmdParts.Length] ps 2>$null
+    $psOutput = & $mainCmd $extraArgs ps 2>$null
     $dbRunning = $psOutput | Select-String -Pattern "db" -Quiet
 }
 catch {
@@ -91,7 +92,7 @@ catch {
 }
 
 if ($dbRunning) {
-    & $cmdParts[0] $cmdParts[1..$cmdParts.Length] exec -T db pg_dump -U $dbUser $dbName > $backupFile 2>$null
+    & $mainCmd $extraArgs exec -T db pg_dump -U $dbUser $dbName > $backupFile 2>$null
 
     # Validasi backup: file harus ada dan ukuran > 100 bytes
     if ((Test-Path $backupFile) -and (Get-Item $backupFile).Length -gt 100) {
@@ -130,7 +131,7 @@ Write-Host "OK - Code updated" -ForegroundColor Green
 Write-Host ""
 Write-Host "[3/5] Rebuilding application image ONLY (database untouched)..." -ForegroundColor Yellow
 Write-Host "      This may take 2-5 minutes..." -ForegroundColor DarkGray
-& $cmdParts[0] $cmdParts[1..$cmdParts.Length] build --no-cache app
+& $mainCmd $extraArgs build --no-cache app
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build failed! Aborting update." -ForegroundColor Red
     Write-Host "Your current running version is still intact." -ForegroundColor Yellow
@@ -147,7 +148,7 @@ Write-Host "[4/5] Restarting app container (database stays running)..." -Foregro
 
 # Hanya recreate service 'app', bukan seluruh stack
 # Ini memastikan container 'db' TIDAK PERNAH berhenti
-& $cmdParts[0] $cmdParts[1..$cmdParts.Length] up -d --no-deps app
+& $mainCmd $extraArgs up -d --no-deps app
 Write-Host "OK - App container restarted" -ForegroundColor Green
 Write-Host "Waiting for app to become ready..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 10
@@ -159,7 +160,7 @@ Write-Host ""
 Write-Host "[5/5] Syncing database schema..." -ForegroundColor Yellow
 Write-Host "      (drizzle push is additive - it only ADDS new columns/tables)" -ForegroundColor DarkGray
 try {
-    & $cmdParts[0] $cmdParts[1..$cmdParts.Length] exec -T app npx drizzle-kit push
+    & $mainCmd $extraArgs exec -T app npx drizzle-kit push
     Write-Host "OK - Database schema synced" -ForegroundColor Green
 }
 catch {
