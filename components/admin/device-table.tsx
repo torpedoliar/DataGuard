@@ -1,7 +1,7 @@
 "use client";
 
 import { Trash2, Edit, Search, Filter, X, ArrowUpDown, ArrowUp, ArrowDown, Network, Power, PackageOpen, MonitorPlay, Globe, Terminal, Phone, Shield } from "lucide-react";
-import { useState, useTransition } from "react";
+import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import EditDeviceForm from "./edit-device-form";
@@ -256,111 +256,140 @@ export default function DeviceTable({ devices, brands, locations }: { devices: D
                                             : "No devices match your search and filter criteria."}
                                     </td>
                                 </tr>
-                            ) : (
-                                sortedDevices.map((device) => {
-                                    const isActive = device.isActive !== false;
-                                    const isInRack = !!device.rackName;
-                                    const showTakeout = !isActive && isInRack;
+                            ) : (() => {
+                                // Group devices by Rack
+                                const groups: { [key: string]: Device[] } = {};
+                                sortedDevices.forEach(d => {
+                                    const r = d.rackName || "Unassigned / Direct Placement";
+                                    if (!groups[r]) groups[r] = [];
+                                    groups[r].push(d);
+                                });
 
-                                    return (
-                                        <tr key={device.id} className={`transition-colors ${isActive ? "hover:bg-slate-800/30" : "hover:bg-slate-800/20 opacity-60"}`}>
-                                            <td className="px-5 py-3 whitespace-nowrap font-medium text-white">
+                                return Object.entries(groups).map(([rackName, rackDevices]) => (
+                                    <React.Fragment key={rackName}>
+                                        {/* Rack Header Row */}
+                                        <tr className="bg-slate-800/30 border-y border-slate-700/50 group/rack">
+                                            <td colSpan={8} className="px-5 py-2">
                                                 <div className="flex items-center gap-2">
-                                                    {!isActive && (
-                                                        <span className="size-2 rounded-full bg-red-500 shrink-0" title="Inactive" />
-                                                    )}
-                                                    <span className={!isActive ? "line-through text-slate-400" : ""}>{device.name}</span>
-                                                    {device.photoPath && (
-                                                        <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-5 py-3 whitespace-nowrap text-white">
-                                                {device.brandLogo ? (
-                                                    <div className="flex items-center gap-2">
-                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                        <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-5 w-auto object-contain bg-white rounded p-0.5" />
-                                                        <span className="text-slate-300">{device.brandName}</span>
+                                                    <div className="size-6 rounded bg-blue-500/20 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-blue-400 text-sm">view_in_ar</span>
                                                     </div>
-                                                ) : device.brandName ? (
-                                                    <span className="text-slate-300">{device.brandName}</span>
-                                                ) : (
-                                                    <span className="text-slate-600">-</span>
-                                                )}
-                                            </td>
-                                            <td className="px-5 py-3 whitespace-nowrap text-slate-400">{device.categoryName}</td>
-                                            <td className="px-5 py-3 whitespace-nowrap text-slate-400">{device.locationName || "-"}</td>
-                                            <td className="px-5 py-3 whitespace-nowrap text-slate-400">
-                                                {device.rackName ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xs font-mono bg-slate-700/50 border border-slate-600/50 px-2 py-0.5 rounded">
-                                                            {device.rackName} U{device.rackPosition}
-                                                        </span>
-                                                        {showTakeout && (
-                                                            <button
-                                                                onClick={() => handleTakeout(device)}
-                                                                disabled={isPending}
-                                                                className="text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
-                                                                title="Take out from rack"
-                                                            >
-                                                                <PackageOpen className="h-4 w-4" />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-600">-</span>
-                                                )}
-                                            </td>
-                                            <td className="px-5 py-3 whitespace-nowrap text-slate-400">
-                                                {device.ipAddress ? (
-                                                    <span className="font-mono text-xs bg-slate-700/50 border border-slate-600/50 px-2 py-0.5 rounded">{device.ipAddress}</span>
-                                                ) : (
-                                                    <span className="text-slate-600">-</span>
-                                                )}
-                                            </td>
-                                            <td className="px-5 py-3 whitespace-nowrap text-center">
-                                                <button
-                                                    onClick={() => handleToggleStatus(device.id)}
-                                                    disabled={isPending}
-                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${isActive
-                                                        ? "bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20"
-                                                        : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
-                                                        }`}
-                                                    title={`Click to ${isActive ? "deactivate" : "activate"}`}
-                                                >
-                                                    <Power className="h-3 w-3" />
-                                                    {isActive ? "Active" : "Inactive"}
-                                                </button>
-                                            </td>
-                                            <td className="px-5 py-3 whitespace-nowrap text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    {device.ipAddress && (
-                                                        <button onClick={() => setManageDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-indigo-400 transition-colors" title="Manage Device (Remote)">
-                                                            <MonitorPlay className="h-4 w-4" />
-                                                        </button>
-                                                    )}
-                                                    <Link
-                                                        href={`/admin/devices/${device.id}/network`}
-                                                        className="p-1.5 rounded-lg hover:bg-slate-700 text-teal-400 transition-colors"
-                                                        title="Network Ports"
-                                                    >
-                                                        <Network className="h-4 w-4" />
-                                                    </Link>
-                                                    <button onClick={() => setPrintingDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 transition-colors" title="Print QR">
-                                                        <QrCode className="h-4 w-4" />
-                                                    </button>
-                                                    <button onClick={() => setEditingDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-blue-400 transition-colors" title="Edit">
-                                                        <Edit className="h-4 w-4" />
-                                                    </button>
-                                                    <button onClick={() => setDeletingDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-red-400 transition-colors" title="Delete">
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
+                                                    <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+                                                        {rackName}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500 font-medium">
+                                                        ({rackDevices.length} devices)
+                                                    </span>
                                                 </div>
                                             </td>
                                         </tr>
-                                    );
-                                })
-                            )}
+
+                                        {rackDevices.map((device) => {
+                                            const isActive = device.isActive !== false;
+                                            const isInRack = !!device.rackName;
+                                            const showTakeout = !isActive && isInRack;
+
+                                            return (
+                                                <tr key={device.id} className={`transition-colors ${isActive ? "hover:bg-slate-800/30" : "hover:bg-slate-800/20 opacity-60"}`}>
+                                                    <td className="px-5 py-3 whitespace-nowrap font-medium text-white">
+                                                        <div className="flex items-center gap-2">
+                                                            {!isActive && (
+                                                                <span className="size-2 rounded-full bg-red-500 shrink-0" title="Inactive" />
+                                                            )}
+                                                            <span className={!isActive ? "line-through text-slate-400" : ""}>{device.name}</span>
+                                                            {device.photoPath && (
+                                                                <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-5 py-3 whitespace-nowrap text-white">
+                                                        {device.brandLogo ? (
+                                                            <div className="flex items-center gap-2">
+                                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-5 w-auto object-contain bg-white rounded p-0.5" />
+                                                                <span className="text-slate-300">{device.brandName}</span>
+                                                            </div>
+                                                        ) : device.brandName ? (
+                                                            <span className="text-slate-300">{device.brandName}</span>
+                                                        ) : (
+                                                            <span className="text-slate-600">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-5 py-3 whitespace-nowrap text-slate-400">{device.categoryName}</td>
+                                                    <td className="px-5 py-3 whitespace-nowrap text-slate-400">{device.locationName || "-"}</td>
+                                                    <td className="px-5 py-3 whitespace-nowrap text-slate-400">
+                                                        {device.rackName ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-mono bg-slate-700/50 border border-slate-600/50 px-2 py-0.5 rounded">
+                                                                    U{device.rackPosition}
+                                                                </span>
+                                                                {showTakeout && (
+                                                                    <button
+                                                                        onClick={() => handleTakeout(device)}
+                                                                        disabled={isPending}
+                                                                        className="text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
+                                                                        title="Take out from rack"
+                                                                    >
+                                                                        <PackageOpen className="h-4 w-4" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-600">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-5 py-3 whitespace-nowrap text-slate-400">
+                                                        {device.ipAddress ? (
+                                                            <span className="font-mono text-xs bg-slate-700/50 border border-slate-600/50 px-2 py-0.5 rounded">{device.ipAddress}</span>
+                                                        ) : (
+                                                            <span className="text-slate-600">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-5 py-3 whitespace-nowrap text-center">
+                                                        <button
+                                                            onClick={() => handleToggleStatus(device.id)}
+                                                            disabled={isPending}
+                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${isActive
+                                                                ? "bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20"
+                                                                : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                                                                }`}
+                                                            title={`Click to ${isActive ? "deactivate" : "activate"}`}
+                                                        >
+                                                            <Power className="h-3 w-3" />
+                                                            {isActive ? "Active" : "Inactive"}
+                                                        </button>
+                                                    </td>
+                                                    <td className="px-5 py-3 whitespace-nowrap text-right">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            {device.ipAddress && (
+                                                                <button onClick={() => setManageDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-indigo-400 transition-colors" title="Manage Device (Remote)">
+                                                                    <MonitorPlay className="h-4 w-4" />
+                                                                </button>
+                                                            )}
+                                                            <Link
+                                                                href={`/admin/devices/${device.id}/network`}
+                                                                className="p-1.5 rounded-lg hover:bg-slate-700 text-teal-400 transition-colors"
+                                                                title="Network Ports"
+                                                            >
+                                                                <Network className="h-4 w-4" />
+                                                            </Link>
+                                                            <button onClick={() => setPrintingDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 transition-colors" title="Print QR">
+                                                                <QrCode className="h-4 w-4" />
+                                                            </button>
+                                                            <button onClick={() => setEditingDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-blue-400 transition-colors" title="Edit">
+                                                                <Edit className="h-4 w-4" />
+                                                            </button>
+                                                            <button onClick={() => setDeletingDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-red-400 transition-colors" title="Delete">
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </React.Fragment>
+                                ));
+                            })()}
                         </tbody>
                     </table>
                 </div>
