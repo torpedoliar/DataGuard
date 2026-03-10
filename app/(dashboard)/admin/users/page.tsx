@@ -1,4 +1,5 @@
 import { getUsers } from "@/actions/users";
+import { getSites } from "@/actions/sites";
 import AddUserForm from "@/components/admin/add-user-form";
 import UserTable from "@/components/admin/user-table";
 import { verifySession } from "@/lib/session";
@@ -10,6 +11,7 @@ export default async function UsersPage() {
     if (!session || !["admin", "superadmin"].includes(session.role)) redirect("/checklist");
 
     const users = await getUsers();
+    const sites = await getSites();
 
     return (
         <div className="px-4 py-6 sm:px-0">
@@ -38,7 +40,7 @@ export default async function UsersPage() {
                 </div>
             </div>
 
-            <AddUserForm />
+            <AddUserForm sites={sites} />
 
             <div className="mt-8">
                 <div className="flex items-center justify-between mb-4">
@@ -46,7 +48,7 @@ export default async function UsersPage() {
                         System Users ({users.length})
                     </h3>
                 </div>
-                <UserTable users={users} currentUserId={session.userId} />
+                <UserTable users={users} currentUserId={session.userId} sites={sites} />
             </div>
         </div>
     );

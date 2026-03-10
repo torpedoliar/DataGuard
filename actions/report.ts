@@ -14,31 +14,52 @@ export async function getAnalyticsStats() {
     const session = await verifySession();
     if (!session) return null;
 
+    const siteId = session.activeSiteId;
+
     // 1. KPIs
-    const totalItems = await db.select({ count: sql<number>`count(*)` }).from(checklistItems).then(res => res[0].count);
-    const okItems = await db.select({ count: sql<number>`count(*)` })
+    const totalItems = await db
+        .select({ count: sql<number>`count(*)` })
         .from(checklistItems)
-        .where(eq(checklistItems.status, 'OK'))
-        .then(res => res[0].count);
+        .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
+        .where(siteId ? eq(checklistEntries.siteId, siteId) : undefined)
+        .then(res => Number(res[0].count));
 
-    const openIssues = await db.select({ count: sql<number>`count(*)` })
+    const okItems = await db
+        .select({ count: sql<number>`count(*)` })
         .from(checklistItems)
-        .where(sql`status != 'OK'`)
-        .then(res => res[0].count);
+        .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
+        .where(
+            and(
+                eq(checklistItems.status, 'OK'),
+                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+            )
+        )
+        .then(res => Number(res[0].count));
 
+    const openIssues = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(checklistItems)
+        .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
+        .where(
+            and(
+                sql`${checklistItems.status} != 'OK'`,
+                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+            )
+        )
+        .then(res => Number(res[0].count));
     const complianceRate = totalItems > 0 ? ((okItems / totalItems) * 100).toFixed(1) : "0";
 
-    // 2. Monthly Trends (Last 12 months) - SQLite
-    // Group by strftime('%Y-%m', check_date)
+    // 2. Monthly Trends (Last 12 months) - PostgreSQL compatible (assuming text date YYYY-MM-DD)
     const monthlyTrends = await db.select({
-        month: sql<string>`strftime('%Y-%m', ${checklistEntries.checkDate})`,
+        month: sql<string>`SUBSTR(${checklistEntries.checkDate}, 1, 7)`,
         healthy: sql<number>`sum(case when ${checklistItems.status} = 'OK' then 1 else 0 end)`,
         faulty: sql<number>`sum(case when ${checklistItems.status} != 'OK' then 1 else 0 end)`
     })
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
-        .groupBy(sql`strftime('%Y-%m', ${checklistEntries.checkDate})`)
-        .orderBy(desc(sql`strftime('%Y-%m', ${checklistEntries.checkDate})`))
+        .where(siteId ? eq(checklistEntries.siteId, siteId) : undefined)
+        .groupBy(sql`SUBSTR(${checklistEntries.checkDate}, 1, 7)`)
+        .orderBy(desc(sql`SUBSTR(${checklistEntries.checkDate}, 1, 7)`))
         .limit(12);
 
     // Reverse to show Jan -> Dec
@@ -46,13 +67,19 @@ export async function getAnalyticsStats() {
 
     // 3. Failure by Category
     const failureByCategory = await db.select({
-        category: sql<string>`${devices.categoryId}`, // We need to join category table actually
+        category: sql<string>`${devices.categoryId}`,
         categoryName: sql<string>`(select name from categories where id = ${devices.categoryId})`,
         count: sql<number>`count(*)`
     })
         .from(checklistItems)
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
-        .where(sql`${checklistItems.status} != 'OK'`)
+        .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
+        .where(
+            and(
+                sql`${checklistItems.status} != 'OK'`,
+                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+            )
+        )
         .groupBy(devices.categoryId)
         .orderBy(desc(sql`count(*)`))
         .limit(5);
@@ -78,10 +105,13 @@ export async function getReportData(
     const session = await verifySession();
     if (!session) return { data: [], total: 0, totalPages: 0, currentPage: page };
 
+    const siteId = session.activeSiteId;
+
     // Build where clause
     const whereClause = and(
         gte(checklistEntries.checkDate, startDate),
-        lte(checklistEntries.checkDate, endDate)
+        lte(checklistEntries.checkDate, endDate),
+        siteId ? eq(checklistEntries.siteId, siteId) : undefined
     );
 
     // Get total count
@@ -128,6 +158,8 @@ export async function getRawExportData(startDate: string, endDate: string) {
     const session = await verifySession();
     if (!session) return null;
 
+    const siteId = session.activeSiteId;
+
     return await db
         .select({
             id: checklistItems.id,
@@ -148,7 +180,8 @@ export async function getRawExportData(startDate: string, endDate: string) {
         .where(
             and(
                 gte(checklistEntries.checkDate, startDate),
-                lte(checklistEntries.checkDate, endDate)
+                lte(checklistEntries.checkDate, endDate),
+                siteId ? eq(checklistEntries.siteId, siteId) : undefined
             )
         )
         .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime));

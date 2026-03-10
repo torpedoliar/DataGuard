@@ -2,8 +2,11 @@
 
 import { deleteUser } from "@/actions/users";
 import { useState, useMemo, useTransition } from "react";
-import { Trash2, Edit, Shield, Mail, Calendar, LogIn, Search, ArrowUpDown, ArrowUp, ArrowDown, X, Filter } from "lucide-react";
+import { Trash2, Edit, Shield, Mail, Calendar, LogIn, Search, ArrowUpDown, ArrowUp, ArrowDown, X, Filter, Key, Database } from "lucide-react";
 import EditUserForm from "./edit-user-form";
+import ResetPasswordModal from "./reset-password-modal";
+
+type Site = { id: number; name: string; code: string };
 
 type User = {
     id: number;
@@ -13,15 +16,17 @@ type User = {
     isActive: boolean | null;
     lastLogin: Date | null;
     createdAt: Date | null;
+    sites?: Site[];
 };
 
 type SortKey = "username" | "role" | "lastLogin" | "createdAt";
 type SortDir = "asc" | "desc";
 
-export default function UserTable({ users, currentUserId }: { users: User[]; currentUserId: number }) {
+export default function UserTable({ users, sites, currentUserId }: { users: User[]; sites: Site[]; currentUserId: number }) {
     const [isPending, startTransition] = useTransition();
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [resettingUser, setResettingUser] = useState<User | null>(null);
     const [search, setSearch] = useState("");
     const [roleFilter, setRoleFilter] = useState<string>("All");
     const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -172,12 +177,24 @@ export default function UserTable({ users, currentUserId }: { users: User[]; cur
                                             </div>
                                         </td>
                                         <td className="px-5 py-3 whitespace-nowrap">
-                                            <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full font-medium ${user.role === "superadmin" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                            <div>
+                                                <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full font-medium ${user.role === "superadmin" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                                                     : user.role === "admin" ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
                                                         : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                }`}>
-                                                <Shield className="h-3 w-3" /> {user.role}
-                                            </span>
+                                                    }`}>
+                                                    <Shield className="h-3 w-3" /> {user.role}
+                                                </span>
+                                            </div>
+                                            {user.role !== "superadmin" && user.sites && user.sites.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                    {user.sites.map(site => (
+                                                        <span key={site.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                                            <Database className="h-2.5 w-2.5" />
+                                                            {site.code}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-5 py-3 whitespace-nowrap">
                                             <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${user.isActive ? "pill-ok" : "pill-error"}`}>
@@ -193,6 +210,9 @@ export default function UserTable({ users, currentUserId }: { users: User[]; cur
                                         </td>
                                         <td className="px-5 py-3 whitespace-nowrap text-right">
                                             <div className="inline-flex items-center gap-1">
+                                                <button onClick={() => setResettingUser(user)} className="p-1.5 rounded-lg hover:bg-slate-700 text-amber-400 transition-colors" title="Reset Password">
+                                                    <Key className="h-4 w-4" />
+                                                </button>
                                                 <button onClick={() => setEditingUser(user)} className="p-1.5 rounded-lg hover:bg-slate-700 text-blue-400 transition-colors" title="Edit">
                                                     <Edit className="h-4 w-4" />
                                                 </button>
@@ -215,9 +235,11 @@ export default function UserTable({ users, currentUserId }: { users: User[]; cur
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </div >
 
-            {editingUser && <EditUserForm user={editingUser} onClose={() => setEditingUser(null)} />}
+            {editingUser && <EditUserForm user={editingUser} sites={sites} onClose={() => setEditingUser(null)} />
+            }
+            {resettingUser && <ResetPasswordModal user={resettingUser} onClose={() => setResettingUser(null)} />}
         </>
     );
 }

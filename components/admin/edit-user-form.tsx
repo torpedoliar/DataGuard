@@ -1,8 +1,10 @@
 "use client";
 
 import { updateUser } from "@/actions/users";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Loader2, X } from "lucide-react";
+
+type Site = { id: number; name: string; code: string };
 
 type User = {
     id: number;
@@ -10,15 +12,21 @@ type User = {
     email: string | null;
     role: "superadmin" | "admin" | "staff";
     isActive: boolean | null;
+    sites?: Site[];
 };
 
 interface EditUserFormProps {
     user: User;
+    sites: Site[];
     onClose: () => void;
 }
 
-export default function EditUserForm({ user, onClose }: EditUserFormProps) {
+export default function EditUserForm({ user, sites, onClose }: EditUserFormProps) {
     const [state, action, isPending] = useActionState(updateUser, undefined);
+    const [role, setRole] = useState(user.role);
+
+    // Create a set of assigned site IDs for easy checking
+    const assignedSiteIds = new Set(user.sites?.map(s => s.id) || []);
 
     useEffect(() => {
         if (state?.success) {
@@ -72,7 +80,8 @@ export default function EditUserForm({ user, onClose }: EditUserFormProps) {
                             </label>
                             <select
                                 name="role"
-                                defaultValue={user.role}
+                                value={role}
+                                onChange={(e) => setRole(e.target.value as any)}
                                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="staff">Staff</option>
@@ -80,6 +89,33 @@ export default function EditUserForm({ user, onClose }: EditUserFormProps) {
                                 <option value="superadmin">Superadmin</option>
                             </select>
                         </div>
+
+                        {role !== "superadmin" && (
+                            <div className="border border-slate-200 dark:border-slate-700 rounded-md p-4 bg-slate-50 dark:bg-slate-800/50">
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                                    Data Center Access (Sites)
+                                </label>
+                                <div className="grid gap-3 grid-cols-2">
+                                    {sites.map((site) => (
+                                        <label key={site.id} className="flex items-start gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                name="siteIds"
+                                                value={site.id}
+                                                defaultChecked={assignedSiteIds.has(site.id)}
+                                                className="mt-1 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-sm text-slate-700 dark:text-slate-300">
+                                                {site.code}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                                {sites.length === 0 && (
+                                    <p className="text-sm text-slate-500 italic">No sites available.</p>
+                                )}
+                            </div>
+                        )}
 
                         <div className="flex items-center gap-2">
                             <input

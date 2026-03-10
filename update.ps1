@@ -17,31 +17,29 @@ Write-Host "  DC-Check System - Production Update" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ---- Ensure docker-compose is available ----
-$composeCmd = "docker-compose"
-if (-not (Get-Command "docker-compose" -ErrorAction SilentlyContinue)) {
-    if (Get-Command "docker" -ErrorAction SilentlyContinue) {
-        # Check if 'docker compose' (V2) works
-        if ($LASTEXITCODE -eq 0) {
-            $composeCmd = "docker compose"
-        }
-        else {
-            Write-Host "ERROR: docker-compose or 'docker compose' could not be found." -ForegroundColor Red
-            Write-Host "Please ensure Docker Desktop or Rancher Desktop is running." -ForegroundColor Yellow
-            exit 1
-        }
+# ---- Ensure Docker Compose (V2 or V1) is available ----
+$composeCmd = "docker compose"
+try {
+    & docker compose version >$null 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "no v2" }
+}
+catch {
+    if (Get-Command "docker-compose" -ErrorAction SilentlyContinue) {
+        $composeCmd = "docker-compose"
     }
     else {
-        Write-Host "ERROR: docker could not be found." -ForegroundColor Red
+        Write-Host "ERROR: docker compose or docker-compose could not be found." -ForegroundColor Red
+        Write-Host "Please ensure Docker Desktop or Rancher Desktop is running." -ForegroundColor Yellow
         exit 1
     }
 }
 Write-Host "Using: $composeCmd" -ForegroundColor DarkGray
 
-# Define main command and extra arguments for multi-word commands (like 'docker compose')
+# Define main command and extra arguments
 $cmdParts = $composeCmd.Split(" ")
 $mainCmd = $cmdParts[0]
-$extraArgs = $cmdParts | Select-Object -Skip 1
+$extraArgs = @()
+if ($cmdParts.Length -gt 1) { $extraArgs = $cmdParts[1..($cmdParts.Length - 1)] }
 
 # ---- Read DB credentials from running container ----
 try {
@@ -81,13 +79,25 @@ if (-not (Test-Path $backupDir)) {
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $backupFile = "$backupDir/db_backup_$timestamp.sql"
 
-# Cek apakah container db sedang berjalan menggunakan filter resmi Docker
+# Cek apakah container db sedang berjalan
 $dbRunning = $false
 try {
-    # Ambil daftar service yang sedang running
-    $runningServices = & $mainCmd $extraArgs ps --services --filter "status=running" 2>$null
-    if ($runningServices -contains "db") {
-        $dbRunning = $true
+    # Method 1: Check by Service Name (V2 compatible)
+    $dbID = & $mainCmd $extraArgs ps -q db 2>$null
+    if ($dbID) {
+        $inspectStatus = & docker inspect -f '{{.State.Running}}' $dbID 2>$null
+        if ($inspectStatus -eq "true") {
+            $dbRunning = $true
+        }
+    }
+    
+    # Method 2: Fallback to text check (V1 compatible)
+    if (-not $dbRunning) {
+        $psOutput = & $mainCmd $extraArgs ps db 2>$null
+        # Join lines and check for "Up" or "running"
+        if (($psOutput -join "`n") -match "(Up|running)") {
+            $dbRunning = $true
+        }
     }
 }
 catch {
@@ -151,7 +161,9 @@ Write-Host "[4/5] Restarting app container (database stays running)..." -Foregro
 
 # Hanya recreate service 'app', bukan seluruh stack
 # Ini memastikan container 'db' TIDAK PERNAH berhenti
-& $mainCmd $extraArgs up -d --no-deps app
+# --force-recreate memastikan container lama diganti dengan yang baru
+# --remove-orphans membantu membersihkan jika ada container 'app' tak bernama yang tersisa
+& $mainCmd $extraArgs up -d --no-deps --force-recreate --remove-orphans app
 Write-Host "OK - App container restarted" -ForegroundColor Green
 Write-Host "Waiting for app to become ready..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 10

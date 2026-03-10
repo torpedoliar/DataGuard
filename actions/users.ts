@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "../db";
-import { users } from "../db/schema";
-import { eq, desc } from "drizzle-orm";
+import { users, userSites, sites } from "../db/schema";
+import { eq, desc, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
@@ -38,7 +38,22 @@ export async function getUsers() {
         return [];
     }
 
-    return await db.select().from(users).orderBy(desc(users.createdAt));
+    const allUsers = await db.query.users.findMany({
+        with: {
+            userSites: {
+                with: {
+                    site: true,
+                },
+            },
+        },
+        orderBy: [desc(users.createdAt)],
+    });
+
+    // Map to include a flat list of sites for easier UI rendering
+    return allUsers.map(user => ({
+        ...user,
+        sites: user.userSites.map(us => us.site),
+    }));
 }
 
 // Get single user by ID
@@ -73,6 +88,10 @@ export async function createUser(prevState: unknown, formData: FormData) {
 
     const { username, email, password, role, isActive } = parsed.data;
 
+    // Get site IDs from form data
+    const siteIdsList = formData.getAll("siteIds") as string[];
+    const siteIds = siteIdsList.map(Number).filter(id => !isNaN(id));
+
     // Check if username already exists
     const existingUser = await db.query.users.findFirst({
         where: eq(users.username, username),
@@ -86,16 +105,26 @@ export async function createUser(prevState: unknown, formData: FormData) {
     const passwordHash = await bcrypt.hash(password, 10);
 
     try {
-        await db.insert(users).values({
+        const [newUser] = await db.insert(users).values({
             username,
             email: email || null,
             passwordHash,
             role,
             isActive,
-        });
+        }).returning({ id: users.id });
+
+        // If not superadmin and sites are selected, assign them
+        if (role !== "superadmin" && siteIds.length > 0) {
+            const userSiteValues = siteIds.map(siteId => ({
+                userId: newUser.id,
+                siteId: siteId,
+                roleInSite: role as "admin" | "staff"
+            }));
+            await db.insert(userSites).values(userSiteValues);
+        }
 
         revalidatePath("/admin/users");
-        await logAudit({ action: "CREATE", entity: "user", entityName: username, detail: `Role: ${role}` });
+        await logAudit({ action: "CREATE", entity: "user", entityName: username, detail: `Role: ${role}, Sites: ${siteIds.length}` });
         return { success: true, message: "User created successfully" };
     } catch (error) {
         console.error("Create user error:", error);
@@ -114,6 +143,10 @@ export async function updateUser(prevState: unknown, formData: FormData) {
     if (!id) {
         return { message: "Invalid user ID" };
     }
+
+    // Get site IDs from form data
+    const siteIdsList = formData.getAll("siteIds") as string[];
+    const siteIds = siteIdsList.map(Number).filter(n => !isNaN(n));
 
     // Get only the fields that are present in the form
     const updateData: Record<string, unknown> = {};
@@ -140,7 +173,19 @@ export async function updateUser(prevState: unknown, formData: FormData) {
     }
 
     try {
+        // Update user record
         await db.update(users).set(updateData).where(eq(users.id, id));
+
+        // Update site bindings
+        await db.delete(userSites).where(eq(userSites.userId, id));
+        if (role !== "superadmin" && siteIds.length > 0) {
+            const userSiteValues = siteIds.map(siteId => ({
+                userId: id,
+                siteId: siteId,
+                roleInSite: role as "admin" | "staff"
+            }));
+            await db.insert(userSites).values(userSiteValues);
+        }
 
         revalidatePath("/admin/users");
         await logAudit({ action: "UPDATE", entity: "user", entityId: id, entityName: username });
@@ -164,6 +209,9 @@ export async function deleteUser(id: number) {
     }
 
     try {
+        // Hapus akses site user terlebih dahulu (cascade manual)
+        await db.delete(userSites).where(eq(userSites.userId, id));
+        // Hapus user
         await db.delete(users).where(eq(users.id, id));
 
         revalidatePath("/admin/users");
@@ -214,6 +262,36 @@ export async function changePassword(prevState: unknown, formData: FormData) {
     } catch (error) {
         console.error("Change password error:", error);
         return { message: "Failed to change password" };
+    }
+}
+
+// Admin reset user password
+export async function adminResetPassword(prevState: unknown, formData: FormData) {
+    const session = await verifySession();
+    if (!session || !["admin", "superadmin"].includes(session.role)) {
+        return { message: "Unauthorized" };
+    }
+
+    const id = Number(formData.get("id"));
+    const newPassword = formData.get("newPassword") as string;
+    const confirmPassword = formData.get("confirmPassword") as string;
+
+    if (!id) return { message: "Invalid user ID" };
+    if (!newPassword || newPassword.length < 6) return { message: "New password must be at least 6 characters" };
+    if (newPassword !== confirmPassword) return { message: "Passwords do not match" };
+
+    try {
+        const targetUser = await db.query.users.findFirst({ where: eq(users.id, id) });
+        if (!targetUser) return { message: "User not found" };
+
+        const newHash = await bcrypt.hash(newPassword, 10);
+        await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, id));
+
+        await logAudit({ action: "UPDATE", entity: "user", entityId: id, entityName: targetUser.username, detail: "Password reset by admin" });
+        return { success: true, message: "User password reset successfully" };
+    } catch (error) {
+        console.error("Admin reset password error:", error);
+        return { message: "Failed to reset user password" };
     }
 }
 

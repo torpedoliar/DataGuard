@@ -32,7 +32,8 @@ export async function getDeviceHealthHistory(deviceId: number, days: number = 30
         .where(
             and(
                 eq(checklistItems.deviceId, deviceId),
-                gte(checklistEntries.checkDate, startDateStr)
+                gte(checklistEntries.checkDate, startDateStr),
+                session.activeSiteId ? eq(checklistEntries.siteId, session.activeSiteId) : undefined
             )
         )
         .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime));

@@ -141,6 +141,30 @@ export async function addPort(data: typeof networkPorts.$inferInsert) {
     revalidatePath(`/admin/devices/${data.deviceId}/network`);
 }
 
+export async function bulkAddPorts(ports: (typeof networkPorts.$inferInsert)[]) {
+    const session = await verifySession();
+    if (!session) throw new Error("Anda tidak memiliki hak akses (Unauthorized).");
+
+    if (ports.length === 0) return;
+
+    const deviceId = ports[0].deviceId;
+
+    try {
+        await db.insert(networkPorts).values(ports);
+        await logAudit({
+            action: "CREATE",
+            entity: "network_port",
+            entityName: `Bulk (${ports.length} ports)`,
+            detail: `DeviceID: ${deviceId}, Ports: ${ports[0].portName}...${ports[ports.length - 1].portName}`
+        });
+    } catch (error) {
+        throw new Error("Gagal menyimpan daftar port jaringan. Silakan periksa duplikasi nama port.");
+    }
+
+    revalidatePath("/admin/network");
+    revalidatePath(`/admin/devices/${deviceId}/network`);
+}
+
 export async function updatePort(id: number, data: Partial<typeof networkPorts.$inferInsert>) {
     const session = await verifySession();
     if (!session) throw new Error("Anda tidak memiliki hak akses (Unauthorized).");

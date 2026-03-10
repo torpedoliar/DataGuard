@@ -19,7 +19,12 @@ export async function getDashboardStats() {
     const checkedToday = await db.select({ count: sql<number>`count(distinct ${checklistItems.deviceId})` })
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
-        .where(eq(checklistEntries.checkDate, today))
+        .where(
+            and(
+                eq(checklistEntries.checkDate, today),
+                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+            )
+        )
         .then(res => Number(res[0].count));
 
     const overallCompletion = totalDevices > 0 ? Math.round((checkedToday / totalDevices) * 100) : 0;
@@ -40,7 +45,8 @@ export async function getDashboardStats() {
             .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
             .where(and(
                 eq(checklistEntries.checkDate, today),
-                eq(devices.categoryId, cat.id)
+                eq(devices.categoryId, cat.id),
+                siteId ? eq(checklistEntries.siteId, siteId) : undefined
             ))
             .then(res => Number(res[0].count));
 
@@ -69,6 +75,7 @@ export async function getDashboardStats() {
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
         .innerJoin(categories, eq(devices.categoryId, categories.id))
         .innerJoin(users, eq(checklistEntries.userId, users.id))
+        .where(siteId ? eq(checklistEntries.siteId, siteId) : undefined)
         .orderBy(desc(checklistEntries.createdAt))
         .limit(5);
 
