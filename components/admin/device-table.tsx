@@ -265,7 +265,13 @@ export default function DeviceTable({ devices, brands, locations }: { devices: D
                                     groups[r].push(d);
                                 });
 
-                                return Object.entries(groups).map(([rackName, rackDevices]) => (
+                                const groupEntries = Object.entries(groups).sort((a, b) => {
+                                    if (a[0] === "Unassigned / Direct Placement") return 1;
+                                    if (b[0] === "Unassigned / Direct Placement") return -1;
+                                    return a[0].localeCompare(b[0]);
+                                });
+
+                                return groupEntries.map(([rackName, rackDevices]) => (
                                     <React.Fragment key={rackName}>
                                         {/* Rack Header Row */}
                                         <tr className="bg-slate-800/30 border-y border-slate-700/50 group/rack">
