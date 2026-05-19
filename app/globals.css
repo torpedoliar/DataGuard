@@ -13,6 +13,19 @@
   --color-warning: #f97316;
   --color-error: #ef4444;
 
+  --color-ops-bg: #090d13;
+  --color-ops-surface: #101721;
+  --color-ops-surface-raised: #111820;
+  --color-ops-border: #263244;
+  --color-ops-muted: #8090a4;
+  --color-ops-text: #f8fafc;
+  --color-ops-accent: #5dd4b4;
+  --color-ops-info: #60a5fa;
+  --color-ops-success: #3bd17f;
+  --color-ops-warning: #f0b94b;
+  --color-ops-orange: #f97316;
+  --color-ops-danger: #ff6b6b;
+
   --font-display: "Space Grotesk", sans-serif;
   --font-body: "Inter", sans-serif;
 }
@@ -24,7 +37,7 @@ html {
 
 body {
   font-family: var(--font-body), system-ui, sans-serif;
-  background-color: #0b1120;
+  background-color: #090d13;
   color: #f1f5f9;
 }
 
@@ -111,14 +124,14 @@ th {
 
 /* ===== GLOW CARD UTILITY ===== */
 .glow-card {
-  background: #111827;
-  border: 1px solid #1e293b;
-  border-radius: 16px;
+  background: #111820;
+  border: 1px solid #263244;
+  border-radius: 8px;
   transition: all 0.3s ease;
 }
 .glow-card:hover {
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.05);
+  border-color: rgba(93, 212, 180, 0.35);
+  box-shadow: 0 0 18px rgba(93, 212, 180, 0.04);
 }
 
 /* ===== STATUS PILLS ===== */
@@ -136,4 +149,28 @@ th {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.ops-panel {
+  background: #111820;
+  border: 1px solid #263244;
+  border-radius: 8px;
+}
+
+.ops-panel-subtle {
+  background: #101721;
+  border: 1px solid #263244;
+  border-radius: 8px;
+}
+
+.ops-input {
+  background: #0d141d;
+  border: 1px solid #263244;
+  color: #f8fafc;
+  border-radius: 6px;
+}
+
+.ops-input:focus {
+  border-color: #5dd4b4;
+  box-shadow: 0 0 0 2px rgba(93, 212, 180, 0.16);
 }
