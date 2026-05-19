@@ -15,6 +15,7 @@ export type AuditAction =
     | "TOGGLE"
     | "UPLOAD"
     | "EXPORT"
+    | "TEST"
     | "SCHEMA_PUSH"
     | "SITE_SWITCH";
 

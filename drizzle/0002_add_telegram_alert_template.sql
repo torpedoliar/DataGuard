@@ -1,0 +1,1 @@
+ALTER TABLE "global_settings" ADD COLUMN "telegram_alert_template" text;

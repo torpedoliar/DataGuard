@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 export const metadata = {
     title: "Global Settings | DataGuard Admin",
-    description: "Manage application name, logo, and favicon.",
+    description: "Manage application branding and Telegram alerts.",
 };
 
 export default async function SettingsPage() {
@@ -26,7 +26,7 @@ export default async function SettingsPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-white tracking-tight">Pengaturan Aplikasi</h1>
                         <p className="text-sm text-slate-400 mt-1">
-                            Sesuaikan nama aplikasi, logo navigasi, dan favicon browser.
+                            Sesuaikan branding aplikasi dan template notifikasi Telegram.
                         </p>
                     </div>
                 </div>

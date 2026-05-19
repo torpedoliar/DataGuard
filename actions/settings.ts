@@ -7,12 +7,19 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
+import {
+    DEFAULT_TELEGRAM_ALERT_TEMPLATE,
+    isTelegramBotConfigured,
+    renderTelegramTemplate,
+    sendTelegramAlert,
+} from "../lib/telegram";
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 
 const settingsSchema = z.object({
     appName: z.string().min(1, "Nama aplikasi tidak boleh kosong"),
+    telegramAlertTemplate: z.string().max(4000, "Template Telegram maksimal 4000 karakter").optional(),
 });
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -20,6 +27,17 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 const UPLOAD_DIR = path.join(process.cwd(), "public/uploads/settings");
+
+function defaultSettings() {
+    return {
+        id: 0,
+        appName: "DataGuard",
+        logoPath: null,
+        faviconPath: null,
+        telegramAlertTemplate: DEFAULT_TELEGRAM_ALERT_TEMPLATE,
+        telegramBotConfigured: isTelegramBotConfigured(),
+    };
+}
 
 // Initialize upload directory
 async function ensureUploadDir() {
@@ -66,12 +84,7 @@ export async function getSettings() {
     // Pada saat NEXT BUILD di Docker, DB connection string mungkin invalid atau DB belum menyala.
     // Cegah crash dengan langsung me-return default saat fase build.
     if (process.env.npm_lifecycle_event === 'build') {
-        return {
-            id: 0,
-            appName: "DataGuard",
-            logoPath: null,
-            faviconPath: null,
-        };
+        return defaultSettings();
     }
 
     try {
@@ -82,6 +95,8 @@ export async function getSettings() {
                 appName: settingsList[0].appName,
                 logoPath: settingsList[0].logoPath,
                 faviconPath: settingsList[0].faviconPath,
+                telegramAlertTemplate: settingsList[0].telegramAlertTemplate || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
+                telegramBotConfigured: isTelegramBotConfigured(),
             };
         }
     } catch (error) {
@@ -90,12 +105,23 @@ export async function getSettings() {
     }
 
     // Default settings if db is empty or errors occur
-    return {
-        id: 0,
-        appName: "DataGuard",
-        logoPath: null,
-        faviconPath: null,
-    };
+    return defaultSettings();
+}
+
+export async function getTelegramAlertTemplate() {
+    if (process.env.npm_lifecycle_event === 'build') {
+        return DEFAULT_TELEGRAM_ALERT_TEMPLATE;
+    }
+
+    try {
+        const settingsList = await db.select({
+            telegramAlertTemplate: globalSettings.telegramAlertTemplate,
+        }).from(globalSettings).limit(1);
+
+        return settingsList[0]?.telegramAlertTemplate || DEFAULT_TELEGRAM_ALERT_TEMPLATE;
+    } catch {
+        return DEFAULT_TELEGRAM_ALERT_TEMPLATE;
+    }
 }
 
 export async function updateSettings(prevState: unknown, formData: FormData) {
@@ -104,8 +130,14 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
         return { message: "Unauthorized. Only superadmin can modify global settings." };
     }
 
-    const parsed = settingsSchema.safeParse({ appName: formData.get("appName") });
-    if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+    const parsed = settingsSchema.safeParse({
+        appName: formData.get("appName"),
+        telegramAlertTemplate: String(formData.get("telegramAlertTemplate") ?? ""),
+    });
+    if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0]?.message ?? "Data pengaturan tidak valid.";
+        return { message: firstIssue, errors: parsed.error.flatten().fieldErrors };
+    }
 
     try {
         // Fetch existing settings
@@ -145,6 +177,8 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
 
         const upsertData: Partial<typeof globalSettings.$inferInsert> = {
             appName: parsed.data.appName,
+            telegramAlertTemplate: parsed.data.telegramAlertTemplate?.trim() || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
+            updatedAt: new Date(),
         };
         if (logoPath !== undefined) upsertData.logoPath = logoPath;
         if (faviconPath !== undefined) upsertData.faviconPath = faviconPath;
@@ -169,4 +203,51 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
         console.error("Update settings error:", error);
         return { message: "Terjadi kesalahan saat memperbarui pengaturan. Silakan coba lagi." };
     }
+}
+
+export async function sendTelegramTestMessage(prevState: unknown, formData: FormData) {
+    void prevState;
+
+    const session = await verifySession();
+    if (!session || session.role !== "superadmin") {
+        return { message: "Unauthorized. Only superadmin can test Telegram settings." };
+    }
+
+    const chatId = String(formData.get("telegramTestChatId") ?? "").trim();
+    if (!chatId) return { message: "Chat ID Telegram wajib diisi untuk test." };
+
+    const template = String(formData.get("telegramAlertTemplate") ?? "").trim() || DEFAULT_TELEGRAM_ALERT_TEMPLATE;
+    const message = renderTelegramTemplate(template, {
+        siteName: "DC Jakarta",
+        siteCode: "DC-JKT",
+        checker: session.username,
+        shift: "Pagi",
+        checkDate: "2026-05-19",
+        checkTime: "09:30",
+        deviceName: "Core Switch A01",
+        deviceStatus: "Warning",
+        deviceLocation: "Network Room",
+        deviceCategory: "Network",
+        deviceBrand: "Cisco",
+        deviceZone: "Network Core",
+        deviceRack: "Rack N1 U12",
+        deviceIp: "10.10.10.2",
+        deviceDescription: "Primary distribution switch",
+        deviceRemarks: "Temperature threshold exceeded",
+        incidentId: "TEST",
+    });
+
+    const result = await sendTelegramAlert(chatId, message);
+    if (!result.success) {
+        return { message: result.message || "Gagal mengirim pesan test Telegram." };
+    }
+
+    await logAudit({
+        action: "TEST",
+        entity: "settings",
+        entityName: "Telegram",
+        detail: `Telegram test message sent to ${chatId}`,
+    });
+
+    return { success: true, message: "Pesan test Telegram berhasil dikirim." };
 }

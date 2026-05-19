@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateSettings } from "@/actions/settings";
+import { sendTelegramTestMessage, updateSettings } from "@/actions/settings";
 import Image from "next/image";
 
 type SettingsData = {
@@ -10,13 +10,37 @@ type SettingsData = {
     appName: string;
     logoPath: string | null;
     faviconPath: string | null;
+    telegramAlertTemplate: string;
+    telegramBotConfigured: boolean;
 };
+
+const telegramTemplateTokens = [
+    "siteName",
+    "siteCode",
+    "checker",
+    "shift",
+    "checkDate",
+    "checkTime",
+    "deviceName",
+    "deviceStatus",
+    "deviceLocation",
+    "deviceCategory",
+    "deviceBrand",
+    "deviceZone",
+    "deviceRack",
+    "deviceIp",
+    "deviceDescription",
+    "deviceRemarks",
+    "incidentId",
+];
 
 export default function SettingsForm({ initialData }: { initialData: SettingsData }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
+    const [isTestingTelegram, startTelegramTestTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [telegramTestResult, setTelegramTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string | null>(initialData.logoPath);
@@ -25,6 +49,8 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
     const [faviconFile, setFaviconFile] = useState<File | null>(null);
     const [faviconPreview, setFaviconPreview] = useState<string | null>(initialData.faviconPath);
     const [removeFavicon, setRemoveFavicon] = useState(false);
+    const [telegramTemplate, setTelegramTemplate] = useState(initialData.telegramAlertTemplate);
+    const [telegramTestChatId, setTelegramTestChatId] = useState("");
 
     const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -95,14 +121,37 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                     setSuccess(response.message || "Pengaturan berhasil disimpan.");
                     router.refresh(); // Important: Refreshes Server Components (Layout/Navbar)
                 }
-            } catch (err) {
+            } catch {
                 setError("Terjadi kesalahan sistem saat menyimpan pengaturan.");
             }
         });
     };
 
+    const handleTelegramTest = () => {
+        setTelegramTestResult(null);
+
+        const formData = new FormData();
+        formData.set("telegramTestChatId", telegramTestChatId);
+        formData.set("telegramAlertTemplate", telegramTemplate);
+
+        startTelegramTestTransition(async () => {
+            try {
+                const response = await sendTelegramTestMessage(null, formData);
+                setTelegramTestResult({
+                    type: response?.success ? "success" : "error",
+                    message: response?.message || "Tidak ada respons dari Telegram.",
+                });
+            } catch {
+                setTelegramTestResult({
+                    type: "error",
+                    message: "Terjadi kesalahan sistem saat mengirim test Telegram.",
+                });
+            }
+        });
+    };
+
     return (
-        <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl bg-slate-800/40 p-6 rounded-2xl border border-slate-700/50">
+        <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl bg-slate-800/40 p-6 rounded-2xl border border-slate-700/50">
             {error && (
                 <div className="p-3 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg flex items-center gap-2">
                     <span className="material-symbols-outlined text-[18px]">error</span>
@@ -233,6 +282,105 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-700/50 space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h2 className="text-sm font-semibold text-white">Telegram Alert</h2>
+                        <p className="mt-1 text-xs text-slate-400">
+                            Template ini dipakai saat perangkat berstatus Warning atau Error.
+                        </p>
+                    </div>
+                    <span className={`inline-flex h-7 w-fit items-center gap-2 rounded-full border px-3 text-xs font-medium ${initialData.telegramBotConfigured
+                        ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                        : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                        }`}>
+                        <span className="material-symbols-outlined text-[16px]">
+                            {initialData.telegramBotConfigured ? "check_circle" : "warning"}
+                        </span>
+                        {initialData.telegramBotConfigured ? "Bot token aktif" : "Bot token belum aktif"}
+                    </span>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        Template Pesan Perangkat
+                    </label>
+                    <textarea
+                        name="telegramAlertTemplate"
+                        value={telegramTemplate}
+                        onChange={(event) => setTelegramTemplate(event.target.value)}
+                        rows={13}
+                        maxLength={4000}
+                        className="w-full resize-y rounded-lg bg-slate-950 border border-slate-700 px-3 py-3 font-mono text-xs leading-relaxed text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                        <span>Markdown Telegram didukung.</span>
+                        <span>{telegramTemplate.length}/4000</span>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                    {telegramTemplateTokens.map((token) => (
+                        <button
+                            key={token}
+                            type="button"
+                            onClick={() => setTelegramTemplate((current) => `${current}${current && !current.endsWith("\n") ? " " : ""}{${token}}`)}
+                            className="h-7 rounded-md border border-slate-700 bg-slate-900 px-2.5 font-mono text-[11px] text-slate-300 hover:border-blue-400/60 hover:text-white transition-colors"
+                        >
+                            {`{${token}}`}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Test Chat ID
+                        </label>
+                        <input
+                            type="text"
+                            value={telegramTestChatId}
+                            onChange={(event) => setTelegramTestChatId(event.target.value)}
+                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            placeholder="-1001234567890"
+                        />
+                        <p className="text-xs text-slate-500 mt-1.5">
+                            Chat ID produksi per data center tetap diatur dari Admin Sites.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleTelegramTest}
+                        disabled={isTestingTelegram}
+                        className="h-10 px-4 rounded-lg border border-slate-600 text-sm font-medium text-slate-100 hover:border-blue-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {isTestingTelegram ? (
+                            <>
+                                <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                                Mengirim...
+                            </>
+                        ) : (
+                            <>
+                                <span className="material-symbols-outlined text-[18px]">send</span>
+                                Kirim Test
+                            </>
+                        )}
+                    </button>
+                </div>
+
+                {telegramTestResult && (
+                    <div className={`p-3 text-sm rounded-lg border flex items-center gap-2 ${telegramTestResult.type === "success"
+                        ? "text-emerald-300 bg-emerald-400/10 border-emerald-400/20"
+                        : "text-red-300 bg-red-400/10 border-red-400/20"
+                        }`}>
+                        <span className="material-symbols-outlined text-[18px]">
+                            {telegramTestResult.type === "success" ? "check_circle" : "error"}
+                        </span>
+                        {telegramTestResult.message}
+                    </div>
+                )}
             </div>
 
             <div className="pt-4 border-t border-slate-700/50 flex justify-end">

@@ -4,14 +4,14 @@
 import { db } from "../db";
 import { checklistEntries, checklistItems, users, sites, devices } from "../db/schema";
 import { createIncidentsForChecklistItems } from "@/actions/incidents";
-import { sendTelegramAlert } from "@/lib/telegram";
+import { getTelegramAlertTemplate } from "@/actions/settings";
+import { renderTelegramTemplate, sendTelegramAlert } from "@/lib/telegram";
 import { verifySession } from "../lib/session";
 import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
 import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { redirect } from "next/navigation";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 
 export async function submitChecklist(prevState: unknown, formData: FormData) {
@@ -40,7 +40,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
 
         // 3. Process each device item
         const deviceIds = formData.getAll("deviceId");
-        const alertItems: { deviceId: number; status: "Warning" | "Error"; remarks: string }[] = [];
+        const alertItems: { checklistItemId: number; deviceId: number; status: "Warning" | "Error"; remarks: string }[] = [];
         const incidentItems: {
             checklistItemId: number;
             deviceId: number;
@@ -79,7 +79,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
             }).returning();
 
             if (normalizedStatus === "Warning" || normalizedStatus === "Error") {
-                alertItems.push({ deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided" });
+                alertItems.push({ checklistItemId: item.id, deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided" });
                 incidentItems.push({
                     checklistItemId: item.id,
                     deviceId,
@@ -90,35 +90,57 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
             }
         }
 
+        const createdIncidents = await createIncidentsForChecklistItems({
+            siteId: auth.activeSiteId,
+            userId: session.userId,
+            items: incidentItems,
+        });
+
         // 5. Dispatch Telegram Alerts (if applicable)
         if (alertItems.length > 0) {
             try {
-                const [site, user] = await Promise.all([
+                const [site, user, telegramTemplate] = await Promise.all([
                     db.query.sites.findFirst({ where: eq(sites.id, auth.activeSiteId) }),
-                    db.query.users.findFirst({ where: eq(users.id, session.userId) })
+                    db.query.users.findFirst({ where: eq(users.id, session.userId) }),
+                    getTelegramAlertTemplate(),
                 ]);
 
                 if (site?.telegramChatId) {
                     const failedIds = alertItems.map(a => a.deviceId);
                     const devicesInfo = await db.query.devices.findMany({
                         where: inArray(devices.id, failedIds),
-                        with: { location: true }
+                        with: { brand: true, category: true, location: true }
                     });
+                    const incidentByChecklistItemId = new Map(
+                        createdIncidents.map((incident) => [incident.checklistItemId, incident]),
+                    );
 
-                    let message = `🚨 *Data Center Audit Alert* 🚨\n`;
-                    message += `📍 *Site:* ${site.name}\n`;
-                    message += `👤 *Auditor:* ${user?.username || 'Unknown'}\n`;
-                    message += `⏰ *Time:* ${checkDate} ${checkTime}\n\n`;
-
-                    for (const alert of alertItems) {
+                    const messages = alertItems.map((alert) => {
                         const dev = devicesInfo.find(d => d.id === alert.deviceId);
-                        const devName = dev ? dev.name : `Device #${alert.deviceId}`;
-                        const locName = dev?.location?.name ? `(${dev.location.name})` : '';
-                        const icon = alert.status === "Error" ? "❌" : "⚠️";
-                        message += `${icon} *${devName}* ${locName}\n`;
-                        message += `   └ Status: ${alert.status}\n`;
-                        message += `   └ Remarks: ${alert.remarks}\n\n`;
-                    }
+                        const rack = [dev?.rackName, dev?.rackPosition ? `U${dev.rackPosition}` : null].filter(Boolean).join(" ");
+                        const incident = incidentByChecklistItemId.get(alert.checklistItemId);
+
+                        return renderTelegramTemplate(telegramTemplate, {
+                            siteName: site.name,
+                            siteCode: site.code,
+                            checker: user?.username || "Unknown",
+                            shift,
+                            checkDate,
+                            checkTime,
+                            deviceName: dev?.name || `Device #${alert.deviceId}`,
+                            deviceStatus: alert.status,
+                            deviceLocation: dev?.location?.name,
+                            deviceCategory: dev?.category?.name,
+                            deviceBrand: dev?.brand?.name,
+                            deviceZone: dev?.zone,
+                            deviceRack: rack,
+                            deviceIp: dev?.ipAddress,
+                            deviceDescription: dev?.description,
+                            deviceRemarks: alert.remarks,
+                            incidentId: incident?.id ? `#${incident.id}` : "-",
+                        });
+                    });
+                    const message = messages.join("\n\n---\n\n");
 
                     // Async dispatch so we don't block the UI response
                     sendTelegramAlert(site.telegramChatId, message).catch(console.error);
@@ -127,12 +149,6 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 console.error("Failed to dispatch telegram alerts:", e);
             }
         }
-
-        await createIncidentsForChecklistItems({
-            siteId: auth.activeSiteId,
-            userId: session.userId,
-            items: incidentItems,
-        });
 
         revalidatePath("/admin/incidents");
         revalidatePath("/checklist");
