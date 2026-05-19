@@ -56,7 +56,7 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
         else { setSortKey(key); setSortDir("asc"); }
     };
 
-    const SortIcon = ({ col }: { col: SortKey }) => {
+    const renderSortIcon = (col: SortKey) => {
         if (sortKey !== col) return <ArrowUpDown className="h-3.5 w-3.5 text-slate-600" />;
         return sortDir === "asc"
             ? <ArrowUp className="h-3.5 w-3.5 text-blue-400" />
@@ -133,17 +133,17 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
                         <thead className="bg-[#0d1526] text-[11px] uppercase tracking-wider text-slate-500">
                             <tr>
                                 <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("username")}>
-                                    <span className="inline-flex items-center gap-1.5">User <SortIcon col="username" /></span>
+                                    <span className="inline-flex items-center gap-1.5">User {renderSortIcon("username")}</span>
                                 </th>
                                 <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("role")}>
-                                    <span className="inline-flex items-center gap-1.5">Role <SortIcon col="role" /></span>
+                                    <span className="inline-flex items-center gap-1.5">Role {renderSortIcon("role")}</span>
                                 </th>
                                 <th className="px-5 py-3 text-left">Status</th>
                                 <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("lastLogin")}>
-                                    <span className="inline-flex items-center gap-1.5">Last Login <SortIcon col="lastLogin" /></span>
+                                    <span className="inline-flex items-center gap-1.5">Last Login {renderSortIcon("lastLogin")}</span>
                                 </th>
                                 <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("createdAt")}>
-                                    <span className="inline-flex items-center gap-1.5">Created <SortIcon col="createdAt" /></span>
+                                    <span className="inline-flex items-center gap-1.5">Created {renderSortIcon("createdAt")}</span>
                                 </th>
                                 <th className="px-5 py-3 text-right">Actions</th>
                             </tr>

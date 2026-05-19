@@ -8,6 +8,7 @@ import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "../lib/audit";
+import { requireSuperadminAction } from "../lib/action-auth";
 
 // Schemas
 const createUserSchema = z.object({
@@ -33,8 +34,8 @@ export type UserFormData = z.infer<typeof createUserSchema>;
 
 // Get all users
 export async function getUsers() {
-    const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) {
+    const auth = await requireSuperadminAction();
+    if (!auth.ok) {
         return [];
     }
 
@@ -76,10 +77,8 @@ export async function getUserById(id: number) {
 
 // Create new user
 export async function createUser(prevState: unknown, formData: FormData) {
-    const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) {
-        return { message: "Unauthorized" };
-    }
+    const auth = await requireSuperadminAction();
+    if (!auth.ok) return { message: auth.message };
 
     const parsed = createUserSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) {
@@ -134,10 +133,8 @@ export async function createUser(prevState: unknown, formData: FormData) {
 
 // Update user
 export async function updateUser(prevState: unknown, formData: FormData) {
-    const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) {
-        return { message: "Unauthorized" };
-    }
+    const auth = await requireSuperadminAction();
+    if (!auth.ok) return { message: auth.message };
 
     const id = Number(formData.get("id"));
     if (!id) {
@@ -198,13 +195,11 @@ export async function updateUser(prevState: unknown, formData: FormData) {
 
 // Delete user
 export async function deleteUser(id: number) {
-    const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) {
-        return { message: "Unauthorized" };
-    }
+    const auth = await requireSuperadminAction();
+    if (!auth.ok) return { message: auth.message };
 
     // Prevent deleting yourself
-    if (id === session.userId) {
+    if (id === auth.session.userId) {
         return { message: "Cannot delete your own account" };
     }
 
@@ -267,10 +262,8 @@ export async function changePassword(prevState: unknown, formData: FormData) {
 
 // Admin reset user password
 export async function adminResetPassword(prevState: unknown, formData: FormData) {
-    const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) {
-        return { message: "Unauthorized" };
-    }
+    const auth = await requireSuperadminAction();
+    if (!auth.ok) return { message: auth.message };
 
     const id = Number(formData.get("id"));
     const newPassword = formData.get("newPassword") as string;

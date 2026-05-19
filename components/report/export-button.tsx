@@ -2,6 +2,7 @@
 "use client";
 
 import { getRawExportData, exportToExcel } from "@/actions/report";
+import { incidentStatuses, type IncidentStatus } from "@/lib/incidents";
 import { Download, Loader2, FileText } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -19,11 +20,15 @@ export default function ExportButton() {
 
     const startDate = searchParams.get("startDate") || formatDate(firstDay);
     const endDate = searchParams.get("endDate") || formatDate(today);
+    const incidentStatusParam = searchParams.get("incidentStatus") || "";
+    const incidentStatus = incidentStatuses.includes(incidentStatusParam as IncidentStatus)
+        ? incidentStatusParam as IncidentStatus
+        : undefined;
 
     const handleExcelExport = async () => {
         setIsExportingExcel(true);
         try {
-            const base64 = await exportToExcel(startDate, endDate);
+            const base64 = await exportToExcel(startDate, endDate, incidentStatus);
 
             // Convert base64 to blob
             const byteCharacters = atob(base64);
@@ -55,7 +60,7 @@ export default function ExportButton() {
     const handlePDFExport = async () => {
         setIsExportingPDF(true);
         try {
-            const data = await getRawExportData(startDate, endDate);
+            const data = await getRawExportData(startDate, endDate, incidentStatus);
             if (!data || data.length === 0) {
                 alert("No data available to export for this date range.");
                 return;
@@ -79,19 +84,22 @@ export default function ExportButton() {
                 item.location,
                 item.category,
                 item.status,
+                item.incidentId ? `#${item.incidentId}` : "-",
+                item.incidentStatus ?? "-",
+                item.incidentSeverity ?? "-",
                 item.checker,
                 item.remarks || "-"
             ]);
 
             autoTable(doc, {
                 startY: 36,
-                head: [["Date", "Time", "Shift", "Device Name", "Location", "Category", "Status", "Checker", "Remarks"]],
+                head: [["Date", "Time", "Shift", "Device Name", "Location", "Category", "Status", "Incident", "Incident Status", "Incident Severity", "Checker", "Remarks"]],
                 body: tableData,
                 theme: "striped",
                 headStyles: { fillColor: [41, 128, 185] },
                 styles: { fontSize: 8 },
                 columnStyles: {
-                    8: { cellWidth: 40 } // Give remarks column more space
+                    11: { cellWidth: 40 } // Give remarks column more space
                 }
             });
 

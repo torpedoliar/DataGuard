@@ -20,7 +20,7 @@ RUN npm run build
 # Solusinya: Bungkus seluruh hasil build menjadi file tarball UTUH.
 RUN touch version.json # pastikan ada agar tar tidak fail
 RUN cd .next/standalone && tar -cf /app/standalone.tar .
-RUN tar -cf /app/assets.tar public .next/static version.json package.json drizzle.config.ts db scripts node_modules
+RUN tar -cf /app/assets.tar public .next/static version.json package.json drizzle.config.ts drizzle db scripts lib node_modules
 
 # 2. Production image, hanya copy file hasil kompilasi (dalam bentuk tar)
 FROM base AS runner

@@ -2,7 +2,7 @@ import { getPortsByDevice, getVlans } from "@/actions/network";
 import { getDevices } from "@/actions/master-data";
 import { db } from "@/db";
 import { devices, brands, locations } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -21,6 +21,7 @@ export default async function NetworkDocumentationPage({
     const resolvedParams = await params;
     const deviceId = parseInt(resolvedParams.id, 10);
     if (isNaN(deviceId)) redirect("/admin");
+    if (!session.activeSiteId) redirect("/select-site");
 
     // Fetch device details
     const deviceData = await db
@@ -34,7 +35,7 @@ export default async function NetworkDocumentationPage({
         .from(devices)
         .leftJoin(brands, eq(devices.brandId, brands.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
-        .where(eq(devices.id, deviceId))
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, session.activeSiteId)))
         .limit(1);
 
     if (deviceData.length === 0) redirect("/admin");

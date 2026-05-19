@@ -287,7 +287,7 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                 // Device covers from u to u + uHeight - 1. Topmost is u + uHeight - 1.
                 const topRow = totalU - (u + uHeight - 1) + 1;
 
-                const isMuted = (device as any).isMuted;
+                const isMuted = "isMuted" in device && device.isMuted === true;
 
                 slots.push(
                     <DraggableDevice

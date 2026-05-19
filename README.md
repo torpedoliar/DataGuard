@@ -3,7 +3,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.1.6-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.2.3-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://typescriptlang.org/)
-[![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite)](https://sqlite.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql)](https://www.postgresql.org/)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.45-C5F74F?logo=drizzle)](https://orm.drizzle.team/)
 [![License](https://img.shields.io/badge/License-Proprietary-red)](#license)
 
@@ -82,7 +82,7 @@ A comprehensive, multi-site **Data Center Audit & Infrastructure Management Syst
 | **Framework** | [Next.js 16.1.6](https://nextjs.org/) (App Router, Turbopack) |
 | **Frontend** | [React 19.2.3](https://react.dev/), TypeScript 5 |
 | **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) |
-| **Database** | [SQLite](https://sqlite.org/) via `better-sqlite3` |
+| **Database** | [PostgreSQL](https://www.postgresql.org/) via `pg` |
 | **ORM** | [Drizzle ORM](https://orm.drizzle.team/) 0.45 |
 | **Auth** | JWT ([jose](https://github.com/panva/jose)) + [bcryptjs](https://www.npmjs.com/package/bcryptjs) |
 | **Validation** | [Zod](https://zod.dev/) |
@@ -99,6 +99,7 @@ A comprehensive, multi-site **Data Center Audit & Infrastructure Management Syst
 
 - **Node.js** 20+ (tested up to v25.x)
 - **npm** (comes with Node.js)
+- **PostgreSQL** 14+ with a database available through `DATABASE_URL`
 
 ### Installation
 
@@ -112,7 +113,7 @@ npm install
 
 # 3. Set up environment variables
 cp .env.example .env
-# Edit .env and set SESSION_SECRET (min 32 characters)
+# Edit .env and set DATABASE_URL plus SESSION_SECRET (min 32 characters)
 # Generate one with: openssl rand -base64 32
 
 # 4. Set up the database
@@ -261,7 +262,7 @@ dc-check/
 │   └── ui/                       # Shared UI (Navbar, site switcher)
 ├── db/                           # Database layer
 │   ├── schema.ts                 # Drizzle ORM schema (10 tables + relations)
-│   └── index.ts                  # SQLite connection
+│   └── index.ts                  # PostgreSQL connection
 ├── lib/                          # Utilities
 │   ├── session.ts                # JWT session management
 │   ├── site-access.ts            # Multi-site access control helpers
@@ -280,7 +281,7 @@ dc-check/
 
 | Variable | Required | Default | Description |
 |----------|:--------:|---------|-------------|
-| `DB_FILE_NAME` | No | `sqlite.db` | SQLite database file path |
+| `DATABASE_URL` | **Yes** | — | PostgreSQL connection string |
 | `SESSION_SECRET` | **Yes** | — | JWT signing secret (min 32 characters) |
 | `UPLOAD_DIR` | No | `./public/uploads` | Directory for uploaded files |
 | `MAX_FILE_SIZE` | No | `5242880` | Maximum upload size in bytes (default 5 MB) |
@@ -304,37 +305,18 @@ start-prod.bat
 
 ### Database Backup & Restore
 
-The SQLite database is a single file — easy to back up:
+Use standard PostgreSQL tools for backups and restores:
 
 ```bash
 # Backup (Linux/macOS)
-cp sqlite.db sqlite.db.backup.$(date +%Y%m%d)
+pg_dump "$DATABASE_URL" > dc-check.backup.$(date +%Y%m%d).sql
 
 # Backup (Windows PowerShell)
-Copy-Item sqlite.db "sqlite.db.backup.$(Get-Date -Format yyyyMMdd)"
+pg_dump $env:DATABASE_URL > "dc-check.backup.$(Get-Date -Format yyyyMMdd).sql"
 
 # Restore
-Copy-Item sqlite.db.backup.YYYYMMDD sqlite.db
+psql "$DATABASE_URL" < dc-check.backup.YYYYMMDD.sql
 ```
-
-### Optional: PostgreSQL Migration
-
-For high-concurrency production environments, consider migrating to PostgreSQL:
-
-1. Install the PostgreSQL driver:
-   ```bash
-   npm install postgres
-   ```
-2. Update `.env`:
-   ```env
-   DATABASE_URL=postgresql://user:password@host:5432/dc-check
-   ```
-3. Update `drizzle.config.ts` to use the `pg` dialect
-4. Regenerate and apply migrations:
-   ```bash
-   npm run db:generate
-   npm run db:migrate
-   ```
 
 ---
 

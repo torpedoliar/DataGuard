@@ -2,36 +2,35 @@
 
 import { db } from "@/db";
 import { vlans, networkPorts, devices } from "@/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
-import { verifySession } from "@/lib/session";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit";
+import { requireActiveSiteAction, requireActiveSiteAdminAction } from "@/lib/action-auth";
 
 // --- VLAN ACTIONS ---
 
 export async function getVlans() {
-    const session = await verifySession();
-    if (!session) return [];
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
 
-    const siteFilter = session.activeSiteId ? eq(vlans.siteId, session.activeSiteId) : undefined;
-    return await db.select().from(vlans).where(siteFilter).orderBy(vlans.vlanId);
+    return await db.select().from(vlans).where(eq(vlans.siteId, auth.activeSiteId)).orderBy(vlans.vlanId);
 }
 
 export async function addVlan(data: { vlanId: number, name: string, subnet?: string, description?: string }) {
-    const session = await verifySession();
-    if (!session) throw new Error("Anda tidak memiliki hak akses (Unauthorized).");
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
 
     try {
         await db.insert(vlans).values({
-            siteId: session.activeSiteId,
+            siteId: auth.activeSiteId,
             vlanId: data.vlanId,
             name: data.name,
             subnet: data.subnet || null,
             description: data.description || null,
         });
         await logAudit({ action: "CREATE", entity: "vlan", entityName: data.name, detail: `ID: ${data.vlanId}, Subnet: ${data.subnet || '-'}` });
-    } catch (error: any) {
-        if (error?.message?.includes("UNIQUE constraint")) {
+    } catch (error: unknown) {
+        if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
             throw new Error("Nomor VLAN ID ini sudah digunakan. Silakan masukkan ID lain.");
         }
         throw new Error("Gagal menyimpan VLAN ke database. Silakan coba lagi.");
@@ -41,8 +40,8 @@ export async function addVlan(data: { vlanId: number, name: string, subnet?: str
 }
 
 export async function updateVlan(id: number, data: { name: string, subnet?: string, description?: string }) {
-    const session = await verifySession();
-    if (!session) throw new Error("Anda tidak memiliki hak akses (Unauthorized).");
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
 
     try {
         await db.update(vlans)
@@ -51,7 +50,7 @@ export async function updateVlan(id: number, data: { name: string, subnet?: stri
                 subnet: data.subnet || null,
                 description: data.description || null,
             })
-            .where(eq(vlans.id, id));
+            .where(and(eq(vlans.id, id), eq(vlans.siteId, auth.activeSiteId)));
         await logAudit({ action: "UPDATE", entity: "vlan", entityId: id, entityName: data.name, detail: `Subnet: ${data.subnet || '-'}` });
     } catch (error) {
         throw new Error("Gagal memperbarui VLAN. Silakan coba lagi nanti.");
@@ -61,11 +60,11 @@ export async function updateVlan(id: number, data: { name: string, subnet?: stri
 }
 
 export async function deleteVlan(id: number) {
-    const session = await verifySession();
-    if (!session) throw new Error("Anda tidak memiliki hak akses (Unauthorized).");
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
 
     try {
-        await db.delete(vlans).where(eq(vlans.id, id));
+        await db.delete(vlans).where(and(eq(vlans.id, id), eq(vlans.siteId, auth.activeSiteId)));
         await logAudit({ action: "DELETE", entity: "vlan", entityId: id });
         revalidatePath("/admin/network");
     } catch (error) {
@@ -76,8 +75,16 @@ export async function deleteVlan(id: number) {
 // --- PORT ACTIONS ---
 
 export async function getPortsByDevice(deviceId: number) {
-    const session = await verifySession();
-    if (!session) return [];
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
+
+    const [device] = await db
+        .select({ id: devices.id })
+        .from(devices)
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)))
+        .limit(1);
+
+    if (!device) return [];
 
     return await db.select({
         id: networkPorts.id,
@@ -108,8 +115,16 @@ export async function getPortsByDevice(deviceId: number) {
 }
 
 export async function addPort(data: typeof networkPorts.$inferInsert) {
-    const session = await verifySession();
-    if (!session) throw new Error("Anda tidak memiliki hak akses (Unauthorized).");
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
+
+    const [device] = await db
+        .select({ id: devices.id })
+        .from(devices)
+        .where(and(eq(devices.id, data.deviceId), eq(devices.siteId, auth.activeSiteId)))
+        .limit(1);
+
+    if (!device) throw new Error("Perangkat tidak ditemukan di site aktif.");
 
     try {
         await db.insert(networkPorts).values(data);
@@ -142,12 +157,19 @@ export async function addPort(data: typeof networkPorts.$inferInsert) {
 }
 
 export async function bulkAddPorts(ports: (typeof networkPorts.$inferInsert)[]) {
-    const session = await verifySession();
-    if (!session) throw new Error("Anda tidak memiliki hak akses (Unauthorized).");
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
 
     if (ports.length === 0) return;
 
     const deviceId = ports[0].deviceId;
+    const [device] = await db
+        .select({ id: devices.id })
+        .from(devices)
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)))
+        .limit(1);
+
+    if (!device) throw new Error("Perangkat tidak ditemukan di site aktif.");
 
     try {
         await db.insert(networkPorts).values(ports);
@@ -166,12 +188,23 @@ export async function bulkAddPorts(ports: (typeof networkPorts.$inferInsert)[]) 
 }
 
 export async function updatePort(id: number, data: Partial<typeof networkPorts.$inferInsert>) {
-    const session = await verifySession();
-    if (!session) throw new Error("Anda tidak memiliki hak akses (Unauthorized).");
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
 
     try {
         // Get current port info for bidirectional cleanup if connection changed
-        const currentPort = await db.select().from(networkPorts).where(eq(networkPorts.id, id)).limit(1);
+        const currentPort = await db
+            .select({
+                id: networkPorts.id,
+                deviceId: networkPorts.deviceId,
+                connectedToPortId: networkPorts.connectedToPortId,
+            })
+            .from(networkPorts)
+            .innerJoin(devices, eq(networkPorts.deviceId, devices.id))
+            .where(and(eq(networkPorts.id, id), eq(devices.siteId, auth.activeSiteId)))
+            .limit(1);
+
+        if (currentPort.length === 0) throw new Error("Port tidak ditemukan di site aktif.");
 
         await db.update(networkPorts).set(data).where(eq(networkPorts.id, id));
 
@@ -200,12 +233,22 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
 }
 
 export async function deletePort(id: number) {
-    const session = await verifySession();
-    if (!session) throw new Error("Anda tidak memiliki hak akses (Unauthorized).");
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
 
     try {
         // Clean up bidirectional links first
-        const port = await db.select().from(networkPorts).where(eq(networkPorts.id, id)).limit(1);
+        const port = await db
+            .select({
+                id: networkPorts.id,
+                connectedToPortId: networkPorts.connectedToPortId,
+            })
+            .from(networkPorts)
+            .innerJoin(devices, eq(networkPorts.deviceId, devices.id))
+            .where(and(eq(networkPorts.id, id), eq(devices.siteId, auth.activeSiteId)))
+            .limit(1);
+
+        if (port.length === 0) throw new Error("Port tidak ditemukan di site aktif.");
         if (port.length > 0 && port[0].connectedToPortId) {
             await db.update(networkPorts)
                 .set({ connectedToDeviceId: null, connectedToPortId: null })

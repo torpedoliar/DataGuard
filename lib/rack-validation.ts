@@ -4,14 +4,29 @@ import { eq, and, ne, isNotNull } from "drizzle-orm";
 
 /**
  * Checks if a proposed device placement overlaps with any existing devices in the same rack.
- * 
+ *
  * @param rackName The name of the rack
  * @param rackPosition The starting U position (bottom-up, 1-42)
  * @param uHeight The height of the device in U (default 1)
  * @param excludeDeviceId Optional ID of a device to exclude from the check (e.g., when updating an existing device)
  * @returns Array of colliding devices. Empty array means no collision.
  */
+export type RackRange = {
+    rackPosition: number;
+    uHeight: number | null;
+};
+
+export function rackRangesOverlap(proposed: RackRange, existing: RackRange): boolean {
+    const proposedStart = proposed.rackPosition;
+    const proposedEnd = proposed.rackPosition + (proposed.uHeight || 1) - 1;
+    const existingStart = existing.rackPosition;
+    const existingEnd = existing.rackPosition + (existing.uHeight || 1) - 1;
+
+    return Math.max(proposedStart, existingStart) <= Math.min(proposedEnd, existingEnd);
+}
+
 export async function checkRackCollision(
+    siteId: number,
     rackName: string,
     rackPosition: number,
     uHeight: number = 1,
@@ -24,6 +39,7 @@ export async function checkRackCollision(
     // Fetch all existing devices in the exact same rack
     // We only care about devices that HAVE a rack position
     const conditions = [
+        eq(devices.siteId, siteId),
         eq(devices.rackName, rackName),
         isNotNull(devices.rackPosition)
     ];
@@ -45,16 +61,10 @@ export async function checkRackCollision(
     const collisions = [];
 
     for (const existingDevice of rackDevices) {
-        // Safe access since we filtered by isNotNull(rackPosition)
-        const existingStart = existingDevice.rackPosition!;
-        const existingEnd = existingStart + (existingDevice.uHeight || 1) - 1;
-
-        // Two intervals [A, B] and [C, D] overlap if:
-        // max(A, C) <= min(B, D)
-        const overlapStart = Math.max(proposedStart, existingStart);
-        const overlapEnd = Math.min(proposedEnd, existingEnd);
-
-        if (overlapStart <= overlapEnd) {
+        if (rackRangesOverlap(
+            { rackPosition: proposedStart, uHeight },
+            { rackPosition: existingDevice.rackPosition!, uHeight: existingDevice.uHeight }
+        )) {
             collisions.push(existingDevice);
         }
     }

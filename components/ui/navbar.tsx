@@ -110,6 +110,7 @@ export default function Navbar({
                     <nav className="hidden md:flex items-center gap-5">
                         <Link href="/checklist" className={navLinkClass("/checklist")}>Dashboard</Link>
                         <Link href="/report" className={navLinkClass("/report")}>Reports</Link>
+                        <Link href="/admin/incidents" className={navLinkClass("/admin/incidents")}>Incidents</Link>
                         <Link href="/grid" className={navLinkClass("/grid")}>Grid View</Link>
                         <Link href="/about" className={navLinkClass("/about")}>About</Link>
                         {isAdmin && (
@@ -133,7 +134,6 @@ export default function Navbar({
                                                 { href: "/admin/rack-manage", icon: "view_in_ar", label: "Rack Management" },
                                                 { href: "/admin/rack", icon: "grid_view", label: "Rack Layout" },
                                                 { href: "/admin/network/vlans", icon: "hub", label: "VLANs" },
-                                                { href: "/admin/users", icon: "group", label: "Users" },
                                                 { href: "/admin/audit-log", icon: "manage_history", label: "Audit Log" },
                                             ].map(item => (
                                                 <Link
@@ -149,6 +149,14 @@ export default function Navbar({
                                             {user.role === "superadmin" && (
                                                 <>
                                                     <div className="border-t border-slate-700/50 my-1" />
+                                                    <Link
+                                                        href="/admin/users"
+                                                        onClick={() => setShowAdminMenu(false)}
+                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/users") ? "text-blue-400 bg-blue-500/5" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+                                                    >
+                                                        <span className="material-symbols-outlined text-[16px]">group</span>
+                                                        Users
+                                                    </Link>
                                                     <Link
                                                         href="/admin/sites"
                                                         onClick={() => setShowAdminMenu(false)}

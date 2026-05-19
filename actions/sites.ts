@@ -49,8 +49,8 @@ export async function addSite(data: { name: string; code: string; address?: stri
 
         revalidatePath("/admin/sites");
         return { success: true, message: "Site berhasil ditambahkan!" };
-    } catch (error: any) {
-        if (error?.message?.includes("UNIQUE constraint")) {
+    } catch (error: unknown) {
+        if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
             return { message: "Kode site sudah digunakan. Silakan pilih kode lain." };
         }
         return { message: "Gagal menyimpan site. Silakan coba lagi." };
@@ -80,8 +80,8 @@ export async function updateSite(id: number, data: { name: string; code?: string
         revalidatePath("/admin/sites");
         revalidatePath("/", "layout"); // Revalidate Top Navbar
         return { success: true, message: "Site berhasil diperbarui!" };
-    } catch (error: any) {
-        if (error?.message?.includes("UNIQUE constraint")) {
+    } catch (error: unknown) {
+        if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
             return { message: "Kode site sudah digunakan." };
         }
         return { message: "Gagal memperbarui site." };

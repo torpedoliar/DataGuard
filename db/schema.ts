@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { integer, pgTable, text, serial, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
 import { AnyPgColumn } from "drizzle-orm/pg-core";
 
 // ==================== ENUMS ====================
@@ -11,6 +11,11 @@ export const portModeEnum = pgEnum("port_mode", ["Access", "Trunk", "Routed", "L
 export const portStatusEnum = pgEnum("port_status", ["Active", "Inactive", "Down"]);
 export const speedEnum = pgEnum("speed", ["10/100M", "1G", "10G", "25G", "40G", "100G", "Auto"]);
 export const mediaTypeEnum = pgEnum("media_type", ["Copper (RJ45)", "Fiber (SFP/SFP+)", "Twinax (DAC)"]);
+export const incidentSeverityEnum = pgEnum("incident_severity", ["Low", "Medium", "High", "Critical"]);
+export const incidentStatusEnum = pgEnum("incident_status", ["Open", "In Progress", "Resolved", "Verified"]);
+export const incidentUpdateTypeEnum = pgEnum("incident_update_type", ["created", "assigned", "status_changed", "comment", "evidence"]);
+export const resolutionCategoryEnum = pgEnum("resolution_category", ["Hardware", "Power", "Network", "Environment", "Human Error", "False Alarm", "Other"]);
+export const resolutionActionEnum = pgEnum("resolution_action", ["Replaced", "Reconfigured", "Restarted", "Cleaned", "Escalated", "No Action Needed"]);
 
 // ==================== SITES ====================
 export const sites = pgTable("sites", {
@@ -123,6 +128,44 @@ export const checklistItems = pgTable("checklist_items", {
   photoPath: text("photo_path"),
 });
 
+// ==================== INCIDENTS ====================
+export const incidents = pgTable("incidents", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
+  deviceId: integer("device_id").references(() => devices.id).notNull(),
+  checklistItemId: integer("checklist_item_id").references(() => checklistItems.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  severity: incidentSeverityEnum("severity").notNull().default("Medium"),
+  status: incidentStatusEnum("status").notNull().default("Open"),
+  createdById: integer("created_by_id").references(() => users.id),
+  assignedToId: integer("assigned_to_id").references(() => users.id),
+  dueDate: timestamp("due_date"),
+  resolutionCategory: resolutionCategoryEnum("resolution_category"),
+  resolutionAction: resolutionActionEnum("resolution_action"),
+  resolvedById: integer("resolved_by_id").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  verifiedById: integer("verified_by_id").references(() => users.id),
+  verifiedAt: timestamp("verified_at"),
+  lastOverdueNotifiedAt: timestamp("last_overdue_notified_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  checklistItemUnique: uniqueIndex("incidents_checklist_item_id_unique").on(table.checklistItemId),
+}));
+
+export const incidentUpdates = pgTable("incident_updates", {
+  id: serial("id").primaryKey(),
+  incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "cascade" }).notNull(),
+  authorId: integer("author_id").references(() => users.id),
+  updateType: incidentUpdateTypeEnum("update_type").notNull(),
+  note: text("note"),
+  photoPath: text("photo_path"),
+  previousStatus: incidentStatusEnum("previous_status"),
+  newStatus: incidentStatusEnum("new_status"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // ==================== VLANS (PER SITE) ====================
 export const vlans = pgTable("vlans", {
   id: serial("id").primaryKey(),
@@ -162,11 +205,14 @@ export const sitesRelations = relations(sites, ({ many }) => ({
   locations: many(locations),
   vlans: many(vlans),
   checklistEntries: many(checklistEntries),
+  incidents: many(incidents),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
   checklistEntries: many(checklistEntries),
   userSites: many(userSites),
+  createdIncidents: many(incidents, { relationName: "createdIncidents" }),
+  assignedIncidents: many(incidents, { relationName: "assignedIncidents" }),
 }));
 
 export const userSitesRelations = relations(userSites, ({ one }) => ({
@@ -227,6 +273,7 @@ export const devicesRelations = relations(devices, ({ one, many }) => ({
   }),
   checklistItems: many(checklistItems),
   networkPorts: many(networkPorts, { relationName: "devicePorts" }),
+  incidents: many(incidents),
 }));
 
 export const checklistEntriesRelations = relations(checklistEntries, ({ one, many }) => ({
@@ -249,6 +296,55 @@ export const checklistItemsRelations = relations(checklistItems, ({ one }) => ({
   device: one(devices, {
     fields: [checklistItems.deviceId],
     references: [devices.id],
+  }),
+  incident: one(incidents, {
+    fields: [checklistItems.id],
+    references: [incidents.checklistItemId],
+  }),
+}));
+
+export const incidentsRelations = relations(incidents, ({ one, many }) => ({
+  site: one(sites, {
+    fields: [incidents.siteId],
+    references: [sites.id],
+  }),
+  device: one(devices, {
+    fields: [incidents.deviceId],
+    references: [devices.id],
+  }),
+  checklistItem: one(checklistItems, {
+    fields: [incidents.checklistItemId],
+    references: [checklistItems.id],
+  }),
+  createdBy: one(users, {
+    fields: [incidents.createdById],
+    references: [users.id],
+    relationName: "createdIncidents",
+  }),
+  assignedTo: one(users, {
+    fields: [incidents.assignedToId],
+    references: [users.id],
+    relationName: "assignedIncidents",
+  }),
+  resolvedBy: one(users, {
+    fields: [incidents.resolvedById],
+    references: [users.id],
+  }),
+  verifiedBy: one(users, {
+    fields: [incidents.verifiedById],
+    references: [users.id],
+  }),
+  updates: many(incidentUpdates),
+}));
+
+export const incidentUpdatesRelations = relations(incidentUpdates, ({ one }) => ({
+  incident: one(incidents, {
+    fields: [incidentUpdates.incidentId],
+    references: [incidents.id],
+  }),
+  author: one(users, {
+    fields: [incidentUpdates.authorId],
+    references: [users.id],
   }),
 }));
 

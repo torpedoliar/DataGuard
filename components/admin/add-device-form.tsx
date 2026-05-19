@@ -47,7 +47,6 @@ const EMPTY_FORM = {
 };
 
 export default function AddDeviceForm({ categories, brands, locations }: { categories: Category[], brands: Brand[], locations: Location[] }) {
-    const [state, action, isPending] = useActionState(addDevice, undefined);
     const [racks, setRacks] = useState<Rack[]>([]);
     const [occupiedSlots, setOccupiedSlots] = useState<Record<number, string>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,38 +55,43 @@ export default function AddDeviceForm({ categories, brands, locations }: { categ
     // Controlled form state — data preserved on error, reset on success
     const [form, setForm] = useState(EMPTY_FORM);
 
-    const setField = (field: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        setForm(prev => ({ ...prev, [field]: e.target.value }));
-    };
-
-    useEffect(() => {
-        getRacks().then(setRacks);
-    }, []);
-
-    // Auto-refresh list on success + reset form
-    useEffect(() => {
-        if (state?.success) {
+    const [state, action, isPending] = useActionState(async (prevState: unknown, formData: FormData) => {
+        const result = await addDevice(prevState, formData);
+        if (result?.success) {
             setForm(EMPTY_FORM);
             setOccupiedSlots({});
             if (fileInputRef.current) fileInputRef.current.value = "";
             router.refresh();
         }
-    }, [state?.success, router]);
+        return result;
+    }, undefined);
 
-    // Auto-fill zone & location from selected rack
-    useEffect(() => {
-        const rack = racks.find(r => r.name === form.rackName);
+    const setField = (field: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        setForm(prev => ({ ...prev, [field]: e.target.value }));
+    };
+
+    const handleRackChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const rackName = e.target.value;
+        const rack = racks.find(r => r.name === rackName);
+
+        setForm(prev => ({
+            ...prev,
+            rackName,
+            rackPosition: "",
+            zone: rack ? rack.zone ?? prev.zone : "",
+            locationId: rack?.locationId ? rack.locationId.toString() : "",
+        }));
+
         if (rack) {
-            setForm(prev => ({
-                ...prev,
-                zone: rack.zone ?? prev.zone,
-                locationId: rack.locationId ? rack.locationId.toString() : prev.locationId,
-            }));
-            getOccupiedSlots(rack.name).then(setOccupiedSlots);
+            setOccupiedSlots(await getOccupiedSlots(rack.name));
         } else {
             setOccupiedSlots({});
         }
-    }, [form.rackName, racks]);
+    };
+
+    useEffect(() => {
+        getRacks().then(setRacks);
+    }, []);
 
     const selectedRackData = racks.find(r => r.name === form.rackName);
 
@@ -154,7 +158,7 @@ export default function AddDeviceForm({ categories, brands, locations }: { categ
                             <select
                                 name="rackName"
                                 value={form.rackName}
-                                onChange={setField("rackName")}
+                                onChange={handleRackChange}
                                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">-- No Rack --</option>

@@ -3,8 +3,11 @@
 
 import { db } from "../db";
 import { checklistEntries, checklistItems, users, sites, devices } from "../db/schema";
+import { createIncidentsForChecklistItems } from "@/actions/incidents";
 import { sendTelegramAlert } from "@/lib/telegram";
 import { verifySession } from "../lib/session";
+import { hasAdminAccess } from "../lib/site-access";
+import { requireActiveSiteAction } from "../lib/action-auth";
 import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -12,8 +15,9 @@ import { redirect } from "next/navigation";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 
 export async function submitChecklist(prevState: unknown, formData: FormData) {
-    const session = await verifySession();
-    if (!session) return { message: "Unauthorized" };
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return { message: auth.message };
+    const session = auth.session;
 
     try {
         // 1. Extract common data
@@ -27,7 +31,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
 
         // 2. Create Checklist Entry
         const [entry] = await db.insert(checklistEntries).values({
-            siteId: session.activeSiteId,
+            siteId: auth.activeSiteId,
             userId: session.userId,
             checkDate,
             checkTime,
@@ -37,6 +41,13 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
         // 3. Process each device item
         const deviceIds = formData.getAll("deviceId");
         const alertItems: { deviceId: number; status: "Warning" | "Error"; remarks: string }[] = [];
+        const incidentItems: {
+            checklistItemId: number;
+            deviceId: number;
+            status: "Warning" | "Error";
+            remarks: string;
+            photoPath: string | null;
+        }[] = [];
 
         for (const idStr of deviceIds) {
             const deviceId = parseInt(idStr as string);
@@ -58,24 +69,32 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 photoPath = `/uploads/${fileName}`;
             }
 
-            await db.insert(checklistItems).values({
+            const normalizedStatus = (status || "OK") as "OK" | "Warning" | "Error";
+            const [item] = await db.insert(checklistItems).values({
                 entryId: entry.id,
                 deviceId,
-                status: status || "OK",
+                status: normalizedStatus,
                 remarks: remarks || "",
                 photoPath,
-            });
+            }).returning();
 
-            if (status === "Warning" || status === "Error") {
-                alertItems.push({ deviceId, status, remarks: remarks || "No remarks provided" });
+            if (normalizedStatus === "Warning" || normalizedStatus === "Error") {
+                alertItems.push({ deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided" });
+                incidentItems.push({
+                    checklistItemId: item.id,
+                    deviceId,
+                    status: normalizedStatus,
+                    remarks: remarks || "No remarks provided",
+                    photoPath,
+                });
             }
         }
 
         // 5. Dispatch Telegram Alerts (if applicable)
-        if (alertItems.length > 0 && session.activeSiteId) {
+        if (alertItems.length > 0) {
             try {
                 const [site, user] = await Promise.all([
-                    db.query.sites.findFirst({ where: eq(sites.id, session.activeSiteId) }),
+                    db.query.sites.findFirst({ where: eq(sites.id, auth.activeSiteId) }),
                     db.query.users.findFirst({ where: eq(users.id, session.userId) })
                 ]);
 
@@ -109,6 +128,13 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
             }
         }
 
+        await createIncidentsForChecklistItems({
+            siteId: auth.activeSiteId,
+            userId: session.userId,
+            items: incidentItems,
+        });
+
+        revalidatePath("/admin/incidents");
         revalidatePath("/checklist");
         revalidatePath("/report");
         return { success: true };
@@ -121,11 +147,12 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
 
 // Get checklist entry with items for editing
 export async function getChecklistEntry(entryId: number) {
-    const session = await verifySession();
-    if (!session) return null;
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return null;
+    const session = auth.session;
 
     const entry = await db.query.checklistEntries.findFirst({
-        where: eq(checklistEntries.id, entryId),
+        where: and(eq(checklistEntries.id, entryId), eq(checklistEntries.siteId, auth.activeSiteId)),
         with: {
             items: {
                 with: {
@@ -139,7 +166,8 @@ export async function getChecklistEntry(entryId: number) {
     if (!entry) return null;
 
     // Only allow owner or admin to edit
-    if (entry.userId !== session.userId && !["admin", "superadmin"].includes(session.role)) {
+    const canAdminister = await hasAdminAccess();
+    if (entry.userId !== session.userId && !canAdminister) {
         return null;
     }
 
@@ -148,8 +176,9 @@ export async function getChecklistEntry(entryId: number) {
 
 // Update checklist entry
 export async function updateChecklist(prevState: unknown, formData: FormData) {
-    const session = await verifySession();
-    if (!session) return { message: "Unauthorized" };
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return { message: auth.message };
+    const session = auth.session;
 
     const entryId = Number(formData.get("entryId"));
     if (!entryId) {
@@ -158,10 +187,11 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
 
     // Verify ownership
     const entry = await db.query.checklistEntries.findFirst({
-        where: eq(checklistEntries.id, entryId),
+        where: and(eq(checklistEntries.id, entryId), eq(checklistEntries.siteId, auth.activeSiteId)),
     });
 
-    if (!entry || (entry.userId !== session.userId && !["admin", "superadmin"].includes(session.role))) {
+    const canAdminister = await hasAdminAccess();
+    if (!entry || (entry.userId !== session.userId && !canAdminister)) {
         return { message: "Unauthorized" };
     }
 
@@ -248,15 +278,17 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
 
 // Delete checklist entry
 export async function deleteChecklistEntry(entryId: number) {
-    const session = await verifySession();
-    if (!session) return { message: "Unauthorized" };
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return { message: auth.message };
+    const session = auth.session;
 
     // Verify ownership
     const entry = await db.query.checklistEntries.findFirst({
-        where: eq(checklistEntries.id, entryId),
+        where: and(eq(checklistEntries.id, entryId), eq(checklistEntries.siteId, auth.activeSiteId)),
     });
 
-    if (!entry || (entry.userId !== session.userId && !["admin", "superadmin"].includes(session.role))) {
+    const canAdminister = await hasAdminAccess();
+    if (!entry || (entry.userId !== session.userId && !canAdminister)) {
         return { message: "Unauthorized" };
     }
 

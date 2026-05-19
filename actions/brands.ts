@@ -16,6 +16,10 @@ const brandSchema = z.object({
     id: z.coerce.number().optional(),
 });
 
+function getErrorMessage(error: unknown, fallback: string): string {
+    return error instanceof Error ? error.message : fallback;
+}
+
 const UPLOAD_DIR = path.join(process.cwd(), "public/uploads/brands");
 
 // Initialize upload directory
@@ -71,8 +75,8 @@ export async function addBrand(prevState: unknown, formData: FormData) {
         if (logoFile && logoFile.size > 0) {
             try {
                 logoPath = await handleFileUpload(logoFile);
-            } catch (err: any) {
-                return { message: err.message || "Gagal mengunggah logo. Silakan coba lagi." };
+            } catch (error: unknown) {
+                return { message: getErrorMessage(error, "Gagal mengunggah logo. Silakan coba lagi.") };
             }
         }
 
@@ -116,13 +120,13 @@ export async function updateBrand(prevState: unknown, formData: FormData) {
             if (logoFile && logoFile.size > 0) {
                 try {
                     logoPath = await handleFileUpload(logoFile);
-                } catch (err: any) {
-                    return { message: err.message || "Gagal mengunggah logo baru. Silakan coba lagi." };
+                } catch (error: unknown) {
+                    return { message: getErrorMessage(error, "Gagal mengunggah logo baru. Silakan coba lagi.") };
                 }
             }
         }
 
-        const updateData: any = {
+        const updateData: Partial<typeof brands.$inferInsert> = {
             name: parsed.data.name,
         };
 

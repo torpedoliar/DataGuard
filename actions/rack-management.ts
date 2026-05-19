@@ -2,11 +2,12 @@
 
 import { db } from "../db";
 import { racks, locations } from "../db/schema";
-import { eq, asc } from "drizzle-orm";
+import { and, eq, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
+import { requireActiveSiteAdminAction } from "../lib/action-auth";
 
 // Schema
 const rackSchema = z.object({
@@ -39,11 +40,13 @@ export async function getRacks() {
 export async function getOccupiedSlots(rackName: string, excludeDeviceId?: number) {
     const session = await verifySession();
     if (!session) return {};
+    if (!session.activeSiteId) return {};
 
     const { devices } = await import("../db/schema");
     const { eq, and, isNotNull, ne } = await import("drizzle-orm");
 
     const conditions = [
+        eq(devices.siteId, session.activeSiteId),
         eq(devices.rackName, rackName),
         isNotNull(devices.rackPosition)
     ];
@@ -85,10 +88,8 @@ export async function getRackById(id: number) {
 
 // Add rack
 export async function addRack(prevState: unknown, formData: FormData) {
-    const session = await verifySession();
-    if (!session || !(["admin", "superadmin"].includes(session.role))) {
-        return { message: "Anda tidak memiliki hak akses (Unauthorized)." };
-    }
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { message: auth.message };
 
     const parsed = rackSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) {
@@ -97,7 +98,7 @@ export async function addRack(prevState: unknown, formData: FormData) {
 
     try {
         await db.insert(racks).values({
-            siteId: session.activeSiteId,
+            siteId: auth.activeSiteId,
             name: parsed.data.name,
             zone: parsed.data.zone || null,
             totalU: parsed.data.totalU || 42,
@@ -118,10 +119,8 @@ export async function addRack(prevState: unknown, formData: FormData) {
 
 // Update rack
 export async function updateRack(prevState: unknown, formData: FormData) {
-    const session = await verifySession();
-    if (!session || !(["admin", "superadmin"].includes(session.role))) {
-        return { message: "Anda tidak memiliki hak akses (Unauthorized)." };
-    }
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { message: auth.message };
 
     const id = Number(formData.get("id"));
     if (!id) {
@@ -139,7 +138,7 @@ export async function updateRack(prevState: unknown, formData: FormData) {
             zone: parsed.data.zone,
             totalU: parsed.data.totalU,
             locationId: parsed.data.locationId,
-        }).where(eq(racks.id, id));
+        }).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
 
         revalidatePath("/admin/rack-manage");
         revalidatePath("/admin/rack");
@@ -155,13 +154,11 @@ export async function updateRack(prevState: unknown, formData: FormData) {
 
 // Delete rack
 export async function deleteRack(id: number) {
-    const session = await verifySession();
-    if (!session || !(["admin", "superadmin"].includes(session.role))) {
-        return { message: "Anda tidak memiliki hak akses (Unauthorized)." };
-    }
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { message: auth.message };
 
     try {
-        await db.delete(racks).where(eq(racks.id, id));
+        await db.delete(racks).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
 
         revalidatePath("/admin/rack-manage");
         revalidatePath("/admin/rack");

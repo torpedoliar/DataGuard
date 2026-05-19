@@ -31,7 +31,7 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
 
     // Build array of dates inclusively
     const dates: string[] = [];
-    let currentDate = new Date(startDateObj);
+    const currentDate = new Date(startDateObj);
     while (currentDate <= endDateObj) {
         dates.push(currentDate.toISOString().split('T')[0]);
         currentDate.setDate(currentDate.getDate() + 1);
@@ -75,7 +75,8 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
         .innerJoin(users, eq(checklistEntries.userId, users.id))
         .where(and(
             gte(checklistEntries.checkDate, startBoundary),
-            lte(checklistEntries.checkDate, endBoundary)
+            lte(checklistEntries.checkDate, endBoundary),
+            siteId ? eq(checklistEntries.siteId, siteId) : undefined
         ))
         .orderBy(checklistEntries.checkDate, checklistEntries.checkTime);
 

@@ -32,7 +32,7 @@ export default function VlanTable({ vlans }: { vlans: Vlan[] }) {
         }
     };
 
-    const SortIcon = ({ col }: { col: SortKey }) => {
+    const renderSortIcon = (col: SortKey) => {
         if (sortKey !== col) return <ArrowUpDown className="h-3.5 w-3.5 text-slate-600" />;
         return sortDir === "asc"
             ? <ArrowUp className="h-3.5 w-3.5 text-blue-400" />
@@ -86,13 +86,13 @@ export default function VlanTable({ vlans }: { vlans: Vlan[] }) {
                     <thead className="bg-[#0d1526] text-[11px] uppercase tracking-wider text-slate-500">
                         <tr>
                             <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("vlanId")}>
-                                <span className="inline-flex items-center gap-1.5">VLAN ID <SortIcon col="vlanId" /></span>
+                                <span className="inline-flex items-center gap-1.5">VLAN ID {renderSortIcon("vlanId")}</span>
                             </th>
                             <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("name")}>
-                                <span className="inline-flex items-center gap-1.5">Name <SortIcon col="name" /></span>
+                                <span className="inline-flex items-center gap-1.5">Name {renderSortIcon("name")}</span>
                             </th>
                             <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("subnet")}>
-                                <span className="inline-flex items-center gap-1.5">Subnet <SortIcon col="subnet" /></span>
+                                <span className="inline-flex items-center gap-1.5">Subnet {renderSortIcon("subnet")}</span>
                             </th>
                             <th className="px-5 py-3 text-left">Description</th>
                             <th className="px-5 py-3 text-right">Actions</th>

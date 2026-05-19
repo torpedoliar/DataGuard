@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { switchSite } from "@/actions/auth";
 
@@ -44,19 +44,17 @@ export default function MapSelector({ sites, username, appName }: MapSelectorPro
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
     const [selectedSite, setSelectedSite] = useState<SiteMarker | null>(null);
     const [isTransitioning, setIsTransitioning] = useState(false);
-    const [stars, setStars] = useState<{ x: number; y: number; size: number; delay: number; opacity: number }[]>([]);
-
-    // Generate stars on mount (client-only)
-    useEffect(() => {
-        const generated = Array.from({ length: 120 }, () => ({
-            x: Math.random() * 100,
-            y: Math.random() * 100,
-            size: Math.random() * 2 + 0.5,
-            delay: Math.random() * 4,
-            opacity: Math.random() * 0.6 + 0.2,
-        }));
-        setStars(generated);
-    }, []);
+    const stars = useMemo(() => Array.from({ length: 120 }, (_, index) => {
+        const seed = Math.sin(index * 999) * 10000;
+        const fraction = seed - Math.floor(seed);
+        return {
+            x: (fraction * 97 + index * 13) % 100,
+            y: (fraction * 89 + index * 17) % 100,
+            size: (fraction * 2) + 0.5,
+            delay: (fraction * 4),
+            opacity: (fraction * 0.6) + 0.2,
+        };
+    }), []);
 
     const handleSiteClick = async (site: SiteMarker) => {
         if (isTransitioning) return;

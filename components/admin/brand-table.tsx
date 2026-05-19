@@ -35,7 +35,7 @@ export default function BrandTable({ brands }: { brands: Brand[] }) {
         else { setSortKey(key); setSortDir("asc"); }
     };
 
-    const SortIcon = ({ col }: { col: SortKey }) => {
+    const renderSortIcon = (col: SortKey) => {
         if (sortKey !== col) return <ArrowUpDown className="h-3.5 w-3.5 text-slate-600" />;
         return sortDir === "asc"
             ? <ArrowUp className="h-3.5 w-3.5 text-blue-400" />
@@ -83,7 +83,7 @@ export default function BrandTable({ brands }: { brands: Brand[] }) {
                     <thead className="bg-[#0d1526] text-[11px] uppercase tracking-wider text-slate-500">
                         <tr>
                             <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("name")}>
-                                <span className="inline-flex items-center gap-1.5">Brand Name <SortIcon col="name" /></span>
+                                <span className="inline-flex items-center gap-1.5">Brand Name {renderSortIcon("name")}</span>
                             </th>
                             <th className="px-5 py-3 text-left">Logo</th>
                             <th className="px-5 py-3 text-right">Actions</th>

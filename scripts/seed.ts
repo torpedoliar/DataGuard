@@ -1,88 +1,128 @@
-
 import { db } from "../db";
-import { users, categories, devices } from "../db/schema";
+import { categories, devices, sites, userSites, users } from "../db/schema";
+import { and, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+
+async function ensureUser(
+    username: string,
+    email: string,
+    role: "superadmin" | "admin" | "staff",
+) {
+    const existing = await db.query.users.findFirst({
+        where: eq(users.username, username),
+    });
+    if (existing) return existing;
+
+    const hashedPassword = await bcrypt.hash("password", 10);
+    const [created] = await db.insert(users).values({
+        username,
+        email,
+        role,
+        passwordHash: hashedPassword,
+        isActive: true,
+    }).returning();
+
+    return created;
+}
+
+async function ensureCategory(name: string) {
+    const existing = await db.query.categories.findFirst({
+        where: eq(categories.name, name),
+    });
+    if (existing) return existing;
+
+    const [created] = await db.insert(categories).values({ name }).returning();
+    return created;
+}
+
+async function ensureDefaultSite() {
+    const existing = await db.query.sites.findFirst({
+        where: eq(sites.code, "DC-JKT-1"),
+    });
+    if (existing) return existing;
+
+    const [created] = await db.insert(sites).values({
+        name: "Data Center Jakarta (Demo)",
+        code: "DC-JKT-1",
+        address: "Jl. MH Thamrin No 1, Pusat Kota, Jakarta",
+        description: "Data center utama untuk testing / demo",
+        latitude: "-6.2088",
+        longitude: "106.8456",
+        isActive: true,
+    }).returning();
+
+    return created;
+}
+
+async function ensureUserSite(
+    userId: number,
+    siteId: number,
+    roleInSite: "admin" | "staff",
+) {
+    const existing = await db.query.userSites.findFirst({
+        where: and(eq(userSites.userId, userId), eq(userSites.siteId, siteId)),
+    });
+    if (existing) return;
+
+    await db.insert(userSites).values({ userId, siteId, roleInSite });
+}
+
+async function ensureDevice(siteId: number, categoryId: number, name: string, location: string) {
+    const existing = await db.query.devices.findFirst({
+        where: and(
+            eq(devices.siteId, siteId),
+            eq(devices.name, name),
+        ),
+    });
+    if (existing) return;
+
+    await db.insert(devices).values({
+        siteId,
+        categoryId,
+        name,
+        location,
+    });
+}
 
 async function main() {
     console.log("Seeding data...");
 
-    // 1. Create Admin User
-    const hashedPassword = await bcrypt.hash("password", 10);
-    await db.insert(users).values({
-        username: "admin",
-        email: "admin@example.com",
-        role: "admin",
-        passwordHash: hashedPassword,
-        isActive: true,
-    }).onConflictDoNothing();
+    const [adminUser, staffUser, defaultSite] = await Promise.all([
+        ensureUser("admin", "admin@example.com", "superadmin"),
+        ensureUser("staff", "staff@example.com", "staff"),
+        ensureDefaultSite(),
+    ]);
 
-    console.log("Admin user created.");
+    await Promise.all([
+        ensureUserSite(adminUser.id, defaultSite.id, "admin"),
+        ensureUserSite(staffUser.id, defaultSite.id, "staff"),
+    ]);
 
-    // 1b. Create Staff User (for testing)
-    const staffPassword = await bcrypt.hash("password", 10);
-    await db.insert(users).values({
-        username: "staff",
-        email: "staff@example.com",
-        role: "staff",
-        passwordHash: staffPassword,
-        isActive: true,
-    }).onConflictDoNothing();
+    const [serverCat, upsCat, cracCat, networkCat] = await Promise.all([
+        ensureCategory("Server"),
+        ensureCategory("UPS"),
+        ensureCategory("CRAC/AC"),
+        ensureCategory("Network"),
+    ]);
 
-    console.log("Staff user created.");
+    await Promise.all([
+        ensureDevice(defaultSite.id, serverCat.id, "Server APP-01", "Rack A-01"),
+        ensureDevice(defaultSite.id, serverCat.id, "Server DB-01", "Rack A-02"),
+        ensureDevice(defaultSite.id, serverCat.id, "Server WEB-01", "Rack A-03"),
+        ensureDevice(defaultSite.id, upsCat.id, "UPS Unit 1", "Power Room"),
+        ensureDevice(defaultSite.id, upsCat.id, "UPS Unit 2", "Power Room"),
+        ensureDevice(defaultSite.id, cracCat.id, "CRAC Unit 1", "Cooling Zone A"),
+        ensureDevice(defaultSite.id, cracCat.id, "CRAC Unit 2", "Cooling Zone B"),
+        ensureDevice(defaultSite.id, networkCat.id, "Core Switch L3", "Network Room"),
+        ensureDevice(defaultSite.id, networkCat.id, "Edge Router 1", "Network Room"),
+        ensureDevice(defaultSite.id, networkCat.id, "Firewall Main", "Network Room"),
+    ]);
 
-    // 2. Create Categories
-    const categoryNames = ["Server", "UPS", "CRAC/AC", "Network"];
-
-    for (const name of categoryNames) {
-        await db.insert(categories).values({ name }).onConflictDoNothing();
-    }
-
-    console.log("Categories created.");
-
-    // 3. Create Dummy Devices (Optional, for testing)
-    // Fetch category IDs first to ensure correct linking
-    const allCategories = await db.select().from(categories);
-
-    const serverCat = allCategories.find(c => c.name === "Server");
-    const upsCat = allCategories.find(c => c.name === "UPS");
-    const cracCat = allCategories.find(c => c.name === "CRAC/AC");
-    const networkCat = allCategories.find(c => c.name === "Network");
-
-    if (serverCat) {
-        await db.insert(devices).values([
-            { categoryId: serverCat.id, name: "Server APP-01", location: "Rack A-01" },
-            { categoryId: serverCat.id, name: "Server DB-01", location: "Rack A-02" },
-            { categoryId: serverCat.id, name: "Server WEB-01", location: "Rack A-03" },
-        ]).onConflictDoNothing();
-    }
-
-    if (upsCat) {
-        await db.insert(devices).values([
-            { categoryId: upsCat.id, name: "UPS Unit 1", location: "Power Room" },
-            { categoryId: upsCat.id, name: "UPS Unit 2", location: "Power Room" },
-        ]).onConflictDoNothing();
-    }
-
-    if (cracCat) {
-        await db.insert(devices).values([
-            { categoryId: cracCat.id, name: "CRAC Unit 1", location: "Cooling Zone A" },
-            { categoryId: cracCat.id, name: "CRAC Unit 2", location: "Cooling Zone B" },
-        ]).onConflictDoNothing();
-    }
-
-    if (networkCat) {
-        await db.insert(devices).values([
-            { categoryId: networkCat.id, name: "Core Switch L3", location: "Network Room" },
-            { categoryId: networkCat.id, name: "Edge Router 1", location: "Network Room" },
-            { categoryId: networkCat.id, name: "Firewall Main", location: "Network Room" },
-        ]).onConflictDoNothing();
-    }
-
-    console.log("Devices created.");
     console.log("Seeding complete.");
     console.log("\nDefault credentials:");
-    console.log("  Admin: username=admin, password=password");
-    console.log("  Staff: username=staff, password=password");
+    console.log("  Superadmin: username=admin, password=password");
+    console.log("  Staff:      username=staff, password=password");
+    console.log("\nChange the default passwords after first login.");
 }
 
 main().catch((err) => {

@@ -154,33 +154,40 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "OK - App image rebuilt successfully" -ForegroundColor Green
 
 # ==================================================================
-# STEP 4: RESTART HANYA APP (database tetap berjalan!)
+# STEP 4: SYNC DATABASE SCHEMA (WAJIB BERHASIL!)
 # ==================================================================
 Write-Host ""
-Write-Host "[4/5] Restarting app container (database stays running)..." -ForegroundColor Yellow
+Write-Host "[4/5] Syncing database schema..." -ForegroundColor Yellow
+Write-Host "      Running drizzle-kit push from the newly built app image before restart." -ForegroundColor DarkGray
+& $mainCmd $extraArgs run --rm --no-deps app npx drizzle-kit push
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Database schema sync failed! Aborting update." -ForegroundColor Red
+    Write-Host "Your current running version is still intact." -ForegroundColor Yellow
+    Write-Host "Backup file: $backupFile" -ForegroundColor Cyan
+    exit 1
+}
+Write-Host "OK - Database schema synced" -ForegroundColor Green
+
+# ==================================================================
+# STEP 5: RESTART HANYA APP (database tetap berjalan!)
+# ==================================================================
+Write-Host ""
+Write-Host "[5/5] Restarting app container (database stays running)..." -ForegroundColor Yellow
 
 # Hanya recreate service 'app', bukan seluruh stack
 # Ini memastikan container 'db' TIDAK PERNAH berhenti
 # --force-recreate memastikan container lama diganti dengan yang baru
 # --remove-orphans membantu membersihkan jika ada container 'app' tak bernama yang tersisa
 & $mainCmd $extraArgs up -d --no-deps --force-recreate --remove-orphans app
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: App restart failed!" -ForegroundColor Red
+    Write-Host "Database schema sync may already have been applied. Check Docker logs before retrying." -ForegroundColor Yellow
+    Write-Host "Backup file: $backupFile" -ForegroundColor Cyan
+    exit 1
+}
 Write-Host "OK - App container restarted" -ForegroundColor Green
 Write-Host "Waiting for app to become ready..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 10
-
-# ==================================================================
-# STEP 5: SYNC DATABASE SCHEMA (additive only, no data loss)
-# ==================================================================
-Write-Host ""
-Write-Host "[5/5] Syncing database schema..." -ForegroundColor Yellow
-Write-Host "      (drizzle push is additive - it only ADDS new columns/tables)" -ForegroundColor DarkGray
-try {
-    & $mainCmd $extraArgs exec -T app npx drizzle-kit push
-    Write-Host "OK - Database schema synced" -ForegroundColor Green
-}
-catch {
-    Write-Host "WARN - Schema sync had warnings or failed. Check logs above." -ForegroundColor Yellow
-}
 
 # ==================================================================
 # CLEANUP: Remove old backups (keep last 10)

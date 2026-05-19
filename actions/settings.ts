@@ -15,6 +15,10 @@ const settingsSchema = z.object({
     appName: z.string().min(1, "Nama aplikasi tidak boleh kosong"),
 });
 
+function getErrorMessage(error: unknown, fallback: string): string {
+    return error instanceof Error ? error.message : fallback;
+}
+
 const UPLOAD_DIR = path.join(process.cwd(), "public/uploads/settings");
 
 // Initialize upload directory
@@ -105,8 +109,8 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
 
     try {
         // Fetch existing settings
-        let currentSettings = await db.select().from(globalSettings).limit(1);
-        let settingsId = currentSettings.length > 0 ? currentSettings[0].id : null;
+        const currentSettings = await db.select().from(globalSettings).limit(1);
+        const settingsId = currentSettings.length > 0 ? currentSettings[0].id : null;
 
         let logoPath: string | null | undefined = undefined;
         let faviconPath: string | null | undefined = undefined;
@@ -119,8 +123,8 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
             if (logoFile && logoFile.size > 0) {
                 try {
                     logoPath = await handleFileUpload(logoFile, 'logo');
-                } catch (err: any) {
-                    return { message: err.message || "Gagal mengunggah logo. Silakan coba lagi." };
+                } catch (error: unknown) {
+                    return { message: getErrorMessage(error, "Gagal mengunggah logo. Silakan coba lagi.") };
                 }
             }
         }
@@ -133,13 +137,13 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
             if (faviconFile && faviconFile.size > 0) {
                 try {
                     faviconPath = await handleFileUpload(faviconFile, 'favicon');
-                } catch (err: any) {
-                    return { message: err.message || "Gagal mengunggah favicon. Silakan coba lagi." };
+                } catch (error: unknown) {
+                    return { message: getErrorMessage(error, "Gagal mengunggah favicon. Silakan coba lagi.") };
                 }
             }
         }
 
-        const upsertData: any = {
+        const upsertData: Partial<typeof globalSettings.$inferInsert> = {
             appName: parsed.data.appName,
         };
         if (logoPath !== undefined) upsertData.logoPath = logoPath;

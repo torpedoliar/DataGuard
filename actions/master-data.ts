@@ -3,12 +3,13 @@
 
 import { db } from "../db";
 import { devices, categories, checklistItems, brands, locations } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { checkRackCollision } from "../lib/rack-validation";
 import { logAudit } from "../lib/audit";
+import { requireActiveSiteAdminAction } from "../lib/action-auth";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -153,14 +154,15 @@ export async function getDevices() {
 }
 
 export async function addDevice(prevState: unknown, formData: FormData) {
-    const session = await verifySession();
-    if (!session || !(["admin", "superadmin"].includes(session.role))) return { message: "Anda tidak memiliki hak akses (Unauthorized)." };
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { message: auth.message };
 
     const parsed = deviceSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
     if (parsed.data.rackName && parsed.data.rackPosition) {
         const collisions = await checkRackCollision(
+            auth.activeSiteId,
             parsed.data.rackName,
             parsed.data.rackPosition,
             parsed.data.uHeight || 1
@@ -186,7 +188,7 @@ export async function addDevice(prevState: unknown, formData: FormData) {
         }
 
         await db.insert(devices).values({
-            siteId: session.activeSiteId,
+            siteId: auth.activeSiteId,
             name: parsed.data.name,
             brandId: parsed.data.brandId || null,
             categoryId: parsed.data.categoryId,
@@ -210,8 +212,8 @@ export async function addDevice(prevState: unknown, formData: FormData) {
 }
 
 export async function updateDevice(prevState: unknown, formData: FormData) {
-    const session = await verifySession();
-    if (!session || !(["admin", "superadmin"].includes(session.role))) return { message: "Anda tidak memiliki hak akses (Unauthorized)." };
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { message: auth.message };
 
     const id = Number(formData.get("id"));
     if (!id) {
@@ -221,21 +223,24 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
     const parsed = deviceSchema.partial().safeParse(Object.fromEntries(formData));
     if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
-    if (parsed.data.rackName && parsed.data.rackPosition) {
-        const collisions = await checkRackCollision(
-            parsed.data.rackName,
-            parsed.data.rackPosition,
-            parsed.data.uHeight || 1,
-            id
-        );
-        if (collisions.length > 0) {
-            return { message: `Gagal dipindah! Posisi ini bertabrakan dengan: ${collisions.map(c => `${c.name} (U${c.rackPosition}${c.uHeight! > 1 ? `-U${c.rackPosition! + c.uHeight! - 1}` : ''})`).join(", ")}` };
-        }
-    }
-
     try {
-        const existingDevice = await db.query.devices.findFirst({ where: eq(devices.id, id) });
-        if (!existingDevice) return { message: "Perangkat tidak ditemukan." };
+        const existingDevice = await db.query.devices.findFirst({
+            where: and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)),
+        });
+        if (!existingDevice) return { message: "Perangkat tidak ditemukan di site aktif." };
+
+        if (parsed.data.rackName && parsed.data.rackPosition) {
+            const collisions = await checkRackCollision(
+                auth.activeSiteId,
+                parsed.data.rackName,
+                parsed.data.rackPosition,
+                parsed.data.uHeight || 1,
+                id
+            );
+            if (collisions.length > 0) {
+                return { message: `Gagal dipindah! Posisi ini bertabrakan dengan: ${collisions.map(c => `${c.name} (U${c.rackPosition}${c.uHeight! > 1 ? `-U${c.rackPosition! + c.uHeight! - 1}` : ''})`).join(", ")}` };
+            }
+        }
 
         let photoPath: string | null = existingDevice.photoPath || null;
         const photoFile = formData.get("photo") as File | null;
@@ -273,7 +278,7 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
             ipAddress: parsed.data.ipAddress,
             description: parsed.data.description,
             photoPath,
-        }).where(eq(devices.id, id));
+        }).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)));
 
         revalidatePath("/admin");
         revalidatePath("/admin/rack");
@@ -286,12 +291,17 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
 }
 
 export async function deleteDevice(id: number, reason?: string, forceDelete: boolean = false) {
-    const session = await verifySession();
-    if (!session || !(["admin", "superadmin"].includes(session.role))) return { message: "Anda tidak memiliki hak akses (Unauthorized)." };
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { message: auth.message };
 
     console.log(`Deleting device ${id}. Reason: ${reason || "Not provided"}. Force: ${forceDelete}`);
 
     try {
+        const device = await db.query.devices.findFirst({
+            where: and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)),
+        });
+        if (!device) return { message: "Perangkat tidak ditemukan di site aktif." };
+
         // Check if device is used in checklist items
         const items = await db.query.checklistItems.findMany({
             where: eq(checklistItems.deviceId, id),
@@ -321,12 +331,11 @@ export async function deleteDevice(id: number, reason?: string, forceDelete: boo
             await db.delete(checklistItems).where(eq(checklistItems.deviceId, id));
         }
 
-        const device = await db.query.devices.findFirst({ where: eq(devices.id, id) });
         if (device?.photoPath) {
             try { await fs.unlink(path.join(process.cwd(), "public", device.photoPath)); } catch (e) { }
         }
 
-        await db.delete(devices).where(eq(devices.id, id));
+        await db.delete(devices).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)));
         revalidatePath("/admin");
         revalidatePath("/admin/rack");
         revalidatePath("/admin/rack-manage");
@@ -340,16 +349,18 @@ export async function deleteDevice(id: number, reason?: string, forceDelete: boo
 
 // Toggle device active/inactive status
 export async function toggleDeviceStatus(deviceId: number) {
-    const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) {
-        return { success: false, message: "Unauthorized" };
-    }
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { success: false, message: auth.message };
 
-    const [device] = await db.select({ isActive: devices.isActive }).from(devices).where(eq(devices.id, deviceId));
+    const [device] = await db.select({ isActive: devices.isActive })
+        .from(devices)
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)));
     if (!device) return { success: false, message: "Device not found" };
 
     const newStatus = !device.isActive;
-    await db.update(devices).set({ isActive: newStatus }).where(eq(devices.id, deviceId));
+    await db.update(devices)
+        .set({ isActive: newStatus })
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)));
 
     revalidatePath("/admin");
     return { success: true, isActive: newStatus, message: `Device ${newStatus ? "activated" : "deactivated"} successfully.` };
@@ -357,17 +368,19 @@ export async function toggleDeviceStatus(deviceId: number) {
 
 // Take out device from rack (clear rack position)
 export async function takeoutFromRack(deviceId: number) {
-    const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) {
-        return { success: false, message: "Unauthorized" };
-    }
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { success: false, message: auth.message };
 
-    const [device] = await db.select({ isActive: devices.isActive, rackName: devices.rackName }).from(devices).where(eq(devices.id, deviceId));
+    const [device] = await db.select({ isActive: devices.isActive, rackName: devices.rackName })
+        .from(devices)
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)));
     if (!device) return { success: false, message: "Device not found" };
     if (device.isActive) return { success: false, message: "Device must be deactivated before taking out from rack." };
     if (!device.rackName) return { success: false, message: "Device is not in any rack." };
 
-    await db.update(devices).set({ rackName: null, rackPosition: null, uHeight: null, zone: null }).where(eq(devices.id, deviceId));
+    await db.update(devices)
+        .set({ rackName: null, rackPosition: null, uHeight: null, zone: null })
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)));
 
     revalidatePath("/admin");
     revalidatePath("/admin/rack");

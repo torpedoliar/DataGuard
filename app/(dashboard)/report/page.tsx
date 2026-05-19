@@ -3,6 +3,7 @@ import { getAnalyticsStats, getReportData } from "@/actions/report";
 import ExportButton from "@/components/report/export-button";
 import ReportFilters from "@/components/report/report-filters";
 import { verifySession } from "@/lib/session";
+import { incidentStatuses, type IncidentStatus } from "@/lib/incidents";
 import { redirect } from "next/navigation";
 import Pagination from "@/components/ui/pagination";
 import Link from "next/link";
@@ -24,6 +25,10 @@ export default async function ReportPage({
 
     const startDate = (params.startDate as string) || formatDate(firstDay);
     const endDate = (params.endDate as string) || formatDate(today);
+    const incidentStatusParam = params.incidentStatus as string | undefined;
+    const incidentStatus = incidentStatusParam && incidentStatuses.includes(incidentStatusParam as IncidentStatus)
+        ? incidentStatusParam as IncidentStatus
+        : undefined;
 
     const page = Number(params.page as string) || 1;
     const pageSize = 20;
@@ -38,7 +43,7 @@ export default async function ReportPage({
 
     let reportResult;
     try {
-        reportResult = await getReportData(startDate, endDate, page, pageSize);
+        reportResult = await getReportData(startDate, endDate, page, pageSize, incidentStatus);
     } catch (error) {
         console.error("Failed to fetch report data:", error);
         reportResult = { data: [], total: 0, totalPages: 0, currentPage: page };
@@ -205,12 +210,13 @@ export default async function ReportPage({
                                 <th className="px-4 py-3.5 border-b border-slate-700/50">Category</th>
                                 <th className="px-4 py-3.5 border-b border-slate-700/50">Checked By</th>
                                 <th className="px-4 py-3.5 border-b border-slate-700/50">Notes</th>
+                                <th className="px-4 py-3.5 border-b border-slate-700/50">Incident</th>
                                 <th className="px-4 py-3.5 border-b border-slate-700/50 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/50">
                             {reportData.length === 0 ? (
-                                <tr><td colSpan={7} className="p-6 text-center text-slate-500">No data found for this period.</td></tr>
+                                <tr><td colSpan={8} className="p-6 text-center text-slate-500">No data found for this period.</td></tr>
                             ) : (
                                 reportData.map(item => (
                                     <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
@@ -242,6 +248,15 @@ export default async function ReportPage({
                                                     <PhotoModalTrigger photoPath={item.photo} deviceName={item.device} />
                                                 )}
                                             </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.incidentId ? (
+                                                <Link href={`/admin/incidents/${item.incidentId}`} className="inline-flex rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/20">
+                                                    #{item.incidentId} {item.incidentStatus}
+                                                </Link>
+                                            ) : (
+                                                <span className="text-slate-600">-</span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <Link href={`/report/edit/${item.entryId}`} className="inline-flex items-center justify-center size-8 rounded-lg hover:bg-slate-700 text-blue-400 transition-colors" title="Edit">

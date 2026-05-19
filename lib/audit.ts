@@ -28,6 +28,7 @@ export type AuditEntity =
     | "vlan"
     | "network_port"
     | "checklist"
+    | "incident"
     | "settings"
     | "site"
     | "user_site"

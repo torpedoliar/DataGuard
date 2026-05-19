@@ -36,6 +36,17 @@ export default async function AdminPage() {
 
             {/* Quick Access Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3 mb-8">
+                <Link href="/admin/incidents" className="glow-card p-4 hover:border-red-500/30">
+                    <div className="flex items-center gap-3">
+                        <div className="size-10 rounded-lg bg-red-500/15 flex items-center justify-center text-red-400">
+                            <span className="material-symbols-outlined">report_problem</span>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-white text-sm">Incidents</h3>
+                            <p className="text-xs text-slate-500">Remediation</p>
+                        </div>
+                    </div>
+                </Link>
                 <Link href="/admin/network/vlans" className="glow-card p-4 hover:border-teal-500/30">
                     <div className="flex items-center gap-3">
                         <div className="size-10 rounded-lg bg-teal-500/15 flex items-center justify-center text-teal-400">

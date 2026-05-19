@@ -1,6 +1,7 @@
 
 "use client";
 
+import { incidentStatuses } from "@/lib/incidents";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
@@ -16,12 +17,18 @@ export default function ReportFilters() {
 
     const currentStart = searchParams.get("startDate") || formatDate(firstDay);
     const currentEnd = searchParams.get("endDate") || formatDate(today);
+    const currentIncidentStatus = searchParams.get("incidentStatus") || "";
 
     const [startDate, setStartDate] = useState(currentStart);
     const [endDate, setEndDate] = useState(currentEnd);
+    const [incidentStatus, setIncidentStatus] = useState(currentIncidentStatus);
 
     const handleApply = () => {
-        router.push(`/report?startDate=${startDate}&endDate=${endDate}`);
+        const params = new URLSearchParams();
+        params.set("startDate", startDate);
+        params.set("endDate", endDate);
+        if (incidentStatus) params.set("incidentStatus", incidentStatus);
+        router.push(`/report?${params.toString()}`);
     };
 
     return (
@@ -42,6 +49,17 @@ export default function ReportFilters() {
                     min={startDate}
                     className="text-sm font-medium border-none bg-transparent focus:outline-none text-slate-700 dark:text-slate-200 cursor-pointer"
                 />
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+                <span className="material-symbols-outlined text-slate-400 text-[20px]">report_problem</span>
+                <select
+                    value={incidentStatus}
+                    onChange={(event) => setIncidentStatus(event.target.value)}
+                    className="text-sm font-medium bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none"
+                >
+                    <option value="">All incidents</option>
+                    {incidentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                </select>
             </div>
             <button
                 onClick={handleApply}

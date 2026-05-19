@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { checklistEntries, devices, checklistItems, categories, users } from "@/db/schema";
+import { checklistEntries, devices, checklistItems, categories, users, incidents } from "@/db/schema";
 import { sql, eq, and, desc } from "drizzle-orm";
 import { verifySession } from "@/lib/session";
 
@@ -36,7 +36,10 @@ export async function getDashboardStats() {
     for (const cat of allCategories) {
         const catDevices = await db.select({ count: sql<number>`count(*)` })
             .from(devices)
-            .where(eq(devices.categoryId, cat.id))
+            .where(and(
+                eq(devices.categoryId, cat.id),
+                siteId ? eq(devices.siteId, siteId) : undefined
+            ))
             .then(res => Number(res[0].count));
 
         const catChecked = await db.select({ count: sql<number>`count(distinct ${checklistItems.deviceId})` })
@@ -79,11 +82,25 @@ export async function getDashboardStats() {
         .orderBy(desc(checklistEntries.createdAt))
         .limit(5);
 
+    const incidentStats = await db.select({
+        open: sql<number>`sum(case when ${incidents.status} != 'Verified' then 1 else 0 end)`,
+        critical: sql<number>`sum(case when ${incidents.severity} = 'Critical' and ${incidents.status} != 'Verified' then 1 else 0 end)`,
+        overdue: sql<number>`sum(case when ${incidents.dueDate} < now() and ${incidents.status} != 'Verified' then 1 else 0 end)`,
+    })
+        .from(incidents)
+        .where(siteId ? eq(incidents.siteId, siteId) : undefined)
+        .then((res) => ({
+            open: Number(res[0]?.open ?? 0),
+            critical: Number(res[0]?.critical ?? 0),
+            overdue: Number(res[0]?.overdue ?? 0),
+        }));
+
     return {
         overallCompletion,
         totalDevices,
         checkedToday,
         categoryStats,
-        recentActivities
+        recentActivities,
+        incidentStats
     };
 }

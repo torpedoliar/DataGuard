@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { devices, racks } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { verifySession } from "@/lib/session";
+import { and, eq } from "drizzle-orm";
 import { checkRackCollision } from "@/lib/rack-validation";
+import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 
 export async function POST(request: NextRequest) {
-    const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: 401 });
 
     try {
         const body = await request.json();
@@ -20,7 +18,7 @@ export async function POST(request: NextRequest) {
         }
 
         const deviceA = await db.query.devices.findFirst({
-            where: eq(devices.id, deviceId)
+            where: and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId))
         });
 
         if (!deviceA) {
@@ -32,7 +30,7 @@ export async function POST(request: NextRequest) {
         let targetZone: string | null = null;
         if (rackName) {
             const targetRack = await db.query.racks.findFirst({
-                where: eq(racks.name, rackName)
+                where: and(eq(racks.name, rackName), eq(racks.siteId, auth.activeSiteId))
             });
             if (targetRack && targetRack.zone) {
                 targetZone = targetRack.zone;
@@ -42,6 +40,7 @@ export async function POST(request: NextRequest) {
         // Standard position update checks if rack details are provided
         if (rackName && rackPosition) {
             const collisions = await checkRackCollision(
+                auth.activeSiteId,
                 rackName,
                 rackPosition,
                 newUHeight,
@@ -55,6 +54,7 @@ export async function POST(request: NextRequest) {
 
                     // Check if Device B fits into Device A's old spot
                     const bCollisions = await checkRackCollision(
+                        auth.activeSiteId,
                         deviceA.rackName,
                         deviceA.rackPosition,
                         deviceB.uHeight || 1,
@@ -85,13 +85,13 @@ export async function POST(request: NextRequest) {
                                     rackPosition: rackPosition,
                                     uHeight: newUHeight,
                                     zone: targetZone
-                                }).where(eq(devices.id, deviceA.id));
+                                }).where(and(eq(devices.id, deviceA.id), eq(devices.siteId, auth.activeSiteId)));
 
                                 await tx.update(devices).set({
                                     rackName: deviceA.rackName,
                                     rackPosition: deviceA.rackPosition,
                                     zone: deviceA.zone
-                                }).where(eq(devices.id, deviceB.id));
+                                }).where(and(eq(devices.id, deviceB.id), eq(devices.siteId, auth.activeSiteId)));
                             });
                             return NextResponse.json({ success: true, message: "Devices swapped successfully" });
                         } catch (err) {
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
             updatePayload.uHeight = uHeight;
         }
 
-        await db.update(devices).set(updatePayload).where(eq(devices.id, deviceId));
+        await db.update(devices).set(updatePayload).where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)));
 
         return NextResponse.json({ success: true, message: "Device position updated" });
     } catch (error) {

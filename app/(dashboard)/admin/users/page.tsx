@@ -8,7 +8,7 @@ import Link from "next/link";
 
 export default async function UsersPage() {
     const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) redirect("/checklist");
+    if (!session || session.role !== "superadmin") redirect("/checklist");
 
     const users = await getUsers();
     const sites = await getSites();

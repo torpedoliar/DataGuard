@@ -6,19 +6,23 @@ import { Loader2, Activity } from "lucide-react";
 import clsx from "clsx";
 
 export default function DeviceHealthTrend({ deviceId, days = 30 }: { deviceId: number, days?: number }) {
-    const [history, setHistory] = useState<DailyHealth[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const requestKey = `${deviceId}:${days}`;
+    const [result, setResult] = useState<{ key: string; history: DailyHealth[] } | null>(null);
+    const history = result?.history ?? [];
+    const isLoading = result?.key !== requestKey;
 
     useEffect(() => {
-        setIsLoading(true);
+        let cancelled = false;
         getDeviceHealthHistory(deviceId, days).then((data) => {
-            setHistory(data);
-            setIsLoading(false);
+            if (!cancelled) setResult({ key: requestKey, history: data });
         }).catch((err) => {
             console.error("Failed to load device health history:", err);
-            setIsLoading(false);
+            if (!cancelled) setResult({ key: requestKey, history: [] });
         });
-    }, [deviceId, days]);
+        return () => {
+            cancelled = true;
+        };
+    }, [deviceId, days, requestKey]);
 
     if (isLoading) {
         return (

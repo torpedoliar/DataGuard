@@ -11,12 +11,13 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import path from 'path';
 import dotenv from 'dotenv';
+import { buildDatabaseUrl, redactDatabaseUrl } from '../lib/database-url';
 
 dotenv.config();
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/dccheck';
+const DATABASE_URL = buildDatabaseUrl();
 
-console.log(`📦 Running migrations on database: ${DATABASE_URL}`);
+console.log(`📦 Running migrations on database: ${redactDatabaseUrl(DATABASE_URL)}`);
 
 // Create database connection pool
 const pool = new Pool({

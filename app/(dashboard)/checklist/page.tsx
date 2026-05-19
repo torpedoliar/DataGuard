@@ -150,7 +150,7 @@ export default async function ChecklistPage() {
             </div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {/* Start Audit */}
                 <div className="glow-card p-5 bg-gradient-to-br from-blue-600/20 to-blue-800/10 border-blue-500/20">
                     <div className="flex items-center gap-3 mb-4">
@@ -181,6 +181,19 @@ export default async function ChecklistPage() {
                     <Link href="/audit/scan" className="block w-full text-center py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold transition-colors">
                         Open Scanner
                     </Link>
+                </div>
+
+                {/* Incident Center */}
+                <div className="glow-card p-5">
+                    <div className="flex justify-between items-start mb-3">
+                        <p className="text-slate-400 text-xs font-medium">Open Incidents</p>
+                        <div className="size-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400">
+                            <span className="material-symbols-outlined text-[18px]">report_problem</span>
+                        </div>
+                    </div>
+                    <p className="text-3xl font-bold text-white">{stats.incidentStats.open}</p>
+                    <p className="text-xs text-slate-500 mt-1">{stats.incidentStats.critical} critical, {stats.incidentStats.overdue} overdue</p>
+                    <Link href="/admin/incidents" className="mt-3 inline-block text-sm text-blue-400 hover:text-blue-300">Open Incident Center</Link>
                 </div>
 
                 {/* Stats Card: Total Devices */}

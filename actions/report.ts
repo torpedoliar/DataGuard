@@ -2,9 +2,10 @@
 "use server";
 
 import { db } from "../db";
-import { checklistEntries, checklistItems, devices } from "../db/schema";
-import { eq, and, like, desc, sql, gte, lte } from "drizzle-orm";
+import { checklistEntries, checklistItems, devices, incidents, locations } from "../db/schema";
+import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { verifySession } from "../lib/session";
+import type { IncidentStatus } from "@/lib/incidents";
 import * as XLSX from "xlsx";
 
 
@@ -100,7 +101,8 @@ export async function getReportData(
     startDate: string,
     endDate: string,
     page: number = 1,
-    pageSize: number = 20
+    pageSize: number = 20,
+    incidentStatus?: IncidentStatus
 ) {
     const session = await verifySession();
     if (!session) return { data: [], total: 0, totalPages: 0, currentPage: page };
@@ -111,7 +113,8 @@ export async function getReportData(
     const whereClause = and(
         gte(checklistEntries.checkDate, startDate),
         lte(checklistEntries.checkDate, endDate),
-        siteId ? eq(checklistEntries.siteId, siteId) : undefined
+        siteId ? eq(checklistEntries.siteId, siteId) : undefined,
+        incidentStatus ? eq(incidents.status, incidentStatus) : undefined
     );
 
     // Get total count
@@ -120,6 +123,7 @@ export async function getReportData(
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
+        .leftJoin(incidents, eq(incidents.checklistItemId, checklistItems.id))
         .where(whereClause)
         .then(res => res[0]?.count || 0);
 
@@ -135,17 +139,22 @@ export async function getReportData(
             time: checklistEntries.checkTime,
             shift: checklistEntries.shift,
             device: devices.name,
-            location: devices.location,
+            location: locations.name,
             status: checklistItems.status,
             remarks: checklistItems.remarks,
             photo: checklistItems.photoPath,
             checker: sql<string>`(select username from users where id = ${checklistEntries.userId})`,
             category: sql<string>`(select name from categories where id = ${devices.categoryId})`,
             entryId: checklistEntries.id,
+            incidentId: incidents.id,
+            incidentStatus: incidents.status,
+            incidentSeverity: incidents.severity,
         })
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
+        .leftJoin(locations, eq(devices.locationId, locations.id))
+        .leftJoin(incidents, eq(incidents.checklistItemId, checklistItems.id))
         .where(whereClause)
         .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime))
         .limit(pageSize)
@@ -154,7 +163,7 @@ export async function getReportData(
     return { data: results, total, totalPages, currentPage };
 }
 
-export async function getRawExportData(startDate: string, endDate: string) {
+export async function getRawExportData(startDate: string, endDate: string, incidentStatus?: IncidentStatus) {
     const session = await verifySession();
     if (!session) return null;
 
@@ -167,29 +176,35 @@ export async function getRawExportData(startDate: string, endDate: string) {
             time: checklistEntries.checkTime,
             shift: checklistEntries.shift,
             device: devices.name,
-            location: devices.location,
+            location: locations.name,
             status: checklistItems.status,
             remarks: checklistItems.remarks,
             photo: checklistItems.photoPath,
             checker: sql<string>`(select username from users where id = ${checklistEntries.userId})`,
             category: sql<string>`(select name from categories where id = ${devices.categoryId})`,
+            incidentId: incidents.id,
+            incidentStatus: incidents.status,
+            incidentSeverity: incidents.severity,
         })
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
+        .leftJoin(locations, eq(devices.locationId, locations.id))
+        .leftJoin(incidents, eq(incidents.checklistItemId, checklistItems.id))
         .where(
             and(
                 gte(checklistEntries.checkDate, startDate),
                 lte(checklistEntries.checkDate, endDate),
-                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+                siteId ? eq(checklistEntries.siteId, siteId) : undefined,
+                incidentStatus ? eq(incidents.status, incidentStatus) : undefined
             )
         )
         .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime));
 }
 
-export async function exportToExcel(startDate: string, endDate: string) {
+export async function exportToExcel(startDate: string, endDate: string, incidentStatus?: IncidentStatus) {
     // Get all data (no pagination for export)
-    const data = await getRawExportData(startDate, endDate);
+    const data = await getRawExportData(startDate, endDate, incidentStatus);
     if (!data) return null;
 
     // Transform for Excel
@@ -201,6 +216,9 @@ export async function exportToExcel(startDate: string, endDate: string) {
         Location: item.location,
         Category: item.category,
         Status: item.status,
+        Incident: item.incidentId ? `#${item.incidentId}` : "-",
+        IncidentStatus: item.incidentStatus ?? "-",
+        IncidentSeverity: item.incidentSeverity ?? "-",
         Remarks: item.remarks || "-",
         Checker: item.checker,
         Photo: item.photo ? "Yes" : "No"
@@ -214,4 +232,3 @@ export async function exportToExcel(startDate: string, endDate: string) {
     const buffer = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
     return buffer;
 }
-
