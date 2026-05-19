@@ -50,6 +50,9 @@ public/uploads/
 # local production backups
 backups/
 
+# local superpowers visual companion sessions
+.superpowers/
+
 #Document
 #Documentation
 DEPLOYMENT_CONTAINER.md
