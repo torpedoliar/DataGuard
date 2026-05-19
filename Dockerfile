@@ -42,20 +42,17 @@ ENV DB_USER="administrator"
 ENV DB_PASSWORD="Arabika1927"
 ENV DB_NAME="dccheck"
 
-# Ekstrak tarball hasil build
-# Lakukan sebagai root agar ownership dapat di-chown dengan efisien
-COPY --from=builder /app/standalone.tar ./
-COPY --from=builder /app/assets.tar ./
+# Beri ownership hanya ke workdir kosong dan tarball, bukan recursive seluruh hasil build.
+RUN chown nextjs:nodejs /app
+COPY --from=builder --chown=nextjs:nodejs /app/standalone.tar ./
+COPY --from=builder --chown=nextjs:nodejs /app/assets.tar ./
 
-RUN tar -xf standalone.tar && rm standalone.tar
-RUN tar -xf assets.tar && rm assets.tar
-
-# Persiapkan folder public uploads dan pastikan hak akses untuk user nextjs 
-RUN mkdir -p public/uploads
-RUN chown -R nextjs:nodejs /app
-
-# Switch ke user non-root
+# Ekstrak sebagai user non-root agar file hasil ekstraksi langsung dimiliki nextjs.
+# Ini menghindari layer chown -R /app yang besar dan sering gagal saat export image.
 USER nextjs
+RUN tar -xf standalone.tar && rm standalone.tar && \
+    tar -xf assets.tar && rm assets.tar && \
+    mkdir -p public/uploads
 
 EXPOSE 3001
 
