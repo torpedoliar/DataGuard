@@ -1,5 +1,5 @@
 
-import Navbar from "@/components/ui/navbar";
+import AppShell from "@/components/ui/app-shell";
 import { verifySession } from "@/lib/session";
 import { getUserSites } from "@/lib/site-access";
 import { getSettings } from "@/actions/settings";
@@ -33,14 +33,13 @@ export default async function DashboardLayout({
     const activeSiteName = currentSite ? currentSite.name : session.activeSiteName;
 
     return (
-        <div className="min-h-screen bg-[#0b1120] font-display" suppressHydrationWarning>
-            <Navbar
-                user={{ username: session.username, role: session.role, photoPath: userDb?.photoPath || null }}
-                activeSite={{ id: session.activeSiteId, name: activeSiteName }}
-                userSites={userSites}
-                appSettings={{ appName: appSettings.appName, logoPath: appSettings.logoPath }}
-            />
+        <AppShell
+            user={{ username: session.username, role: session.role, photoPath: userDb?.photoPath || null }}
+            activeSite={{ id: session.activeSiteId, name: activeSiteName }}
+            userSites={userSites}
+            appSettings={{ appName: appSettings.appName, logoPath: appSettings.logoPath }}
+        >
             {children}
-        </div>
+        </AppShell>
     );
 }
