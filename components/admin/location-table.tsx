@@ -1,153 +1,166 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
 import { deleteLocation } from "@/actions/locations";
+import ActionButton from "@/components/ui/action-button";
+import DataToolbar from "@/components/ui/data-toolbar";
+import {
+  DataTable,
+  DataTableBody,
+  DataTableEmpty,
+  DataTableFrame,
+  DataTableHead,
+} from "@/components/ui/data-table";
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Edit2, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Edit2, Trash2, Loader2, AlertCircle, Search, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import EditLocationModal from "./edit-location-modal";
 
 type Location = {
-    id: number;
-    name: string;
-    description: string | null;
-    createdAt: Date | null;
+  id: number;
+  name: string;
+  description: string | null;
+  createdAt: Date | null;
 };
 
 type SortKey = "name" | "description" | "createdAt";
 type SortDir = "asc" | "desc";
 
+const fieldClass = "ops-input h-9 px-3 text-sm";
+
 export default function LocationTable({ locations }: { locations: Location[] }) {
-    const [editingLocation, setEditingLocation] = useState<Location | null>(null);
-    const [deletingId, setDeletingId] = useState<number | null>(null);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    const [isPending, startTransition] = useTransition();
-    const [search, setSearch] = useState("");
-    const [sortKey, setSortKey] = useState<SortKey>("name");
-    const [sortDir, setSortDir] = useState<SortDir>("asc");
-    const router = useRouter();
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const router = useRouter();
 
-    const handleDelete = (id: number) => {
-        if (!confirm("Are you sure you want to delete this location?")) return;
-        setErrorMsg(null);
-        setDeletingId(id);
-        startTransition(async () => {
-            const formData = new FormData();
-            formData.append("id", id.toString());
-            const result = await deleteLocation(formData);
-            if (result.success) {
-                router.refresh();
-            } else {
-                setErrorMsg(result.message);
-            }
-            setDeletingId(null);
-        });
-    };
+  const handleDelete = (id: number) => {
+    if (!confirm("Are you sure you want to delete this location?")) return;
+    setErrorMsg(null);
+    setDeletingId(id);
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.append("id", id.toString());
+      const result = await deleteLocation(formData);
+      if (result.success) router.refresh();
+      else setErrorMsg(result.message);
+      setDeletingId(null);
+    });
+  };
 
-    const handleSort = (key: SortKey) => {
-        if (sortKey === key) setSortDir(d => (d === "asc" ? "desc" : "asc"));
-        else { setSortKey(key); setSortDir("asc"); }
-    };
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((direction) => (direction === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
 
-    const renderSortIcon = (col: SortKey) => {
-        if (sortKey !== col) return <ArrowUpDown className="h-3.5 w-3.5 text-slate-600" />;
-        return sortDir === "asc"
-            ? <ArrowUp className="h-3.5 w-3.5 text-blue-400" />
-            : <ArrowDown className="h-3.5 w-3.5 text-blue-400" />;
-    };
+  const renderSortIcon = (column: SortKey) => {
+    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-slate-600" />;
+    return sortDir === "asc" ? <ArrowUp className="size-3.5 text-ops-accent" /> : <ArrowDown className="size-3.5 text-ops-accent" />;
+  };
 
-    const filtered = useMemo(() => {
-        let data = locations;
-        if (search.trim()) {
-            const q = search.toLowerCase();
-            data = data.filter(l =>
-                l.name.toLowerCase().includes(q) ||
-                (l.description || "").toLowerCase().includes(q)
-            );
-        }
-        data = [...data].sort((a, b) => {
-            let cmp = 0;
-            if (sortKey === "name") cmp = a.name.localeCompare(b.name);
-            else if (sortKey === "description") cmp = (a.description || "").localeCompare(b.description || "");
-            else if (sortKey === "createdAt") cmp = (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0);
-            return sortDir === "asc" ? cmp : -cmp;
-        });
-        return data;
-    }, [locations, search, sortKey, sortDir]);
+  const filtered = useMemo(() => {
+    let data = locations;
+    if (search.trim()) {
+      const query = search.toLowerCase();
+      data = data.filter((location) =>
+        location.name.toLowerCase().includes(query) ||
+        (location.description || "").toLowerCase().includes(query),
+      );
+    }
+    data = [...data].sort((a, b) => {
+      let compare = 0;
+      if (sortKey === "name") compare = a.name.localeCompare(b.name);
+      else if (sortKey === "description") compare = (a.description || "").localeCompare(b.description || "");
+      else compare = (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0);
+      return sortDir === "asc" ? compare : -compare;
+    });
+    return data;
+  }, [locations, search, sortKey, sortDir]);
 
-    return (
-        <div className="glow-card overflow-hidden">
-            {errorMsg && (
-                <div className="p-3 bg-red-500/10 text-red-400 flex items-center gap-2 text-sm border-b border-red-500/20">
-                    <AlertCircle className="h-4 w-4" /> {errorMsg}
-                </div>
-            )}
-
-            {/* Toolbar */}
-            <div className="p-4 border-b border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                    <input
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder="Search locations..."
-                        className="w-full h-9 pl-9 pr-8 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                    />
-                    {search && (
-                        <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-                            <X className="h-3.5 w-3.5" />
-                        </button>
-                    )}
-                </div>
-                <span className="text-xs text-slate-500 font-medium">{filtered.length} of {locations.length} Locations</span>
-            </div>
-
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                    <thead className="bg-[#0d1526] text-[11px] uppercase tracking-wider text-slate-500">
-                        <tr>
-                            <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("name")}>
-                                <span className="inline-flex items-center gap-1.5">Location Name {renderSortIcon("name")}</span>
-                            </th>
-                            <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("description")}>
-                                <span className="inline-flex items-center gap-1.5">Description {renderSortIcon("description")}</span>
-                            </th>
-                            <th className="px-5 py-3 text-left cursor-pointer select-none" onClick={() => handleSort("createdAt")}>
-                                <span className="inline-flex items-center gap-1.5">Created At {renderSortIcon("createdAt")}</span>
-                            </th>
-                            <th className="px-5 py-3 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/50">
-                        {filtered.length === 0 ? (
-                            <tr>
-                                <td colSpan={4} className="px-5 py-8 text-center text-slate-500">
-                                    {search ? "No locations match your search." : "No locations found. Add one to get started."}
-                                </td>
-                            </tr>
-                        ) : (
-                            filtered.map((loc) => (
-                                <tr key={loc.id} className="hover:bg-slate-800/30 transition-colors">
-                                    <td className="px-5 py-3 font-medium text-white">{loc.name}</td>
-                                    <td className="px-5 py-3 text-slate-400">{loc.description || "-"}</td>
-                                    <td className="px-5 py-3 text-slate-400">{loc.createdAt ? new Date(loc.createdAt).toLocaleDateString("id-ID") : "-"}</td>
-                                    <td className="px-5 py-3 text-right">
-                                        <div className="inline-flex items-center gap-1">
-                                            <button onClick={() => setEditingLocation(loc)} className="p-1.5 rounded-lg hover:bg-slate-700 text-blue-400 transition-colors" title="Edit">
-                                                <Edit2 className="h-4 w-4" />
-                                            </button>
-                                            <button onClick={() => handleDelete(loc.id)} disabled={isPending && deletingId === loc.id} className="p-1.5 rounded-lg hover:bg-slate-700 text-red-400 transition-colors disabled:opacity-50" title="Delete">
-                                                {isPending && deletingId === loc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
-            {editingLocation && <EditLocationModal location={editingLocation} onClose={() => setEditingLocation(null)} />}
+  return (
+    <div className="space-y-3">
+      {errorMsg && (
+        <div className="flex items-center gap-2 rounded-md border border-red-400/25 bg-red-400/10 p-3 text-sm text-red-200">
+          <AlertCircle className="size-4" /> {errorMsg}
         </div>
-    );
+      )}
+
+      <DataToolbar>
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search locations..." className={`${fieldClass} w-full pl-9 pr-8`} />
+            {search && (
+              <button type="button" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text" title="Clear search">
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+          <span className="text-xs font-medium text-ops-muted">{filtered.length} of {locations.length} Locations</span>
+        </div>
+      </DataToolbar>
+
+      <DataTableFrame>
+        <DataTable>
+          <DataTableHead>
+            <tr>
+              <SortableHead label="Location Name" onClick={() => handleSort("name")} icon={renderSortIcon("name")} />
+              <SortableHead label="Description" onClick={() => handleSort("description")} icon={renderSortIcon("description")} />
+              <SortableHead label="Created At" onClick={() => handleSort("createdAt")} icon={renderSortIcon("createdAt")} />
+              <th className="px-5 py-3 text-right">Actions</th>
+            </tr>
+          </DataTableHead>
+          <DataTableBody>
+            {filtered.length === 0 ? (
+              <DataTableEmpty colSpan={4} title={search ? "No locations match your search" : "No locations found"} description="Add one location to start mapping devices to rooms." />
+            ) : (
+              filtered.map((location) => (
+                <tr key={location.id} className="transition-colors hover:bg-ops-surface">
+                  <td className="px-5 py-3 font-semibold text-ops-text">{location.name}</td>
+                  <td className="px-5 py-3 text-ops-muted">{location.description || "-"}</td>
+                  <td className="px-5 py-3 text-ops-muted">{location.createdAt ? new Date(location.createdAt).toLocaleDateString("id-ID") : "-"}</td>
+                  <td className="px-5 py-3 text-right">
+                    <div className="inline-flex items-center gap-1">
+                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingLocation(location)} title="Edit">
+                        <Edit2 className="size-4 text-blue-300" />
+                      </ActionButton>
+                      <ActionButton
+                        type="button"
+                        variant="danger"
+                        size="icon"
+                        onClick={() => handleDelete(location.id)}
+                        disabled={isPending && deletingId === location.id}
+                        title="Delete"
+                      >
+                        <Trash2 className="size-4" />
+                      </ActionButton>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </DataTableBody>
+        </DataTable>
+      </DataTableFrame>
+
+      {editingLocation && <EditLocationModal location={editingLocation} onClose={() => setEditingLocation(null)} />}
+    </div>
+  );
+}
+
+function SortableHead({ label, onClick, icon }: { label: string; onClick: () => void; icon: ReactNode }) {
+  return (
+    <th className="px-5 py-3 text-left">
+      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5">
+        {label}
+        {icon}
+      </button>
+    </th>
+  );
 }

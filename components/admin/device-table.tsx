@@ -1,477 +1,453 @@
 "use client";
 
-import { Trash2, Edit, Search, Filter, X, ArrowUpDown, ArrowUp, ArrowDown, Network, Power, PackageOpen, MonitorPlay, Globe, Terminal, Phone, Shield } from "lucide-react";
-import React, { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import EditDeviceForm from "./edit-device-form";
-import DeleteDeviceModal from "./delete-device-modal";
-import PrintQRModal from "./print-qr-modal";
-import { QrCode } from "lucide-react";
-import { toggleDeviceStatus, takeoutFromRack } from "@/actions/master-data";
+import { takeoutFromRack, toggleDeviceStatus } from "@/actions/master-data";
+import ActionButton from "@/components/ui/action-button";
+import DataToolbar from "@/components/ui/data-toolbar";
+import {
+  DataTable,
+  DataTableBody,
+  DataTableEmpty,
+  DataTableFrame,
+  DataTableHead,
+} from "@/components/ui/data-table";
+import StatusBadge from "@/components/ui/status-badge";
 import PhotoModalTrigger from "@/components/report/photo-modal-trigger";
+import { type UiTone } from "@/lib/ui/status";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Edit,
+  Filter,
+  Globe,
+  MonitorPlay,
+  Network,
+  PackageOpen,
+  Phone,
+  Power,
+  QrCode,
+  Search,
+  Shield,
+  Terminal,
+  Trash2,
+  X,
+} from "lucide-react";
+import { Fragment, useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import clsx from "clsx";
+import DeleteDeviceModal from "./delete-device-modal";
+import EditDeviceForm from "./edit-device-form";
+import PrintQRModal from "./print-qr-modal";
 
 type Device = {
-    id: number;
-    name: string;
-    brandId: number | null;
-    brandName: string | null;
-    brandLogo: string | null;
-    categoryName: string | null;
-    locationId: number | null;
-    locationName: string | null;
-    photoPath: string | null;
-    rackName: string | null;
-    rackPosition: number | null;
-    uHeight: number | null;
-    zone: string | null;
-    categoryId: number;
-    ipAddress: string | null;
-    description: string | null;
-    isActive: boolean | null;
+  id: number;
+  name: string;
+  brandId: number | null;
+  brandName: string | null;
+  brandLogo: string | null;
+  categoryName: string | null;
+  locationId: number | null;
+  locationName: string | null;
+  photoPath: string | null;
+  rackName: string | null;
+  rackPosition: number | null;
+  uHeight: number | null;
+  zone: string | null;
+  categoryId: number;
+  ipAddress: string | null;
+  description: string | null;
+  isActive: boolean | null;
 };
 
 type Brand = {
-    id: number;
-    name: string;
-    logoPath: string | null;
-    createdAt: Date | null;
+  id: number;
+  name: string;
+  logoPath: string | null;
+  createdAt: Date | null;
 };
 
 type Location = {
-    id: number;
-    name: string;
+  id: number;
+  name: string;
 };
 
-export default function DeviceTable({ devices, brands, locations }: { devices: Device[], brands: Brand[], locations: Location[] }) {
-    const [editingDevice, setEditingDevice] = useState<Device | null>(null);
-    const [deletingDevice, setDeletingDevice] = useState<Device | null>(null);
-    const [printingDevice, setPrintingDevice] = useState<Device | null>(null);
-    const [manageDevice, setManageDevice] = useState<Device | null>(null);
-    const [customPort, setCustomPort] = useState("");
-    const [isPending, startTransition] = useTransition();
-    const router = useRouter();
+type SortConfig = { key: keyof Device; direction: "asc" | "desc" } | null;
 
-    const handleDeleteSuccess = () => {
-        setDeletingDevice(null);
-        router.refresh();
-    };
+const fieldClass = "ops-input h-9 px-3 text-sm";
 
-    const handleToggleStatus = (deviceId: number) => {
-        startTransition(async () => {
-            const res = await toggleDeviceStatus(deviceId);
-            if (!res.success) alert(res.message);
-        });
-    };
+function getActiveTone(isActive: boolean): UiTone {
+  return isActive ? "success" : "danger";
+}
 
-    const handleTakeout = (device: Device) => {
-        if (!confirm(`Take out "${device.name}" from ${device.rackName} U${device.rackPosition}? This will clear its rack position.`)) return;
-        startTransition(async () => {
-            const res = await takeoutFromRack(device.id);
-            if (!res.success) alert(res.message);
-        });
-    };
+export default function DeviceTable({
+  devices,
+  brands,
+  locations,
+}: {
+  devices: Device[];
+  brands: Brand[];
+  locations: Location[];
+}) {
+  const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+  const [deletingDevice, setDeletingDevice] = useState<Device | null>(null);
+  const [printingDevice, setPrintingDevice] = useState<Device | null>(null);
+  const [manageDevice, setManageDevice] = useState<Device | null>(null);
+  const [customPort, setCustomPort] = useState("");
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
-    // Sort states
-    type SortConfig = { key: keyof Device, direction: 'asc' | 'desc' } | null;
-    const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState("");
+  const [selectedRack, setSelectedRack] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
 
-    const handleSort = (key: keyof Device) => {
-        let direction: 'asc' | 'desc' = 'asc';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
-    };
+  const handleDeleteSuccess = () => {
+    setDeletingDevice(null);
+    router.refresh();
+  };
 
-    const getSortIcon = (key: keyof Device) => {
-        if (!sortConfig || sortConfig.key !== key) {
-            return <ArrowUpDown className="h-3.5 w-3.5 ml-1 opacity-0 group-hover:opacity-50 transition-opacity text-slate-600" />;
-        }
-        return sortConfig.direction === 'asc'
-            ? <ArrowUp className="h-3.5 w-3.5 ml-1 text-blue-400" />
-            : <ArrowDown className="h-3.5 w-3.5 ml-1 text-blue-400" />;
-    };
-
-    // Filter states
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState("");
-    const [selectedBrand, setSelectedBrand] = useState("");
-    const [selectedRack, setSelectedRack] = useState("");
-    const [selectedStatus, setSelectedStatus] = useState("");
-
-    // Compute unique options from devices
-    const uniqueCategories = Array.from(new Set(devices.map(d => d.categoryName).filter(Boolean))).sort() as string[];
-    const uniqueBrands = Array.from(new Set(devices.map(d => d.brandName).filter(Boolean))).sort() as string[];
-    const uniqueRacks = Array.from(new Set(devices.map(d => d.rackName).filter(Boolean))).sort() as string[];
-
-    // Apply filters
-    const filteredDevices = devices.filter(device => {
-        const matchesSearch = !searchQuery ||
-            device.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (device.ipAddress && device.ipAddress.toLowerCase().includes(searchQuery.toLowerCase()));
-
-        const matchesCategory = !selectedCategory || device.categoryName === selectedCategory;
-        const matchesBrand = !selectedBrand || device.brandName === selectedBrand;
-        const matchesRack = !selectedRack || device.rackName === selectedRack;
-        const matchesStatus = !selectedStatus ||
-            (selectedStatus === "active" && device.isActive !== false) ||
-            (selectedStatus === "inactive" && device.isActive === false);
-
-        return matchesSearch && matchesCategory && matchesBrand && matchesRack && matchesStatus;
+  const handleToggleStatus = (deviceId: number) => {
+    startTransition(async () => {
+      const result = await toggleDeviceStatus(deviceId);
+      if (!result.success) alert(result.message);
     });
+  };
 
-    // Apply sorting
-    const sortedDevices = [...filteredDevices].sort((a, b) => {
-        if (!sortConfig) return 0;
-
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-
-        if (aValue === null || aValue === undefined) return 1;
-        if (bValue === null || bValue === undefined) return -1;
-
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
+  const handleTakeout = (device: Device) => {
+    if (!confirm(`Take out "${device.name}" from ${device.rackName} U${device.rackPosition}? This will clear its rack position.`)) return;
+    startTransition(async () => {
+      const result = await takeoutFromRack(device.id);
+      if (!result.success) alert(result.message);
     });
+  };
 
-    const resetFilters = () => {
-        setSearchQuery("");
-        setSelectedCategory("");
-        setSelectedBrand("");
-        setSelectedRack("");
-        setSelectedStatus("");
-        setSortConfig(null);
-    };
+  const handleSort = (key: keyof Device) => {
+    let direction: "asc" | "desc" = "asc";
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
+    setSortConfig({ key, direction });
+  };
 
-    const hasFilters = searchQuery || selectedCategory || selectedBrand || selectedRack || selectedStatus;
+  const getSortIcon = (key: keyof Device) => {
+    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="size-3.5 text-slate-600" />;
+    return sortConfig.direction === "asc"
+      ? <ArrowUp className="size-3.5 text-ops-accent" />
+      : <ArrowDown className="size-3.5 text-ops-accent" />;
+  };
 
-    return (
-        <div className="space-y-4">
-            {/* Filter Toolbar */}
-            {devices.length > 0 && (
-                <div className="glow-card p-4 flex flex-col xl:flex-row gap-3 items-start xl:items-center">
-                    <div className="relative flex-1 w-full">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                        <input
-                            type="text"
-                            placeholder="Search by device name or IP address..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full h-9 pl-9 pr-8 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                        />
-                        {searchQuery && (
-                            <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        )}
-                    </div>
+  const uniqueCategories = Array.from(new Set(devices.map((device) => device.categoryName).filter(Boolean))).sort() as string[];
+  const uniqueBrands = Array.from(new Set(devices.map((device) => device.brandName).filter(Boolean))).sort() as string[];
+  const uniqueRacks = Array.from(new Set(devices.map((device) => device.rackName).filter(Boolean))).sort() as string[];
 
-                    <div className="flex w-full xl:w-auto gap-2.5 overflow-x-auto pb-1 xl:pb-0 items-center no-scrollbar">
-                        <div className="flex items-center gap-1.5 text-slate-500 text-xs whitespace-nowrap">
-                            <Filter className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">Filters:</span>
-                        </div>
+  const filteredDevices = devices.filter((device) => {
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = !searchQuery ||
+      device.name.toLowerCase().includes(query) ||
+      (device.ipAddress && device.ipAddress.toLowerCase().includes(query));
+    const matchesCategory = !selectedCategory || device.categoryName === selectedCategory;
+    const matchesBrand = !selectedBrand || device.brandName === selectedBrand;
+    const matchesRack = !selectedRack || device.rackName === selectedRack;
+    const matchesStatus = !selectedStatus ||
+      (selectedStatus === "active" && device.isActive !== false) ||
+      (selectedStatus === "inactive" && device.isActive === false);
 
-                        <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="h-9 px-3 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-blue-500 min-w-[130px]">
-                            <option value="">All Categories</option>
-                            {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+    return matchesSearch && matchesCategory && matchesBrand && matchesRack && matchesStatus;
+  });
 
-                        <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)}
-                            className="h-9 px-3 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-blue-500 min-w-[130px]">
-                            <option value="">All Brands</option>
-                            {uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
+  const sortedDevices = [...filteredDevices].sort((a, b) => {
+    if (!sortConfig) return 0;
+    const aValue = a[sortConfig.key];
+    const bValue = b[sortConfig.key];
+    if (aValue === null || aValue === undefined) return 1;
+    if (bValue === null || bValue === undefined) return -1;
+    if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
+    if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+    return 0;
+  });
 
-                        <select value={selectedRack} onChange={(e) => setSelectedRack(e.target.value)}
-                            className="h-9 px-3 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-blue-500 min-w-[130px]">
-                            <option value="">All Racks</option>
-                            {uniqueRacks.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
+  const groups: Record<string, Device[]> = {};
+  sortedDevices.forEach((device) => {
+    const rackName = device.rackName || "Unassigned / Direct Placement";
+    if (!groups[rackName]) groups[rackName] = [];
+    groups[rackName].push(device);
+  });
 
-                        <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="h-9 px-3 text-sm rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-blue-500 min-w-[120px]">
-                            <option value="">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
+  const groupEntries = Object.entries(groups).sort((a, b) => {
+    if (a[0] === "Unassigned / Direct Placement") return 1;
+    if (b[0] === "Unassigned / Direct Placement") return -1;
+    return a[0].localeCompare(b[0]);
+  });
 
-                        {hasFilters && (
-                            <button onClick={resetFilters} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 whitespace-nowrap">
-                                <X className="h-3 w-3" /> Reset
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
+  const resetFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("");
+    setSelectedBrand("");
+    setSelectedRack("");
+    setSelectedStatus("");
+    setSortConfig(null);
+  };
 
-            <div className="glow-card overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-[#0d1526] text-[11px] uppercase tracking-wider text-slate-500">
-                            <tr>
-                                <th className="px-5 py-3 text-left">
-                                    <button onClick={() => handleSort('name')} className="flex items-center group focus:outline-none">
-                                        Device Name {getSortIcon('name')}
-                                    </button>
-                                </th>
-                                <th className="px-5 py-3 text-left">
-                                    <button onClick={() => handleSort('brandName')} className="flex items-center group focus:outline-none">
-                                        Brand {getSortIcon('brandName')}
-                                    </button>
-                                </th>
-                                <th className="px-5 py-3 text-left">
-                                    <button onClick={() => handleSort('categoryName')} className="flex items-center group focus:outline-none">
-                                        Category {getSortIcon('categoryName')}
-                                    </button>
-                                </th>
-                                <th className="px-5 py-3 text-left">
-                                    <button onClick={() => handleSort('locationName')} className="flex items-center group focus:outline-none">
-                                        Location {getSortIcon('locationName')}
-                                    </button>
-                                </th>
-                                <th className="px-5 py-3 text-left">
-                                    <button onClick={() => handleSort('rackName')} className="flex items-center group focus:outline-none">
-                                        Rack {getSortIcon('rackName')}
-                                    </button>
-                                </th>
-                                <th className="px-5 py-3 text-left">
-                                    <button onClick={() => handleSort('ipAddress')} className="flex items-center group focus:outline-none">
-                                        IP Address {getSortIcon('ipAddress')}
-                                    </button>
-                                </th>
-                                <th className="px-5 py-3 text-center">Status</th>
-                                <th className="px-5 py-3 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/50">
-                            {sortedDevices.length === 0 ? (
-                                <tr>
-                                    <td colSpan={8} className="px-5 py-8 text-center text-slate-500">
-                                        {devices.length === 0
-                                            ? "No devices found. Add one above."
-                                            : "No devices match your search and filter criteria."}
-                                    </td>
-                                </tr>
-                            ) : (() => {
-                                // Group devices by Rack
-                                const groups: { [key: string]: Device[] } = {};
-                                sortedDevices.forEach(d => {
-                                    const r = d.rackName || "Unassigned / Direct Placement";
-                                    if (!groups[r]) groups[r] = [];
-                                    groups[r].push(d);
-                                });
+  const hasFilters = searchQuery || selectedCategory || selectedBrand || selectedRack || selectedStatus;
 
-                                const groupEntries = Object.entries(groups).sort((a, b) => {
-                                    if (a[0] === "Unassigned / Direct Placement") return 1;
-                                    if (b[0] === "Unassigned / Direct Placement") return -1;
-                                    return a[0].localeCompare(b[0]);
-                                });
-
-                                return groupEntries.map(([rackName, rackDevices]) => (
-                                    <React.Fragment key={rackName}>
-                                        {/* Rack Header Row */}
-                                        <tr className="bg-slate-800/30 border-y border-slate-700/50 group/rack">
-                                            <td colSpan={8} className="px-5 py-2">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="size-6 rounded bg-blue-500/20 flex items-center justify-center">
-                                                        <span className="material-symbols-outlined text-blue-400 text-sm">view_in_ar</span>
-                                                    </div>
-                                                    <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">
-                                                        {rackName}
-                                                    </span>
-                                                    <span className="text-[10px] text-slate-500 font-medium">
-                                                        ({rackDevices.length} devices)
-                                                    </span>
-                                                </div>
-                                            </td>
-                                        </tr>
-
-                                        {rackDevices.map((device) => {
-                                            const isActive = device.isActive !== false;
-                                            const isInRack = !!device.rackName;
-                                            const showTakeout = !isActive && isInRack;
-
-                                            return (
-                                                <tr key={device.id} className={`transition-colors ${isActive ? "hover:bg-slate-800/30" : "hover:bg-slate-800/20 opacity-60"}`}>
-                                                    <td className="px-5 py-3 whitespace-nowrap font-medium text-white">
-                                                        <div className="flex items-center gap-2">
-                                                            {!isActive && (
-                                                                <span className="size-2 rounded-full bg-red-500 shrink-0" title="Inactive" />
-                                                            )}
-                                                            <span className={!isActive ? "line-through text-slate-400" : ""}>{device.name}</span>
-                                                            {device.photoPath && (
-                                                                <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-5 py-3 whitespace-nowrap text-white">
-                                                        {device.brandLogo ? (
-                                                            <div className="flex items-center gap-2">
-                                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                                <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-5 w-auto object-contain bg-white rounded p-0.5" />
-                                                                <span className="text-slate-300">{device.brandName}</span>
-                                                            </div>
-                                                        ) : device.brandName ? (
-                                                            <span className="text-slate-300">{device.brandName}</span>
-                                                        ) : (
-                                                            <span className="text-slate-600">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-5 py-3 whitespace-nowrap text-slate-400">{device.categoryName}</td>
-                                                    <td className="px-5 py-3 whitespace-nowrap text-slate-400">{device.locationName || "-"}</td>
-                                                    <td className="px-5 py-3 whitespace-nowrap text-slate-400">
-                                                        {device.rackName ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-xs font-mono bg-slate-700/50 border border-slate-600/50 px-2 py-0.5 rounded">
-                                                                    U{device.rackPosition}
-                                                                </span>
-                                                                {showTakeout && (
-                                                                    <button
-                                                                        onClick={() => handleTakeout(device)}
-                                                                        disabled={isPending}
-                                                                        className="text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
-                                                                        title="Take out from rack"
-                                                                    >
-                                                                        <PackageOpen className="h-4 w-4" />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-slate-600">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-5 py-3 whitespace-nowrap text-slate-400">
-                                                        {device.ipAddress ? (
-                                                            <span className="font-mono text-xs bg-slate-700/50 border border-slate-600/50 px-2 py-0.5 rounded">{device.ipAddress}</span>
-                                                        ) : (
-                                                            <span className="text-slate-600">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-5 py-3 whitespace-nowrap text-center">
-                                                        <button
-                                                            onClick={() => handleToggleStatus(device.id)}
-                                                            disabled={isPending}
-                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${isActive
-                                                                ? "bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20"
-                                                                : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
-                                                                }`}
-                                                            title={`Click to ${isActive ? "deactivate" : "activate"}`}
-                                                        >
-                                                            <Power className="h-3 w-3" />
-                                                            {isActive ? "Active" : "Inactive"}
-                                                        </button>
-                                                    </td>
-                                                    <td className="px-5 py-3 whitespace-nowrap text-right">
-                                                        <div className="flex items-center justify-end gap-1">
-                                                            {device.ipAddress && (
-                                                                <button onClick={() => setManageDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-indigo-400 transition-colors" title="Manage Device (Remote)">
-                                                                    <MonitorPlay className="h-4 w-4" />
-                                                                </button>
-                                                            )}
-                                                            <Link
-                                                                href={`/admin/devices/${device.id}/network`}
-                                                                className="p-1.5 rounded-lg hover:bg-slate-700 text-teal-400 transition-colors"
-                                                                title="Network Ports"
-                                                            >
-                                                                <Network className="h-4 w-4" />
-                                                            </Link>
-                                                            <button onClick={() => setPrintingDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 transition-colors" title="Print QR">
-                                                                <QrCode className="h-4 w-4" />
-                                                            </button>
-                                                            <button onClick={() => setEditingDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-blue-400 transition-colors" title="Edit">
-                                                                <Edit className="h-4 w-4" />
-                                                            </button>
-                                                            <button onClick={() => setDeletingDevice(device)} className="p-1.5 rounded-lg hover:bg-slate-700 text-red-400 transition-colors" title="Delete">
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </React.Fragment>
-                                ));
-                            })()}
-                        </tbody>
-                    </table>
-                </div>
+  return (
+    <div className="space-y-4">
+      {devices.length > 0 && (
+        <DataToolbar>
+          <div className="flex w-full flex-col gap-3 xl:flex-row xl:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+              <input
+                type="text"
+                placeholder="Search by device name or IP address..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className={`${fieldClass} w-full pl-9 pr-8`}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text"
+                  title="Clear search"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
 
-            {editingDevice && (
-                <EditDeviceForm
-                    device={editingDevice}
-                    onClose={() => setEditingDevice(null)}
-                    brands={brands}
-                    locations={locations}
-                />
-            )}
+            <div className="flex w-full items-center gap-2.5 overflow-x-auto pb-1 xl:w-auto xl:pb-0">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">
+                <Filter className="size-3.5" />
+                Filters
+              </div>
+              <select value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)} className={`${fieldClass} min-w-36`}>
+                <option value="">All Categories</option>
+                {uniqueCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+              <select value={selectedBrand} onChange={(event) => setSelectedBrand(event.target.value)} className={`${fieldClass} min-w-36`}>
+                <option value="">All Brands</option>
+                {uniqueBrands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+              </select>
+              <select value={selectedRack} onChange={(event) => setSelectedRack(event.target.value)} className={`${fieldClass} min-w-36`}>
+                <option value="">All Racks</option>
+                {uniqueRacks.map((rack) => <option key={rack} value={rack}>{rack}</option>)}
+              </select>
+              <select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)} className={`${fieldClass} min-w-32`}>
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              {hasFilters && (
+                <ActionButton type="button" variant="ghost" size="sm" onClick={resetFilters} icon={<X className="size-3.5" />}>
+                  Reset
+                </ActionButton>
+              )}
+            </div>
+          </div>
+        </DataToolbar>
+      )}
 
-            {deletingDevice && (
-                <DeleteDeviceModal
-                    deviceId={deletingDevice.id}
-                    deviceName={deletingDevice.name}
-                    onClose={() => setDeletingDevice(null)}
-                    onSuccess={handleDeleteSuccess}
-                />
-            )}
+      <DataTableFrame>
+        <DataTable className="whitespace-nowrap">
+          <DataTableHead>
+            <tr>
+              <SortableHead label="Device Name" onClick={() => handleSort("name")} icon={getSortIcon("name")} />
+              <SortableHead label="Brand" onClick={() => handleSort("brandName")} icon={getSortIcon("brandName")} />
+              <SortableHead label="Category" onClick={() => handleSort("categoryName")} icon={getSortIcon("categoryName")} />
+              <SortableHead label="Location" onClick={() => handleSort("locationName")} icon={getSortIcon("locationName")} />
+              <SortableHead label="Rack" onClick={() => handleSort("rackName")} icon={getSortIcon("rackName")} />
+              <SortableHead label="IP Address" onClick={() => handleSort("ipAddress")} icon={getSortIcon("ipAddress")} />
+              <th className="px-5 py-3 text-center">Status</th>
+              <th className="px-5 py-3 text-right">Actions</th>
+            </tr>
+          </DataTableHead>
+          <DataTableBody>
+            {sortedDevices.length === 0 ? (
+              <DataTableEmpty
+                colSpan={8}
+                title={devices.length === 0 ? "No devices found" : "No devices match the current filters"}
+                description={devices.length === 0 ? "Add a device above to start inventory management." : "Reset filters or adjust the search query."}
+              />
+            ) : (
+              groupEntries.map(([rackName, rackDevices]) => (
+                <Fragment key={rackName}>
+                  <tr className="bg-ops-surface">
+                    <td colSpan={8} className="px-5 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="flex size-6 items-center justify-center rounded-md bg-blue-400/12 text-blue-200">
+                          <PackageOpen className="size-3.5" />
+                        </span>
+                        <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-300">{rackName}</span>
+                        <span className="text-[11px] text-ops-muted">({rackDevices.length} devices)</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {rackDevices.map((device) => {
+                    const isActive = device.isActive !== false;
+                    const isInRack = !!device.rackName;
+                    const showTakeout = !isActive && isInRack;
 
-            {printingDevice && (
-                <PrintQRModal
-                    deviceId={printingDevice.id}
-                    deviceName={printingDevice.name}
-                    onClose={() => setPrintingDevice(null)}
-                />
+                    return (
+                      <tr key={device.id} className={clsx("transition-colors hover:bg-ops-surface", !isActive && "opacity-65")}>
+                        <td className="px-5 py-3 font-semibold text-ops-text">
+                          <div className="flex items-center gap-2">
+                            {!isActive && <span className="size-2 rounded-full bg-red-400" title="Inactive" />}
+                            <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
+                            {device.photoPath && <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-slate-300">
+                          {device.brandLogo ? (
+                            <div className="flex items-center gap-2">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-5 w-auto rounded bg-white p-0.5 object-contain" />
+                              <span>{device.brandName}</span>
+                            </div>
+                          ) : device.brandName ? (
+                            <span>{device.brandName}</span>
+                          ) : (
+                            <span className="text-ops-muted">-</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-ops-muted">{device.categoryName || "-"}</td>
+                        <td className="px-5 py-3 text-ops-muted">{device.locationName || "-"}</td>
+                        <td className="px-5 py-3 text-ops-muted">
+                          {device.rackName ? (
+                            <div className="flex items-center gap-2">
+                              <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-slate-300">
+                                U{device.rackPosition}
+                              </span>
+                              {showTakeout && (
+                                <ActionButton
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleTakeout(device)}
+                                  disabled={isPending}
+                                  title="Take out from rack"
+                                >
+                                  <PackageOpen className="size-4 text-amber-300" />
+                                </ActionButton>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-ops-muted">-</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {device.ipAddress ? (
+                            <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-slate-300">{device.ipAddress}</span>
+                          ) : (
+                            <span className="text-ops-muted">-</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-center">
+                          <button type="button" onClick={() => handleToggleStatus(device.id)} disabled={isPending} title={`Click to ${isActive ? "deactivate" : "activate"}`}>
+                            <StatusBadge tone={getActiveTone(isActive)} dot>
+                              <Power className="size-3" />
+                              {isActive ? "Active" : "Inactive"}
+                            </StatusBadge>
+                          </button>
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <div className="inline-flex items-center justify-end gap-1">
+                            {device.ipAddress && (
+                              <ActionButton type="button" variant="ghost" size="icon" onClick={() => setManageDevice(device)} title="Manage device remotely">
+                                <MonitorPlay className="size-4 text-indigo-300" />
+                              </ActionButton>
+                            )}
+                            <ActionButton href={`/admin/devices/${device.id}/network`} variant="ghost" size="icon" title="Network ports">
+                              <Network className="size-4 text-teal-300" />
+                            </ActionButton>
+                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setPrintingDevice(device)} title="Print QR">
+                              <QrCode className="size-4" />
+                            </ActionButton>
+                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingDevice(device)} title="Edit">
+                              <Edit className="size-4 text-blue-300" />
+                            </ActionButton>
+                            <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingDevice(device)} title="Delete">
+                              <Trash2 className="size-4" />
+                            </ActionButton>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              ))
             )}
+          </DataTableBody>
+        </DataTable>
+      </DataTableFrame>
 
-            {manageDevice && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setManageDevice(null); setCustomPort(""); }}>
-                    <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
-                            <div>
-                                <h3 className="text-lg font-bold text-white">Manage Device</h3>
-                                <p className="text-xs text-slate-400 mt-0.5">{manageDevice.name} ({manageDevice.ipAddress})</p>
-                            </div>
-                            <button onClick={() => { setManageDevice(null); setCustomPort(""); }} className="text-slate-500 hover:text-white bg-slate-800 p-1.5 rounded-lg transition-colors border border-slate-700">
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            <div>
-                                <label className="block text-xs font-medium text-slate-400 mb-1.5">Custom Port (Optional)</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. 8080 or 2222"
-                                    value={customPort}
-                                    onChange={(e) => setCustomPort(e.target.value)}
-                                    className="w-full h-9 px-3 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <a href={`http://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ''}`} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-slate-800 hover:bg-blue-500/10 border border-slate-700 hover:border-blue-500/50 text-slate-300 hover:text-blue-400 transition-all cursor-pointer">
-                                    <Globe className="h-6 w-6" />
-                                    <span className="text-[11px] uppercase tracking-wider font-bold mt-1">HTTP Web</span>
-                                </a>
-                                <a href={`https://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ''}`} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-slate-800 hover:bg-green-500/10 border border-slate-700 hover:border-green-500/50 text-slate-300 hover:text-green-400 transition-all cursor-pointer">
-                                    <Shield className="h-6 w-6" />
-                                    <span className="text-[11px] uppercase tracking-wider font-bold mt-1">HTTPS Web</span>
-                                </a>
-                                <a href={`ssh://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ''}`} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-slate-800 hover:bg-purple-500/10 border border-slate-700 hover:border-purple-500/50 text-slate-300 hover:text-purple-400 transition-all cursor-pointer">
-                                    <Terminal className="h-6 w-6" />
-                                    <span className="text-[11px] uppercase tracking-wider font-bold mt-1">SSH Access</span>
-                                </a>
-                                <a href={`telnet://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ''}`} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-slate-800 hover:bg-orange-500/10 border border-slate-700 hover:border-orange-500/50 text-slate-300 hover:text-orange-400 transition-all cursor-pointer">
-                                    <Phone className="h-6 w-6" />
-                                    <span className="text-[11px] uppercase tracking-wider font-bold mt-1">Telnet Protocol</span>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+      {editingDevice && (
+        <EditDeviceForm device={editingDevice} onClose={() => setEditingDevice(null)} brands={brands} locations={locations} />
+      )}
+      {deletingDevice && (
+        <DeleteDeviceModal deviceId={deletingDevice.id} deviceName={deletingDevice.name} onClose={() => setDeletingDevice(null)} onSuccess={handleDeleteSuccess} />
+      )}
+      {printingDevice && (
+        <PrintQRModal deviceId={printingDevice.id} deviceName={printingDevice.name} onClose={() => setPrintingDevice(null)} />
+      )}
+      {manageDevice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setManageDevice(null); setCustomPort(""); }}>
+          <div className="w-full max-w-sm overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-ops-border bg-ops-surface px-5 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-ops-text">Manage Device</h3>
+                <p className="mt-0.5 text-xs text-ops-muted">{manageDevice.name} ({manageDevice.ipAddress})</p>
+              </div>
+              <ActionButton type="button" variant="ghost" size="icon" onClick={() => { setManageDevice(null); setCustomPort(""); }} title="Close">
+                <X className="size-4" />
+              </ActionButton>
+            </div>
+            <div className="space-y-4 p-5">
+              <label>
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">Custom Port</span>
+                <input
+                  type="text"
+                  placeholder="e.g. 8080 or 2222"
+                  value={customPort}
+                  onChange={(event) => setCustomPort(event.target.value)}
+                  className={`${fieldClass} w-full`}
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <RemoteLink href={`http://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ""}`} icon={<Globe className="size-5" />} label="HTTP Web" />
+                <RemoteLink href={`https://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ""}`} icon={<Shield className="size-5" />} label="HTTPS Web" />
+                <RemoteLink href={`ssh://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ""}`} icon={<Terminal className="size-5" />} label="SSH Access" />
+                <RemoteLink href={`telnet://${manageDevice.ipAddress}${customPort ? `:${customPort}` : ""}`} icon={<Phone className="size-5" />} label="Telnet" />
+              </div>
+            </div>
+          </div>
         </div>
-    );
+      )}
+    </div>
+  );
+}
+
+function SortableHead({ label, onClick, icon }: { label: string; onClick: () => void; icon: ReactNode }) {
+  return (
+    <th className="px-5 py-3 text-left">
+      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5 focus:outline-none">
+        {label}
+        {icon}
+      </button>
+    </th>
+  );
+}
+
+function RemoteLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
+  return (
+    <a
+      href={href}
+      target={href.startsWith("http") ? "_blank" : undefined}
+      rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+      className="flex flex-col items-center justify-center gap-2 rounded-md border border-ops-border bg-ops-bg p-4 text-slate-300 transition-colors hover:border-ops-accent/50 hover:text-[#b7f5e4]"
+    >
+      {icon}
+      <span className="text-[11px] font-bold uppercase tracking-[0.08em]">{label}</span>
+    </a>
+  );
 }
