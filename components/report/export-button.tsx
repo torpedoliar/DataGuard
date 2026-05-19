@@ -1,9 +1,10 @@
 
 "use client";
 
+import ActionButton from "@/components/ui/action-button";
 import { getRawExportData, exportToExcel } from "@/actions/report";
 import { incidentStatuses, type IncidentStatus } from "@/lib/incidents";
-import { Download, Loader2, FileText } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import jsPDF from "jspdf";
@@ -114,24 +115,28 @@ export default function ExportButton() {
     };
 
     return (
-        <div className="flex items-center gap-2">
-            <button
+        <div className="flex flex-wrap items-center gap-2">
+            <ActionButton
+                type="button"
                 onClick={handleExcelExport}
                 disabled={isExportingExcel || isExportingPDF}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+                isPending={isExportingExcel}
+                icon={<Download className="size-4" />}
+                variant="secondary"
             >
-                {isExportingExcel ? <Loader2 className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
                 Export Excel
-            </button>
-            <button
+            </ActionButton>
+            <ActionButton
+                type="button"
                 onClick={handlePDFExport}
                 disabled={isExportingPDF || isExportingExcel}
-                className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                isPending={isExportingPDF}
+                icon={<FileText className="size-4" />}
+                variant="danger"
                 title="Download as PDF Report"
             >
-                {isExportingPDF ? <Loader2 className="animate-spin h-4 w-4" /> : <FileText className="h-4 w-4" />}
                 Export PDF
-            </button>
+            </ActionButton>
         </div>
     );
 }
