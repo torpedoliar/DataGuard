@@ -1,6 +1,8 @@
 "use client";
 
 import { assignIncident } from "@/actions/incidents";
+import ActionButton from "@/components/ui/action-button";
+import FormSection from "@/components/ui/form-section";
 import { incidentSeverities } from "@/lib/incidents";
 import { useActionState } from "react";
 
@@ -11,6 +13,9 @@ function formatDateTimeLocal(date: Date | null) {
   if (!date) return "";
   return new Date(date).toISOString().slice(0, 16);
 }
+
+const fieldClass = "ops-input w-full px-3 py-2 text-sm";
+const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
 
 export default function IncidentAssignmentForm({
   incidentId,
@@ -28,22 +33,41 @@ export default function IncidentAssignmentForm({
   const [state, formAction, pending] = useActionState<ActionState, FormData>(assignIncident, null);
 
   return (
-    <form action={formAction} className="glow-card p-5 space-y-4">
+    <form action={formAction}>
       <input type="hidden" name="incidentId" value={incidentId} />
-      <h2 className="text-lg font-bold text-white">Assignment</h2>
-      <select name="assignedToId" defaultValue={currentAssigneeId ?? ""} className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-white">
-        <option value="">Unassigned</option>
-        {users.map((user) => <option key={user.id} value={user.id}>{user.username}</option>)}
-      </select>
-      <select name="severity" defaultValue={currentSeverity} className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-white">
-        {incidentSeverities.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
-      </select>
-      <input name="dueDate" type="datetime-local" defaultValue={formatDateTimeLocal(currentDueDate)} className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-white" />
-      {state?.message && <p className="text-sm text-red-300">{state.message}</p>}
-      {state?.success && <p className="text-sm text-green-300">Assignment saved.</p>}
-      <button disabled={pending} className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
-        Save Assignment
-      </button>
+      <FormSection
+        title="Assignment"
+        description="Set owner, severity, and target date."
+        footer={
+          <div className="space-y-3">
+            {state?.message && <p className={state.success ? "text-sm text-emerald-300" : "text-sm text-red-300"}>{state.message}</p>}
+            {state?.success && <p className="text-sm text-emerald-300">Assignment saved.</p>}
+            <ActionButton type="submit" isPending={pending} className="w-full">
+              Save Assignment
+            </ActionButton>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className={labelClass}>Assignee</label>
+            <select name="assignedToId" defaultValue={currentAssigneeId ?? ""} className={fieldClass}>
+              <option value="">Unassigned</option>
+              {users.map((user) => <option key={user.id} value={user.id}>{user.username}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Severity</label>
+            <select name="severity" defaultValue={currentSeverity} className={fieldClass}>
+              {incidentSeverities.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Due Date</label>
+            <input name="dueDate" type="datetime-local" defaultValue={formatDateTimeLocal(currentDueDate)} className={fieldClass} />
+          </div>
+        </div>
+      </FormSection>
     </form>
   );
 }

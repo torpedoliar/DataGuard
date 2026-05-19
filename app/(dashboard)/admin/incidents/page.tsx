@@ -1,7 +1,12 @@
 import { getIncidentStats, getIncidents, type IncidentListFilters } from "@/actions/incidents";
 import IncidentTable from "@/components/admin/incident-table";
+import ActionButton from "@/components/ui/action-button";
+import DataToolbar from "@/components/ui/data-toolbar";
+import PageHeader from "@/components/ui/page-header";
+import StatsCard from "@/components/ui/stats-card";
 import { incidentSeverities, incidentStatuses, type IncidentSeverity, type IncidentStatus } from "@/lib/incidents";
 import { verifySession } from "@/lib/session";
+import { AlertTriangle, CalendarClock, CircleAlert, Filter, ShieldAlert } from "lucide-react";
 import { redirect } from "next/navigation";
 
 function parseStatus(value: string | string[] | undefined): IncidentStatus | undefined {
@@ -42,50 +47,49 @@ export default async function IncidentListPage({
   ]);
 
   return (
-    <main className="max-w-[1600px] mx-auto px-5 py-6 space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white font-display">Incident Center</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Assigned remediation for checklist Warning and Error items.</p>
-        </div>
-        <form className="flex flex-wrap items-center gap-2" action="/admin/incidents">
-          <select name="status" defaultValue={filters.status ?? ""} className="rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white">
+    <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 py-5 lg:px-6">
+      <PageHeader
+        eyebrow="Resolve / Incidents"
+        title="Incident Center"
+        description="Assigned remediation queue for checklist Warning and Error items."
+      />
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatsCard label="Open" value={stats.open} tone="info" icon={<CircleAlert className="size-5" />} />
+        <StatsCard label="Critical" value={stats.critical} tone="danger" icon={<ShieldAlert className="size-5" />} />
+        <StatsCard label="Due Today" value={stats.dueToday} tone="warning" icon={<CalendarClock className="size-5" />} />
+        <StatsCard label="Overdue" value={stats.overdue} tone="orange" icon={<AlertTriangle className="size-5" />} />
+      </section>
+
+      <DataToolbar>
+        <form className="flex w-full flex-wrap items-center gap-2" action="/admin/incidents">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-ops-muted">
+            <Filter className="size-4" />
+            Filters
+          </div>
+          <select name="status" defaultValue={filters.status ?? ""} className="ops-input h-9 min-w-36 px-3 text-sm">
             <option value="">All status</option>
             {incidentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
           </select>
-          <select name="severity" defaultValue={filters.severity ?? ""} className="rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white">
+          <select name="severity" defaultValue={filters.severity ?? ""} className="ops-input h-9 min-w-36 px-3 text-sm">
             <option value="">All severity</option>
             {incidentSeverities.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
           </select>
-          <select name="due" defaultValue={filters.due ?? ""} className="rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white">
+          <select name="due" defaultValue={filters.due ?? ""} className="ops-input h-9 min-w-36 px-3 text-sm">
             <option value="">Any due date</option>
             <option value="today">Due today</option>
             <option value="overdue">Overdue</option>
           </select>
-          <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
+          <ActionButton type="submit" size="sm">
             Filter
-          </button>
+          </ActionButton>
+          {(filters.status || filters.severity || filters.due) && (
+            <ActionButton href="/admin/incidents" variant="ghost" size="sm">
+              Reset
+            </ActionButton>
+          )}
         </form>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="glow-card p-4">
-          <p className="text-xs text-slate-400">Open</p>
-          <p className="text-3xl font-bold text-white">{stats.open}</p>
-        </div>
-        <div className="glow-card p-4">
-          <p className="text-xs text-slate-400">Critical</p>
-          <p className="text-3xl font-bold text-red-300">{stats.critical}</p>
-        </div>
-        <div className="glow-card p-4">
-          <p className="text-xs text-slate-400">Due Today</p>
-          <p className="text-3xl font-bold text-yellow-300">{stats.dueToday}</p>
-        </div>
-        <div className="glow-card p-4">
-          <p className="text-xs text-slate-400">Overdue</p>
-          <p className="text-3xl font-bold text-orange-300">{stats.overdue}</p>
-        </div>
-      </div>
+      </DataToolbar>
 
       <IncidentTable incidents={rows} />
     </main>

@@ -1,23 +1,14 @@
+import Link from "next/link";
 import type { getIncidentDetail } from "@/actions/incidents";
+import PageHeader from "@/components/ui/page-header";
+import StatsCard from "@/components/ui/stats-card";
+import StatusBadge from "@/components/ui/status-badge";
+import { getIncidentSeverityTone, getIncidentStatusTone } from "@/lib/ui/status";
 import IncidentAssignmentForm from "./incident-assignment-form";
 import IncidentStatusForm from "./incident-status-form";
 import IncidentUpdateForm from "./incident-update-form";
 
 type IncidentDetailModel = NonNullable<Awaited<ReturnType<typeof getIncidentDetail>>>;
-
-const severityClass: Record<string, string> = {
-  Low: "bg-slate-500/15 text-slate-300",
-  Medium: "bg-yellow-500/15 text-yellow-300",
-  High: "bg-orange-500/15 text-orange-300",
-  Critical: "bg-red-500/15 text-red-300",
-};
-
-const statusClass: Record<string, string> = {
-  Open: "bg-blue-500/15 text-blue-300",
-  "In Progress": "bg-cyan-500/15 text-cyan-300",
-  Resolved: "bg-purple-500/15 text-purple-300",
-  Verified: "bg-green-500/15 text-green-300",
-};
 
 function formatDate(date: Date | null) {
   return date ? date.toLocaleString("en-GB") : "-";
@@ -33,68 +24,74 @@ export default function IncidentDetail({
   canAdmin: boolean;
 }) {
   return (
-    <main className="max-w-[1600px] mx-auto px-5 py-6 grid grid-cols-1 xl:grid-cols-3 gap-6">
-      <section className="xl:col-span-2 space-y-6">
-        <div className="glow-card p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-sm text-slate-400">Incident #{incident.id}</p>
-              <h1 className="text-2xl font-bold text-white mt-1">{incident.title}</h1>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${severityClass[incident.severity] ?? severityClass.Low}`}>
-                {incident.severity}
-              </span>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[incident.status] ?? statusClass.Open}`}>
-                {incident.status}
-              </span>
-            </div>
-          </div>
-          <p className="text-slate-400 mt-4">{incident.description || "No description."}</p>
-          {incident.isRecurring && <p className="mt-3 text-sm text-red-300">Recurring issue in the last 30 days.</p>}
+    <main className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-5 px-4 py-5 lg:px-6 xl:grid-cols-3">
+      <section className="space-y-5 xl:col-span-2">
+        <PageHeader
+          eyebrow={`Resolve / Incident #${incident.id}`}
+          title={incident.title}
+          description={incident.description || "No description provided."}
+          actions={
+            <Link href="/admin/incidents" className="text-sm font-semibold text-[#b7f5e4] hover:text-ops-accent">
+              Back to incidents
+            </Link>
+          }
+        />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 text-sm">
-            <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3">
-              <p className="text-xs text-slate-500">Device</p>
-              <p className="text-white font-medium mt-1">{incident.device.name}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3">
-              <p className="text-xs text-slate-500">Assignee</p>
-              <p className="text-white font-medium mt-1">{incident.assignedTo?.username ?? "Unassigned"}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3">
-              <p className="text-xs text-slate-500">Due</p>
-              <p className="text-white font-medium mt-1">{formatDate(incident.dueDate)}</p>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <StatsCard label="Device" value={incident.device.name} tone="neutral" meta="Affected asset" />
+          <StatsCard label="Assignee" value={incident.assignedTo?.username ?? "Unassigned"} tone="accent" meta="Current owner" />
+          <StatsCard label="Due" value={formatDate(incident.dueDate)} tone="warning" meta="Resolution target" />
         </div>
 
-        <div className="glow-card p-6">
-          <h2 className="text-lg font-bold text-white mb-4">Timeline</h2>
+        <section className="ops-panel p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-ops-text">Incident Summary</h2>
+              <p className="text-sm text-ops-muted">Current workflow state and severity.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge tone={getIncidentSeverityTone(incident.severity)} dot>{incident.severity}</StatusBadge>
+              <StatusBadge tone={getIncidentStatusTone(incident.status)}>{incident.status}</StatusBadge>
+            </div>
+          </div>
+          {incident.isRecurring && (
+            <div className="rounded-md border border-red-400/25 bg-red-400/10 px-3 py-2 text-sm font-medium text-red-200">
+              Recurring issue in the last 30 days.
+            </div>
+          )}
+        </section>
+
+        <section className="ops-panel p-5">
+          <div className="mb-5">
+            <h2 className="text-lg font-bold text-ops-text">Timeline</h2>
+            <p className="text-sm text-ops-muted">Evidence and workflow updates.</p>
+          </div>
           <div className="space-y-4">
             {incident.updates.length === 0 ? (
-              <p className="text-sm text-slate-500">No updates yet.</p>
+              <div className="rounded-md border border-dashed border-ops-border p-6 text-center text-sm text-ops-muted">
+                No updates yet.
+              </div>
             ) : incident.updates.map((update) => (
-              <div key={update.id} className="border-l border-slate-700 pl-4">
-                <p className="text-sm text-white">{update.note || update.updateType.replace("_", " ")}</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {update.author?.username || "System"} - {formatDate(update.createdAt)}
+              <div key={update.id} className="border-l border-ops-border pl-4">
+                <p className="text-sm font-semibold text-ops-text">{update.note || update.updateType.replace("_", " ")}</p>
+                <p className="mt-1 text-xs text-ops-muted">
+                  {update.author?.username || "System"} | {formatDate(update.createdAt)}
                 </p>
                 {update.previousStatus && update.newStatus && (
-                  <p className="text-xs text-slate-400 mt-1">{update.previousStatus} to {update.newStatus}</p>
+                  <p className="mt-1 text-xs text-slate-400">{update.previousStatus} to {update.newStatus}</p>
                 )}
                 {update.photoPath && (
-                  <a href={update.photoPath} target="_blank" className="mt-2 inline-flex text-sm text-blue-400 hover:text-blue-300">
+                  <a href={update.photoPath} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-sm font-semibold text-[#b7f5e4] hover:text-ops-accent">
                     View evidence
                   </a>
                 )}
               </div>
             ))}
           </div>
-        </div>
+        </section>
       </section>
 
-      <aside className="space-y-6">
+      <aside className="space-y-5">
         {canAdmin && (
           <IncidentAssignmentForm
             incidentId={incident.id}
