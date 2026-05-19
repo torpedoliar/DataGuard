@@ -1,275 +1,206 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState, type MouseEvent } from "react";
 import { switchSite } from "@/actions/auth";
+import { MapPin, MousePointer2, Server } from "lucide-react";
+import { useRouter } from "next/navigation";
+import clsx from "clsx";
 
 export interface SiteMarker {
-    id: number;
-    name: string;
-    code: string;
-    address: string | null;
-    latitude: number;
-    longitude: number;
+  id: number;
+  name: string;
+  code: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
 }
 
 interface MapSelectorProps {
-    sites: SiteMarker[];
-    username: string;
-    appName: string;
+  sites: SiteMarker[];
+  username: string;
+  appName: string;
 }
 
-// Convert lat/lng to SVG coordinates
+// Convert lat/lng to SVG coordinates.
 // Based on MapSVG geoViewBox: 95.220250 7.356505 141.009728 -10.946766
 // SVG dimensions: 792.546 x 316.664
 function geoToSvg(lat: number, lng: number): { x: number; y: number } {
-    const minLng = 95.22025;
-    const maxLng = 141.009728;
-    const minLat = -10.946766;
-    const maxLat = 7.356505;
+  const minLng = 95.22025;
+  const maxLng = 141.009728;
+  const minLat = -10.946766;
+  const maxLat = 7.356505;
 
-    const svgWidth = 792.546;
-    const svgHeight = 316.664;
+  const svgWidth = 792.546;
+  const svgHeight = 316.664;
 
-    const x = ((lng - minLng) / (maxLng - minLng)) * svgWidth;
-    const y = ((maxLat - lat) / (maxLat - minLat)) * svgHeight;
+  const x = ((lng - minLng) / (maxLng - minLng)) * svgWidth;
+  const y = ((maxLat - lat) / (maxLat - minLat)) * svgHeight;
 
-    return { x, y };
+  return { x, y };
 }
 
 export default function MapSelector({ sites, username, appName }: MapSelectorProps) {
-    const mapRef = useRef<HTMLDivElement>(null);
-    const router = useRouter();
-    const [hoveredSite, setHoveredSite] = useState<SiteMarker | null>(null);
-    const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-    const [selectedSite, setSelectedSite] = useState<SiteMarker | null>(null);
-    const [isTransitioning, setIsTransitioning] = useState(false);
-    const stars = useMemo(() => Array.from({ length: 120 }, (_, index) => {
-        const seed = Math.sin(index * 999) * 10000;
-        const fraction = seed - Math.floor(seed);
-        return {
-            x: (fraction * 97 + index * 13) % 100,
-            y: (fraction * 89 + index * 17) % 100,
-            size: (fraction * 2) + 0.5,
-            delay: (fraction * 4),
-            opacity: (fraction * 0.6) + 0.2,
-        };
-    }), []);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [hoveredSite, setHoveredSite] = useState<SiteMarker | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [selectedSite, setSelectedSite] = useState<SiteMarker | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
-    const handleSiteClick = async (site: SiteMarker) => {
-        if (isTransitioning) return;
-        setSelectedSite(site);
-        setIsTransitioning(true);
-        setHoveredSite(null);
+  const handleSiteClick = async (site: SiteMarker) => {
+    if (isTransitioning) return;
+    setSelectedSite(site);
+    setIsTransitioning(true);
+    setHoveredSite(null);
 
-        // Start zoom animation
-        const svgCoords = geoToSvg(site.latitude, site.longitude);
-        if (mapRef.current) {
-            const rect = mapRef.current.getBoundingClientRect();
-            const percentX = (svgCoords.x / 792.546) * 100;
-            const percentY = (svgCoords.y / 316.664) * 100;
-            mapRef.current.style.transformOrigin = `${percentX}% ${percentY}%`;
-            mapRef.current.style.transform = "scale(6)";
-            mapRef.current.style.opacity = "0";
-        }
+    const svgCoords = geoToSvg(site.latitude, site.longitude);
+    if (mapRef.current) {
+      const percentX = (svgCoords.x / 792.546) * 100;
+      const percentY = (svgCoords.y / 316.664) * 100;
+      mapRef.current.style.transformOrigin = `${percentX}% ${percentY}%`;
+      mapRef.current.style.transform = "scale(2.4)";
+      mapRef.current.style.opacity = "0.18";
+    }
 
-        // Wait for animation, then switch site & redirect
-        setTimeout(async () => {
-            await switchSite(site.id);
-            router.push("/checklist");
-        }, 900);
-    };
+    window.setTimeout(async () => {
+      await switchSite(site.id);
+      router.push("/checklist");
+    }, 420);
+  };
 
-    const handleMouseMove = (e: React.MouseEvent, site: SiteMarker) => {
-        setTooltipPos({ x: e.clientX, y: e.clientY });
-        setHoveredSite(site);
-    };
+  const handleMouseMove = (event: MouseEvent, site: SiteMarker) => {
+    setTooltipPos({ x: event.clientX, y: event.clientY });
+    setHoveredSite(site);
+  };
 
-    return (
-        <div className="min-h-screen bg-[#060e1f] flex flex-col items-center justify-center relative overflow-hidden select-none">
-            {/* Animated star field */}
-            <div className="absolute inset-0 pointer-events-none">
-                {stars.map((star, i) => (
-                    <div
-                        key={i}
-                        className="absolute rounded-full bg-white animate-twinkle"
-                        style={{
-                            left: `${star.x}%`,
-                            top: `${star.y}%`,
-                            width: star.size,
-                            height: star.size,
-                            opacity: star.opacity,
-                            animationDelay: `${star.delay}s`,
-                        }}
-                    />
-                ))}
+  return (
+    <div className="relative flex min-h-screen select-none flex-col overflow-hidden bg-ops-bg text-ops-text">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.028)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.028)_1px,transparent_1px)] bg-[size:56px_56px]" />
+
+      <header className="relative z-10 mx-auto flex w-full max-w-[1200px] flex-col gap-3 px-5 pb-3 pt-8 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-md bg-ops-accent text-slate-950">
+              <Server className="size-5" />
             </div>
-
-            {/* Ambient glow behind map */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[400px] bg-blue-600/5 rounded-full blur-[120px]" />
-                <div className="absolute top-1/3 left-1/3 w-[400px] h-[300px] bg-cyan-500/5 rounded-full blur-[100px]" />
+            <div>
+              <h1 className="text-2xl font-bold tracking-normal font-display">{appName}</h1>
+              <p className="text-sm text-ops-muted">Welcome, <span className="font-semibold text-[#b7f5e4]">{username}</span></p>
             </div>
-
-            {/* Header */}
-            <div className="relative z-10 text-center mb-8">
-                <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
-                    {appName}
-                </h1>
-                <p className="text-slate-400 text-sm mt-2">
-                    Selamat datang, <span className="text-cyan-400 font-semibold">{username}</span>. Pilih lokasi Data Center Anda.
-                </p>
-            </div>
-
-            {/* Map container */}
-            <div
-                ref={mapRef}
-                className="relative z-10 w-full max-w-[1000px] mx-auto px-4"
-                style={{
-                    transition: "transform 0.9s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.9s ease",
-                    willChange: "transform, opacity",
-                }}
-            >
-                {/* SVG Map as Image with dark-theme styling */}
-                <div className="relative w-full" style={{ aspectRatio: "792.546 / 316.664" }}>
-                    <img
-                        src="/indonesia-map.svg"
-                        alt="Peta Indonesia"
-                        className="w-full h-full object-contain pointer-events-none"
-                        style={{
-                            filter: "invert(0.7) sepia(0.15) saturate(0.6) hue-rotate(180deg) brightness(0.55) contrast(1.1)",
-                            opacity: 0.6,
-                        }}
-                        draggable={false}
-                    />
-
-                    {/* Site markers overlay */}
-                    {sites.map((site) => {
-                        const svgCoords = geoToSvg(site.latitude, site.longitude);
-                        const percentX = (svgCoords.x / 792.546) * 100;
-                        const percentY = (svgCoords.y / 316.664) * 100;
-
-                        return (
-                            <button
-                                key={site.id}
-                                className="absolute group"
-                                style={{
-                                    left: `${percentX}%`,
-                                    top: `${percentY}%`,
-                                    transform: "translate(-50%, -50%)",
-                                    zIndex: hoveredSite?.id === site.id ? 30 : 20,
-                                }}
-                                onClick={() => handleSiteClick(site)}
-                                onMouseMove={(e) => handleMouseMove(e, site)}
-                                onMouseLeave={() => setHoveredSite(null)}
-                            >
-                                {/* Outer glow ring */}
-                                <span className="absolute inset-0 -m-4 rounded-full bg-cyan-400/10 animate-ping-slow" />
-                                <span className="absolute inset-0 -m-3 rounded-full bg-cyan-400/15 animate-pulse" />
-
-                                {/* Marker dot */}
-                                <span className="relative block size-4 rounded-full bg-gradient-to-br from-cyan-300 to-blue-500 shadow-[0_0_12px_rgba(34,211,238,0.6)] group-hover:shadow-[0_0_24px_rgba(34,211,238,0.9)] transition-shadow cursor-pointer ring-2 ring-cyan-400/30 group-hover:ring-cyan-400/60 group-hover:scale-125 transition-all duration-200" />
-
-                                {/* Site code label */}
-                                <span className="absolute left-1/2 -translate-x-1/2 -bottom-5 text-[10px] font-bold text-cyan-300/80 whitespace-nowrap tracking-wider font-mono">
-                                    {site.code}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Floating tooltip */}
-            {hoveredSite && !isTransitioning && (
-                <div
-                    className="fixed z-50 pointer-events-none"
-                    style={{
-                        left: tooltipPos.x + 16,
-                        top: tooltipPos.y - 12,
-                    }}
-                >
-                    <div className="bg-slate-900/95 backdrop-blur-xl border border-cyan-500/20 rounded-xl px-4 py-3 shadow-2xl shadow-cyan-500/10 min-w-[200px]">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="size-2 rounded-full bg-cyan-400 animate-pulse" />
-                            <span className="text-white font-bold text-sm">{hoveredSite.name}</span>
-                        </div>
-                        <div className="text-[10px] text-cyan-400 font-mono mb-1">{hoveredSite.code}</div>
-                        {hoveredSite.address && (
-                            <p className="text-[11px] text-slate-400 leading-tight">{hoveredSite.address}</p>
-                        )}
-                        <div className="flex items-center gap-1 mt-2 text-[10px] text-slate-500">
-                            <span className="material-symbols-outlined text-[12px]">mouse</span>
-                            Klik untuk masuk
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Transition overlay */}
-            {isTransitioning && selectedSite && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#060e1f]/80 backdrop-blur-lg animate-fadeIn">
-                    <div className="text-center">
-                        <div className="relative inline-flex items-center justify-center mb-6">
-                            <span className="absolute size-20 rounded-full border-2 border-cyan-500/30 animate-ping" />
-                            <span className="absolute size-14 rounded-full border border-cyan-400/50 animate-pulse" />
-                            <span className="material-symbols-outlined text-4xl text-cyan-400 animate-pulse">
-                                dns
-                            </span>
-                        </div>
-                        <h2 className="text-xl font-bold text-white mb-1">Memasuki {selectedSite.name}</h2>
-                        <p className="text-sm text-cyan-400 font-mono">{selectedSite.code}</p>
-                        <div className="mt-4 flex items-center justify-center gap-1.5">
-                            <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0s]" />
-                            <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.15s]" />
-                            <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.3s]" />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Footer hint */}
-            {!isTransitioning && sites.length > 0 && (
-                <div className="relative z-10 mt-8 text-center">
-                    <p className="text-xs text-slate-600 flex items-center justify-center gap-1.5">
-                        <span className="material-symbols-outlined text-[14px]">touch_app</span>
-                        Klik titik lokasi pada peta untuk masuk ke Data Center
-                    </p>
-                </div>
-            )}
-
-            {/* No sites message */}
-            {!isTransitioning && sites.length === 0 && (
-                <div className="relative z-10 mt-8 text-center bg-slate-800/50 border border-slate-700/50 rounded-xl px-6 py-4 max-w-md mx-auto">
-                    <span className="material-symbols-outlined text-3xl text-amber-400 mb-2">location_off</span>
-                    <p className="text-sm text-slate-300 mb-1">Belum ada site dengan koordinat.</p>
-                    <p className="text-xs text-slate-500">Hubungi administrator untuk menambahkan koordinat Latitude & Longitude pada Site Management.</p>
-                </div>
-            )}
-
-            <style jsx>{`
-                @keyframes twinkle {
-                    0%, 100% { opacity: 0.2; }
-                    50% { opacity: 0.8; }
-                }
-                .animate-twinkle {
-                    animation: twinkle 3s ease-in-out infinite;
-                }
-                @keyframes ping-slow {
-                    0% { transform: scale(1); opacity: 0.4; }
-                    75%, 100% { transform: scale(2.5); opacity: 0; }
-                }
-                .animate-ping-slow {
-                    animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-                }
-                @keyframes fadeIn {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                .animate-fadeIn {
-                    animation: fadeIn 0.3s ease;
-                }
-            `}</style>
+          </div>
+          <p className="max-w-2xl text-sm text-ops-muted">Select the active data center from the operations map.</p>
         </div>
-    );
+        <div className="inline-flex w-fit items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">
+          <MapPin className="size-4 text-ops-accent" />
+          {sites.length} mapped sites
+        </div>
+      </header>
+
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pb-10">
+        <div
+          ref={mapRef}
+          className="relative mx-auto w-full max-w-[1080px]"
+          style={{
+            transition: "transform 420ms cubic-bezier(0.2, 0, 0, 1), opacity 420ms ease",
+            willChange: "transform, opacity",
+          }}
+        >
+          <div className="relative w-full" style={{ aspectRatio: "792.546 / 316.664" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/indonesia-map.svg"
+              alt="Peta Indonesia"
+              className="h-full w-full object-contain opacity-70"
+              style={{
+                filter: "invert(0.72) sepia(0.1) saturate(0.55) hue-rotate(170deg) brightness(0.72) contrast(1.05)",
+              }}
+              draggable={false}
+            />
+
+            {sites.map((site) => {
+              const svgCoords = geoToSvg(site.latitude, site.longitude);
+              const percentX = (svgCoords.x / 792.546) * 100;
+              const percentY = (svgCoords.y / 316.664) * 100;
+              const active = hoveredSite?.id === site.id;
+
+              return (
+                <button
+                  key={site.id}
+                  type="button"
+                  aria-label={`Select ${site.name}`}
+                  className="absolute flex size-9 items-center justify-center rounded-full"
+                  style={{
+                    left: `${percentX}%`,
+                    top: `${percentY}%`,
+                    transform: "translate(-50%, -50%)",
+                    zIndex: active ? 30 : 20,
+                  }}
+                  onClick={() => handleSiteClick(site)}
+                  onMouseMove={(event) => handleMouseMove(event, site)}
+                  onMouseLeave={() => setHoveredSite(null)}
+                >
+                  <span
+                    className={clsx(
+                      "absolute size-9 rounded-full border transition-colors",
+                      active ? "border-ops-accent bg-ops-accent/20" : "border-ops-accent/35 bg-ops-bg/80",
+                    )}
+                  />
+                  <span className={clsx("relative size-3 rounded-full transition-transform", active ? "scale-125 bg-ops-accent" : "bg-[#b7f5e4]")} />
+                  <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded bg-ops-bg/90 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-[0.08em] text-[#b7f5e4]">
+                    {site.code}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {!isTransitioning && sites.length > 0 && (
+          <div className="relative z-10 mt-8 inline-flex items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-xs text-ops-muted">
+            <MousePointer2 className="size-4 text-ops-accent" />
+            Click a map marker to enter the data center.
+          </div>
+        )}
+
+        {!isTransitioning && sites.length === 0 && (
+          <div className="relative z-10 mt-8 max-w-md rounded-md border border-amber-400/25 bg-amber-400/10 px-5 py-4 text-center">
+            <MapPin className="mx-auto mb-2 size-8 text-amber-300" />
+            <p className="text-sm font-semibold text-ops-text">No sites with coordinates.</p>
+            <p className="mt-1 text-xs text-ops-muted">Add latitude and longitude in Site Management.</p>
+          </div>
+        )}
+      </main>
+
+      {hoveredSite && !isTransitioning && (
+        <div
+          className="pointer-events-none fixed z-50"
+          style={{
+            left: tooltipPos.x + 16,
+            top: tooltipPos.y - 12,
+          }}
+        >
+          <div className="min-w-[220px] rounded-md border border-ops-border bg-ops-surface-raised px-4 py-3 shadow-2xl">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="size-2 rounded-full bg-ops-accent" />
+              <span className="text-sm font-bold text-ops-text">{hoveredSite.name}</span>
+            </div>
+            <div className="mb-1 font-mono text-[10px] text-[#b7f5e4]">{hoveredSite.code}</div>
+            {hoveredSite.address && <p className="text-[11px] leading-tight text-ops-muted">{hoveredSite.address}</p>}
+          </div>
+        </div>
+      )}
+
+      {isTransitioning && selectedSite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ops-bg/88 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-md border border-ops-accent/40 bg-ops-accent/12 text-[#b7f5e4]">
+              <Server className="size-7" />
+            </div>
+            <h2 className="text-xl font-bold text-ops-text">Entering {selectedSite.name}</h2>
+            <p className="mt-1 font-mono text-sm text-[#b7f5e4]">{selectedSite.code}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

@@ -1,84 +1,67 @@
-
 "use client";
 
-import { useActionState } from "react";
 import { login } from "@/actions/auth";
-import { Loader2 } from "lucide-react";
+import ActionButton from "@/components/ui/action-button";
+import { AlertTriangle, LockKeyhole, Server, User } from "lucide-react";
+import { useActionState } from "react";
+
+const fieldClass = "ops-input w-full px-3 py-2 pl-9 text-sm";
+const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
 
 export default function LoginPage() {
-    const [state, action, isPending] = useActionState(login, undefined);
+  const [state, action, isPending] = useActionState(login, undefined);
 
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-            <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md border border-slate-100">
-                <div className="text-center mb-8">
-                    <h1 className="text-2xl font-bold text-slate-800">DC Check</h1>
-                    <p className="text-slate-500">Sign in to your account</p>
-                </div>
-
-                <form action={action} className="space-y-6">
-                    <div>
-                        <label
-                            htmlFor="username"
-                            className="block text-sm font-medium text-slate-700 mb-1"
-                        >
-                            Username
-                        </label>
-                        <input
-                            id="username"
-                            name="username"
-                            type="text"
-                            required
-                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="admin"
-                        />
-                        {state?.errors?.username && (
-                            <p className="text-red-500 text-sm mt-1">{state.errors.username}</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label
-                            htmlFor="password"
-                            className="block text-sm font-medium text-slate-700 mb-1"
-                        >
-                            Password
-                        </label>
-                        <input
-                            id="password"
-                            name="password"
-                            type="password"
-                            required
-                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="••••••••"
-                        />
-                        {state?.errors?.password && (
-                            <p className="text-red-500 text-sm mt-1">{state.errors.password}</p>
-                        )}
-                    </div>
-
-                    {state?.message && (
-                        <div className="p-3 bg-red-50 text-red-500 text-sm rounded-md border border-red-100">
-                            {state.message}
-                        </div>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={isPending}
-                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isPending ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Signing in...
-                            </>
-                        ) : (
-                            "Sign In"
-                        )}
-                    </button>
-                </form>
-            </div>
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-ops-bg px-4 py-8 text-ops-text">
+      <section className="w-full max-w-md">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-md bg-ops-accent text-slate-950">
+            <Server className="size-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-normal font-display">DC Check</h1>
+            <p className="text-sm text-ops-muted">Data center audit operations</p>
+          </div>
         </div>
-    );
+
+        <div className="ops-panel overflow-hidden">
+          <div className="border-b border-ops-border bg-ops-surface px-5 py-4">
+            <h2 className="text-base font-bold text-ops-text">Sign In</h2>
+            <p className="mt-1 text-sm text-ops-muted">Use your operator account to continue.</p>
+          </div>
+
+          <form action={action} className="space-y-5 p-5">
+            <label>
+              <span className={labelClass}>Username</span>
+              <div className="relative">
+                <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+                <input id="username" name="username" type="text" required className={fieldClass} placeholder="admin" />
+              </div>
+              {state?.errors?.username && <p className="mt-1 text-sm text-red-300">{state.errors.username}</p>}
+            </label>
+
+            <label>
+              <span className={labelClass}>Password</span>
+              <div className="relative">
+                <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+                <input id="password" name="password" type="password" required className={fieldClass} placeholder="Password" />
+              </div>
+              {state?.errors?.password && <p className="mt-1 text-sm text-red-300">{state.errors.password}</p>}
+            </label>
+
+            {state?.message && (
+              <div className="flex items-start gap-2 rounded-md border border-red-400/25 bg-red-400/10 p-3 text-sm text-red-200">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>{state.message}</span>
+              </div>
+            )}
+
+            <ActionButton type="submit" isPending={isPending} className="w-full">
+              Sign In
+            </ActionButton>
+          </form>
+        </div>
+      </section>
+    </main>
+  );
 }

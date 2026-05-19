@@ -5,6 +5,7 @@ import { sites, userSites } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import MapSelector from "@/components/ui/map-selector";
 import { getSettings } from "@/actions/settings";
+import { MapPinOff } from "lucide-react";
 
 export default async function SelectSitePage() {
     const session = await verifySession();
@@ -65,13 +66,12 @@ export default async function SelectSitePage() {
                 appName={appSettings.appName}
             />
 
-            {/* Fallback list for sites without coordinates */}
             {sitesWithoutCoords.length > 0 && (
-                <div className="fixed top-4 right-4 z-50">
-                    <div className="bg-slate-800/90 backdrop-blur-xl border border-slate-700/50 rounded-xl p-4 shadow-2xl max-w-xs">
-                        <p className="text-xs text-amber-400 font-semibold mb-2 flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-[14px]">warning</span>
-                            Sites tanpa koordinat:
+                <div className="fixed inset-x-4 bottom-4 z-50 md:left-auto md:w-96">
+                    <div className="rounded-md border border-ops-border bg-ops-surface-raised p-4 shadow-2xl">
+                        <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em] text-amber-200">
+                            <MapPinOff className="size-4" />
+                            Sites without map coordinates
                         </p>
                         <div className="space-y-1.5">
                             {sitesWithoutCoords.map((site) => (
@@ -83,11 +83,11 @@ export default async function SelectSitePage() {
                                 }}>
                                     <button
                                         type="submit"
-                                        className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-slate-700/50 rounded-lg transition-colors flex items-center gap-2"
+                                        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-ops-surface"
                                     >
                                         <span className="size-2 rounded-full bg-amber-400" />
                                         <span>{site.name}</span>
-                                        <span className="text-[10px] font-mono text-slate-500 ml-auto">{site.code}</span>
+                                        <span className="ml-auto font-mono text-[10px] text-ops-muted">{site.code}</span>
                                     </button>
                                 </form>
                             ))}
