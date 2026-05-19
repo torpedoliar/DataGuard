@@ -75,8 +75,6 @@ export default function MapSelector({ sites, username, appName }: MapSelectorPro
 
   return (
     <div className="relative flex min-h-screen select-none flex-col overflow-hidden bg-ops-bg text-ops-text">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.028)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.028)_1px,transparent_1px)] bg-[size:56px_56px]" />
-
       <header className="relative z-10 mx-auto flex w-full max-w-[1200px] flex-col gap-3 px-5 pb-3 pt-8 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="mb-3 flex items-center gap-3">
