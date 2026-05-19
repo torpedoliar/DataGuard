@@ -16,6 +16,7 @@ import path from "node:path";
 // Schemas
 const deviceSchema = z.object({
     name: z.string().min(1, "Name is required"),
+    assetCode: z.string().nullable().optional(),
     brandId: z.coerce.number().nullable().optional(),
     categoryId: z.coerce.number().min(1, "Category is required"),
     locationId: z.coerce.number().min(1, "Location is required"),
@@ -130,6 +131,7 @@ export async function getDevices() {
         .select({
             id: devices.id,
             name: devices.name,
+            assetCode: devices.assetCode,
             brandId: devices.brandId,
             brandName: brands.name,
             brandLogo: brands.logoPath,
@@ -190,6 +192,7 @@ export async function addDevice(prevState: unknown, formData: FormData) {
         await db.insert(devices).values({
             siteId: auth.activeSiteId,
             name: parsed.data.name,
+            assetCode: parsed.data.assetCode || null,
             brandId: parsed.data.brandId || null,
             categoryId: parsed.data.categoryId,
             locationId: parsed.data.locationId,
@@ -268,6 +271,7 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
 
         await db.update(devices).set({
             name: parsed.data.name,
+            assetCode: parsed.data.assetCode || null,
             brandId: parsed.data.brandId,
             categoryId: parsed.data.categoryId,
             locationId: parsed.data.locationId,

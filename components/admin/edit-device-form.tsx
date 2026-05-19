@@ -24,6 +24,7 @@ type Brand = {
 type Device = {
   id: number;
   name: string;
+  assetCode: string | null;
   brandId: number | null;
   brandName: string | null;
   brandLogo: string | null;
@@ -152,6 +153,16 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
               <label>
                 <span className={labelClass}>Device Name *</span>
                 <input name="name" defaultValue={device.name} required className={fieldClass} />
+              </label>
+
+              <label>
+                <span className={labelClass}>Kode Asset</span>
+                <input
+                  name="assetCode"
+                  defaultValue={device.assetCode || ""}
+                  placeholder="e.g. AST-CORE-001"
+                  className={`${fieldClass} font-mono uppercase`}
+                />
               </label>
 
               <label>

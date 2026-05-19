@@ -169,17 +169,20 @@ Write-Host "Waiting for app to become ready..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 10
 
 # ==================================================================
-# STEP 5: SYNC DATABASE SCHEMA (additive only, no data loss)
+# STEP 5: RUN DATABASE MIGRATIONS
 # ==================================================================
 Write-Host ""
-Write-Host "[5/5] Syncing database schema..." -ForegroundColor Yellow
-Write-Host "      (drizzle push is additive - it only ADDS new columns/tables)" -ForegroundColor DarkGray
+Write-Host "[5/5] Running database migrations..." -ForegroundColor Yellow
+Write-Host "      (npm run db:migrate applies committed Drizzle migration files)" -ForegroundColor DarkGray
 try {
-    & $mainCmd $extraArgs exec -T app npx drizzle-kit push
-    Write-Host "OK - Database schema synced" -ForegroundColor Green
+    & $mainCmd $extraArgs exec -T app npm run db:migrate
+    if ($LASTEXITCODE -ne 0) { throw "Database migration failed." }
+    Write-Host "OK - Database migrations completed" -ForegroundColor Green
 }
 catch {
-    Write-Host "WARN - Schema sync had warnings or failed. Check logs above." -ForegroundColor Yellow
+    Write-Host "ERROR: Database migration failed! Check logs above." -ForegroundColor Red
+    Write-Host "Backup file: $backupFile" -ForegroundColor Cyan
+    exit 1
 }
 
 # ==================================================================

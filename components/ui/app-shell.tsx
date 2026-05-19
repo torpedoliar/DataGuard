@@ -97,8 +97,8 @@ export default function AppShell({
   };
 
   const rail = (
-    <aside className="flex h-full min-h-0 flex-col border-r border-ops-border bg-ops-surface px-3 py-4">
-      <Link href="/select-site" className="mb-4 flex min-w-0 items-center gap-3 px-2">
+    <aside className="flex h-full min-h-0 flex-col border-r border-ops-border bg-ops-surface px-4 py-5">
+      <Link href="/select-site" className="mb-5 flex min-w-0 items-center gap-3 px-2">
         {appSettings.logoPath ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={appSettings.logoPath} alt={appSettings.appName} className="h-8 w-8 shrink-0 object-contain" />
@@ -117,7 +117,7 @@ export default function AppShell({
         type="button"
         onClick={() => setSiteOpen((value) => !value)}
         disabled={isPending || userSites.length <= 1}
-        className="relative mb-4 rounded-md border border-ops-border bg-ops-surface-raised p-3 text-left transition-colors hover:border-ops-accent/45 disabled:cursor-default"
+        className="relative mb-5 rounded-md border border-ops-border bg-ops-surface-raised p-3 text-left transition-colors hover:border-ops-accent/45 disabled:cursor-default"
       >
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">Active Site</p>
         <div className="mt-1 flex items-center justify-between gap-2">
@@ -129,7 +129,7 @@ export default function AppShell({
       {siteOpen && userSites.length > 1 && (
         <>
           <button className="fixed inset-0 z-40 cursor-default" type="button" onClick={() => setSiteOpen(false)} />
-          <div className="absolute left-4 top-[92px] z-50 w-64 overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl">
+          <div className="absolute left-5 top-[104px] z-50 w-64 overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl">
             <div className="border-b border-ops-border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">
               Switch Site
             </div>
@@ -159,7 +159,7 @@ export default function AppShell({
         </>
       )}
 
-      <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+      <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1.5">
         {navigation.map((group) => (
           <div key={group.label}>
             <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">{group.label}</p>
@@ -186,7 +186,7 @@ export default function AppShell({
 
   return (
     <div className="min-h-screen bg-ops-bg text-ops-text">
-      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:block lg:w-64">{rail}</div>
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:block lg:w-[17rem]">{rail}</div>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -195,9 +195,9 @@ export default function AppShell({
         </div>
       )}
 
-      <div className="min-h-screen lg:pl-64">
+      <div className="min-h-screen lg:pl-[17rem]">
         <header className="sticky top-0 z-30 border-b border-ops-border bg-ops-bg/94 backdrop-blur-xl">
-          <div className="flex h-14 items-center justify-between gap-3 px-4 lg:px-5">
+          <div className="flex h-14 items-center justify-between gap-3 px-4 lg:px-6">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 type="button"
@@ -300,7 +300,7 @@ function NavLink({
       href={item.href}
       onClick={onNavigate}
       className={clsx(
-        "flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-semibold transition-colors",
+        "flex items-center gap-2.5 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors",
         active
           ? "border border-ops-accent/30 bg-ops-accent/12 text-[#b7f5e4]"
           : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",

@@ -95,6 +95,7 @@ export const devices = pgTable("devices", {
   siteId: integer("site_id").references(() => sites.id),
   categoryId: integer("category_id").references(() => categories.id).notNull(),
   name: text("name").notNull(),
+  assetCode: text("asset_code"),
   brandId: integer("brand_id").references(() => brands.id),
   location: text("location").notNull().default(""),
   locationId: integer("location_id").references(() => locations.id),

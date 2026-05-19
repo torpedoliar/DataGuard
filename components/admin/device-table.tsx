@@ -42,6 +42,7 @@ import PrintQRModal from "./print-qr-modal";
 type Device = {
   id: number;
   name: string;
+  assetCode: string | null;
   brandId: number | null;
   brandName: string | null;
   brandLogo: string | null;
@@ -144,6 +145,7 @@ export default function DeviceTable({
     const query = searchQuery.toLowerCase();
     const matchesSearch = !searchQuery ||
       device.name.toLowerCase().includes(query) ||
+      (device.assetCode && device.assetCode.toLowerCase().includes(query)) ||
       (device.ipAddress && device.ipAddress.toLowerCase().includes(query));
     const matchesCategory = !selectedCategory || device.categoryName === selectedCategory;
     const matchesBrand = !selectedBrand || device.brandName === selectedBrand;
@@ -199,7 +201,7 @@ export default function DeviceTable({
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
               <input
                 type="text"
-                placeholder="Search by device name or IP address..."
+                placeholder="Search by device name, asset code, or IP address..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 className={`${fieldClass} w-full pl-9 pr-8`}
@@ -253,6 +255,7 @@ export default function DeviceTable({
           <DataTableHead>
             <tr>
               <SortableHead label="Device Name" onClick={() => handleSort("name")} icon={getSortIcon("name")} />
+              <SortableHead label="Asset Code" onClick={() => handleSort("assetCode")} icon={getSortIcon("assetCode")} />
               <SortableHead label="Brand" onClick={() => handleSort("brandName")} icon={getSortIcon("brandName")} />
               <SortableHead label="Category" onClick={() => handleSort("categoryName")} icon={getSortIcon("categoryName")} />
               <SortableHead label="Location" onClick={() => handleSort("locationName")} icon={getSortIcon("locationName")} />
@@ -265,7 +268,7 @@ export default function DeviceTable({
           <DataTableBody>
             {sortedDevices.length === 0 ? (
               <DataTableEmpty
-                colSpan={8}
+                colSpan={9}
                 title={devices.length === 0 ? "No devices found" : "No devices match the current filters"}
                 description={devices.length === 0 ? "Add a device above to start inventory management." : "Reset filters or adjust the search query."}
               />
@@ -273,7 +276,7 @@ export default function DeviceTable({
               groupEntries.map(([rackName, rackDevices]) => (
                 <Fragment key={rackName}>
                   <tr className="bg-ops-surface">
-                    <td colSpan={8} className="px-5 py-2">
+                    <td colSpan={9} className="px-5 py-2">
                       <div className="flex items-center gap-2">
                         <span className="flex size-6 items-center justify-center rounded-md bg-blue-400/12 text-blue-200">
                           <PackageOpen className="size-3.5" />
@@ -296,6 +299,13 @@ export default function DeviceTable({
                             <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
                             {device.photoPath && <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />}
                           </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          {device.assetCode ? (
+                            <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-slate-300">{device.assetCode}</span>
+                          ) : (
+                            <span className="text-ops-muted">-</span>
+                          )}
                         </td>
                         <td className="px-5 py-3 text-slate-300">
                           {device.brandLogo ? (

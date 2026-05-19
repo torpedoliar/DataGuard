@@ -13,6 +13,7 @@ describe("app navigation", () => {
     const hrefs = getAppNavigation("admin").flatMap((group) => group.items.map((item) => item.href));
     expect(hrefs).toContain("/admin");
     expect(hrefs).toContain("/admin/incidents");
+    expect(hrefs).toContain("/admin/settings");
     expect(hrefs).not.toContain("/admin/sites");
   });
 

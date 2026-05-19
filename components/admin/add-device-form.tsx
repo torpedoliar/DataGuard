@@ -37,6 +37,7 @@ type Location = {
 
 const EMPTY_FORM = {
   name: "",
+  assetCode: "",
   brandId: "",
   categoryId: "",
   rackName: "",
@@ -141,6 +142,17 @@ export default function AddDeviceForm({
               onChange={setField("name")}
               placeholder="e.g. Server APP-01"
               className={fieldClass}
+            />
+          </label>
+
+          <label>
+            <span className={labelClass}>Kode Asset</span>
+            <input
+              name="assetCode"
+              value={form.assetCode}
+              onChange={setField("assetCode")}
+              placeholder="e.g. AST-CORE-001"
+              className={`${fieldClass} font-mono uppercase`}
             />
           </label>
 

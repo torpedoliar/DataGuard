@@ -5,16 +5,16 @@ import ActionButton from "@/components/ui/action-button";
 import { AlertTriangle, LockKeyhole, Server, User } from "lucide-react";
 import { useActionState } from "react";
 
-const fieldClass = "ops-input w-full px-3 py-2 pl-9 text-sm";
-const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
+const fieldClass = "ops-input h-11 w-full px-3 py-2 pl-10 text-sm";
+const labelClass = "mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
 
 export default function LoginPage() {
   const [state, action, isPending] = useActionState(login, undefined);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-ops-bg px-4 py-8 text-ops-text">
-      <section className="w-full max-w-md">
-        <div className="mb-5 flex items-center gap-3">
+    <main className="flex min-h-screen items-center justify-center bg-ops-bg px-5 py-10 text-ops-text sm:px-6">
+      <section className="w-full max-w-[30rem]">
+        <div className="mb-6 flex items-center gap-3 px-1">
           <div className="flex size-10 items-center justify-center rounded-md bg-ops-accent text-slate-950">
             <Server className="size-5" />
           </div>
@@ -25,16 +25,16 @@ export default function LoginPage() {
         </div>
 
         <div className="ops-panel overflow-hidden">
-          <div className="border-b border-ops-border bg-ops-surface px-5 py-4">
+          <div className="border-b border-ops-border bg-ops-surface px-6 py-5">
             <h2 className="text-base font-bold text-ops-text">Sign In</h2>
             <p className="mt-1 text-sm text-ops-muted">Use your operator account to continue.</p>
           </div>
 
-          <form action={action} className="space-y-5 p-5">
+          <form action={action} className="space-y-6 p-6 sm:p-7">
             <label>
               <span className={labelClass}>Username</span>
               <div className="relative">
-                <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+                <User className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
                 <input id="username" name="username" type="text" required className={fieldClass} placeholder="admin" />
               </div>
               {state?.errors?.username && <p className="mt-1 text-sm text-red-300">{state.errors.username}</p>}
@@ -43,7 +43,7 @@ export default function LoginPage() {
             <label>
               <span className={labelClass}>Password</span>
               <div className="relative">
-                <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+                <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
                 <input id="password" name="password" type="password" required className={fieldClass} placeholder="Password" />
               </div>
               {state?.errors?.password && <p className="mt-1 text-sm text-red-300">{state.errors.password}</p>}
@@ -56,7 +56,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            <ActionButton type="submit" isPending={isPending} className="w-full">
+            <ActionButton type="submit" isPending={isPending} className="h-11 w-full">
               Sign In
             </ActionButton>
           </form>

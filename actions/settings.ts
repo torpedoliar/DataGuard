@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "../db";
-import { globalSettings } from "../db/schema";
+import { globalSettings, sites } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -19,6 +19,7 @@ import crypto from "crypto";
 
 const settingsSchema = z.object({
     appName: z.string().min(1, "Nama aplikasi tidak boleh kosong"),
+    activeSiteTelegramChatId: z.string().max(120, "Chat ID Telegram maksimal 120 karakter").optional(),
     telegramAlertTemplate: z.string().max(4000, "Template Telegram maksimal 4000 karakter").optional(),
 });
 
@@ -34,9 +35,38 @@ function defaultSettings() {
         appName: "DataGuard",
         logoPath: null,
         faviconPath: null,
+        activeSiteName: null,
+        activeSiteTelegramChatId: null,
         telegramAlertTemplate: DEFAULT_TELEGRAM_ALERT_TEMPLATE,
         telegramBotConfigured: isTelegramBotConfigured(),
     };
+}
+
+async function getActiveSiteTelegramSettings() {
+    try {
+        const session = await verifySession();
+        if (!session?.activeSiteId) {
+            return {
+                activeSiteName: session?.activeSiteName ?? null,
+                activeSiteTelegramChatId: null,
+            };
+        }
+
+        const site = await db.query.sites.findFirst({
+            where: eq(sites.id, session.activeSiteId),
+            columns: { name: true, telegramChatId: true },
+        });
+
+        return {
+            activeSiteName: site?.name ?? session.activeSiteName,
+            activeSiteTelegramChatId: site?.telegramChatId ?? null,
+        };
+    } catch {
+        return {
+            activeSiteName: null,
+            activeSiteTelegramChatId: null,
+        };
+    }
 }
 
 // Initialize upload directory
@@ -89,12 +119,14 @@ export async function getSettings() {
 
     try {
         const settingsList = await db.select().from(globalSettings).limit(1);
+        const activeSiteTelegram = await getActiveSiteTelegramSettings();
         if (settingsList.length > 0) {
             return {
                 id: settingsList[0].id,
                 appName: settingsList[0].appName,
                 logoPath: settingsList[0].logoPath,
                 faviconPath: settingsList[0].faviconPath,
+                ...activeSiteTelegram,
                 telegramAlertTemplate: settingsList[0].telegramAlertTemplate || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
                 telegramBotConfigured: isTelegramBotConfigured(),
             };
@@ -105,7 +137,7 @@ export async function getSettings() {
     }
 
     // Default settings if db is empty or errors occur
-    return defaultSettings();
+    return { ...defaultSettings(), ...(await getActiveSiteTelegramSettings()) };
 }
 
 export async function getTelegramAlertTemplate() {
@@ -126,12 +158,13 @@ export async function getTelegramAlertTemplate() {
 
 export async function updateSettings(prevState: unknown, formData: FormData) {
     const session = await verifySession();
-    if (!session || session.role !== "superadmin") {
-        return { message: "Unauthorized. Only superadmin can modify global settings." };
+    if (!session || !["admin", "superadmin"].includes(session.role)) {
+        return { message: "Unauthorized. Only admin can modify settings." };
     }
 
     const parsed = settingsSchema.safeParse({
         appName: formData.get("appName"),
+        activeSiteTelegramChatId: String(formData.get("activeSiteTelegramChatId") ?? ""),
         telegramAlertTemplate: String(formData.get("telegramAlertTemplate") ?? ""),
     });
     if (!parsed.success) {
@@ -193,10 +226,18 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
             await db.insert(globalSettings).values(upsertData);
         }
 
+        if (session.activeSiteId) {
+            await db.update(sites)
+                .set({ telegramChatId: parsed.data.activeSiteTelegramChatId?.trim() || null })
+                .where(eq(sites.id, session.activeSiteId));
+        }
+
         // Revalidate all pages to force layout update with new metadata and navbar
         revalidatePath("/", "layout");
+        revalidatePath("/admin/settings");
+        revalidatePath("/admin/sites");
 
-        await logAudit({ action: "UPDATE", entity: "settings", entityName: parsed.data.appName, detail: "Global settings updated" });
+        await logAudit({ action: "UPDATE", entity: "settings", entityName: parsed.data.appName, detail: "Settings updated" });
 
         return { success: true, message: "Settings saved successfully" };
     } catch (error) {
@@ -209,8 +250,8 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
     void prevState;
 
     const session = await verifySession();
-    if (!session || session.role !== "superadmin") {
-        return { message: "Unauthorized. Only superadmin can test Telegram settings." };
+    if (!session || !["admin", "superadmin"].includes(session.role)) {
+        return { message: "Unauthorized. Only admin can test Telegram settings." };
     }
 
     const chatId = String(formData.get("telegramTestChatId") ?? "").trim();
@@ -225,6 +266,7 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
         checkDate: "2026-05-19",
         checkTime: "09:30",
         deviceName: "Core Switch A01",
+        deviceAssetCode: "AST-CORE-001",
         deviceStatus: "Warning",
         deviceLocation: "Network Room",
         deviceCategory: "Network",

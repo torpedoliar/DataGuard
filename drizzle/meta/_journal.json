@@ -22,6 +22,13 @@
       "when": 1779195761845,
       "tag": "0002_add_telegram_alert_template",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779198542962,
+      "tag": "0003_add_device_asset_code",
+      "breakpoints": true
     }
   ]
 }

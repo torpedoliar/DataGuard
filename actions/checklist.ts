@@ -128,6 +128,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                             checkDate,
                             checkTime,
                             deviceName: dev?.name || `Device #${alert.deviceId}`,
+                            deviceAssetCode: dev?.assetCode,
                             deviceStatus: alert.status,
                             deviceLocation: dev?.location?.name,
                             deviceCategory: dev?.category?.name,

@@ -10,6 +10,8 @@ type SettingsData = {
     appName: string;
     logoPath: string | null;
     faviconPath: string | null;
+    activeSiteName: string | null;
+    activeSiteTelegramChatId: string | null;
     telegramAlertTemplate: string;
     telegramBotConfigured: boolean;
 };
@@ -22,6 +24,7 @@ const telegramTemplateTokens = [
     "checkDate",
     "checkTime",
     "deviceName",
+    "deviceAssetCode",
     "deviceStatus",
     "deviceLocation",
     "deviceCategory",
@@ -50,7 +53,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
     const [faviconPreview, setFaviconPreview] = useState<string | null>(initialData.faviconPath);
     const [removeFavicon, setRemoveFavicon] = useState(false);
     const [telegramTemplate, setTelegramTemplate] = useState(initialData.telegramAlertTemplate);
-    const [telegramTestChatId, setTelegramTestChatId] = useState("");
+    const [telegramTestChatId, setTelegramTestChatId] = useState(initialData.activeSiteTelegramChatId || "");
 
     const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -334,7 +337,23 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                     ))}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+                    <label>
+                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Chat ID Telegram Site Aktif
+                        </span>
+                        <input
+                            type="text"
+                            name="activeSiteTelegramChatId"
+                            defaultValue={initialData.activeSiteTelegramChatId || ""}
+                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            placeholder="-1001234567890"
+                        />
+                        <p className="text-xs text-slate-500 mt-1.5">
+                            Dipakai untuk alert checklist di {initialData.activeSiteName || "site aktif"}.
+                        </p>
+                    </label>
+
                     <div>
                         <label className="block text-sm font-medium text-slate-300 mb-1.5">
                             Test Chat ID
@@ -347,7 +366,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                             placeholder="-1001234567890"
                         />
                         <p className="text-xs text-slate-500 mt-1.5">
-                            Chat ID produksi per data center tetap diatur dari Admin Sites.
+                            Untuk test cepat; otomatis memakai Chat ID site aktif jika tersedia.
                         </p>
                     </div>
                     <button
