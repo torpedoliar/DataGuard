@@ -385,6 +385,7 @@ export const globalSettings = pgTable("global_settings", {
   appName: text("app_name").notNull().default("DataGuard"),
   logoPath: text("logo_path"),
   faviconPath: text("favicon_path"),
+  telegramBotToken: text("telegram_bot_token"),
   telegramAlertTemplate: text("telegram_alert_template"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

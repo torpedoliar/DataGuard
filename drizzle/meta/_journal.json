@@ -29,6 +29,13 @@
       "when": 1779198542962,
       "tag": "0003_add_device_asset_code",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779270583626,
+      "tag": "0004_tidy_mariko_yashida",
+      "breakpoints": true
     }
   ]
 }

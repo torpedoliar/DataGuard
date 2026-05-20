@@ -1,3 +1,6 @@
+import { db } from "../db";
+import { globalSettings } from "../db/schema";
+
 export const DEFAULT_TELEGRAM_ALERT_TEMPLATE = [
     "*Data Center Audit Alert*",
     "Site: {siteName} ({siteCode})",
@@ -42,8 +45,20 @@ export type TelegramAlertTemplateField = typeof TELEGRAM_ALERT_TEMPLATE_FIELDS[n
 
 export type TelegramAlertTemplateContext = Partial<Record<TelegramAlertTemplateField, string | number | null | undefined>>;
 
-export function isTelegramBotConfigured() {
-    return Boolean(process.env.TELEGRAM_BOT_TOKEN);
+export function isTelegramBotConfigured(storedToken?: string | null) {
+    return Boolean(process.env.TELEGRAM_BOT_TOKEN || storedToken?.trim());
+}
+
+export async function getTelegramBotToken(botTokenOverride?: string | null) {
+    const directToken = botTokenOverride?.trim() || process.env.TELEGRAM_BOT_TOKEN || "";
+    if (directToken) return directToken;
+
+    try {
+        const settings = await db.select({ telegramBotToken: globalSettings.telegramBotToken }).from(globalSettings).limit(1);
+        return settings[0]?.telegramBotToken?.trim() || null;
+    } catch {
+        return null;
+    }
 }
 
 function escapeTelegramMarkdown(value: string) {
@@ -63,13 +78,12 @@ export function renderTelegramTemplate(template: string | null | undefined, cont
     });
 }
 
-export async function sendTelegramAlert(chatId: string | null | undefined, message: string) {
+export async function sendTelegramAlert(chatId: string | null | undefined, message: string, botTokenOverride?: string | null) {
     if (!chatId) return { success: false, message: "No chat ID provided" };
 
-    // Uses process.env.TELEGRAM_BOT_TOKEN
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const botToken = await getTelegramBotToken(botTokenOverride);
     if (!botToken) {
-        console.warn("TELEGRAM_BOT_TOKEN is missing in environment variables.");
+        console.warn("TELEGRAM_BOT_TOKEN is missing in environment variables and settings.");
         return { success: false, message: "Telegram bot token missing" };
     }
 

@@ -54,6 +54,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
     const [removeFavicon, setRemoveFavicon] = useState(false);
     const [telegramTemplate, setTelegramTemplate] = useState(initialData.telegramAlertTemplate);
     const [telegramTestChatId, setTelegramTestChatId] = useState(initialData.activeSiteTelegramChatId || "");
+    const [telegramBotToken, setTelegramBotToken] = useState("");
 
     const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -135,6 +136,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
 
         const formData = new FormData();
         formData.set("telegramTestChatId", telegramTestChatId);
+        formData.set("telegramBotToken", telegramBotToken);
         formData.set("telegramAlertTemplate", telegramTemplate);
 
         startTelegramTestTransition(async () => {
@@ -337,6 +339,24 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                     ))}
                 </div>
 
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        Token Bot Telegram
+                    </label>
+                    <input
+                        type="password"
+                        name="telegramBotToken"
+                        value={telegramBotToken}
+                        onChange={(event) => setTelegramBotToken(event.target.value)}
+                        autoComplete="off"
+                        className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        placeholder={initialData.telegramBotConfigured ? "Token tersimpan; isi hanya untuk mengganti" : "123456789:AA..."}
+                    />
+                    <p className="text-xs text-slate-500 mt-1.5">
+                        Dipakai untuk mengirim alert Telegram. Kosongkan jika tidak ingin mengganti token tersimpan.
+                    </p>
+                </div>
+
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
                     <label>
                         <span className="block text-sm font-medium text-slate-300 mb-1.5">
@@ -350,7 +370,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                             placeholder="-1001234567890"
                         />
                         <p className="text-xs text-slate-500 mt-1.5">
-                            Dipakai untuk alert checklist di {initialData.activeSiteName || "site aktif"}.
+                            Dipakai untuk alert checklist di {initialData.activeSiteName || "site aktif"}; bukan token bot.
                         </p>
                     </label>
 

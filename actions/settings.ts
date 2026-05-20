@@ -20,6 +20,7 @@ import crypto from "crypto";
 const settingsSchema = z.object({
     appName: z.string().min(1, "Nama aplikasi tidak boleh kosong"),
     activeSiteTelegramChatId: z.string().max(120, "Chat ID Telegram maksimal 120 karakter").optional(),
+    telegramBotToken: z.string().max(200, "Token bot Telegram maksimal 200 karakter").optional(),
     telegramAlertTemplate: z.string().max(4000, "Template Telegram maksimal 4000 karakter").optional(),
 });
 
@@ -128,7 +129,7 @@ export async function getSettings() {
                 faviconPath: settingsList[0].faviconPath,
                 ...activeSiteTelegram,
                 telegramAlertTemplate: settingsList[0].telegramAlertTemplate || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
-                telegramBotConfigured: isTelegramBotConfigured(),
+                telegramBotConfigured: isTelegramBotConfigured(settingsList[0].telegramBotToken),
             };
         }
     } catch (error) {
@@ -165,6 +166,7 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
     const parsed = settingsSchema.safeParse({
         appName: formData.get("appName"),
         activeSiteTelegramChatId: String(formData.get("activeSiteTelegramChatId") ?? ""),
+        telegramBotToken: String(formData.get("telegramBotToken") ?? ""),
         telegramAlertTemplate: String(formData.get("telegramAlertTemplate") ?? ""),
     });
     if (!parsed.success) {
@@ -213,6 +215,7 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
             telegramAlertTemplate: parsed.data.telegramAlertTemplate?.trim() || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
             updatedAt: new Date(),
         };
+        if (parsed.data.telegramBotToken?.trim()) upsertData.telegramBotToken = parsed.data.telegramBotToken.trim();
         if (logoPath !== undefined) upsertData.logoPath = logoPath;
         if (faviconPath !== undefined) upsertData.faviconPath = faviconPath;
 
@@ -256,6 +259,7 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
 
     const chatId = String(formData.get("telegramTestChatId") ?? "").trim();
     if (!chatId) return { message: "Chat ID Telegram wajib diisi untuk test." };
+    const botToken = String(formData.get("telegramBotToken") ?? "").trim();
 
     const template = String(formData.get("telegramAlertTemplate") ?? "").trim() || DEFAULT_TELEGRAM_ALERT_TEMPLATE;
     const message = renderTelegramTemplate(template, {
@@ -279,7 +283,7 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
         incidentId: "TEST",
     });
 
-    const result = await sendTelegramAlert(chatId, message);
+    const result = await sendTelegramAlert(chatId, message, botToken);
     if (!result.success) {
         return { message: result.message || "Gagal mengirim pesan test Telegram." };
     }
