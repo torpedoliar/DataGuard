@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "../db";
-import { globalSettings, sites } from "../db/schema";
+import { devices, globalSettings, sites } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -262,24 +262,38 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
     const botToken = String(formData.get("telegramBotToken") ?? "").trim();
 
     const template = String(formData.get("telegramAlertTemplate") ?? "").trim() || DEFAULT_TELEGRAM_ALERT_TEMPLATE;
+    const activeSite = session.activeSiteId
+        ? await db.query.sites.findFirst({
+            where: eq(sites.id, session.activeSiteId),
+            columns: { name: true, code: true },
+        })
+        : null;
+    const sampleDevice = session.activeSiteId
+        ? await db.query.devices.findFirst({
+            where: eq(devices.siteId, session.activeSiteId),
+            with: { brand: true, category: true, location: true },
+        })
+        : null;
+    const rack = [sampleDevice?.rackName, sampleDevice?.rackPosition ? `U${sampleDevice.rackPosition}` : null].filter(Boolean).join(" ");
+    const now = new Date();
     const message = renderTelegramTemplate(template, {
-        siteName: "DC Jakarta",
-        siteCode: "DC-JKT",
+        siteName: activeSite?.name ?? session.activeSiteName,
+        siteCode: activeSite?.code,
         checker: session.username,
-        shift: "Pagi",
-        checkDate: "2026-05-19",
-        checkTime: "09:30",
-        deviceName: "Core Switch A01",
-        deviceAssetCode: "AST-CORE-001",
-        deviceStatus: "Warning",
-        deviceLocation: "Network Room",
-        deviceCategory: "Network",
-        deviceBrand: "Cisco",
-        deviceZone: "Network Core",
-        deviceRack: "Rack N1 U12",
-        deviceIp: "10.10.10.2",
-        deviceDescription: "Primary distribution switch",
-        deviceRemarks: "Temperature threshold exceeded",
+        shift: "Test",
+        checkDate: now.toISOString().slice(0, 10),
+        checkTime: now.toTimeString().slice(0, 5),
+        deviceName: sampleDevice?.name ?? "TEST",
+        deviceAssetCode: sampleDevice?.assetCode,
+        deviceStatus: "Test",
+        deviceLocation: sampleDevice?.location?.name ?? sampleDevice?.location,
+        deviceCategory: sampleDevice?.category?.name,
+        deviceBrand: sampleDevice?.brand?.name,
+        deviceZone: sampleDevice?.zone,
+        deviceRack: rack,
+        deviceIp: sampleDevice?.ipAddress,
+        deviceDescription: sampleDevice?.description,
+        deviceRemarks: "Test Telegram dari halaman pengaturan",
         incidentId: "TEST",
     });
 

@@ -21,4 +21,12 @@ describe("Telegram bot token settings", () => {
     expect(telegramHelper).toContain("globalSettings.telegramBotToken");
     expect(telegramHelper).toContain("process.env.TELEGRAM_BOT_TOKEN ||");
   });
+  it("does not hardcode DC Jakarta sample data in Telegram test messages", () => {
+    const settingsAction = readFileSync(join(process.cwd(), "actions/settings.ts"), "utf8");
+
+    expect(settingsAction).not.toContain('siteName: "DC Jakarta"');
+    expect(settingsAction).not.toContain('siteCode: "DC-JKT"');
+    expect(settingsAction).not.toContain('deviceName: "Core Switch A01"');
+    expect(settingsAction).not.toContain('deviceAssetCode: "AST-CORE-001"');
+  });
 });
