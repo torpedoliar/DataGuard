@@ -68,7 +68,15 @@ async function baselineExistingSchema() {
             [migrationsSchema, migrationsTable],
         );
         if (Number(migrationState.rows[0]?.count ?? 0) > 0) {
-            return;
+            const latestMigration = await client.query<{ created_at: string }>(
+                `SELECT created_at::text AS created_at
+                 FROM "${migrationsSchema}"."${migrationsTable}"
+                 ORDER BY created_at DESC
+                 LIMIT 1`,
+            );
+            if (Number(latestMigration.rows[0]?.created_at ?? 0) >= baselineEntry.when) {
+                return;
+            }
         }
 
         const existingTables = await client.query<{ table_name: string }>(
