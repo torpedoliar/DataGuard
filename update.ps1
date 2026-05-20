@@ -49,6 +49,8 @@ try {
 
     $fetchedUser = & $mainCmd $extraArgs exec -T db printenv POSTGRES_USER 2>$null
     $fetchedName = & $mainCmd $extraArgs exec -T db printenv POSTGRES_DB 2>$null
+    if (-not $fetchedUser) { $fetchedUser = & docker exec dccheck_postgres printenv POSTGRES_USER 2>$null }
+    if (-not $fetchedName) { $fetchedName = & docker exec dccheck_postgres printenv POSTGRES_DB 2>$null }
     
     if ($fetchedUser) { $dbUser = $fetchedUser.Trim() }
     if ($fetchedName) { $dbName = $fetchedName.Trim() }
@@ -81,6 +83,7 @@ $backupFile = "$backupDir/db_backup_$timestamp.sql"
 
 # Cek apakah container db sedang berjalan
 $dbRunning = $false
+$useNamedDbContainer = $false
 try {
     # Method 1: Check by Service Name (V2 compatible)
     $dbID = & $mainCmd $extraArgs ps -q db 2>$null
@@ -99,13 +102,27 @@ try {
             $dbRunning = $true
         }
     }
+
+    # Method 3: Fallback to explicit container name shown by Docker Desktop
+    if (-not $dbRunning) {
+        $inspectStatus = & docker inspect -f '{{.State.Running}}' dccheck_postgres 2>$null
+        if ($inspectStatus -eq "true") {
+            $dbRunning = $true
+            $useNamedDbContainer = $true
+        }
+    }
 }
 catch {
     $dbRunning = $false
 }
 
 if ($dbRunning) {
-    & $mainCmd $extraArgs exec -T db pg_dump -U $dbUser $dbName > $backupFile 2>$null
+    if ($useNamedDbContainer) {
+        & docker exec -i dccheck_postgres pg_dump -U $dbUser $dbName > $backupFile 2>$null
+    }
+    else {
+        & $mainCmd $extraArgs exec -T db pg_dump -U $dbUser $dbName > $backupFile 2>$null
+    }
 
     # Validasi backup: file harus ada dan ukuran > 100 bytes
     if ((Test-Path $backupFile) -and (Get-Item $backupFile).Length -gt 100) {

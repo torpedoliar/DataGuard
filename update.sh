@@ -32,8 +32,8 @@ echo "Using: $COMPOSER"
 
 # ---- Read DB credentials from docker-compose.yml ----
 # Kredensial baca dari environment container yang sedang berjalan
-DB_USER=$(${COMPOSER} exec -T db printenv POSTGRES_USER 2>/dev/null || echo "administrator")
-DB_NAME=$(${COMPOSER} exec -T db printenv POSTGRES_DB 2>/dev/null || echo "dccheck")
+DB_USER=$(${COMPOSER} exec -T db printenv POSTGRES_USER 2>/dev/null || docker exec dccheck_postgres printenv POSTGRES_USER 2>/dev/null || echo "administrator")
+DB_NAME=$(${COMPOSER} exec -T db printenv POSTGRES_DB 2>/dev/null || docker exec dccheck_postgres printenv POSTGRES_DB 2>/dev/null || echo "dccheck")
 
 # Validasi folder project
 if [ ! -f "docker-compose.yml" ]; then
@@ -54,9 +54,18 @@ BACKUP_FILE="$BACKUP_DIR/db_backup_$TIMESTAMP.sql"
 
 # Cek apakah container db sedang berjalan
 DB_RUNNING=$($COMPOSER ps db 2>/dev/null | grep -c "running\|Up" || true)
+DB_EXEC_MODE="compose"
+if [ "$DB_RUNNING" -eq 0 ] && [ "$(docker inspect -f '{{.State.Running}}' dccheck_postgres 2>/dev/null || true)" = "true" ]; then
+    DB_RUNNING=1
+    DB_EXEC_MODE="container"
+fi
 
 if [ "$DB_RUNNING" -gt 0 ]; then
-    $COMPOSER exec -T db pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE" 2>/dev/null
+    if [ "$DB_EXEC_MODE" = "container" ]; then
+        docker exec -i dccheck_postgres pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE" 2>/dev/null
+    else
+        $COMPOSER exec -T db pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE" 2>/dev/null
+    fi
 
     # Validasi backup: file harus ada dan ukuran > 100 bytes (bukan file kosong)
     if [ -s "$BACKUP_FILE" ] && [ $(wc -c < "$BACKUP_FILE") -gt 100 ]; then
