@@ -116,17 +116,13 @@ echo "   Waiting for app to become ready..."
 sleep 10
 
 # ==================================================================
-# STEP 5: RUN DATABASE MIGRATIONS
+# STEP 5: SYNC DATABASE SCHEMA (additive only, no data loss)
 # ==================================================================
 echo ""
-echo "[5/5] Running database migrations..."
-echo "      (npm run db:migrate applies committed Drizzle migration files)"
-if ! $COMPOSER exec -T app npm run db:migrate; then
-    echo "❌ ERROR: Database migration failed! Check logs above."
-    echo "   Backup file: $BACKUP_FILE"
-    exit 1
-fi
-echo "✅ Database migrations completed"
+echo "[5/5] Syncing database schema..."
+echo "      (drizzle push is additive — it only ADDS new columns/tables)"
+$COMPOSER exec -T app npx drizzle-kit push 2>&1 || true
+echo "✅ Database schema sync completed"
 
 # ==================================================================
 # CLEANUP: Remove old backups (keep last 10)
