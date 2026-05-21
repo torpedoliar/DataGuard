@@ -6,6 +6,8 @@ import { and, eq, desc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "@/lib/action-auth";
+import * as XLSX from "xlsx";
+import { PORT_IMPORT_COLUMNS, parseNetworkPortImportRows } from "@/lib/network-port-import";
 
 // --- VLAN ACTIONS ---
 
@@ -163,6 +165,8 @@ export async function bulkAddPorts(ports: (typeof networkPorts.$inferInsert)[]) 
     if (ports.length === 0) return;
 
     const deviceId = ports[0].deviceId;
+    if (ports.some((port) => port.deviceId !== deviceId)) throw new Error("Semua port bulk harus untuk device yang sama.");
+
     const [device] = await db
         .select({ id: devices.id })
         .from(devices)
@@ -187,6 +191,103 @@ export async function bulkAddPorts(ports: (typeof networkPorts.$inferInsert)[]) 
     revalidatePath(`/admin/devices/${deviceId}/network`);
 }
 
+export async function downloadPortImportTemplate(deviceId: number) {
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
+
+    const [device] = await db
+        .select({ id: devices.id, name: devices.name })
+        .from(devices)
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)))
+        .limit(1);
+
+    if (!device) throw new Error("Perangkat tidak ditemukan di site aktif.");
+
+    const siteVlans = await db
+        .select({ id: vlans.id, vlanId: vlans.vlanId, name: vlans.name })
+        .from(vlans)
+        .where(eq(vlans.siteId, auth.activeSiteId))
+        .orderBy(vlans.vlanId);
+
+    const workbook = XLSX.utils.book_new();
+    const portsSheet = XLSX.utils.json_to_sheet([
+        {
+            "Port Name": "Gi1/0/1",
+            "MAC Address": "",
+            "IP Address": "",
+            "Port Mode": "Access",
+            "VLAN ID": siteVlans[0]?.vlanId ?? "",
+            "Allowed Trunk VLANs": "",
+            Status: "Active",
+            Speed: "1G",
+            "Media Type": "Copper (RJ45)",
+            Description: `Port ${device.name}`,
+        },
+        {
+            "Port Name": "Te1/0/1",
+            "MAC Address": "",
+            "IP Address": "",
+            "Port Mode": "Trunk",
+            "VLAN ID": "",
+            "Allowed Trunk VLANs": "10,20,100-200",
+            Status: "Active",
+            Speed: "10G",
+            "Media Type": "Fiber (SFP/SFP+)",
+            Description: "Uplink",
+        },
+    ], { header: [...PORT_IMPORT_COLUMNS] });
+    const referenceSheet = XLSX.utils.json_to_sheet([
+        { Field: "Port Mode", AllowedValues: "Access, Trunk, Routed, LACP" },
+        { Field: "Status", AllowedValues: "Active, Inactive, Down" },
+        { Field: "Speed", AllowedValues: "10/100M, 1G, 10G, 25G, 40G, 100G, Auto" },
+        { Field: "Media Type", AllowedValues: "Copper (RJ45), Fiber (SFP/SFP+), Twinax (DAC)" },
+        ...siteVlans.map((vlan) => ({ Field: "VLAN ID", AllowedValues: `${vlan.vlanId} - ${vlan.name}` })),
+    ]);
+
+    XLSX.utils.book_append_sheet(workbook, portsSheet, "Ports");
+    XLSX.utils.book_append_sheet(workbook, referenceSheet, "Reference");
+    return XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
+}
+
+export async function importPortsFromXlsx(deviceId: number, base64Xlsx: string) {
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
+
+    const [device] = await db
+        .select({ id: devices.id })
+        .from(devices)
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)))
+        .limit(1);
+
+    if (!device) throw new Error("Perangkat tidak ditemukan di site aktif.");
+
+    const workbook = XLSX.read(base64Xlsx, { type: "base64" });
+    const worksheet = workbook.Sheets.Ports;
+    if (!worksheet) throw new Error("Sheet 'Ports' tidak ditemukan di file import.");
+
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: "" });
+    if (rows.length > 500) throw new Error("Maksimum 500 port bisa diimport dalam satu file.");
+
+    const siteVlans = await db
+        .select({ id: vlans.id, vlanId: vlans.vlanId, name: vlans.name })
+        .from(vlans)
+        .where(eq(vlans.siteId, auth.activeSiteId));
+    const existingPorts = await db
+        .select({ portName: networkPorts.portName })
+        .from(networkPorts)
+        .where(eq(networkPorts.deviceId, deviceId));
+
+    const parsed = parseNetworkPortImportRows(rows, {
+        deviceId,
+        vlanRefs: siteVlans,
+        existingPortNames: existingPorts.map((port) => port.portName),
+    });
+
+    if (parsed.errors.length > 0) throw new Error(parsed.errors.slice(0, 10).join("\n"));
+
+    await bulkAddPorts(parsed.ports);
+    return { imported: parsed.ports.length };
+}
 export async function updatePort(id: number, data: Partial<typeof networkPorts.$inferInsert>) {
     const auth = await requireActiveSiteAdminAction();
     if (!auth.ok) throw new Error(auth.message);
@@ -262,3 +363,5 @@ export async function deletePort(id: number) {
     }
     revalidatePath("/admin/network");
 }
+
+
