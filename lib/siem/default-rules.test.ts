@@ -41,13 +41,46 @@ describe("default SIEM rules", () => {
     expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "auth.success_after_failures")?.alertEnabled).toBe(true);
   });
 
-  it("defines required evaluation settings", () => {
+  it("uses Phase 01 rule data shape", () => {
     for (const rule of DEFAULT_SIEM_RULES) {
       expect(rule.name.length).toBeGreaterThan(3);
+      expect(rule.description.length).toBeGreaterThan(3);
+      expect(rule.description).not.toBe(rule.name);
       expect(rule.category.length).toBeGreaterThan(2);
+      expect(rule.ruleType).toEqual(expect.any(String));
+      expect(rule).not.toHaveProperty("type");
+      expect(rule).toHaveProperty("threshold");
+      expect(rule).toHaveProperty("windowSeconds");
       expect(rule.cooldownSeconds).toBeGreaterThan(0);
       expect(rule.conditions).toMatchObject({ normalizedTypes: expect.any(Array) });
       expect(rule.groupBy).toEqual(expect.any(Array));
     }
+  });
+
+  it("keeps representative defaults aligned with the phase plan", () => {
+    expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "auth.failed_login_spike")).toMatchObject({
+      ruleType: "threshold",
+      category: "Authentication",
+      conditions: { normalizedTypes: ["auth_failed"] },
+      groupBy: ["deviceId", "srcIp", "username"],
+      threshold: 5,
+      windowSeconds: 300,
+      alertEnabled: true,
+    });
+    expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "auth.admin_login_outside_hours")).toMatchObject({
+      severity: "Medium",
+      alertEnabled: false,
+    });
+    expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "network.interface_flap")).toMatchObject({
+      severity: "Medium",
+      threshold: 4,
+      windowSeconds: 600,
+      alertEnabled: false,
+    });
+    expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "system.service_crash")).toMatchObject({
+      severity: "Medium",
+      groupBy: ["deviceId", "program"],
+      alertEnabled: false,
+    });
   });
 });

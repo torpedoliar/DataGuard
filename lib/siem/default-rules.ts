@@ -4,72 +4,47 @@ export type DefaultSiemRule = {
   key: string;
   name: string;
   description: string;
-  category: string;
-  severity: SiemSeverity;
-  type: SiemRuleType;
   enabled: boolean;
-  alertEnabled: boolean;
-  cooldownSeconds: number;
-  conditions: {
-    normalizedTypes: string[];
-    [key: string]: unknown;
-  };
+  severity: SiemSeverity;
+  category: string;
+  ruleType: SiemRuleType;
+  conditions: { normalizedTypes: string[]; outcomes?: string[]; tags?: string[] };
   groupBy: string[];
+  threshold: number | null;
+  windowSeconds: number | null;
+  cooldownSeconds: number;
+  alertEnabled: boolean;
 };
 
-function rule(
-  key: string,
-  name: string,
-  category: string,
-  severity: SiemSeverity,
-  type: SiemRuleType,
-  normalizedTypes: string[],
-  groupBy: string[] = [],
-  conditions: Record<string, unknown> = {},
-): DefaultSiemRule {
-  return {
-    key,
-    name,
-    description: name,
-    category,
-    severity,
-    type,
-    enabled: true,
-    alertEnabled: severity === "High" || severity === "Critical",
-    cooldownSeconds: 300,
-    conditions: {
-      normalizedTypes,
-      ...conditions,
-    },
-    groupBy,
-  };
+function rule(input: Omit<DefaultSiemRule, "enabled" | "cooldownSeconds"> & { cooldownSeconds?: number }): DefaultSiemRule {
+  return { enabled: true, cooldownSeconds: input.cooldownSeconds ?? 300, ...input };
 }
 
-export const DEFAULT_SIEM_RULES: readonly DefaultSiemRule[] = [
-  rule("auth.failed_login_spike", "Failed login spike", "auth", "High", "threshold", ["auth_failure"], ["sourceIp", "username"], { threshold: 10, windowSeconds: 300 }),
-  rule("auth.success_after_failures", "Successful login after failures", "auth", "Critical", "sequence", ["auth_failure", "auth_success"], ["sourceIp", "username"], { maxGapSeconds: 600 }),
-  rule("auth.login_from_unknown_ip", "Login from unknown IP", "auth", "Medium", "baseline_anomaly", ["auth_success"], ["username", "sourceIp"]),
-  rule("auth.admin_login_outside_hours", "Admin login outside hours", "auth", "High", "single_event", ["auth_success"], ["username"], { adminOnly: true, outsideHours: true }),
-  rule("auth.new_username_seen", "New username seen", "auth", "Low", "baseline_anomaly", ["auth_failure", "auth_success"], ["username"]),
-  rule("network.interface_down_critical", "Critical interface down", "network", "Critical", "single_event", ["interface_down"], ["deviceId", "interfaceName"], { criticalOnly: true }),
-  rule("network.interface_flap", "Interface flap", "network", "High", "threshold", ["interface_down", "interface_up"], ["deviceId", "interfaceName"], { threshold: 4, windowSeconds: 300 }),
-  rule("network.trunk_uplink_down", "Trunk uplink down", "network", "Critical", "single_event", ["interface_down"], ["deviceId", "interfaceName"], { uplinkOnly: true }),
-  rule("network.stp_topology_burst", "STP topology burst", "network", "Medium", "threshold", ["stp_topology_change"], ["deviceId"], { threshold: 5, windowSeconds: 300 }),
-  rule("network.dhcp_conflict", "DHCP conflict", "network", "Medium", "single_event", ["dhcp_conflict"], ["deviceId", "sourceIp"]),
-  rule("firewall.deny_burst_source", "Firewall deny burst by source", "firewall", "Medium", "threshold", ["firewall_deny"], ["sourceIp"], { threshold: 100, windowSeconds: 300 }),
-  rule("firewall.deny_burst_critical_destination", "Firewall deny burst to critical destination", "firewall", "High", "threshold", ["firewall_deny"], ["destinationIp"], { threshold: 25, windowSeconds: 300, criticalDestinationOnly: true }),
-  rule("firewall.port_scan_pattern", "Port scan pattern", "firewall", "High", "threshold", ["firewall_deny"], ["sourceIp"], { distinctDestinationPorts: 20, windowSeconds: 300 }),
-  rule("firewall.vpn_login_failure_spike", "VPN login failure spike", "firewall", "High", "threshold", ["vpn_auth_failure"], ["sourceIp", "username"], { threshold: 8, windowSeconds: 300 }),
-  rule("firewall.ips_critical_signature", "Critical IPS signature", "firewall", "Critical", "single_event", ["ips_alert"], ["sourceIp", "destinationIp"], { signatureSeverity: "critical" }),
-  rule("system.device_reboot", "Device reboot", "system", "Medium", "single_event", ["device_reboot"], ["deviceId"]),
-  rule("system.config_changed", "Configuration changed", "system", "Medium", "single_event", ["config_changed"], ["deviceId", "username"]),
-  rule("system.config_changed_outside_maintenance", "Configuration changed outside maintenance", "system", "High", "single_event", ["config_changed"], ["deviceId", "username"], { outsideMaintenance: true }),
-  rule("system.power_supply_failure", "Power supply failure", "system", "Critical", "single_event", ["power_supply_failure"], ["deviceId"]),
-  rule("system.fan_temp_warning", "Fan or temperature warning", "system", "High", "single_event", ["fan_warning", "temperature_warning"], ["deviceId"]),
-  rule("system.disk_full", "Disk full", "system", "High", "single_event", ["disk_full"], ["deviceId", "path"]),
-  rule("system.service_crash", "Service crash", "system", "High", "single_event", ["service_crash"], ["deviceId", "serviceName"]),
-  rule("health.source_silent", "Source silent", "health", "High", "absence", ["syslog_event"], ["sourceId"], { silenceSeconds: 900 }),
-  rule("health.log_volume_spike", "Log volume spike", "health", "Medium", "baseline_anomaly", ["syslog_event"], ["sourceId"]),
-  rule("health.parser_error_spike", "Parser error spike", "health", "Medium", "threshold", ["parser_error"], ["sourceId"], { threshold: 25, windowSeconds: 300 }),
-  rule("health.unknown_source_high_volume", "Unknown source high volume", "health", "High", "threshold", ["unknown_source"], ["sourceIp"], { threshold: 1000, windowSeconds: 300 }),
+export const DEFAULT_SIEM_RULES: DefaultSiemRule[] = [
+  rule({ key: "auth.failed_login_spike", name: "Failed login spike", description: "Repeated failed logins from the same source.", severity: "High", category: "Authentication", ruleType: "threshold", conditions: { normalizedTypes: ["auth_failed"] }, groupBy: ["deviceId", "srcIp", "username"], threshold: 5, windowSeconds: 300, alertEnabled: true }),
+  rule({ key: "auth.success_after_failures", name: "Successful login after repeated failures", description: "A successful login follows repeated failed attempts.", severity: "Critical", category: "Authentication", ruleType: "sequence", conditions: { normalizedTypes: ["auth_failed", "auth_success"] }, groupBy: ["deviceId", "srcIp", "username"], threshold: 5, windowSeconds: 600, alertEnabled: true }),
+  rule({ key: "auth.login_from_unknown_ip", name: "Login from unknown IP", description: "Authentication activity from an unmapped source address.", severity: "Medium", category: "Authentication", ruleType: "single_event", conditions: { normalizedTypes: ["auth_success"], tags: ["unknown_source"] }, groupBy: ["srcIp", "username"], threshold: null, windowSeconds: null, alertEnabled: false }),
+  rule({ key: "auth.admin_login_outside_hours", name: "Admin login outside working hours", description: "Admin login observed outside configured work hours.", severity: "Medium", category: "Authentication", ruleType: "single_event", conditions: { normalizedTypes: ["auth_success"], tags: ["admin", "outside_hours"] }, groupBy: ["deviceId", "username"], threshold: null, windowSeconds: null, alertEnabled: false }),
+  rule({ key: "auth.new_username_seen", name: "New username seen", description: "A username not previously observed appears in syslog.", severity: "Low", category: "Authentication", ruleType: "single_event", conditions: { normalizedTypes: ["auth_failed", "auth_success"], tags: ["new_username"] }, groupBy: ["username"], threshold: null, windowSeconds: null, alertEnabled: false }),
+  rule({ key: "network.interface_down_critical", name: "Interface down on critical device", description: "A critical device reports an interface down event.", severity: "High", category: "Network", ruleType: "single_event", conditions: { normalizedTypes: ["interface_down"], tags: ["critical_device"] }, groupBy: ["deviceId", "interfaceName"], threshold: null, windowSeconds: null, alertEnabled: true }),
+  rule({ key: "network.interface_flap", name: "Interface flap", description: "Interface up/down repeats within a short window.", severity: "Medium", category: "Network", ruleType: "threshold", conditions: { normalizedTypes: ["interface_down", "interface_up"] }, groupBy: ["deviceId", "interfaceName"], threshold: 4, windowSeconds: 600, alertEnabled: false }),
+  rule({ key: "network.trunk_uplink_down", name: "Trunk or uplink down", description: "An uplink or trunk interface goes down.", severity: "High", category: "Network", ruleType: "single_event", conditions: { normalizedTypes: ["interface_down"], tags: ["uplink"] }, groupBy: ["deviceId", "interfaceName"], threshold: null, windowSeconds: null, alertEnabled: true }),
+  rule({ key: "network.stp_topology_burst", name: "STP topology change burst", description: "Spanning tree topology changes repeat in a short window.", severity: "Medium", category: "Network", ruleType: "threshold", conditions: { normalizedTypes: ["stp_topology_change"] }, groupBy: ["deviceId"], threshold: 5, windowSeconds: 300, alertEnabled: false }),
+  rule({ key: "network.dhcp_conflict", name: "DHCP conflict", description: "Device reports DHCP conflict.", severity: "Medium", category: "Network", ruleType: "single_event", conditions: { normalizedTypes: ["dhcp_conflict"] }, groupBy: ["deviceId", "srcIp"], threshold: null, windowSeconds: null, alertEnabled: false }),
+  rule({ key: "firewall.deny_burst_source", name: "Deny burst from same source", description: "Firewall denies many events from the same source.", severity: "Medium", category: "Firewall", ruleType: "threshold", conditions: { normalizedTypes: ["firewall_deny"] }, groupBy: ["deviceId", "srcIp"], threshold: 50, windowSeconds: 300, alertEnabled: false }),
+  rule({ key: "firewall.deny_burst_critical_destination", name: "Deny burst to critical destination", description: "Firewall denies many events toward a critical destination.", severity: "High", category: "Firewall", ruleType: "threshold", conditions: { normalizedTypes: ["firewall_deny"], tags: ["critical_destination"] }, groupBy: ["deviceId", "dstIp"], threshold: 20, windowSeconds: 300, alertEnabled: true }),
+  rule({ key: "firewall.port_scan_pattern", name: "Port scan pattern", description: "A source touches many destination ports.", severity: "High", category: "Firewall", ruleType: "threshold", conditions: { normalizedTypes: ["firewall_deny"], tags: ["port_scan"] }, groupBy: ["deviceId", "srcIp"], threshold: 20, windowSeconds: 300, alertEnabled: true }),
+  rule({ key: "firewall.vpn_login_failure_spike", name: "VPN login failure spike", description: "Repeated VPN login failures.", severity: "High", category: "Firewall", ruleType: "threshold", conditions: { normalizedTypes: ["vpn_login_failed"] }, groupBy: ["deviceId", "srcIp", "username"], threshold: 5, windowSeconds: 300, alertEnabled: true }),
+  rule({ key: "firewall.ips_critical_signature", name: "IPS critical signature", description: "Critical IPS event observed.", severity: "Critical", category: "Firewall", ruleType: "single_event", conditions: { normalizedTypes: ["ips_alert"], tags: ["critical"] }, groupBy: ["deviceId", "srcIp", "dstIp"], threshold: null, windowSeconds: null, alertEnabled: true }),
+  rule({ key: "system.device_reboot", name: "Device reboot", description: "Device reports reboot or restart.", severity: "Medium", category: "System", ruleType: "single_event", conditions: { normalizedTypes: ["device_reboot"] }, groupBy: ["deviceId"], threshold: null, windowSeconds: null, alertEnabled: false }),
+  rule({ key: "system.config_changed", name: "Config changed", description: "Device configuration changed.", severity: "Medium", category: "System", ruleType: "single_event", conditions: { normalizedTypes: ["config_changed"] }, groupBy: ["deviceId", "username"], threshold: null, windowSeconds: null, alertEnabled: false }),
+  rule({ key: "system.config_changed_outside_maintenance", name: "Config changed outside maintenance", description: "Configuration changed outside maintenance window.", severity: "High", category: "System", ruleType: "single_event", conditions: { normalizedTypes: ["config_changed"], tags: ["outside_maintenance"] }, groupBy: ["deviceId", "username"], threshold: null, windowSeconds: null, alertEnabled: true }),
+  rule({ key: "system.power_supply_failure", name: "Power supply failure", description: "Power supply alarm observed.", severity: "Critical", category: "System", ruleType: "single_event", conditions: { normalizedTypes: ["hardware_alert"], tags: ["power"] }, groupBy: ["deviceId"], threshold: null, windowSeconds: null, alertEnabled: true }),
+  rule({ key: "system.fan_temp_warning", name: "Fan or temperature warning", description: "Fan or temperature alarm observed.", severity: "High", category: "System", ruleType: "single_event", conditions: { normalizedTypes: ["hardware_alert"], tags: ["thermal"] }, groupBy: ["deviceId"], threshold: null, windowSeconds: null, alertEnabled: true }),
+  rule({ key: "system.disk_full", name: "Disk full", description: "Host reports disk full or low disk space.", severity: "High", category: "System", ruleType: "single_event", conditions: { normalizedTypes: ["disk_full"] }, groupBy: ["deviceId"], threshold: null, windowSeconds: null, alertEnabled: true }),
+  rule({ key: "system.service_crash", name: "Service crash", description: "Host reports service crash.", severity: "Medium", category: "System", ruleType: "single_event", conditions: { normalizedTypes: ["service_crash"] }, groupBy: ["deviceId", "program"], threshold: null, windowSeconds: null, alertEnabled: false }),
+  rule({ key: "health.source_silent", name: "Syslog source silent", description: "Expected syslog source stopped sending logs.", severity: "High", category: "SIEM Health", ruleType: "absence", conditions: { normalizedTypes: [] }, groupBy: ["sourceId"], threshold: null, windowSeconds: 1800, alertEnabled: true }),
+  rule({ key: "health.log_volume_spike", name: "Sudden log volume spike", description: "Source emits far more logs than recent baseline.", severity: "Medium", category: "SIEM Health", ruleType: "baseline_anomaly", conditions: { normalizedTypes: [] }, groupBy: ["sourceId"], threshold: 3, windowSeconds: 900, alertEnabled: false }),
+  rule({ key: "health.parser_error_spike", name: "Parser error spike", description: "Raw events fail parsing repeatedly.", severity: "Medium", category: "SIEM Health", ruleType: "threshold", conditions: { normalizedTypes: ["parser_error"] }, groupBy: ["sourceIp"], threshold: 10, windowSeconds: 300, alertEnabled: false }),
+  rule({ key: "health.unknown_source_high_volume", name: "Unknown source sending many events", description: "Unmapped source sends many events.", severity: "Medium", category: "SIEM Health", ruleType: "threshold", conditions: { normalizedTypes: [], tags: ["unknown_source"] }, groupBy: ["sourceIp"], threshold: 100, windowSeconds: 900, alertEnabled: false }),
 ];
