@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, jsonb, index } from "drizzle-orm/pg-core";
 import { AnyPgColumn } from "drizzle-orm/pg-core";
 
 // ==================== ENUMS ====================
@@ -16,6 +16,14 @@ export const incidentStatusEnum = pgEnum("incident_status", ["Open", "In Progres
 export const incidentUpdateTypeEnum = pgEnum("incident_update_type", ["created", "assigned", "status_changed", "comment", "evidence"]);
 export const resolutionCategoryEnum = pgEnum("resolution_category", ["Hardware", "Power", "Network", "Environment", "Human Error", "False Alarm", "Other"]);
 export const resolutionActionEnum = pgEnum("resolution_action", ["Replaced", "Reconfigured", "Restarted", "Cleaned", "Escalated", "No Action Needed"]);
+export const syslogTransportEnum = pgEnum("syslog_transport", ["udp", "tcp", "tls"]);
+export const syslogIngestStatusEnum = pgEnum("syslog_ingest_status", ["received", "parsed", "parse_failed", "dropped"]);
+export const syslogVendorEnum = pgEnum("syslog_vendor", ["generic", "mikrotik", "cisco", "fortigate", "linux"]);
+export const syslogTrustLevelEnum = pgEnum("syslog_trust_level", ["unknown", "trusted", "untrusted"]);
+export const siemRuleTypeEnum = pgEnum("siem_rule_type", ["single_event", "threshold", "sequence", "absence", "baseline_anomaly"]);
+export const siemFindingStatusEnum = pgEnum("siem_finding_status", ["Open", "Acknowledged", "Resolved"]);
+export const siemAlertChannelEnum = pgEnum("siem_alert_channel", ["telegram", "email", "webhook"]);
+export const siemAlertStatusEnum = pgEnum("siem_alert_status", ["pending", "sent", "failed"]);
 
 // ==================== SITES ====================
 export const sites = pgTable("sites", {
@@ -207,6 +215,10 @@ export const sitesRelations = relations(sites, ({ many }) => ({
   vlans: many(vlans),
   checklistEntries: many(checklistEntries),
   incidents: many(incidents),
+  syslogSources: many(syslogSources),
+  syslogEvents: many(syslogEvents),
+  siemFindings: many(siemFindings),
+  siemSettings: many(siemSettings),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -214,6 +226,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   userSites: many(userSites),
   createdIncidents: many(incidents, { relationName: "createdIncidents" }),
   assignedIncidents: many(incidents, { relationName: "assignedIncidents" }),
+  acknowledgedSiemFindings: many(siemFindings, { relationName: "acknowledgedSiemFindings" }),
+  resolvedSiemFindings: many(siemFindings, { relationName: "resolvedSiemFindings" }),
 }));
 
 export const userSitesRelations = relations(userSites, ({ one }) => ({
@@ -275,6 +289,9 @@ export const devicesRelations = relations(devices, ({ one, many }) => ({
   checklistItems: many(checklistItems),
   networkPorts: many(networkPorts, { relationName: "devicePorts" }),
   incidents: many(incidents),
+  syslogSources: many(syslogSources),
+  syslogEvents: many(syslogEvents),
+  siemFindings: many(siemFindings),
 }));
 
 export const checklistEntriesRelations = relations(checklistEntries, ({ one, many }) => ({
@@ -407,6 +424,174 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ==================== SIEM ====================
+export const syslogSources = pgTable("syslog_sources", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "set null" }),
+  deviceId: integer("device_id").references(() => devices.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  ipAddress: text("ip_address").notNull(),
+  hostname: text("hostname"),
+  vendor: syslogVendorEnum("vendor").notNull().default("generic"),
+  transport: syslogTransportEnum("transport").notNull().default("udp"),
+  port: integer("port").notNull().default(514),
+  trustLevel: syslogTrustLevelEnum("trust_level").notNull().default("unknown"),
+  parser: text("parser").notNull().default("generic"),
+  enabled: boolean("enabled").notNull().default(true),
+  lastSeenAt: timestamp("last_seen_at"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  ipAddressIdx: index("syslog_sources_ip_address_idx").on(table.ipAddress),
+  siteIdIdx: index("syslog_sources_site_id_idx").on(table.siteId),
+  deviceIdIdx: index("syslog_sources_device_id_idx").on(table.deviceId),
+  enabledIdx: index("syslog_sources_enabled_idx").on(table.enabled),
+}));
+
+export const syslogEventsRaw = pgTable("syslog_events_raw", {
+  id: serial("id").primaryKey(),
+  sourceId: integer("source_id").references(() => syslogSources.id, { onDelete: "set null" }),
+  receivedAt: timestamp("received_at").notNull().defaultNow(),
+  transport: syslogTransportEnum("transport").notNull().default("udp"),
+  sourceIp: text("source_ip").notNull(),
+  sourcePort: integer("source_port"),
+  rawMessage: text("raw_message").notNull(),
+  ingestStatus: syslogIngestStatusEnum("ingest_status").notNull().default("received"),
+  parseError: text("parse_error"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+}, (table) => ({
+  sourceIdIdx: index("syslog_events_raw_source_id_idx").on(table.sourceId),
+  receivedAtIdx: index("syslog_events_raw_received_at_idx").on(table.receivedAt),
+  sourceIpIdx: index("syslog_events_raw_source_ip_idx").on(table.sourceIp),
+  ingestStatusIdx: index("syslog_events_raw_ingest_status_idx").on(table.ingestStatus),
+}));
+
+export const syslogEvents = pgTable("syslog_events", {
+  id: serial("id").primaryKey(),
+  rawEventId: integer("raw_event_id").references(() => syslogEventsRaw.id, { onDelete: "set null" }),
+  sourceId: integer("source_id").references(() => syslogSources.id, { onDelete: "set null" }),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "set null" }),
+  deviceId: integer("device_id").references(() => devices.id, { onDelete: "set null" }),
+  receivedAt: timestamp("received_at").notNull().defaultNow(),
+  eventTimestamp: timestamp("event_timestamp"),
+  vendor: syslogVendorEnum("vendor").notNull().default("generic"),
+  facility: text("facility"),
+  severity: integer("severity"),
+  hostname: text("hostname"),
+  appName: text("app_name"),
+  processId: text("process_id"),
+  message: text("message").notNull(),
+  normalizedType: text("normalized_type").notNull().default("unknown"),
+  sourceIp: text("source_ip"),
+  sourcePort: integer("source_port"),
+  destinationIp: text("destination_ip"),
+  destinationPort: integer("destination_port"),
+  username: text("username"),
+  interfaceName: text("interface_name"),
+  action: text("action"),
+  outcome: text("outcome"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  rawEventIdIdx: index("syslog_events_raw_event_id_idx").on(table.rawEventId),
+  sourceIdIdx: index("syslog_events_source_id_idx").on(table.sourceId),
+  siteIdIdx: index("syslog_events_site_id_idx").on(table.siteId),
+  deviceIdIdx: index("syslog_events_device_id_idx").on(table.deviceId),
+  receivedAtIdx: index("syslog_events_received_at_idx").on(table.receivedAt),
+  normalizedTypeIdx: index("syslog_events_normalized_type_idx").on(table.normalizedType),
+  sourceIpIdx: index("syslog_events_source_ip_idx").on(table.sourceIp),
+  usernameIdx: index("syslog_events_username_idx").on(table.username),
+}));
+
+export const siemRules = pgTable("siem_rules", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull(),
+  severity: incidentSeverityEnum("severity").notNull().default("Medium"),
+  type: siemRuleTypeEnum("type").notNull().default("single_event"),
+  enabled: boolean("enabled").notNull().default(true),
+  alertEnabled: boolean("alert_enabled").notNull().default(false),
+  cooldownSeconds: integer("cooldown_seconds").notNull().default(300),
+  conditions: jsonb("conditions").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  groupBy: jsonb("group_by").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  keyUnique: uniqueIndex("siem_rules_key_unique").on(table.key),
+  categoryIdx: index("siem_rules_category_idx").on(table.category),
+  enabledIdx: index("siem_rules_enabled_idx").on(table.enabled),
+}));
+
+export const siemFindings = pgTable("siem_findings", {
+  id: serial("id").primaryKey(),
+  ruleId: integer("rule_id").references(() => siemRules.id, { onDelete: "set null" }),
+  sourceId: integer("source_id").references(() => syslogSources.id, { onDelete: "set null" }),
+  deviceId: integer("device_id").references(() => devices.id, { onDelete: "set null" }),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  severity: incidentSeverityEnum("severity").notNull().default("Medium"),
+  status: siemFindingStatusEnum("status").notNull().default("Open"),
+  firstSeenAt: timestamp("first_seen_at").notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  eventCount: integer("event_count").notNull().default(1),
+  groupKey: text("group_key"),
+  context: jsonb("context").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  acknowledgedById: integer("acknowledged_by_id").references(() => users.id, { onDelete: "set null" }),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  resolvedById: integer("resolved_by_id").references(() => users.id, { onDelete: "set null" }),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  ruleIdIdx: index("siem_findings_rule_id_idx").on(table.ruleId),
+  sourceIdIdx: index("siem_findings_source_id_idx").on(table.sourceId),
+  deviceIdIdx: index("siem_findings_device_id_idx").on(table.deviceId),
+  siteIdIdx: index("siem_findings_site_id_idx").on(table.siteId),
+  statusIdx: index("siem_findings_status_idx").on(table.status),
+  severityIdx: index("siem_findings_severity_idx").on(table.severity),
+  groupKeyIdx: index("siem_findings_group_key_idx").on(table.groupKey),
+}));
+
+export const siemAlerts = pgTable("siem_alerts", {
+  id: serial("id").primaryKey(),
+  findingId: integer("finding_id").references(() => siemFindings.id, { onDelete: "cascade" }).notNull(),
+  ruleId: integer("rule_id").references(() => siemRules.id, { onDelete: "set null" }),
+  channel: siemAlertChannelEnum("channel").notNull().default("telegram"),
+  status: siemAlertStatusEnum("status").notNull().default("pending"),
+  destination: text("destination"),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  error: text("error"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  findingIdIdx: index("siem_alerts_finding_id_idx").on(table.findingId),
+  ruleIdIdx: index("siem_alerts_rule_id_idx").on(table.ruleId),
+  statusIdx: index("siem_alerts_status_idx").on(table.status),
+  nextAttemptAtIdx: index("siem_alerts_next_attempt_at_idx").on(table.nextAttemptAt),
+}));
+
+export const siemSettings = pgTable("siem_settings", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  defaultAlertChannel: siemAlertChannelEnum("default_alert_channel").notNull().default("telegram"),
+  telegramAlertsEnabled: boolean("telegram_alerts_enabled").notNull().default(false),
+  maintenanceWindows: jsonb("maintenance_windows").$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+  trustedNetworks: jsonb("trusted_networks").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  parserSettings: jsonb("parser_settings").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  siteIdUnique: uniqueIndex("siem_settings_site_id_unique").on(table.siteId),
+}));
+
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   user: one(users, {
     fields: [auditLogs.userId],
@@ -414,6 +599,100 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   }),
   site: one(sites, {
     fields: [auditLogs.siteId],
+    references: [sites.id],
+  }),
+}));
+
+export const syslogSourcesRelations = relations(syslogSources, ({ one, many }) => ({
+  site: one(sites, {
+    fields: [syslogSources.siteId],
+    references: [sites.id],
+  }),
+  device: one(devices, {
+    fields: [syslogSources.deviceId],
+    references: [devices.id],
+  }),
+  rawEvents: many(syslogEventsRaw),
+  events: many(syslogEvents),
+  findings: many(siemFindings),
+}));
+
+export const syslogEventsRawRelations = relations(syslogEventsRaw, ({ one, many }) => ({
+  source: one(syslogSources, {
+    fields: [syslogEventsRaw.sourceId],
+    references: [syslogSources.id],
+  }),
+  events: many(syslogEvents),
+}));
+
+export const syslogEventsRelations = relations(syslogEvents, ({ one }) => ({
+  rawEvent: one(syslogEventsRaw, {
+    fields: [syslogEvents.rawEventId],
+    references: [syslogEventsRaw.id],
+  }),
+  source: one(syslogSources, {
+    fields: [syslogEvents.sourceId],
+    references: [syslogSources.id],
+  }),
+  site: one(sites, {
+    fields: [syslogEvents.siteId],
+    references: [sites.id],
+  }),
+  device: one(devices, {
+    fields: [syslogEvents.deviceId],
+    references: [devices.id],
+  }),
+}));
+
+export const siemRulesRelations = relations(siemRules, ({ many }) => ({
+  findings: many(siemFindings),
+  alerts: many(siemAlerts),
+}));
+
+export const siemFindingsRelations = relations(siemFindings, ({ one, many }) => ({
+  rule: one(siemRules, {
+    fields: [siemFindings.ruleId],
+    references: [siemRules.id],
+  }),
+  source: one(syslogSources, {
+    fields: [siemFindings.sourceId],
+    references: [syslogSources.id],
+  }),
+  device: one(devices, {
+    fields: [siemFindings.deviceId],
+    references: [devices.id],
+  }),
+  site: one(sites, {
+    fields: [siemFindings.siteId],
+    references: [sites.id],
+  }),
+  acknowledgedBy: one(users, {
+    fields: [siemFindings.acknowledgedById],
+    references: [users.id],
+    relationName: "acknowledgedSiemFindings",
+  }),
+  resolvedBy: one(users, {
+    fields: [siemFindings.resolvedById],
+    references: [users.id],
+    relationName: "resolvedSiemFindings",
+  }),
+  alerts: many(siemAlerts),
+}));
+
+export const siemAlertsRelations = relations(siemAlerts, ({ one }) => ({
+  finding: one(siemFindings, {
+    fields: [siemAlerts.findingId],
+    references: [siemFindings.id],
+  }),
+  rule: one(siemRules, {
+    fields: [siemAlerts.ruleId],
+    references: [siemRules.id],
+  }),
+}));
+
+export const siemSettingsRelations = relations(siemSettings, ({ one }) => ({
+  site: one(sites, {
+    fields: [siemSettings.siteId],
     references: [sites.id],
   }),
 }));
