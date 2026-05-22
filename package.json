@@ -17,7 +17,8 @@
     "seed": "tsx scripts/seed.ts",
     "seed:users": "tsx scripts/seed-users.ts",
     "reset:devices": "tsx scripts/reset-devices.ts",
-    "incidents:notify-overdue": "tsx scripts/notify-overdue-incidents.ts"
+    "incidents:notify-overdue": "tsx scripts/notify-overdue-incidents.ts",
+    "syslog:receiver": "tsx scripts/syslog-receiver.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
