@@ -1,5 +1,5 @@
 {
-  "id": "9a31ace6-b532-4304-903c-8939d3ff75ba",
+  "id": "f783885f-4573-47fb-8ec1-bdd4b2b50c19",
   "prevId": "430b1bb3-a960-48e8-9e51-a63fc41aa140",
   "version": "7",
   "dialect": "postgresql",
@@ -1264,19 +1264,18 @@
           "primaryKey": false,
           "notNull": true
         },
-        "rule_id": {
-          "name": "rule_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "channel": {
           "name": "channel",
           "type": "siem_alert_channel",
           "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'telegram'"
+          "notNull": true
+        },
+        "recipient": {
+          "name": "recipient",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "status": {
           "name": "status",
@@ -1286,41 +1285,21 @@
           "notNull": true,
           "default": "'pending'"
         },
-        "destination": {
-          "name": "destination",
+        "message": {
+          "name": "message",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
-        },
-        "payload": {
-          "name": "payload",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "next_attempt_at": {
-          "name": "next_attempt_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "sent_at": {
           "name": "sent_at",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -1330,18 +1309,11 @@
           "primaryKey": false,
           "notNull": false,
           "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
         }
       },
       "indexes": {
-        "siem_alerts_finding_id_idx": {
-          "name": "siem_alerts_finding_id_idx",
+        "siem_alerts_finding_idx": {
+          "name": "siem_alerts_finding_idx",
           "columns": [
             {
               "expression": "finding_id",
@@ -1355,41 +1327,17 @@
           "method": "btree",
           "with": {}
         },
-        "siem_alerts_rule_id_idx": {
-          "name": "siem_alerts_rule_id_idx",
-          "columns": [
-            {
-              "expression": "rule_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "siem_alerts_status_idx": {
-          "name": "siem_alerts_status_idx",
+        "siem_alerts_status_created_idx": {
+          "name": "siem_alerts_status_created_idx",
           "columns": [
             {
               "expression": "status",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "siem_alerts_next_attempt_at_idx": {
-          "name": "siem_alerts_next_attempt_at_idx",
-          "columns": [
+            },
             {
-              "expression": "next_attempt_at",
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1412,20 +1360,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "siem_alerts_rule_id_siem_rules_id_fk": {
-          "name": "siem_alerts_rule_id_siem_rules_id_fk",
-          "tableFrom": "siem_alerts",
-          "tableTo": "siem_rules",
-          "columnsFrom": [
-            "rule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -1445,14 +1380,8 @@
           "primaryKey": true,
           "notNull": true
         },
-        "rule_id": {
-          "name": "rule_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_id": {
-          "name": "source_id",
+        "site_id": {
+          "name": "site_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1463,8 +1392,14 @@
           "primaryKey": false,
           "notNull": false
         },
-        "site_id": {
-          "name": "site_id",
+        "source_id": {
+          "name": "source_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rule_id": {
+          "name": "rule_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1475,9 +1410,33 @@
           "primaryKey": false,
           "notNull": true
         },
-        "description": {
-          "name": "description",
+        "summary": {
+          "name": "summary",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "human_analysis": {
+          "name": "human_analysis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recommended_action": {
+          "name": "recommended_action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ai_analysis": {
+          "name": "ai_analysis",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ai_generated_at": {
+          "name": "ai_generated_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -1486,8 +1445,7 @@
           "type": "incident_severity",
           "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'Medium'"
+          "notNull": true
         },
         "status": {
           "name": "status",
@@ -1497,42 +1455,40 @@
           "notNull": true,
           "default": "'Open'"
         },
-        "first_seen_at": {
-          "name": "first_seen_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "last_seen_at": {
-          "name": "last_seen_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
         "event_count": {
           "name": "event_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": 1
+          "default": 0
         },
-        "group_key": {
-          "name": "group_key",
-          "type": "text",
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
-        "context": {
-          "name": "context",
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sample_event_ids": {
+          "name": "sample_event_ids",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": "'{}'::jsonb"
+          "default": "'[]'::jsonb"
         },
-        "acknowledged_by_id": {
-          "name": "acknowledged_by_id",
+        "correlation_key": {
+          "name": "correlation_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "acknowledged_by": {
+          "name": "acknowledged_by",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1543,8 +1499,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "resolved_by_id": {
-          "name": "resolved_by_id",
+        "resolved_by": {
+          "name": "resolved_by",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1552,6 +1508,12 @@
         "resolved_at": {
           "name": "resolved_at",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_incident_id": {
+          "name": "created_incident_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -1571,74 +1533,26 @@
         }
       },
       "indexes": {
-        "siem_findings_rule_id_idx": {
-          "name": "siem_findings_rule_id_idx",
-          "columns": [
-            {
-              "expression": "rule_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "siem_findings_source_id_idx": {
-          "name": "siem_findings_source_id_idx",
-          "columns": [
-            {
-              "expression": "source_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "siem_findings_device_id_idx": {
-          "name": "siem_findings_device_id_idx",
-          "columns": [
-            {
-              "expression": "device_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "siem_findings_site_id_idx": {
-          "name": "siem_findings_site_id_idx",
-          "columns": [
-            {
-              "expression": "site_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "siem_findings_status_idx": {
-          "name": "siem_findings_status_idx",
+        "siem_findings_status_severity_last_seen_idx": {
+          "name": "siem_findings_status_severity_last_seen_idx",
           "columns": [
             {
               "expression": "status",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "severity",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_seen_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -1646,9 +1560,21 @@
           "method": "btree",
           "with": {}
         },
-        "siem_findings_severity_idx": {
-          "name": "siem_findings_severity_idx",
+        "siem_findings_site_status_severity_idx": {
+          "name": "siem_findings_site_status_severity_idx",
           "columns": [
+            {
+              "expression": "site_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "severity",
               "isExpression": false,
@@ -1661,11 +1587,17 @@
           "method": "btree",
           "with": {}
         },
-        "siem_findings_group_key_idx": {
-          "name": "siem_findings_group_key_idx",
+        "siem_findings_device_status_idx": {
+          "name": "siem_findings_device_status_idx",
           "columns": [
             {
-              "expression": "group_key",
+              "expression": "device_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1675,33 +1607,41 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "siem_findings_rule_correlation_unique": {
+          "name": "siem_findings_rule_correlation_unique",
+          "columns": [
+            {
+              "expression": "rule_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "correlation_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "siem_findings_rule_id_siem_rules_id_fk": {
-          "name": "siem_findings_rule_id_siem_rules_id_fk",
+        "siem_findings_site_id_sites_id_fk": {
+          "name": "siem_findings_site_id_sites_id_fk",
           "tableFrom": "siem_findings",
-          "tableTo": "siem_rules",
+          "tableTo": "sites",
           "columnsFrom": [
-            "rule_id"
+            "site_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "siem_findings_source_id_syslog_sources_id_fk": {
-          "name": "siem_findings_source_id_syslog_sources_id_fk",
-          "tableFrom": "siem_findings",
-          "tableTo": "syslog_sources",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "siem_findings_device_id_devices_id_fk": {
@@ -1714,46 +1654,72 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "siem_findings_site_id_sites_id_fk": {
-          "name": "siem_findings_site_id_sites_id_fk",
+        "siem_findings_source_id_syslog_sources_id_fk": {
+          "name": "siem_findings_source_id_syslog_sources_id_fk",
           "tableFrom": "siem_findings",
-          "tableTo": "sites",
+          "tableTo": "syslog_sources",
           "columnsFrom": [
-            "site_id"
+            "source_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "siem_findings_acknowledged_by_id_users_id_fk": {
-          "name": "siem_findings_acknowledged_by_id_users_id_fk",
+        "siem_findings_rule_id_siem_rules_id_fk": {
+          "name": "siem_findings_rule_id_siem_rules_id_fk",
+          "tableFrom": "siem_findings",
+          "tableTo": "siem_rules",
+          "columnsFrom": [
+            "rule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "siem_findings_acknowledged_by_users_id_fk": {
+          "name": "siem_findings_acknowledged_by_users_id_fk",
           "tableFrom": "siem_findings",
           "tableTo": "users",
           "columnsFrom": [
-            "acknowledged_by_id"
+            "acknowledged_by"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "siem_findings_resolved_by_id_users_id_fk": {
-          "name": "siem_findings_resolved_by_id_users_id_fk",
+        "siem_findings_resolved_by_users_id_fk": {
+          "name": "siem_findings_resolved_by_users_id_fk",
           "tableFrom": "siem_findings",
           "tableTo": "users",
           "columnsFrom": [
-            "resolved_by_id"
+            "resolved_by"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "siem_findings_created_incident_id_incidents_id_fk": {
+          "name": "siem_findings_created_incident_id_incidents_id_fk",
+          "tableFrom": "siem_findings",
+          "tableTo": "incidents",
+          "columnsFrom": [
+            "created_incident_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -1789,29 +1755,7 @@
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
-        },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
-        },
-        "severity": {
-          "name": "severity",
-          "type": "incident_severity",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'Medium'"
-        },
-        "type": {
-          "name": "type",
-          "type": "siem_rule_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'single_event'"
         },
         "enabled": {
           "name": "enabled",
@@ -1820,19 +1764,25 @@
           "notNull": true,
           "default": true
         },
-        "alert_enabled": {
-          "name": "alert_enabled",
-          "type": "boolean",
+        "severity": {
+          "name": "severity",
+          "type": "incident_severity",
+          "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true,
-          "default": false
+          "notNull": true
         },
-        "cooldown_seconds": {
-          "name": "cooldown_seconds",
-          "type": "integer",
+        "category": {
+          "name": "category",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": 300
+          "notNull": true
+        },
+        "rule_type": {
+          "name": "rule_type",
+          "type": "siem_rule_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
         },
         "conditions": {
           "name": "conditions",
@@ -1847,6 +1797,32 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
+        },
+        "threshold": {
+          "name": "threshold",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "window_seconds": {
+          "name": "window_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cooldown_seconds": {
+          "name": "cooldown_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 300
+        },
+        "alert_enabled": {
+          "name": "alert_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -1864,17 +1840,17 @@
         }
       },
       "indexes": {
-        "siem_rules_key_unique": {
-          "name": "siem_rules_key_unique",
+        "siem_rules_enabled_idx": {
+          "name": "siem_rules_enabled_idx",
           "columns": [
             {
-              "expression": "key",
+              "expression": "enabled",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
-          "isUnique": true,
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1894,11 +1870,11 @@
           "method": "btree",
           "with": {}
         },
-        "siem_rules_enabled_idx": {
-          "name": "siem_rules_enabled_idx",
+        "siem_rules_severity_idx": {
+          "name": "siem_rules_severity_idx",
           "columns": [
             {
-              "expression": "enabled",
+              "expression": "severity",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1912,7 +1888,15 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "siem_rules_key_unique": {
+          "name": "siem_rules_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "key"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1927,54 +1911,174 @@
           "primaryKey": true,
           "notNull": true
         },
-        "site_id": {
-          "name": "site_id",
+        "default_siem_site_id": {
+          "name": "default_siem_site_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
-        "enabled": {
-          "name": "enabled",
+        "udp_port": {
+          "name": "udp_port",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 514
+        },
+        "tcp_enabled": {
+          "name": "tcp_enabled",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
         },
-        "default_alert_channel": {
-          "name": "default_alert_channel",
-          "type": "siem_alert_channel",
+        "tcp_port": {
+          "name": "tcp_port",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 514
+        },
+        "tls_enabled": {
+          "name": "tls_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "tls_port": {
+          "name": "tls_port",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 6514
+        },
+        "max_message_size": {
+          "name": "max_message_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 16384
+        },
+        "queue_limit": {
+          "name": "queue_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1000
+        },
+        "batch_size": {
+          "name": "batch_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "flush_interval_ms": {
+          "name": "flush_interval_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1000
+        },
+        "raw_retention_days": {
+          "name": "raw_retention_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 90
+        },
+        "event_retention_days": {
+          "name": "event_retention_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 180
+        },
+        "finding_retention_days": {
+          "name": "finding_retention_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 365
+        },
+        "alert_retention_days": {
+          "name": "alert_retention_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 365
+        },
+        "alert_min_severity": {
+          "name": "alert_min_severity",
+          "type": "incident_severity",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'telegram'"
+          "default": "'High'"
         },
-        "telegram_alerts_enabled": {
-          "name": "telegram_alerts_enabled",
+        "unknown_source_enabled": {
+          "name": "unknown_source_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "ai_enabled": {
+          "name": "ai_enabled",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
         },
-        "maintenance_windows": {
-          "name": "maintenance_windows",
-          "type": "jsonb",
+        "ai_endpoint_url": {
+          "name": "ai_endpoint_url",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
+          "notNull": false
         },
-        "trusted_networks": {
-          "name": "trusted_networks",
-          "type": "jsonb",
+        "ai_api_key": {
+          "name": "ai_api_key",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
+          "notNull": false
         },
-        "parser_settings": {
-          "name": "parser_settings",
-          "type": "jsonb",
+        "ai_model_opus": {
+          "name": "ai_model_opus",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ai_model_sonnet": {
+          "name": "ai_model_sonnet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ai_model_haiku": {
+          "name": "ai_model_haiku",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ai_default_model": {
+          "name": "ai_default_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ai_max_sample_events": {
+          "name": "ai_max_sample_events",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": "'{}'::jsonb"
+          "default": 5
+        },
+        "ai_max_raw_length": {
+          "name": "ai_max_raw_length",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2000
         },
         "created_at": {
           "name": "created_at",
@@ -1991,35 +2095,19 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "siem_settings_site_id_unique": {
-          "name": "siem_settings_site_id_unique",
-          "columns": [
-            {
-              "expression": "site_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
-        "siem_settings_site_id_sites_id_fk": {
-          "name": "siem_settings_site_id_sites_id_fk",
+        "siem_settings_default_siem_site_id_sites_id_fk": {
+          "name": "siem_settings_default_siem_site_id_sites_id_fk",
           "tableFrom": "siem_settings",
           "tableTo": "sites",
           "columnsFrom": [
-            "site_id"
+            "default_siem_site_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -2126,23 +2214,11 @@
           "name": "raw_event_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
-        "source_id": {
-          "name": "source_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "site_id": {
-          "name": "site_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "device_id": {
-          "name": "device_id",
-          "type": "integer",
+        "event_time": {
+          "name": "event_time",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -2150,26 +2226,23 @@
           "name": "received_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         },
-        "event_timestamp": {
-          "name": "event_timestamp",
-          "type": "timestamp",
+        "source_ip": {
+          "name": "source_ip",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hostname": {
+          "name": "hostname",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "vendor": {
-          "name": "vendor",
-          "type": "syslog_vendor",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'generic'"
-        },
         "facility": {
           "name": "facility",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -2179,14 +2252,20 @@
           "primaryKey": false,
           "notNull": false
         },
-        "hostname": {
-          "name": "hostname",
-          "type": "text",
+        "priority": {
+          "name": "priority",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
         "app_name": {
           "name": "app_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "program": {
+          "name": "program",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2203,33 +2282,81 @@
           "primaryKey": false,
           "notNull": true
         },
-        "normalized_type": {
-          "name": "normalized_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unknown'"
-        },
-        "source_ip": {
-          "name": "source_ip",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_port": {
-          "name": "source_port",
+        "site_id": {
+          "name": "site_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
-        "destination_ip": {
-          "name": "destination_ip",
+        "device_id": {
+          "name": "device_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vendor": {
+          "name": "vendor",
+          "type": "syslog_vendor",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parser": {
+          "name": "parser",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "destination_port": {
-          "name": "destination_port",
+        "normalized_type": {
+          "name": "normalized_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "src_ip": {
+          "name": "src_ip",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "src_port": {
+          "name": "src_port",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dst_ip": {
+          "name": "dst_ip",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dst_port": {
+          "name": "dst_port",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -2246,17 +2373,18 @@
           "primaryKey": false,
           "notNull": false
         },
-        "action": {
-          "name": "action",
+        "protocol": {
+          "name": "protocol",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "outcome": {
-          "name": "outcome",
-          "type": "text",
+        "tags": {
+          "name": "tags",
+          "type": "jsonb",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "metadata": {
           "name": "metadata",
@@ -2274,66 +2402,6 @@
         }
       },
       "indexes": {
-        "syslog_events_raw_event_id_idx": {
-          "name": "syslog_events_raw_event_id_idx",
-          "columns": [
-            {
-              "expression": "raw_event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "syslog_events_source_id_idx": {
-          "name": "syslog_events_source_id_idx",
-          "columns": [
-            {
-              "expression": "source_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "syslog_events_site_id_idx": {
-          "name": "syslog_events_site_id_idx",
-          "columns": [
-            {
-              "expression": "site_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "syslog_events_device_id_idx": {
-          "name": "syslog_events_device_id_idx",
-          "columns": [
-            {
-              "expression": "device_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "syslog_events_received_at_idx": {
           "name": "syslog_events_received_at_idx",
           "columns": [
@@ -2349,11 +2417,17 @@
           "method": "btree",
           "with": {}
         },
-        "syslog_events_normalized_type_idx": {
-          "name": "syslog_events_normalized_type_idx",
+        "syslog_events_site_received_idx": {
+          "name": "syslog_events_site_received_idx",
           "columns": [
             {
-              "expression": "normalized_type",
+              "expression": "site_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2364,14 +2438,41 @@
           "method": "btree",
           "with": {}
         },
-        "syslog_events_source_ip_idx": {
-          "name": "syslog_events_source_ip_idx",
+        "syslog_events_device_received_idx": {
+          "name": "syslog_events_device_received_idx",
+          "columns": [
+            {
+              "expression": "device_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "syslog_events_source_received_idx": {
+          "name": "syslog_events_source_received_idx",
           "columns": [
             {
               "expression": "source_ip",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -2379,11 +2480,59 @@
           "method": "btree",
           "with": {}
         },
-        "syslog_events_username_idx": {
-          "name": "syslog_events_username_idx",
+        "syslog_events_normalized_received_idx": {
+          "name": "syslog_events_normalized_received_idx",
           "columns": [
             {
-              "expression": "username",
+              "expression": "normalized_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "syslog_events_severity_received_idx": {
+          "name": "syslog_events_severity_received_idx",
+          "columns": [
+            {
+              "expression": "severity",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "syslog_events_category_received_idx": {
+          "name": "syslog_events_category_received_idx",
+          "columns": [
+            {
+              "expression": "category",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2406,20 +2555,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "syslog_events_source_id_syslog_sources_id_fk": {
-          "name": "syslog_events_source_id_syslog_sources_id_fk",
-          "tableFrom": "syslog_events",
-          "tableTo": "syslog_sources",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "syslog_events_site_id_sites_id_fk": {
@@ -2432,7 +2568,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "syslog_events_device_id_devices_id_fk": {
@@ -2445,7 +2581,20 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "syslog_events_source_id_syslog_sources_id_fk": {
+          "name": "syslog_events_source_id_syslog_sources_id_fk",
+          "tableFrom": "syslog_events",
+          "tableTo": "syslog_sources",
+          "columnsFrom": [
+            "source_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -2465,26 +2614,12 @@
           "primaryKey": true,
           "notNull": true
         },
-        "source_id": {
-          "name": "source_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "received_at": {
           "name": "received_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "transport": {
-          "name": "transport",
-          "type": "syslog_transport",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'udp'"
         },
         "source_ip": {
           "name": "source_ip",
@@ -2496,11 +2631,25 @@
           "name": "source_port",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
+        },
+        "transport": {
+          "name": "transport",
+          "type": "syslog_transport",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'udp'"
         },
         "raw_message": {
           "name": "raw_message",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raw_size": {
+          "name": "raw_size",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -2518,30 +2667,15 @@
           "primaryKey": false,
           "notNull": false
         },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
+          "notNull": false,
+          "default": "now()"
         }
       },
       "indexes": {
-        "syslog_events_raw_source_id_idx": {
-          "name": "syslog_events_raw_source_id_idx",
-          "columns": [
-            {
-              "expression": "source_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "syslog_events_raw_received_at_idx": {
           "name": "syslog_events_raw_received_at_idx",
           "columns": [
@@ -2557,11 +2691,17 @@
           "method": "btree",
           "with": {}
         },
-        "syslog_events_raw_source_ip_idx": {
-          "name": "syslog_events_raw_source_ip_idx",
+        "syslog_events_raw_source_received_idx": {
+          "name": "syslog_events_raw_source_received_idx",
           "columns": [
             {
               "expression": "source_ip",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2572,11 +2712,17 @@
           "method": "btree",
           "with": {}
         },
-        "syslog_events_raw_ingest_status_idx": {
-          "name": "syslog_events_raw_ingest_status_idx",
+        "syslog_events_raw_status_received_idx": {
+          "name": "syslog_events_raw_status_received_idx",
           "columns": [
             {
               "expression": "ingest_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2588,21 +2734,7 @@
           "with": {}
         }
       },
-      "foreignKeys": {
-        "syslog_events_raw_source_id_syslog_sources_id_fk": {
-          "name": "syslog_events_raw_source_id_syslog_sources_id_fk",
-          "tableFrom": "syslog_events_raw",
-          "tableTo": "syslog_sources",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -2631,14 +2763,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ip_address": {
-          "name": "ip_address",
+        "source_ip": {
+          "name": "source_ip",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -2649,6 +2775,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "vendor": {
           "name": "vendor",
           "type": "syslog_vendor",
@@ -2657,20 +2789,18 @@
           "notNull": true,
           "default": "'generic'"
         },
-        "transport": {
-          "name": "transport",
-          "type": "syslog_transport",
-          "typeSchema": "public",
+        "product": {
+          "name": "product",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'udp'"
+          "notNull": false
         },
-        "port": {
-          "name": "port",
-          "type": "integer",
+        "parser_profile": {
+          "name": "parser_profile",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": 514
+          "default": "'generic'"
         },
         "trust_level": {
           "name": "trust_level",
@@ -2679,13 +2809,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'unknown'"
-        },
-        "parser": {
-          "name": "parser",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'generic'"
         },
         "enabled": {
           "name": "enabled",
@@ -2700,12 +2823,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
+        "event_count": {
+          "name": "event_count",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": "'{}'::jsonb"
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -2723,11 +2846,17 @@
         }
       },
       "indexes": {
-        "syslog_sources_ip_address_idx": {
-          "name": "syslog_sources_ip_address_idx",
+        "syslog_sources_site_source_ip_idx": {
+          "name": "syslog_sources_site_source_ip_idx",
           "columns": [
             {
-              "expression": "ip_address",
+              "expression": "site_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_ip",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2738,11 +2867,26 @@
           "method": "btree",
           "with": {}
         },
-        "syslog_sources_site_id_idx": {
-          "name": "syslog_sources_site_id_idx",
+        "syslog_sources_source_ip_idx": {
+          "name": "syslog_sources_source_ip_idx",
           "columns": [
             {
-              "expression": "site_id",
+              "expression": "source_ip",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "syslog_sources_hostname_idx": {
+          "name": "syslog_sources_hostname_idx",
+          "columns": [
+            {
+              "expression": "hostname",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2795,7 +2939,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "syslog_sources_device_id_devices_id_fk": {
@@ -2808,7 +2952,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
