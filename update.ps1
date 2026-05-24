@@ -5,7 +5,7 @@
 # KEAMANAN DATA:
 # - Script ini TIDAK PERNAH memanggil 'down -v' (tidak menghapus volume)
 # - Database container (db) TIDAK PERNAH di-rebuild atau di-stop
-# - Hanya container 'app' yang di-rebuild dan di-restart
+# - Hanya container aplikasi/stateless worker yang di-rebuild dan di-restart
 # - Backup database WAJIB berhasil sebelum proses lanjut
 # ============================================
 
@@ -156,32 +156,39 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "OK - Code updated" -ForegroundColor Green
 
 # ==================================================================
-# STEP 3: REBUILD HANYA CONTAINER APP (database TIDAK disentuh!)
+# STEP 3: REBUILD APP + STATELESS SIEM SERVICES (database TIDAK disentuh!)
 # ==================================================================
+$statelessServices = @("app", "syslog-receiver", "siem-parser", "siem-rules", "siem-alerts", "siem-retention")
 Write-Host ""
-Write-Host "[3/5] Rebuilding application image ONLY (database untouched)..." -ForegroundColor Yellow
+Write-Host "[3/5] Rebuilding app and SIEM worker images (database untouched)..." -ForegroundColor Yellow
+Write-Host "      Services: $($statelessServices -join ', ')" -ForegroundColor DarkGray
 Write-Host "      This may take 2-5 minutes..." -ForegroundColor DarkGray
-& $mainCmd $extraArgs build --no-cache app
+& $mainCmd $extraArgs build --no-cache $statelessServices
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build failed! Aborting update." -ForegroundColor Red
     Write-Host "Your current running version is still intact." -ForegroundColor Yellow
     Write-Host "Backup file: $backupFile" -ForegroundColor Cyan
     exit 1
 }
-Write-Host "OK - App image rebuilt successfully" -ForegroundColor Green
+Write-Host "OK - App and SIEM worker images rebuilt successfully" -ForegroundColor Green
 
 # ==================================================================
-# STEP 4: RESTART HANYA APP (database tetap berjalan!)
+# STEP 4: RESTART APP + STATELESS SIEM SERVICES (database tetap berjalan!)
 # ==================================================================
 Write-Host ""
-Write-Host "[4/5] Restarting app container (database stays running)..." -ForegroundColor Yellow
+Write-Host "[4/5] Restarting app and SIEM workers (database stays running)..." -ForegroundColor Yellow
 
-# Hanya recreate service 'app', bukan seluruh stack
+# Recreate service stateless saja, bukan seluruh stack
 # Ini memastikan container 'db' TIDAK PERNAH berhenti
 # --force-recreate memastikan container lama diganti dengan yang baru
-# --remove-orphans membantu membersihkan jika ada container 'app' tak bernama yang tersisa
-& $mainCmd $extraArgs up -d --no-deps --force-recreate --remove-orphans app
-Write-Host "OK - App container restarted" -ForegroundColor Green
+# --remove-orphans membantu membersihkan container service lama yang sudah tidak ada di compose
+& $mainCmd $extraArgs up -d --no-deps --force-recreate --remove-orphans $statelessServices
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Service restart failed! Check docker compose logs." -ForegroundColor Red
+    Write-Host "Backup file: $backupFile" -ForegroundColor Cyan
+    exit 1
+}
+Write-Host "OK - App and SIEM workers restarted" -ForegroundColor Green
 Write-Host "Waiting for app to become ready..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 10
 
@@ -214,6 +221,7 @@ Write-Host "  UPDATE COMPLETE!" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Application : http://localhost:3001" -ForegroundColor Cyan
+Write-Host "  SIEM UDP    : 0.0.0.0:514/udp" -ForegroundColor Cyan
 Write-Host "  Backup file : $backupFile" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  To restore database if needed:" -ForegroundColor Yellow
