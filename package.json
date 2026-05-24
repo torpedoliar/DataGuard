@@ -19,7 +19,10 @@
     "reset:devices": "tsx scripts/reset-devices.ts",
     "incidents:notify-overdue": "tsx scripts/notify-overdue-incidents.ts",
     "syslog:receiver": "tsx scripts/syslog-receiver.ts",
-    "siem:parser": "tsx scripts/siem-parser-worker.ts"
+    "siem:parser": "tsx scripts/siem-parser-worker.ts",
+    "siem:rules": "tsx scripts/siem-rule-worker.ts",
+    "siem:alerts": "tsx scripts/siem-alert-worker.ts",
+    "siem:retention": "tsx scripts/siem-retention-worker.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

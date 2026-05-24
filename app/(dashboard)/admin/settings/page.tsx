@@ -1,5 +1,7 @@
 import { getSettings } from "@/actions/settings";
+import { getSiemAiSettings } from "@/actions/siem-settings";
 import SettingsForm from "@/components/admin/settings-form";
+import SiemAiSettingsForm from "@/components/admin/siem-ai-settings-form";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -14,7 +16,7 @@ export default async function SettingsPage() {
         redirect("/admin");
     }
 
-    const settings = await getSettings();
+    const [settings, siemAiSettings] = await Promise.all([getSettings(), getSiemAiSettings()]);
 
     return (
         <div className="py-8 px-6 max-w-[1600px] mx-auto min-h-[calc(100vh-56px)]">
@@ -33,6 +35,7 @@ export default async function SettingsPage() {
             </div>
 
             <SettingsForm initialData={settings} />
+            {!("message" in siemAiSettings) && <SiemAiSettingsForm initialData={siemAiSettings} />}
         </div>
     );
 }

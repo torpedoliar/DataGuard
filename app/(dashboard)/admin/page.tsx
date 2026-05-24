@@ -7,12 +7,15 @@ import {
   Boxes,
   Building2,
   CircleAlert,
+  FileSearch,
   FolderTree,
   MapPin,
   Network,
   PanelTop,
+  RadioTower,
   Server,
   Settings,
+  ShieldAlert,
   Tag,
   Users,
 } from "lucide-react";
@@ -79,6 +82,10 @@ export default async function AdminPage() {
 
   const governanceShortcuts: Shortcut[] = [
     { href: "/admin/incidents", label: "Incidents", meta: "Remediation queue", icon: <CircleAlert className="size-5" /> },
+    { href: "/admin/siem", label: "SIEM Dashboard", meta: "Syslog security overview", icon: <ShieldAlert className="size-5" /> },
+    { href: "/admin/siem/findings", label: "SIEM Findings", meta: "Rule detections", icon: <ShieldAlert className="size-5" /> },
+    { href: "/admin/siem/events", label: "SIEM Events", meta: "Syslog event explorer", icon: <FileSearch className="size-5" /> },
+    { href: "/admin/siem/sources", label: "SIEM Sources", meta: "Syslog source mapping", icon: <RadioTower className="size-5" /> },
     { href: "/admin/settings", label: "Settings", meta: "Telegram and app config", icon: <Settings className="size-5" /> },
     { href: "/admin/users", label: "Users", meta: "Roles and access", icon: <Users className="size-5" /> },
   ];
