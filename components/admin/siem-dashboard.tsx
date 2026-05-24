@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
 import { getIncidentSeverityTone } from "@/lib/ui/status";
-import { AlertTriangle, Bell, FileSearch, RadioTower, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Bell, FileSearch, RadioTower, ScrollText, ShieldAlert } from "lucide-react";
 
 export type SiemDashboardStats = {
   raw24h: number;
@@ -86,7 +86,8 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-4">
+        <ActionButton href="/admin/siem/syslog" variant="secondary" icon={<ScrollText className="size-4" />}>Syslog</ActionButton>
         <ActionButton href="/admin/siem/events" variant="secondary" icon={<FileSearch className="size-4" />}>Event Explorer</ActionButton>
         <ActionButton href="/admin/siem/findings" variant="secondary" icon={<ShieldAlert className="size-4" />}>Findings</ActionButton>
         <ActionButton href="/admin/siem/sources" variant="secondary" icon={<RadioTower className="size-4" />}>Sources</ActionButton>

@@ -51,6 +51,82 @@ services:
     networks:
       - dccheck_net
 
+  siem-parser:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dccheck_siem_parser
+    restart: unless-stopped
+    command: npm run siem:parser
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927"
+      DB_NAME: dccheck
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - dccheck_net
+
+  siem-rules:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dccheck_siem_rules
+    restart: unless-stopped
+    command: npm run siem:rules
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927"
+      DB_NAME: dccheck
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - dccheck_net
+
+  siem-alerts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dccheck_siem_alerts
+    restart: unless-stopped
+    command: npm run siem:alerts
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927"
+      DB_NAME: dccheck
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - dccheck_net
+
+  siem-retention:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dccheck_siem_retention
+    restart: unless-stopped
+    command: npm run siem:retention
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927"
+      DB_NAME: dccheck
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - dccheck_net
+
   db:
     image: postgres:15-alpine
     container_name: dccheck_postgres

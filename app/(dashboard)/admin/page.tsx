@@ -13,6 +13,7 @@ import {
   Network,
   PanelTop,
   RadioTower,
+  ScrollText,
   Server,
   Settings,
   ShieldAlert,
@@ -83,6 +84,7 @@ export default async function AdminPage() {
   const governanceShortcuts: Shortcut[] = [
     { href: "/admin/incidents", label: "Incidents", meta: "Remediation queue", icon: <CircleAlert className="size-5" /> },
     { href: "/admin/siem", label: "SIEM Dashboard", meta: "Syslog security overview", icon: <ShieldAlert className="size-5" /> },
+    { href: "/admin/siem/syslog", label: "Syslog Messages", meta: "Device logs, severity, facility", icon: <ScrollText className="size-5" /> },
     { href: "/admin/siem/findings", label: "SIEM Findings", meta: "Rule detections", icon: <ShieldAlert className="size-5" /> },
     { href: "/admin/siem/events", label: "SIEM Events", meta: "Syslog event explorer", icon: <FileSearch className="size-5" /> },
     { href: "/admin/siem/sources", label: "SIEM Sources", meta: "Syslog source mapping", icon: <RadioTower className="size-5" /> },
