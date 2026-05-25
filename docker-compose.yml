@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: dc-check-app:latest
     container_name: dccheck_app
     restart: always
     ports:
@@ -27,16 +28,12 @@ services:
       - dccheck_net
 
   syslog-receiver:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: dc-check-app:latest
     container_name: dccheck_syslog_receiver
     restart: unless-stopped
     command: npm run syslog:receiver
     ports:
-      - "0.0.0.0:514:514/udp"
-    cap_add:
-      - NET_BIND_SERVICE
+      - "0.0.0.0:514:1514/udp"
     environment:
       DB_HOST: db
       DB_PORT: "5432"
@@ -44,7 +41,7 @@ services:
       DB_PASSWORD: "Arabika1927"
       DB_NAME: dccheck
       SYSLOG_UDP_HOST: "0.0.0.0"
-      SYSLOG_UDP_PORT: "514"
+      SYSLOG_UDP_PORT: "1514"
     depends_on:
       db:
         condition: service_started
@@ -52,9 +49,7 @@ services:
       - dccheck_net
 
   siem-parser:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: dc-check-app:latest
     container_name: dccheck_siem_parser
     restart: unless-stopped
     command: npm run siem:parser
@@ -71,9 +66,7 @@ services:
       - dccheck_net
 
   siem-rules:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: dc-check-app:latest
     container_name: dccheck_siem_rules
     restart: unless-stopped
     command: npm run siem:rules
@@ -90,9 +83,7 @@ services:
       - dccheck_net
 
   siem-alerts:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: dc-check-app:latest
     container_name: dccheck_siem_alerts
     restart: unless-stopped
     command: npm run siem:alerts
@@ -109,9 +100,7 @@ services:
       - dccheck_net
 
   siem-retention:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: dc-check-app:latest
     container_name: dccheck_siem_retention
     restart: unless-stopped
     command: npm run siem:retention
