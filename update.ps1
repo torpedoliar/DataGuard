@@ -211,7 +211,7 @@ catch {
 $schemaSyncText = ($schemaSyncOutput | Out-String)
 if ($schemaSyncText.Trim()) { Write-Host $schemaSyncText.TrimEnd() }
 
-if ($schemaSyncExitCode -ne 0 -and ($schemaSyncText -match "No changes detected|\[✓\].*Pulling schema from database")) {
+if ($schemaSyncExitCode -ne 0 -and ($schemaSyncText -match "No changes detected|Pulling schema from database")) {
     Write-Host "WARN - Docker reported an exec error after schema check completed. Continuing." -ForegroundColor Yellow
     $schemaSyncExitCode = 0
 }
