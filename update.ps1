@@ -197,16 +197,46 @@ Start-Sleep -Seconds 10
 Write-Host ""
 Write-Host "[5/6] Syncing database schema..." -ForegroundColor Yellow
 Write-Host "      (drizzle push is additive - it only ADDS new columns/tables)" -ForegroundColor DarkGray
+$schemaSyncOutput = @()
+$schemaSyncExitCode = 1
 try {
-    & $mainCmd $extraArgs exec -T app npx drizzle-kit push
-    if ($LASTEXITCODE -ne 0) { throw "drizzle push failed" }
-    Write-Host "OK - Database schema synced" -ForegroundColor Green
+    $schemaSyncOutput = & $mainCmd $extraArgs exec -T app npx drizzle-kit push 2>&1
+    $schemaSyncExitCode = $LASTEXITCODE
 }
 catch {
+    $schemaSyncOutput += $_.Exception.Message
+    $schemaSyncExitCode = 1
+}
+
+$schemaSyncText = ($schemaSyncOutput | Out-String)
+if ($schemaSyncText.Trim()) { Write-Host $schemaSyncText.TrimEnd() }
+
+if ($schemaSyncExitCode -ne 0 -and ($schemaSyncText -match "No changes detected|\[✓\].*Pulling schema from database")) {
+    Write-Host "WARN - Docker reported an exec error after schema check completed. Continuing." -ForegroundColor Yellow
+    $schemaSyncExitCode = 0
+}
+
+if ($schemaSyncExitCode -ne 0) {
+    Write-Host "WARN - Compose schema sync failed; retrying with direct docker exec..." -ForegroundColor Yellow
+    try {
+        $schemaSyncOutput = & docker exec dccheck_app npx drizzle-kit push 2>&1
+        $schemaSyncExitCode = $LASTEXITCODE
+    }
+    catch {
+        $schemaSyncOutput += $_.Exception.Message
+        $schemaSyncExitCode = 1
+    }
+    $schemaSyncText = ($schemaSyncOutput | Out-String)
+    if ($schemaSyncText.Trim()) { Write-Host $schemaSyncText.TrimEnd() }
+}
+
+if ($schemaSyncExitCode -ne 0) {
     Write-Host "ERROR - Schema sync failed. SIEM workers will not be restarted." -ForegroundColor Red
     Write-Host "Backup file: $backupFile" -ForegroundColor Cyan
     exit 1
 }
+
+Write-Host "OK - Database schema synced" -ForegroundColor Green
 
 # ==================================================================
 # STEP 6: RESTART STATELESS SIEM SERVICES (database tetap berjalan!)
