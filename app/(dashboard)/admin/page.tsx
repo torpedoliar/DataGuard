@@ -7,6 +7,7 @@ import {
   Boxes,
   Building2,
   CircleAlert,
+  DatabaseBackup,
   FileSearch,
   FolderTree,
   MapPin,
@@ -94,6 +95,7 @@ export default async function AdminPage() {
 
   if (session.role === "superadmin") {
     governanceShortcuts.push({ href: "/admin/sites", label: "Sites", meta: "Multi-site scope", icon: <Building2 className="size-5" /> });
+    governanceShortcuts.push({ href: "/admin/backup", label: "Backup & Restore", meta: "Migrasi server", icon: <DatabaseBackup className="size-5" /> });
   }
 
   return (
