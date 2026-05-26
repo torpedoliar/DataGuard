@@ -20,10 +20,16 @@ export function decodePriority(priority: number) {
 
 const rfc5424Pattern = /^<(\d{1,3})>1\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s?(.*)$/;
 const rfc3164Pattern = /^<(\d{1,3})>([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(\S+)\s+([^:]+):\s?(.*)$/;
+const awplusPattern = /^<(\d{1,3})>\s*(\d{4})\s+([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}:\d{2}:\d{2})\s+(\S+)\s+([A-Za-z0-9._-]+?)(?:\[(\d+)\])?:\s?(.*)$/;
 
 function parseRfc3164Date(value: string) {
   const year = new Date().getFullYear();
   const date = new Date(`${value} ${year}`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseAwplusDate(year: string, month: string, day: string, time: string) {
+  const date = new Date(`${month} ${day} ${time} ${year} UTC`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -65,6 +71,26 @@ export function parseSyslogMessage(raw: string): ParsedSyslogMessage {
       messageId: null,
       structuredData: null,
       message: rfc3164[5],
+      parseError: null,
+    };
+  }
+
+  const awplus = raw.match(awplusPattern);
+  if (awplus) {
+    const priority = Number(awplus[1]);
+    const decoded = decodePriority(priority);
+    return {
+      parser: "rfc3164",
+      priority,
+      ...decoded,
+      eventTime: parseAwplusDate(awplus[2], awplus[3], awplus[4], awplus[5]),
+      hostname: awplus[6],
+      appName: null,
+      program: awplus[7],
+      processId: awplus[8] ?? null,
+      messageId: null,
+      structuredData: null,
+      message: awplus[9] ?? "",
       parseError: null,
     };
   }

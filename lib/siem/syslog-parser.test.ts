@@ -38,4 +38,32 @@ describe("parseSyslogMessage", () => {
   it("falls back without losing raw message", () => {
     expect(parseSyslogMessage("not syslog")).toMatchObject({ parser: "fallback", message: "not syslog", parseError: "Unsupported syslog format" });
   });
+
+  it("parses Allied Telesis awplus syslog with leading year", () => {
+    const parsed = parseSyslogMessage("<13> 2026 May 26 09:57:16 awplus IMISH[10424]: [SCRIPT]copy run start");
+    expect(parsed).toMatchObject({
+      parser: "rfc3164",
+      priority: 13,
+      facility: 1,
+      severity: 5,
+      hostname: "awplus",
+      program: "IMISH",
+      processId: "10424",
+      message: "[SCRIPT]copy run start",
+    });
+    expect(parsed.eventTime?.getUTCFullYear()).toBe(2026);
+    expect(parsed.eventTime?.getUTCMonth()).toBe(4);
+    expect(parsed.eventTime?.getUTCDate()).toBe(26);
+  });
+
+  it("parses Allied Telesis awplus syslog without process id", () => {
+    expect(parseSyslogMessage("<14>2026 May 26 09:57:16 awplus IMISH: [SCRIPT]enable")).toMatchObject({
+      parser: "rfc3164",
+      priority: 14,
+      hostname: "awplus",
+      program: "IMISH",
+      processId: null,
+      message: "[SCRIPT]enable",
+    });
+  });
 });
