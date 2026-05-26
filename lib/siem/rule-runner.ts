@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { siemFindings, siemRules, syslogEvents } from "@/db/schema";
+import { db } from "../../db";
+import { siemFindings, siemRules, syslogEvents } from "../../db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { buildFindingText } from "./human-analysis";
 import { evaluateSiemRules, type SiemFindingCandidate, type SiemRuleDefinition, type SiemRuleEvent } from "./rule-engine";

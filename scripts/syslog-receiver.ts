@@ -24,8 +24,16 @@ const writer: RawSyslogWriter = {
 };
 
 const receiver = createSyslogReceiver(config, writer);
-await receiver.start();
-console.log(`Syslog receiver listening on ${config.host}:${config.port}/udp`);
+
+async function main() {
+  await receiver.start();
+  console.log(`Syslog receiver listening on ${config.host}:${config.port}/udp`);
+}
+
+void main().catch((error) => {
+  console.error("Syslog receiver failed to start", error);
+  process.exit(1);
+});
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {

@@ -1,6 +1,6 @@
-import { db } from "@/db";
-import { siemAlerts, siemFindings, siemSettings } from "@/db/schema";
-import { sendTelegramAlert } from "@/lib/telegram";
+import { db } from "../../db";
+import { siemAlerts, siemFindings, siemSettings } from "../../db/schema";
+import { sendTelegramAlert } from "../telegram";
 import { and, eq, ne } from "drizzle-orm";
 import { redactSensitiveText } from "./redaction";
 import type { SiemSeverity } from "./types";

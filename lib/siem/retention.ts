@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { siemAlerts, siemFindings, siemSettings, syslogEvents, syslogEventsRaw } from "@/db/schema";
+import { db } from "../../db";
+import { siemAlerts, siemFindings, siemSettings, syslogEvents, syslogEventsRaw } from "../../db/schema";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
