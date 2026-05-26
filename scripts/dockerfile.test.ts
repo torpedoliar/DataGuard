@@ -16,4 +16,8 @@ describe("Dockerfile image export safety", () => {
     expect(userIndex).toBeGreaterThan(-1);
     expect(extractIndex).toBeGreaterThan(userIndex);
   });
+
+  it("installs postgresql-client and unzip in the base stage", () => {
+    expect(dockerfile).toMatch(/apk add[^\n]*postgresql-client[^\n]*unzip/);
+  });
 });
