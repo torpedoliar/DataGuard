@@ -17,8 +17,16 @@ describe("Dockerfile image export safety", () => {
     expect(extractIndex).toBeGreaterThan(userIndex);
   });
 
-  it("pins postgresql client to v15 to match the server image", () => {
-    expect(dockerfile).toMatch(/apk add[^\n]*postgresql15-client[^\n]*unzip/);
+  it("uses pg client binaries from postgres:15-alpine to match the server", () => {
+    expect(dockerfile).toMatch(/COPY --from=postgres:15-alpine \S*\/pg_dump/);
+    expect(dockerfile).toMatch(/COPY --from=postgres:15-alpine \S*\/pg_restore/);
+    expect(dockerfile).toMatch(/COPY --from=postgres:15-alpine \S*\/psql/);
+    expect(dockerfile).toMatch(/COPY --from=postgres:15-alpine \S*\/libpq\.so/);
+    expect(dockerfile).not.toMatch(/apk add[^\n]*postgresql\d*-client/);
     expect(dockerfile).not.toMatch(/apk add[^\n]* postgresql-client/);
+  });
+
+  it("installs unzip for the restore route", () => {
+    expect(dockerfile).toMatch(/apk add[^\n]*unzip/);
   });
 });

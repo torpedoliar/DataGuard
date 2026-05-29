@@ -1,10 +1,19 @@
 # Base image
 FROM node:20-alpine AS base
 
-# Install dependensi untuk build (termasuk libc opsional untuk Alpine)
-# postgresql15-client harus match versi server (postgres:15-alpine) agar pg_dump
-# tidak menyisipkan parameter v17-only seperti `transaction_timeout` ke dump.
-RUN apk add --no-cache libc6-compat python3 make g++ postgresql15-client unzip
+# Install dependensi untuk build dan runtime libraries yang dibutuhkan oleh
+# pg_dump/pg_restore yang dicopy dari postgres:15-alpine.
+RUN apk add --no-cache libc6-compat python3 make g++ unzip \
+    icu-libs lz4-libs zstd-libs xz-libs libxml2
+
+# Copy pg_dump, pg_restore, psql dari image postgres:15-alpine resmi
+# supaya client tools selalu match versi server (PostgreSQL 15) — apk repo
+# alpine terbaru sudah tidak include postgresql15-client lagi.
+COPY --from=postgres:15-alpine /usr/local/bin/pg_dump /usr/local/bin/pg_dump
+COPY --from=postgres:15-alpine /usr/local/bin/pg_restore /usr/local/bin/pg_restore
+COPY --from=postgres:15-alpine /usr/local/bin/psql /usr/local/bin/psql
+COPY --from=postgres:15-alpine /usr/local/lib/libpq.so.5 /usr/local/lib/libpq.so.5
+COPY --from=postgres:15-alpine /usr/local/lib/libpq.so.5.15 /usr/local/lib/libpq.so.5.15
 
 # 1. Install dependencies & Build (Digabung jadi satu tahap untuk menghindari bug Podman)
 FROM base AS builder
