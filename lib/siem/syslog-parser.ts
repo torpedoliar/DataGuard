@@ -20,6 +20,7 @@ export function decodePriority(priority: number) {
 
 const rfc5424Pattern = /^<(\d{1,3})>1\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s?(.*)$/;
 const rfc3164Pattern = /^<(\d{1,3})>([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(\S+)\s+([^:]+):\s?(.*)$/;
+const rfc3164ShortPattern = /^<(\d{1,3})>([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(.*)$/;
 const awplusPattern = /^<(\d{1,3})>\s*(\d{4})\s+([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}:\d{2}:\d{2})\s+(\S+)\s+([A-Za-z0-9._-]+?)(?:\[(\d+)\])?:\s?(.*)$/;
 
 function parseRfc3164Date(value: string) {
@@ -33,7 +34,8 @@ function parseAwplusDate(year: string, month: string, day: string, time: string)
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export function parseSyslogMessage(raw: string): ParsedSyslogMessage {
+export function parseSyslogMessage(input: string): ParsedSyslogMessage {
+  const raw = input.replace(/[\r\n]+$/, "");
   const rfc5424 = raw.match(rfc5424Pattern);
   if (rfc5424) {
     const priority = Number(rfc5424[1]);
@@ -91,6 +93,26 @@ export function parseSyslogMessage(raw: string): ParsedSyslogMessage {
       messageId: null,
       structuredData: null,
       message: awplus[9] ?? "",
+      parseError: null,
+    };
+  }
+
+  const rfc3164Short = raw.match(rfc3164ShortPattern);
+  if (rfc3164Short) {
+    const priority = Number(rfc3164Short[1]);
+    const decoded = decodePriority(priority);
+    return {
+      parser: "rfc3164",
+      priority,
+      ...decoded,
+      eventTime: parseRfc3164Date(rfc3164Short[2]),
+      hostname: null,
+      appName: null,
+      program: null,
+      processId: null,
+      messageId: null,
+      structuredData: null,
+      message: rfc3164Short[3] ?? "",
       parseError: null,
     };
   }

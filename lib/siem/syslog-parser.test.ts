@@ -66,4 +66,36 @@ describe("parseSyslogMessage", () => {
       message: "[SCRIPT]enable",
     });
   });
+
+  it("parses awplus kernel notice with martian destination", () => {
+    expect(parseSyslogMessage("<4> 2026 May 29 14:54:05 awplus kernel: IPv4: martian destination 0.0.0.0 from 10.10.191.182, dev vlan18\n")).toMatchObject({
+      parser: "rfc3164",
+      priority: 4,
+      hostname: "awplus",
+      program: "kernel",
+      message: "IPv4: martian destination 0.0.0.0 from 10.10.191.182, dev vlan18",
+    });
+  });
+
+  it("parses short PoE syslog without hostname or program", () => {
+    expect(parseSyslogMessage("<134>May 29 16:09:22 PoE Port 8 power off!")).toMatchObject({
+      parser: "rfc3164",
+      priority: 134,
+      facility: 16,
+      severity: 6,
+      hostname: null,
+      program: null,
+      message: "PoE Port 8 power off!",
+    });
+  });
+
+  it("strips trailing CR or LF when matching RFC3164", () => {
+    expect(parseSyslogMessage("<189>May 22 10:15:30 router01 login: failed password\r\n")).toMatchObject({
+      parser: "rfc3164",
+      priority: 189,
+      hostname: "router01",
+      program: "login",
+      message: "failed password",
+    });
+  });
 });
