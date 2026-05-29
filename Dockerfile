@@ -2,7 +2,9 @@
 FROM node:20-alpine AS base
 
 # Install dependensi untuk build (termasuk libc opsional untuk Alpine)
-RUN apk add --no-cache libc6-compat python3 make g++ postgresql-client unzip
+# postgresql15-client harus match versi server (postgres:15-alpine) agar pg_dump
+# tidak menyisipkan parameter v17-only seperti `transaction_timeout` ke dump.
+RUN apk add --no-cache libc6-compat python3 make g++ postgresql15-client unzip
 
 # 1. Install dependencies & Build (Digabung jadi satu tahap untuk menghindari bug Podman)
 FROM base AS builder

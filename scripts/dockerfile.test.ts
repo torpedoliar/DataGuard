@@ -17,7 +17,8 @@ describe("Dockerfile image export safety", () => {
     expect(extractIndex).toBeGreaterThan(userIndex);
   });
 
-  it("installs postgresql-client and unzip in the base stage", () => {
-    expect(dockerfile).toMatch(/apk add[^\n]*postgresql-client[^\n]*unzip/);
+  it("pins postgresql client to v15 to match the server image", () => {
+    expect(dockerfile).toMatch(/apk add[^\n]*postgresql15-client[^\n]*unzip/);
+    expect(dockerfile).not.toMatch(/apk add[^\n]* postgresql-client/);
   });
 });
