@@ -6,7 +6,7 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { restoreBackupArchive } from "./restore-archive";
 
-async function makeArchive(includeDump: boolean): Promise<Buffer> {
+async function makeArchive(includeDump: boolean, extraEntries: { name: string; content: string }[] = []): Promise<Buffer> {
   const archive = archiver("zip");
   const chunks: Buffer[] = [];
   const stream = new PassThrough();
@@ -18,10 +18,27 @@ async function makeArchive(includeDump: boolean): Promise<Buffer> {
   archive.pipe(stream);
   if (includeDump) archive.append("DUMP_BYTES", { name: "dump.dump" });
   archive.append("payload", { name: "uploads/logos/site.png" });
+  for (const entry of extraEntries) archive.append(entry.content, { name: entry.name });
   await archive.finalize();
   await finished;
   return Buffer.concat(chunks);
 }
+function renameZipEntry(buffer: Buffer, from: string, to: string): Buffer {
+  expect(Buffer.byteLength(from)).toBe(Buffer.byteLength(to));
+  const output = Buffer.from(buffer);
+  const fromBytes = Buffer.from(from);
+  const toBytes = Buffer.from(to);
+  let offset = output.indexOf(fromBytes);
+  let replacements = 0;
+  while (offset >= 0) {
+    toBytes.copy(output, offset);
+    replacements++;
+    offset = output.indexOf(fromBytes, offset + toBytes.length);
+  }
+  expect(replacements).toBeGreaterThan(0);
+  return output;
+}
+
 
 describe("restoreBackupArchive", () => {
   it("rejects an archive without dump.dump", async () => {
@@ -34,6 +51,21 @@ describe("restoreBackupArchive", () => {
       database: { host: "db", port: "5432", user: "administrator", password: "secret", name: "dccheck" },
       runShell: async () => ({ code: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) }),
     })).rejects.toThrow(/dump\.dump/);
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+
+
+  it("rejects archive entries outside the restore directory", async () => {
+    const workDir = mkdtempSync(path.join(tmpdir(), "dccheck-restore-"));
+    const archive = renameZipEntry(await makeArchive(true, [{ name: "AAAevil.txt", content: "owned" }]), "AAAevil.txt", "../evil.txt");
+    await expect(restoreBackupArchive({
+      archive,
+      uploadsDir: path.join(workDir, "uploads"),
+      mode: "wipe",
+      database: { host: "db", port: "5432", user: "administrator", password: "secret", name: "dccheck" },
+      runShell: async () => ({ code: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) }),
+    })).rejects.toThrow(/outside restore directory/);
     rmSync(workDir, { recursive: true, force: true });
   });
 

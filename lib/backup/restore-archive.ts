@@ -21,19 +21,34 @@ export type RestoreResult = {
   warnings: string[];
 };
 
+function safeExtractPath(directory: string, entryPath: string): string {
+  const target = path.resolve(directory, entryPath);
+  const root = path.resolve(directory);
+  if (target !== root && !target.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`Archive entry is outside restore directory: ${entryPath}`);
+  }
+  return target;
+}
+
 async function extractArchive(archive: Buffer): Promise<string> {
   const directory = mkdtempSync(path.join(tmpdir(), "dccheck-restore-"));
-  const zip = await unzipper.Open.buffer(archive);
-  for (const file of zip.files) {
-    const target = path.join(directory, file.path);
+  try {
+    const zip = await unzipper.Open.buffer(archive);
+    for (const file of zip.files) {
+      const target = safeExtractPath(directory, file.path);
     if (file.type === "Directory") {
       mkdirSync(target, { recursive: true });
       continue;
     }
     mkdirSync(path.dirname(target), { recursive: true });
-    writeFileSync(target, await file.buffer());
+      writeFileSync(target, await file.buffer());
+    }
+    return directory;
   }
-  return directory;
+  catch (error) {
+    rmSync(directory, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function copyDir(from: string, to: string) {

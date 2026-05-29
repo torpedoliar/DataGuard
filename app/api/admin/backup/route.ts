@@ -3,7 +3,7 @@ import { logAudit } from "@/lib/audit";
 import { buildBackupArchive } from "@/lib/backup/build-archive";
 import { resolveBackupEnv } from "@/lib/backup/env";
 import { acquireLock, releaseLock } from "@/lib/backup/lock";
-import { PassThrough } from "node:stream";
+import { PassThrough, Readable } from "node:stream";
 
 export const runtime = "nodejs";
 export const maxDuration = 600;
@@ -53,7 +53,7 @@ export async function GET() {
       releaseLock(env.backupLockPath);
     });
 
-  return new Response(passthrough as unknown as ReadableStream<Uint8Array>, {
+  return new Response(Readable.toWeb(passthrough) as ReadableStream<Uint8Array>, {
     status: 200,
     headers: {
       "content-type": "application/zip",

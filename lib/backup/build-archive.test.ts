@@ -26,7 +26,11 @@ describe("buildBackupArchive", () => {
     const chunks: Buffer[] = [];
     output.on("data", (chunk: Buffer) => chunks.push(chunk));
 
-    const fakeRunShell = async () => ({ code: 0, stdout: Buffer.from("FAKE_DUMP_BYTES"), stderr: Buffer.from("") });
+    const fakeRunShell = async (_command: string, args: string[]) => {
+      const fileFlagIndex = args.indexOf("-f");
+      if (fileFlagIndex >= 0) writeFileSync(args[fileFlagIndex + 1], "FAKE_DUMP_BYTES");
+      return { code: 0, stdout: Buffer.from("STDOUT_SHOULD_NOT_BE_BUFFERED"), stderr: Buffer.from("") };
+    };
 
     await buildBackupArchive({
       output,
@@ -40,6 +44,7 @@ describe("buildBackupArchive", () => {
     const paths = entries.map((entry) => entry.path).sort();
     expect(paths).toContain("dump.dump");
     expect(paths).toContain("uploads/logos/site.png");
+    expect(entries.find((entry) => entry.path === "dump.dump")?.content).toBe("FAKE_DUMP_BYTES");
     rmSync(uploadsRoot, { recursive: true, force: true });
   });
 
