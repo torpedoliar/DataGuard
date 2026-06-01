@@ -4,7 +4,7 @@ FROM node:20-alpine AS base
 # Install dependensi untuk build dan runtime libraries yang dibutuhkan oleh
 # pg_dump/pg_restore yang dicopy dari postgres:15-alpine.
 RUN apk add --no-cache libc6-compat python3 make g++ unzip \
-    icu-libs lz4-libs zstd-libs xz-libs libxml2
+    icu-libs lz4-libs zstd-libs xz-libs libxml2 libedit krb5-libs openldap
 
 # Copy pg_dump, pg_restore, psql dari image postgres:15-alpine resmi
 # supaya client tools selalu match versi server (PostgreSQL 15) — apk repo

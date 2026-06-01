@@ -26,6 +26,12 @@ describe("Dockerfile image export safety", () => {
     expect(dockerfile).not.toMatch(/apk add[^\n]* postgresql-client/);
   });
 
+  it("installs runtime libraries required by copied PostgreSQL client tools", () => {
+    expect(dockerfile).toContain("libedit");
+    expect(dockerfile).toContain("krb5-libs");
+    expect(dockerfile).toContain("openldap");
+  });
+
   it("installs unzip for the restore route", () => {
     expect(dockerfile).toMatch(/apk add[^\n]*unzip/);
   });
