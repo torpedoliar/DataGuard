@@ -1,7 +1,8 @@
 # Base image
 FROM node:20-alpine AS base
 
-# Install dependensi untuk build (termasuk libc opsional untuk Alpine)
+# Install dependensi untuk build dan PostgreSQL 17 client tools.
+# pg_restore 17 bisa membaca backup custom format header 1.16.
 RUN apk add --no-cache libc6-compat python3 make g++ postgresql17-client unzip
 
 # 1. Install dependencies & Build (Digabung jadi satu tahap untuk menghindari bug Podman)
@@ -15,7 +16,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# Workaround Bug Podman Windows (Unexpected EOF): 
+# Workaround Bug Podman Windows (Unexpected EOF):
 # Memindahkan 30,000+ file (node_modules & standalone) antar stage menyebabkan Podman WSL crash.
 # Solusinya: Bungkus seluruh hasil build menjadi file tarball UTUH.
 RUN touch version.json # pastikan ada agar tar tidak fail
