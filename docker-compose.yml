@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: dc-check-app:latest
     container_name: dccheck_app
     restart: always
     ports:
@@ -20,6 +21,95 @@ services:
       HOSTNAME: "0.0.0.0"
     volumes:
       - dccheck_uploads:/app/public/uploads
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - dccheck_net
+
+  syslog-receiver:
+    image: dc-check-app:latest
+    container_name: dccheck_syslog_receiver
+    restart: unless-stopped
+    command: npm run syslog:receiver
+    ports:
+      - "0.0.0.0:514:1514/udp"
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927"
+      DB_NAME: dccheck
+      SYSLOG_UDP_HOST: "0.0.0.0"
+      SYSLOG_UDP_PORT: "1514"
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - dccheck_net
+
+  siem-parser:
+    image: dc-check-app:latest
+    container_name: dccheck_siem_parser
+    restart: unless-stopped
+    command: npm run siem:parser
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927"
+      DB_NAME: dccheck
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - dccheck_net
+
+  siem-rules:
+    image: dc-check-app:latest
+    container_name: dccheck_siem_rules
+    restart: unless-stopped
+    command: npm run siem:rules
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927"
+      DB_NAME: dccheck
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - dccheck_net
+
+  siem-alerts:
+    image: dc-check-app:latest
+    container_name: dccheck_siem_alerts
+    restart: unless-stopped
+    command: npm run siem:alerts
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927"
+      DB_NAME: dccheck
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - dccheck_net
+
+  siem-retention:
+    image: dc-check-app:latest
+    container_name: dccheck_siem_retention
+    restart: unless-stopped
+    command: npm run siem:retention
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: administrator
+      DB_PASSWORD: "Arabika1927"
+      DB_NAME: dccheck
     depends_on:
       db:
         condition: service_started

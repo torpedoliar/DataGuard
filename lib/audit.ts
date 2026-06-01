@@ -15,6 +15,8 @@ export type AuditAction =
     | "TOGGLE"
     | "UPLOAD"
     | "EXPORT"
+    | "DOWNLOAD"
+    | "RESTORE"
     | "TEST"
     | "SCHEMA_PUSH"
     | "SITE_SWITCH";
@@ -28,6 +30,8 @@ export type AuditEntity =
     | "user"
     | "vlan"
     | "network_port"
+    | "syslog_source"
+    | "siem_finding"
     | "checklist"
     | "incident"
     | "settings"

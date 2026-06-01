@@ -5,7 +5,7 @@
 # KEAMANAN DATA:
 # - Script ini TIDAK PERNAH memanggil 'down -v' (tidak menghapus volume)
 # - Database container (db) TIDAK PERNAH di-rebuild atau di-stop
-# - Hanya container 'app' yang di-rebuild dan di-restart
+# - Hanya container aplikasi/stateless worker yang di-rebuild dan di-restart
 # - Backup database WAJIB berhasil sebelum proses lanjut
 # ============================================
 
@@ -72,7 +72,7 @@ if (-not (Test-Path "docker-compose.yml")) {
 # STEP 1: BACKUP DATABASE (WAJIB BERHASIL!)
 # ==================================================================
 Write-Host ""
-Write-Host "[1/5] Backing up database..." -ForegroundColor Yellow
+Write-Host "[1/6] Backing up database..." -ForegroundColor Yellow
 $backupDir = "backups"
 if (-not (Test-Path $backupDir)) {
     New-Item -ItemType Directory -Path $backupDir | Out-Null
@@ -146,7 +146,7 @@ else {
 # STEP 2: PULL LATEST CODE
 # ==================================================================
 Write-Host ""
-Write-Host "[2/5] Pulling latest code from GitHub..." -ForegroundColor Yellow
+Write-Host "[2/6] Pulling latest code from GitHub..." -ForegroundColor Yellow
 git pull origin main
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Git pull failed!" -ForegroundColor Red
@@ -156,12 +156,16 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "OK - Code updated" -ForegroundColor Green
 
 # ==================================================================
-# STEP 3: REBUILD HANYA CONTAINER APP (database TIDAK disentuh!)
+# STEP 3: REBUILD APP IMAGE (database TIDAK disentuh!)
 # ==================================================================
+$appService = "app"
+$siemWorkerServices = @("syslog-receiver", "siem-parser", "siem-rules", "siem-alerts", "siem-retention")
+$statelessServices = @($appService) + $siemWorkerServices
 Write-Host ""
-Write-Host "[3/5] Rebuilding application image ONLY (database untouched)..." -ForegroundColor Yellow
+Write-Host "[3/6] Rebuilding app image (database untouched)..." -ForegroundColor Yellow
+Write-Host "      Workers reuse image: $($siemWorkerServices -join ', ')" -ForegroundColor DarkGray
 Write-Host "      This may take 2-5 minutes..." -ForegroundColor DarkGray
-& $mainCmd $extraArgs build --no-cache app
+& $mainCmd $extraArgs build --no-cache $appService
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build failed! Aborting update." -ForegroundColor Red
     Write-Host "Your current running version is still intact." -ForegroundColor Yellow
@@ -171,17 +175,19 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "OK - App image rebuilt successfully" -ForegroundColor Green
 
 # ==================================================================
-# STEP 4: RESTART HANYA APP (database tetap berjalan!)
+# STEP 4: RESTART APP ONLY (database tetap berjalan!)
 # ==================================================================
 Write-Host ""
-Write-Host "[4/5] Restarting app container (database stays running)..." -ForegroundColor Yellow
+Write-Host "[4/6] Restarting app (database stays running)..." -ForegroundColor Yellow
 
-# Hanya recreate service 'app', bukan seluruh stack
-# Ini memastikan container 'db' TIDAK PERNAH berhenti
-# --force-recreate memastikan container lama diganti dengan yang baru
-# --remove-orphans membantu membersihkan jika ada container 'app' tak bernama yang tersisa
-& $mainCmd $extraArgs up -d --no-deps --force-recreate --remove-orphans app
-Write-Host "OK - App container restarted" -ForegroundColor Green
+# Recreate app dulu supaya schema sync berjalan sebelum worker SIEM aktif.
+& $mainCmd $extraArgs up -d --no-deps --force-recreate --remove-orphans $appService
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: App restart failed! Check docker compose logs." -ForegroundColor Red
+    Write-Host "Backup file: $backupFile" -ForegroundColor Cyan
+    exit 1
+}
+Write-Host "OK - App restarted" -ForegroundColor Green
 Write-Host "Waiting for app to become ready..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 10
 
@@ -189,15 +195,63 @@ Start-Sleep -Seconds 10
 # STEP 5: SYNC DATABASE SCHEMA (additive only, no data loss)
 # ==================================================================
 Write-Host ""
-Write-Host "[5/5] Syncing database schema..." -ForegroundColor Yellow
+Write-Host "[5/6] Syncing database schema..." -ForegroundColor Yellow
 Write-Host "      (drizzle push is additive - it only ADDS new columns/tables)" -ForegroundColor DarkGray
+$schemaSyncOutput = @()
+$schemaSyncExitCode = 1
 try {
-    & $mainCmd $extraArgs exec -T app npx drizzle-kit push
-    Write-Host "OK - Database schema synced" -ForegroundColor Green
+    $schemaSyncOutput = & $mainCmd $extraArgs exec -T app npx drizzle-kit push 2>&1
+    $schemaSyncExitCode = $LASTEXITCODE
 }
 catch {
-    Write-Host "WARN - Schema sync had warnings or failed. Check logs above." -ForegroundColor Yellow
+    $schemaSyncOutput += $_.Exception.Message
+    $schemaSyncExitCode = 1
 }
+
+$schemaSyncText = ($schemaSyncOutput | Out-String)
+if ($schemaSyncText.Trim()) { Write-Host $schemaSyncText.TrimEnd() }
+
+if ($schemaSyncExitCode -ne 0 -and ($schemaSyncText -match "No changes detected|Pulling schema from database")) {
+    Write-Host "WARN - Docker reported an exec error after schema check completed. Continuing." -ForegroundColor Yellow
+    $schemaSyncExitCode = 0
+}
+
+if ($schemaSyncExitCode -ne 0) {
+    Write-Host "WARN - Compose schema sync failed; retrying with direct docker exec..." -ForegroundColor Yellow
+    try {
+        $schemaSyncOutput = & docker exec dccheck_app npx drizzle-kit push 2>&1
+        $schemaSyncExitCode = $LASTEXITCODE
+    }
+    catch {
+        $schemaSyncOutput += $_.Exception.Message
+        $schemaSyncExitCode = 1
+    }
+    $schemaSyncText = ($schemaSyncOutput | Out-String)
+    if ($schemaSyncText.Trim()) { Write-Host $schemaSyncText.TrimEnd() }
+}
+
+if ($schemaSyncExitCode -ne 0) {
+    Write-Host "ERROR - Schema sync failed. SIEM workers will not be restarted." -ForegroundColor Red
+    Write-Host "Backup file: $backupFile" -ForegroundColor Cyan
+    exit 1
+}
+
+Write-Host "OK - Database schema synced" -ForegroundColor Green
+
+# ==================================================================
+# STEP 6: RESTART STATELESS SIEM SERVICES (database tetap berjalan!)
+# ==================================================================
+Write-Host ""
+Write-Host "[6/6] Restarting SIEM workers (database stays running)..." -ForegroundColor Yellow
+Write-Host "      Services: $($siemWorkerServices -join ', ')" -ForegroundColor DarkGray
+
+& $mainCmd $extraArgs up -d --no-deps --force-recreate --remove-orphans $siemWorkerServices
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: SIEM worker restart failed! Check docker compose logs." -ForegroundColor Red
+    Write-Host "Backup file: $backupFile" -ForegroundColor Cyan
+    exit 1
+}
+Write-Host "OK - SIEM workers restarted" -ForegroundColor Green
 
 # ==================================================================
 # CLEANUP: Remove old backups (keep last 10)
@@ -214,6 +268,7 @@ Write-Host "  UPDATE COMPLETE!" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Application : http://localhost:3001" -ForegroundColor Cyan
+Write-Host "  SIEM UDP    : 0.0.0.0:514/udp" -ForegroundColor Cyan
 Write-Host "  Backup file : $backupFile" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  To restore database if needed:" -ForegroundColor Yellow

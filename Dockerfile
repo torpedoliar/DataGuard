@@ -2,7 +2,7 @@
 FROM node:20-alpine AS base
 
 # Install dependensi untuk build (termasuk libc opsional untuk Alpine)
-RUN apk add --no-cache libc6-compat python3 make g++
+RUN apk add --no-cache libc6-compat python3 make g++ postgresql17-client unzip
 
 # 1. Install dependencies & Build (Digabung jadi satu tahap untuk menghindari bug Podman)
 FROM base AS builder
