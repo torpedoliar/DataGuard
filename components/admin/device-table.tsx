@@ -17,6 +17,8 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
   Edit,
   Filter,
   Globe,
@@ -104,6 +106,9 @@ export default function DeviceTable({
   const [selectedRack, setSelectedRack] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const racksPerPage = 5;
+
   const handleDeleteSuccess = () => {
     setDeletingDevice(null);
     router.refresh();
@@ -128,6 +133,7 @@ export default function DeviceTable({
     let direction: "asc" | "desc" = "asc";
     if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
     setSortConfig({ key, direction });
+    setCurrentPage(1);
   };
 
   const getSortIcon = (key: keyof Device) => {
@@ -188,9 +194,15 @@ export default function DeviceTable({
     setSelectedRack("");
     setSelectedStatus("");
     setSortConfig(null);
+    setCurrentPage(1);
   };
 
   const hasFilters = searchQuery || selectedCategory || selectedBrand || selectedRack || selectedStatus;
+
+  const totalRacks = groupEntries.length;
+  const totalPages = Math.ceil(totalRacks / racksPerPage);
+  const startIndex = (currentPage - 1) * racksPerPage;
+  const paginatedGroupEntries = groupEntries.slice(startIndex, startIndex + racksPerPage);
 
   return (
     <div className="space-y-4">
@@ -203,13 +215,13 @@ export default function DeviceTable({
                 type="text"
                 placeholder="Search by device name, asset code, or IP address..."
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1); }}
                 className={`${fieldClass} w-full pl-9 pr-8`}
               />
               {searchQuery && (
                 <button
                   type="button"
-                  onClick={() => setSearchQuery("")}
+                  onClick={() => { setSearchQuery(""); setCurrentPage(1); }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text"
                   title="Clear search"
                 >
@@ -223,19 +235,19 @@ export default function DeviceTable({
                 <Filter className="size-3.5" />
                 Filters
               </div>
-              <select value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)} className={`${fieldClass} min-w-36`}>
+              <select value={selectedCategory} onChange={(event) => { setSelectedCategory(event.target.value); setCurrentPage(1); }} className={`${fieldClass} min-w-36`}>
                 <option value="">All Categories</option>
                 {uniqueCategories.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
-              <select value={selectedBrand} onChange={(event) => setSelectedBrand(event.target.value)} className={`${fieldClass} min-w-36`}>
+              <select value={selectedBrand} onChange={(event) => { setSelectedBrand(event.target.value); setCurrentPage(1); }} className={`${fieldClass} min-w-36`}>
                 <option value="">All Brands</option>
                 {uniqueBrands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
               </select>
-              <select value={selectedRack} onChange={(event) => setSelectedRack(event.target.value)} className={`${fieldClass} min-w-36`}>
+              <select value={selectedRack} onChange={(event) => { setSelectedRack(event.target.value); setCurrentPage(1); }} className={`${fieldClass} min-w-36`}>
                 <option value="">All Racks</option>
                 {uniqueRacks.map((rack) => <option key={rack} value={rack}>{rack}</option>)}
               </select>
-              <select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)} className={`${fieldClass} min-w-32`}>
+              <select value={selectedStatus} onChange={(event) => { setSelectedStatus(event.target.value); setCurrentPage(1); }} className={`${fieldClass} min-w-32`}>
                 <option value="">All Status</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -273,7 +285,7 @@ export default function DeviceTable({
                 description={devices.length === 0 ? "Add a device above to start inventory management." : "Reset filters or adjust the search query."}
               />
             ) : (
-              groupEntries.map(([rackName, rackDevices]) => (
+              paginatedGroupEntries.map(([rackName, rackDevices]) => (
                 <Fragment key={rackName}>
                   <tr className="bg-ops-surface">
                     <td colSpan={9} className="px-5 py-2">
@@ -390,6 +402,41 @@ export default function DeviceTable({
           </DataTableBody>
         </DataTable>
       </DataTableFrame>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between rounded-md border border-ops-border bg-ops-surface px-5 py-3">
+          <div className="text-sm text-ops-muted">
+            Showing <span className="font-medium text-ops-text">{startIndex + 1}</span> to{" "}
+            <span className="font-medium text-ops-text">{Math.min(startIndex + racksPerPage, totalRacks)}</span> of{" "}
+            <span className="font-medium text-ops-text">{totalRacks}</span> racks
+          </div>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              icon={<ChevronLeft className="size-4" />}
+            >
+              Previous
+            </ActionButton>
+            <div className="px-2 text-sm font-medium text-ops-text">
+              Page {currentPage} of {totalPages}
+            </div>
+            <ActionButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next
+              <ChevronRight className="ml-1 size-4" />
+            </ActionButton>
+          </div>
+        </div>
+      )}
 
       {editingDevice && (
         <EditDeviceForm device={editingDevice} onClose={() => setEditingDevice(null)} brands={brands} locations={locations} />
