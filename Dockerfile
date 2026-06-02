@@ -1,9 +1,19 @@
 # Base image
 FROM node:20-alpine AS base
 
-# Install dependensi untuk build dan PostgreSQL 17 client tools.
-# pg_restore 17 bisa membaca backup custom format header 1.16.
-RUN apk add --no-cache libc6-compat python3 make g++ postgresql17-client unzip
+# Install dependensi untuk build, unzip, PostgreSQL 17 fallback restore,
+# dan runtime libraries yang dibutuhkan pg_dump/pg_restore dari postgres:15-alpine.
+RUN apk add --no-cache libc6-compat python3 make g++ unzip postgresql17-client \
+    icu-libs lz4-libs zstd-libs xz-libs libxml2 libedit krb5-libs openldap && \
+    cp /usr/bin/pg_restore /usr/local/bin/pg_restore17
+
+# Copy pg_dump, pg_restore, psql dari image postgres:15-alpine resmi
+# supaya backup baru tidak menghasilkan SET transaction_timeout untuk server PostgreSQL 15.
+COPY --from=postgres:15-alpine /usr/local/bin/pg_dump /usr/local/bin/pg_dump
+COPY --from=postgres:15-alpine /usr/local/bin/pg_restore /usr/local/bin/pg_restore
+COPY --from=postgres:15-alpine /usr/local/bin/psql /usr/local/bin/psql
+COPY --from=postgres:15-alpine /usr/local/lib/libpq.so.5 /usr/local/lib/libpq.so.5
+COPY --from=postgres:15-alpine /usr/local/lib/libpq.so.5.15 /usr/local/lib/libpq.so.5.15
 
 # 1. Install dependencies & Build (Digabung jadi satu tahap untuk menghindari bug Podman)
 FROM base AS builder

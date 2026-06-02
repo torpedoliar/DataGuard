@@ -17,7 +17,21 @@ describe("Dockerfile image export safety", () => {
     expect(extractIndex).toBeGreaterThan(userIndex);
   });
 
-  it("installs PostgreSQL 17 client tools and unzip in the base stage", () => {
-    expect(dockerfile).toMatch(/apk add[^\n]*postgresql17-client[^\n]*unzip/);
+  it("uses PostgreSQL 15 client binaries as the default backup and restore tools", () => {
+    expect(dockerfile).toMatch(/COPY --from=postgres:15-alpine \S*\/pg_dump\s+\/usr\/local\/bin\/pg_dump/);
+    expect(dockerfile).toMatch(/COPY --from=postgres:15-alpine \S*\/pg_restore\s+\/usr\/local\/bin\/pg_restore/);
+    expect(dockerfile).toMatch(/COPY --from=postgres:15-alpine \S*\/psql\s+\/usr\/local\/bin\/psql/);
+  });
+
+  it("keeps PostgreSQL 17 pg_restore available for newer dump compatibility", () => {
+    expect(dockerfile).toMatch(/apk add[^\n]*postgresql17-client/);
+    expect(dockerfile).toContain("pg_restore17");
+  });
+
+  it("installs runtime libraries required by copied PostgreSQL client tools", () => {
+    expect(dockerfile).toContain("libedit");
+    expect(dockerfile).toContain("krb5-libs");
+    expect(dockerfile).toContain("openldap");
+    expect(dockerfile).toMatch(/apk add[^\n]*unzip/);
   });
 });

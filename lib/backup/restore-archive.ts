@@ -21,6 +21,11 @@ export type RestoreResult = {
   warnings: string[];
 };
 
+type RestoreTool = {
+  command: "pg_restore" | "pg_restore17";
+  pipeSql: boolean;
+};
+
 function safeExtractPath(directory: string, entryPath: string): string {
   const target = path.resolve(directory, entryPath);
   const root = path.resolve(directory);
@@ -36,11 +41,11 @@ async function extractArchive(archive: Buffer): Promise<string> {
     const zip = await unzipper.Open.buffer(archive);
     for (const file of zip.files) {
       const target = safeExtractPath(directory, file.path);
-    if (file.type === "Directory") {
-      mkdirSync(target, { recursive: true });
-      continue;
-    }
-    mkdirSync(path.dirname(target), { recursive: true });
+      if (file.type === "Directory") {
+        mkdirSync(target, { recursive: true });
+        continue;
+      }
+      mkdirSync(path.dirname(target), { recursive: true });
       writeFileSync(target, await file.buffer());
     }
     return directory;
@@ -74,6 +79,178 @@ function copyUploads(sourceRoot: string, targetDir: string, mode: RestoreMode) {
   copyDir(uploadsSource, targetDir);
 }
 
+function connectionArgs(database: DatabaseTarget): string[] {
+  return [
+    "-h", database.host,
+    "-p", database.port,
+    "-U", database.user,
+    "-d", database.name,
+  ];
+}
+
+function quoteIdentifier(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function isUnsupportedDumpVersion(stderr: string): boolean {
+  return /unsupported version \([^)]+\) in file header/.test(stderr);
+}
+
+async function selectRestoreTool(
+  runShell: RestoreOptions["runShell"],
+  dumpPath: string,
+  env: NodeJS.ProcessEnv,
+): Promise<RestoreTool> {
+  const preflight = await runShell!("pg_restore", ["--list", dumpPath], { env });
+  if (preflight.code === 0) return { command: "pg_restore", pipeSql: false };
+
+  const stderr = preflight.stderr.toString().trim();
+  if (!isUnsupportedDumpVersion(stderr)) {
+    throw new Error(`pg_restore preflight failed: ${stderr}`);
+  }
+
+  let fallback: RunShellResult;
+  try {
+    fallback = await runShell!("pg_restore17", ["--list", dumpPath], { env });
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`pg_restore preflight failed: ${stderr}; pg_restore17 unavailable: ${message}`);
+  }
+
+  if (fallback.code !== 0) {
+    throw new Error(`pg_restore preflight failed: ${stderr}; pg_restore17 preflight failed: ${fallback.stderr.toString().trim()}`);
+  }
+
+  return { command: "pg_restore17", pipeSql: true };
+}
+
+async function listUserSchemas(
+  runShell: RestoreOptions["runShell"],
+  database: DatabaseTarget,
+  env: NodeJS.ProcessEnv,
+): Promise<string[]> {
+  const query = "SELECT nspname FROM pg_namespace WHERE nspname <> 'information_schema' AND nspname NOT LIKE 'pg_%' ORDER BY nspname";
+  const result = await runShell!("psql", [
+    ...connectionArgs(database),
+    "-A",
+    "-t",
+    "-c", query,
+  ], { env });
+
+  if (result.code !== 0) {
+    throw new Error(`psql schema listing failed: ${result.stderr.toString().trim()}`);
+  }
+
+  return result.stdout.toString().split(/\r?\n/).map((schema) => schema.trim()).filter(Boolean);
+}
+
+async function wipeDatabase(
+  runShell: RestoreOptions["runShell"],
+  database: DatabaseTarget,
+  env: NodeJS.ProcessEnv,
+) {
+  const schemas = await listUserSchemas(runShell, database, env);
+  const dropStatements = schemas.map((schema) => `DROP SCHEMA IF EXISTS ${quoteIdentifier(schema)} CASCADE;`);
+  const publicSchema = quoteIdentifier("public");
+  const user = quoteIdentifier(database.user);
+  const sql = [
+    ...dropStatements,
+    `CREATE SCHEMA ${publicSchema};`,
+    `ALTER SCHEMA ${publicSchema} OWNER TO ${user};`,
+    `GRANT ALL ON SCHEMA ${publicSchema} TO ${user};`,
+    `GRANT ALL ON SCHEMA ${publicSchema} TO public;`,
+  ].join(" ");
+
+  const wipe = await runShell!("psql", [
+    ...connectionArgs(database),
+    "-v", "ON_ERROR_STOP=1",
+    "-c", sql,
+  ], { env });
+
+  if (wipe.code !== 0) {
+    throw new Error(`psql wipe failed: ${wipe.stderr.toString().trim()}`);
+  }
+}
+
+function filterUnsupportedSql(sql: string): string {
+  const lines = sql.split(/\r?\n/);
+  const output: string[] = [];
+  let inCopy = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!inCopy && /^SET\s+transaction_timeout\s*=/.test(trimmed)) continue;
+
+    output.push(line);
+
+    if (!inCopy && /^COPY\s+.+\s+FROM\s+stdin;$/i.test(trimmed)) {
+      inCopy = true;
+    } else if (inCopy && trimmed === "\\.") {
+      inCopy = false;
+    }
+  }
+
+  return output.join("\n");
+}
+
+async function restoreDirect(
+  runShell: RestoreOptions["runShell"],
+  tool: RestoreTool,
+  options: RestoreOptions,
+  dumpPath: string,
+  env: NodeJS.ProcessEnv,
+): Promise<string | null> {
+  const args = [
+    "-h", options.database.host,
+    "-p", options.database.port,
+    "-U", options.database.user,
+    `--dbname=${options.database.name}`,
+  ];
+
+  if (options.mode === "wipe") {
+    args.push("-j", "4");
+  } else {
+    args.push("--data-only");
+  }
+  args.push(dumpPath);
+
+  const restore = await runShell!(tool.command, args, { env });
+  const stderr = restore.stderr.toString().trim();
+  if (restore.code !== 0) {
+    throw new Error(`pg_restore failed: ${stderr}`);
+  }
+  return stderr.length > 0 ? stderr : null;
+}
+
+async function restoreViaSqlPipe(
+  runShell: RestoreOptions["runShell"],
+  tool: RestoreTool,
+  options: RestoreOptions,
+  dumpPath: string,
+  env: NodeJS.ProcessEnv,
+): Promise<string | null> {
+  const dumpArgs = options.mode === "append"
+    ? ["--data-only", dumpPath]
+    : [dumpPath];
+  const dump = await runShell!(tool.command, dumpArgs, { env });
+  if (dump.code !== 0) {
+    throw new Error(`pg_restore failed: ${dump.stderr.toString().trim()}`);
+  }
+
+  const sql = filterUnsupportedSql(dump.stdout.toString());
+  const restore = await runShell!("psql", [
+    ...connectionArgs(options.database),
+    "-v", "ON_ERROR_STOP=1",
+  ], { env, input: sql });
+
+  const stderr = [dump.stderr.toString().trim(), restore.stderr.toString().trim()].filter(Boolean).join("\n");
+  if (restore.code !== 0) {
+    throw new Error(`psql restore failed: ${restore.stderr.toString().trim()}`);
+  }
+  return stderr.length > 0 ? stderr : null;
+}
+
 export async function restoreBackupArchive(options: RestoreOptions): Promise<RestoreResult> {
   const runShell = options.runShell ?? defaultRunShell;
   const directory = await extractArchive(options.archive);
@@ -85,56 +262,22 @@ export async function restoreBackupArchive(options: RestoreOptions): Promise<Res
   const env: NodeJS.ProcessEnv = { ...process.env, PGPASSWORD: options.database.password };
   const warnings: string[] = [];
 
-  const preflight = await runShell("pg_restore", [
-    "--list",
-    dumpPath,
-  ], { env });
-  if (preflight.code !== 0) {
+  try {
+    const tool = await selectRestoreTool(runShell, dumpPath, env);
+
+    if (options.mode === "wipe") {
+      await wipeDatabase(runShell, options.database, env);
+    }
+
+    const warning = tool.pipeSql
+      ? await restoreViaSqlPipe(runShell, tool, options, dumpPath, env)
+      : await restoreDirect(runShell, tool, options, dumpPath, env);
+    if (warning) warnings.push(warning);
+
+    copyUploads(directory, options.uploadsDir, options.mode);
+    return { mode: options.mode, warnings };
+  }
+  finally {
     rmSync(directory, { recursive: true, force: true });
-    throw new Error(`pg_restore preflight failed: ${preflight.stderr.toString().trim()}`);
   }
-
-  if (options.mode === "wipe") {
-    const wipe = await runShell("psql", [
-      "-h", options.database.host,
-      "-p", options.database.port,
-      "-U", options.database.user,
-      "-d", options.database.name,
-      "-c", `DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO ${options.database.user};`,
-    ], { env });
-    if (wipe.code !== 0) {
-      rmSync(directory, { recursive: true, force: true });
-      throw new Error(`psql wipe failed: ${wipe.stderr.toString().trim()}`);
-    }
-    const restore = await runShell("pg_restore", [
-      "-h", options.database.host,
-      "-p", options.database.port,
-      "-U", options.database.user,
-      `--dbname=${options.database.name}`,
-      "-j", "4",
-      dumpPath,
-    ], { env });
-    if (restore.code !== 0) {
-      rmSync(directory, { recursive: true, force: true });
-      throw new Error(`pg_restore failed: ${restore.stderr.toString().trim()}`);
-    }
-  } else {
-    const restore = await runShell("pg_restore", [
-      "-h", options.database.host,
-      "-p", options.database.port,
-      "-U", options.database.user,
-      `--dbname=${options.database.name}`,
-      "--data-only",
-      dumpPath,
-    ], { env });
-    if (restore.stderr.length > 0) warnings.push(restore.stderr.toString().trim());
-    if (restore.code !== 0) {
-      rmSync(directory, { recursive: true, force: true });
-      throw new Error(`pg_restore --data-only failed: ${restore.stderr.toString().trim()}`);
-    }
-  }
-
-  copyUploads(directory, options.uploadsDir, options.mode);
-  rmSync(directory, { recursive: true, force: true });
-  return { mode: options.mode, warnings };
 }
