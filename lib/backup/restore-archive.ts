@@ -230,9 +230,13 @@ async function restoreViaSqlPipe(
   dumpPath: string,
   env: NodeJS.ProcessEnv,
 ): Promise<string | null> {
-  const dumpArgs = options.mode === "append"
-    ? ["--data-only", dumpPath]
-    : [dumpPath];
+  const dumpArgs = [
+    "-f", "-",
+    "--no-owner",
+    "--no-privileges",
+    ...(options.mode === "append" ? ["--data-only"] : []),
+    dumpPath,
+  ];
   const dump = await runShell!(tool.command, dumpArgs, { env });
   if (dump.code !== 0) {
     throw new Error(`pg_restore failed: ${dump.stderr.toString().trim()}`);

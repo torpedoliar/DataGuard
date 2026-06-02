@@ -103,6 +103,11 @@ describe("restoreBackupArchive", () => {
     expect(calls.map((call) => call.command)).toEqual(["pg_restore", "pg_restore17", "psql", "psql", "pg_restore17", "psql"]);
     expect(calls[0].args).toContain("--list");
     expect(calls[1].args).toContain("--list");
+    const dumpCall = calls[4];
+    expect(dumpCall.args).toContain("-f");
+    expect(dumpCall.args).toContain("-");
+    expect(dumpCall.args).toContain("--no-owner");
+    expect(dumpCall.args).not.toContain("--dbname=dccheck");
     expect(restorePsql?.input?.toString()).not.toContain("transaction_timeout");
     expect(restorePsql?.input?.toString()).toContain("CREATE TABLE sites");
     rmSync(workDir, { recursive: true, force: true });
