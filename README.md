@@ -1,19 +1,6 @@
 # DataGuard (DC-Check)
 
-<div align="center">
-
-**Open-source data center operations platform for audits, assets, racks, network inventory, SIEM signals, and backup/restore workflows.**
-
-[![Next.js](https://img.shields.io/badge/Next.js-16.1.6-black?logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.2.3-61DAFB?logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15%2B-4169E1?logo=postgresql)](https://www.postgresql.org/)
-[![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.45-C5F74F)](https://orm.drizzle.team/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-</div>
-
----
+Open-source data center operations platform for audits, assets, racks, network inventory, SIEM signals, and backup/restore workflows.
 
 ## Why DataGuard exists
 
