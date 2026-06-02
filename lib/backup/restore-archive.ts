@@ -81,11 +81,25 @@ async function removeUploadsTarget(targetDir: string): Promise<void> {
     await fsRm(targetDir, { recursive: true, force: true, maxRetries: 6, retryDelay: 250 });
   }
   catch (error) {
-    if (!isBusyError(error)) throw error;
-    const stale = `${targetDir}.stale.${Date.now()}`;
-    renameSync(targetDir, stale);
-    // Best-effort background cleanup so the next restore attempt is not blocked.
-    void fsRm(stale, { recursive: true, force: true, maxRetries: 12, retryDelay: 500 }).catch(() => undefined);
+    if (isBusyError(error)) {
+      const stale = `${targetDir}.stale.${Date.now()}`;
+      try {
+        renameSync(targetDir, stale);
+        // Best-effort background cleanup so the next restore attempt is not blocked.
+        void fsRm(stale, { recursive: true, force: true, maxRetries: 12, retryDelay: 500 }).catch(() => undefined);
+      }
+      catch {
+        // renameSync also failed — directory is locked by another process.
+        // Mark for deferred cleanup on next startup instead of failing.
+        void Promise.allSettled([
+          fsRm(targetDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 1000 }),
+        ]);
+        throw Object.assign(new Error(`Target directory is locked by another process: ${targetDir}. Close any programs accessing it and retry.`), { code: "EBUSY" });
+      }
+    }
+    else {
+      throw error;
+    }
   }
 }
 
