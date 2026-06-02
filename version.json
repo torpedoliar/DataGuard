@@ -1,8 +1,9 @@
 {
-    "version": "1.2.1",
+    "version": "1.2.2",
     "releaseDate": "2026-06-02",
     "minDatabaseVersion": "1.0.0",
     "changelog": [
+        "Fix: Retry copyFileSync on EBUSY in copyDir — transient file locks no longer abort restore",
         "Fix: Robust EBUSY handling in backup restore — added nested error handling for renameSync failure with informative error message",
         "Feature: Group Rack Layout by Location with dynamic headers",
         "Feature: Location-based filtering in Rack Layout",

@@ -57,15 +57,29 @@ async function extractArchive(archive: Buffer): Promise<string> {
   }
 }
 
-function copyDir(from: string, to: string) {
+function copyDir(from: string, to: string, retries = 4): void {
   for (const entry of readdirSync(from, { withFileTypes: true })) {
     const fromPath = path.join(from, entry.name);
     const toPath = path.join(to, entry.name);
     if (entry.isDirectory()) {
       mkdirSync(toPath, { recursive: true });
-      copyDir(fromPath, toPath);
+      copyDir(fromPath, toPath, retries);
     } else {
-      copyFileSync(fromPath, toPath);
+      copyFileWithRetry(fromPath, toPath, retries);
+    }
+  }
+}
+
+function copyFileWithRetry(from: string, to: string, remaining: number): void {
+  try {
+    copyFileSync(from, to);
+  }
+  catch (error) {
+    if (remaining > 0 && isBusyError(error)) {
+      copyFileWithRetry(from, to, remaining - 1);
+    }
+    else {
+      throw error;
     }
   }
 }
