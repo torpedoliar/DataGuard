@@ -96,6 +96,18 @@ dc-check/
 
 ---
 
+## Screenshots
+
+| Dashboard | Rack Layout |
+|:---------:|:----------:|
+| ![Dashboard](Screenshoot/1.jpg) | ![Rack Layout](Screenshoot/2.jpg) |
+
+| SIEM Findings | Audit Grid |
+|:-------------:|:----------:|
+| ![SIEM Findings](Screenshoot/3.jpg) | ![Audit Grid](Screenshoot/4.jpg) |
+
+---
+
 ## Quick start
 
 ### Prerequisites
