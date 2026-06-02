@@ -1,5 +1,5 @@
 import archiver from "archiver";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -240,6 +240,29 @@ describe("restoreBackupArchive", () => {
     expect(calls[0].args).toContain("--list");
     expect(calls[1].args).toContain("--data-only");
     expect(result.mode).toBe("append");
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it("replaces the uploads directory in wipe mode and verifies archive content is restored", async () => {
+    const workDir = mkdtempSync(path.join(tmpdir(), "dccheck-restore-"));
+    const uploadsDir = path.join(workDir, "uploads");
+    mkdirSync(uploadsDir, { recursive: true });
+    writeFileSync(path.join(uploadsDir, "old.txt"), "previous");
+    const archive = await makeArchive(true);
+    const fakeRunShell = async () => ({ code: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) });
+
+    const result = await restoreBackupArchive({
+      archive,
+      uploadsDir,
+      mode: "wipe",
+      database: { host: "db", port: "5432", user: "administrator", password: "secret", name: "dccheck" },
+      runShell: fakeRunShell,
+    });
+
+    expect(result.mode).toBe("wipe");
+    // old file should be gone; archive uploads should be present
+    expect(readFileSync(path.join(uploadsDir, "logos", "site.png"), "utf8")).toBe("payload");
+    expect(() => readFileSync(path.join(uploadsDir, "old.txt"), "utf8")).toThrow();
     rmSync(workDir, { recursive: true, force: true });
   });
 });

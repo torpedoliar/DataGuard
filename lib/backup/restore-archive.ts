@@ -1,4 +1,5 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { rm as fsRm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import unzipper from "unzipper";
@@ -69,11 +70,30 @@ function copyDir(from: string, to: string) {
   }
 }
 
-function copyUploads(sourceRoot: string, targetDir: string, mode: RestoreMode) {
+function isBusyError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: string }).code;
+  return code === "EBUSY" || code === "EPERM" || code === "ENOTEMPTY" || code === "EACCES";
+}
+
+async function removeUploadsTarget(targetDir: string): Promise<void> {
+  try {
+    await fsRm(targetDir, { recursive: true, force: true, maxRetries: 6, retryDelay: 250 });
+  }
+  catch (error) {
+    if (!isBusyError(error)) throw error;
+    const stale = `${targetDir}.stale.${Date.now()}`;
+    renameSync(targetDir, stale);
+    // Best-effort background cleanup so the next restore attempt is not blocked.
+    void fsRm(stale, { recursive: true, force: true, maxRetries: 12, retryDelay: 500 }).catch(() => undefined);
+  }
+}
+
+async function copyUploads(sourceRoot: string, targetDir: string, mode: RestoreMode): Promise<void> {
   if (!readdirSync(sourceRoot).includes("uploads")) return;
   const uploadsSource = path.join(sourceRoot, "uploads");
   if (mode === "wipe") {
-    rmSync(targetDir, { recursive: true, force: true });
+    await removeUploadsTarget(targetDir);
   }
   mkdirSync(targetDir, { recursive: true });
   copyDir(uploadsSource, targetDir);
@@ -278,7 +298,7 @@ export async function restoreBackupArchive(options: RestoreOptions): Promise<Res
       : await restoreDirect(runShell, tool, options, dumpPath, env);
     if (warning) warnings.push(warning);
 
-    copyUploads(directory, options.uploadsDir, options.mode);
+    await copyUploads(directory, options.uploadsDir, options.mode);
     return { mode: options.mode, warnings };
   }
   finally {
