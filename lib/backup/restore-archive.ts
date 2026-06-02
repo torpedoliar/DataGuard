@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { rm as fsRm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
@@ -91,30 +91,48 @@ function isBusyError(error: unknown): boolean {
 }
 
 async function removeUploadsTarget(targetDir: string): Promise<void> {
+  // First, try to remove the directory entirely (works when it's a regular directory).
   try {
     await fsRm(targetDir, { recursive: true, force: true, maxRetries: 6, retryDelay: 250 });
+    return;
   }
   catch (error) {
-    if (isBusyError(error)) {
-      const stale = `${targetDir}.stale.${Date.now()}`;
-      try {
-        renameSync(targetDir, stale);
-        // Best-effort background cleanup so the next restore attempt is not blocked.
-        void fsRm(stale, { recursive: true, force: true, maxRetries: 12, retryDelay: 500 }).catch(() => undefined);
-      }
-      catch {
-        // renameSync also failed — directory is locked by another process.
-        // Mark for deferred cleanup on next startup instead of failing.
-        void Promise.allSettled([
-          fsRm(targetDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 1000 }),
-        ]);
-        throw Object.assign(new Error(`Target directory is locked by another process: ${targetDir}. Close any programs accessing it and retry.`), { code: "EBUSY" });
-      }
-    }
-    else {
-      throw error;
+    if (!isBusyError(error)) throw error;
+    // EBUSY/EPERM on the directory itself typically means it's a mount point
+    // (e.g. a Docker volume). Fall through to clear contents instead.
+  }
+
+  // Fallback: clear the *contents* of the directory without removing the
+  // directory itself.  This is the expected path when uploadsDir is a Docker
+  // named‑volume mount point — the OS will not allow removing or renaming a
+  // mount point, but removing individual children is fine.
+  let entries: import("node:fs").Dirent[];
+  try {
+    entries = readdirSync(targetDir, { withFileTypes: true });
+  } catch {
+    // Directory doesn't exist or is inaccessible — nothing to clean.
+    return;
+  }
+
+  const errors: Error[] = [];
+  for (const entry of entries) {
+    const childPath = path.join(targetDir, entry.name);
+    try {
+      await fsRm(childPath, { recursive: true, force: true, maxRetries: 4, retryDelay: 300 });
+    } catch (err) {
+      errors.push(err instanceof Error ? err : new Error(String(err)));
     }
   }
+
+  if (errors.length > 0 && errors.length === entries.length) {
+    // Every single child failed — this is a real problem.
+    throw Object.assign(
+      new Error(`Could not clear uploads directory: ${targetDir}. ${errors[0].message}`),
+      { code: "EBUSY" },
+    );
+  }
+  // Partial failures are tolerated — remaining files will be overwritten by
+  // the incoming archive contents.
 }
 
 async function copyUploads(sourceRoot: string, targetDir: string, mode: RestoreMode): Promise<void> {
