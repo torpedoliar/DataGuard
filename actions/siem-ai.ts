@@ -8,6 +8,42 @@ import { buildSiemAiPrompt, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAn
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+export async function testSiemAiConnection(prevState: unknown, formData: FormData) {
+  void prevState;
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { ok: false, message: auth.message };
+
+  const [settings] = await db.select().from(siemSettings).limit(1);
+
+  // Prefer values typed into the form so admins can test before saving.
+  // Fall back to the saved API key when the password field is left blank.
+  const endpointUrl = normalizeOpenAiCompatibleEndpoint(
+    process.env.SIEM_AI_ENDPOINT_URL || String(formData.get("aiEndpointUrl") ?? "").trim() || settings?.aiEndpointUrl || "",
+  );
+  const model = (process.env.SIEM_AI_DEFAULT_MODEL || String(formData.get("aiDefaultModel") ?? "").trim() || settings?.aiDefaultModel || "").trim();
+  const formApiKey = String(formData.get("aiApiKey") ?? "").trim();
+  const apiKey = process.env.SIEM_AI_API_KEY || formApiKey || settings?.aiApiKey || "";
+
+  if (!endpointUrl) return { ok: false, message: "Endpoint URL belum diisi." };
+  if (!model) return { ok: false, message: "Model belum diisi." };
+
+  // Minimal prompt; the word "json" is required by some providers (e.g. DeepSeek)
+  // when response_format=json_object is used.
+  const prompt = 'Reply with the strict json object {"status":"ok"} and nothing else.';
+
+  try {
+    const startedAt = Date.now();
+    const providerJson = await requestSiemAiAnalysis({ endpointUrl, apiKey, model, prompt });
+    const elapsedMs = Date.now() - startedAt;
+    void providerJson;
+    return { ok: true, message: `Berhasil terhubung ke ${model} (${elapsedMs} ms).` };
+  } catch (error) {
+    console.error("SIEM AI connection test failed", error);
+    const detail = error instanceof Error ? error.message : "Unknown error";
+    return { ok: false, message: `Gagal terhubung: ${detail}` };
+  }
+}
+
 export async function generateSiemAiAnalysis(prevState: unknown, formData: FormData) {
   void prevState;
   const auth = await requireActiveSiteAdminAction();

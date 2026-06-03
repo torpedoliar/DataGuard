@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { MouseEventHandler, ReactNode } from "react";
+import type { ComponentProps, MouseEventHandler, ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import clsx from "clsx";
 
@@ -23,6 +23,7 @@ type ActionButtonProps = ActionButtonBaseProps & {
   type?: "button" | "submit" | "reset";
   disabled?: boolean;
   onClick?: MouseEventHandler<HTMLButtonElement | HTMLAnchorElement>;
+  formAction?: ComponentProps<"button">["formAction"];
 };
 
 const variantClasses: Record<ActionButtonVariant, string> = {
@@ -67,6 +68,7 @@ export default function ActionButton(props: ActionButtonProps) {
     type = "button",
     disabled: disabledProp,
     onClick,
+    formAction,
     variant = "primary",
     size = "md",
     isPending = false,
@@ -104,6 +106,7 @@ export default function ActionButton(props: ActionButtonProps) {
       type={type}
       title={title}
       onClick={onClick as MouseEventHandler<HTMLButtonElement> | undefined}
+      formAction={formAction}
       disabled={disabled}
       className={classes}
     >

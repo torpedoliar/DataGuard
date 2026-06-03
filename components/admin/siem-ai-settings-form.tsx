@@ -1,5 +1,6 @@
 "use client";
 
+import { testSiemAiConnection } from "@/actions/siem-ai";
 import { updateSiemAiSettings } from "@/actions/siem-settings";
 import ActionButton from "@/components/ui/action-button";
 import { useRouter } from "next/navigation";
@@ -18,6 +19,7 @@ type SiemAiSettingsData = {
 export default function SiemAiSettingsForm({ initialData }: { initialData: SiemAiSettingsData }) {
   const router = useRouter();
   const [state, action, isPending] = useActionState(updateSiemAiSettings, undefined);
+  const [testState, testAction, isTesting] = useActionState(testSiemAiConnection, undefined);
   const [enabled, setEnabled] = useState(initialData.aiEnabled);
 
   useEffect(() => {
@@ -72,7 +74,14 @@ export default function SiemAiSettingsForm({ initialData }: { initialData: SiemA
       {state?.message && !state.success && <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">{state.message}</div>}
       {state?.success && <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-300">SIEM AI settings saved.</div>}
 
-      <div className="flex justify-end">
+      {testState && (
+        <div className={`rounded-lg border p-3 text-sm ${testState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
+          {testState.message}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+        <ActionButton type="submit" formAction={testAction} variant="secondary" isPending={isTesting}>Test Connection</ActionButton>
         <ActionButton type="submit" isPending={isPending}>Save SIEM AI Settings</ActionButton>
       </div>
     </form>

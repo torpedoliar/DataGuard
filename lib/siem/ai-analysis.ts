@@ -177,7 +177,11 @@ export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey
     }),
   });
 
-  if (!response.ok) throw new Error("AI provider rejected request.");
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    const snippet = body.trim().slice(0, 200);
+    throw new Error(`AI provider rejected request (HTTP ${response.status})${snippet ? `: ${snippet}` : "."}`);
+  }
   const data = await response.json() as { choices?: { message?: { content?: string } }[] };
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("AI provider returned empty response.");
