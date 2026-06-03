@@ -43,6 +43,13 @@
       "when": 1779461993300,
       "tag": "0005_special_ben_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780466401957,
+      "tag": "0006_damp_kitty_pryde",
+      "breakpoints": true
     }
   ]
 }
