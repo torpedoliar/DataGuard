@@ -9,10 +9,8 @@ type SiemAiSettingsData = {
   aiEnabled: boolean;
   aiEndpointUrl: string;
   aiApiKeyConfigured: boolean;
-  aiModelOpus: string;
-  aiModelSonnet: string;
-  aiModelHaiku: string;
   aiDefaultModel: string;
+  aiReady: boolean;
   aiMaxSampleEvents: number;
   aiMaxRawLength: number;
 };
@@ -31,10 +29,10 @@ export default function SiemAiSettingsForm({ initialData }: { initialData: SiemA
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-white">SIEM AI Analysis</h2>
-          <p className="mt-1 text-xs text-slate-400">Manual OpenAI-compatible config for 9router or compatible /chat/completions providers. Environment variables override saved values.</p>
+          <p className="mt-1 text-xs text-slate-400">Konfigurasi OpenAI-compatible untuk 9router/provider /chat/completions. API key opsional bila router memegang kredensial. Environment variables menimpa nilai tersimpan.</p>
         </div>
-        <span className={`inline-flex h-7 w-fit items-center rounded-full border px-3 text-xs font-medium ${initialData.aiApiKeyConfigured ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-amber-400/25 bg-amber-400/10 text-amber-300"}`}>
-          {initialData.aiApiKeyConfigured ? "API key configured" : "API key missing"}
+        <span className={`inline-flex h-7 w-fit items-center rounded-full border px-3 text-xs font-medium ${initialData.aiReady ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-amber-400/25 bg-amber-400/10 text-amber-300"}`}>
+          {initialData.aiReady ? "Siap" : "Belum lengkap"}
         </span>
       </div>
 
@@ -51,24 +49,12 @@ export default function SiemAiSettingsForm({ initialData }: { initialData: SiemA
           <input name="aiEndpointUrl" defaultValue={initialData.aiEndpointUrl} required placeholder="https://api.9router.example/v1/chat/completions" className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white" />
         </label>
         <label className="space-y-1.5 text-sm font-medium text-slate-300">
-          API Key
-          <input name="aiApiKey" type="password" autoComplete="off" placeholder={initialData.aiApiKeyConfigured ? "Key tersimpan; isi hanya untuk mengganti" : "sk-..."} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white" />
+          API Key <span className="text-xs font-normal text-slate-500">(opsional)</span>
+          <input name="aiApiKey" type="password" autoComplete="off" placeholder={initialData.aiApiKeyConfigured ? "Token tersimpan; isi hanya untuk mengganti" : "Kosongkan jika router sudah memegang kredensial"} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white" />
         </label>
         <label className="space-y-1.5 text-sm font-medium text-slate-300">
-          Default Model
+          Model
           <input name="aiDefaultModel" defaultValue={initialData.aiDefaultModel} required placeholder="anthropic/claude-sonnet-4.6" className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white" />
-        </label>
-        <label className="space-y-1.5 text-sm font-medium text-slate-300">
-          Opus Model
-          <input name="aiModelOpus" defaultValue={initialData.aiModelOpus} placeholder="optional" className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white" />
-        </label>
-        <label className="space-y-1.5 text-sm font-medium text-slate-300">
-          Sonnet Model
-          <input name="aiModelSonnet" defaultValue={initialData.aiModelSonnet} placeholder="optional" className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white" />
-        </label>
-        <label className="space-y-1.5 text-sm font-medium text-slate-300">
-          Haiku Model
-          <input name="aiModelHaiku" defaultValue={initialData.aiModelHaiku} placeholder="optional" className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white" />
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-1.5 text-sm font-medium text-slate-300">
