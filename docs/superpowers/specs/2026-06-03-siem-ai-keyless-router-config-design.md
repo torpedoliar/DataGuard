@@ -55,13 +55,13 @@ Router memegang kredensial sendiri. Aplikasi **tidak mengirim** header `Authoriz
 
 ### 4. Settings action — `actions/siem-settings.ts`
 - Zod `aiSettingsSchema`: hapus `aiModelOpus`, `aiModelSonnet`, `aiModelHaiku`. `aiDefaultModel` tetap wajib (min 1). `aiApiKey` tetap opsional.
-- `getSiemAiSettings`: hapus field model tier dari objek balikan; pertahankan `aiApiKeyConfigured` (untuk indikator opsional) atau ganti sesuai UI baru.
+- `getSiemAiSettings`: hapus field model tier dari objek balikan. Untuk badge baru, sertakan field kesiapan `aiReady = Boolean(endpoint) && Boolean(model)`. `aiApiKeyConfigured` boleh tetap dikembalikan sebagai info tambahan (mis. menampilkan "token terpasang") tapi bukan penentu badge utama.
 - `updateSiemAiSettings`: hapus persistensi kolom model tier.
 
 ### 5. UI form — `components/admin/siem-ai-settings-form.tsx`
 - Hapus tiga input model (Opus/Sonnet/Haiku); sisakan satu input **"Model"** (sebelumnya "Default Model").
 - Field **API Key**: tandai opsional — placeholder "Kosongkan jika router sudah memegang kredensial".
-- Badge status: ganti dari "API key configured/missing" menjadi indikator berbasis kesiapan endpoint + model (mis. "Siap" jika endpoint & model terisi), karena key bukan lagi penentu kesiapan.
+- Badge status: ganti dari "API key configured/missing" menjadi indikator `aiReady` (mis. "Siap" jika endpoint & model terisi, "Belum lengkap" jika tidak), karena key bukan lagi penentu kesiapan.
 - Update tipe `SiemAiSettingsData` agar selaras (hapus field model tier).
 
 ### 6. Tests — `lib/siem/ai-analysis.test.ts`
