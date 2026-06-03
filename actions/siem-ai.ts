@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { siemFindings, siemSettings, syslogEvents, syslogEventsRaw } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
-import { buildSiemAiPrompt, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, requestSiemAiAnalysis, resolveSiemAiModel, type SiemAiEventSample } from "@/lib/siem/ai-analysis";
+import { buildSiemAiPrompt, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, requestSiemAiAnalysis, type SiemAiEventSample } from "@/lib/siem/ai-analysis";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -21,13 +21,8 @@ export async function generateSiemAiAnalysis(prevState: unknown, formData: FormD
 
   const endpointUrl = normalizeOpenAiCompatibleEndpoint(process.env.SIEM_AI_ENDPOINT_URL || settings.aiEndpointUrl || "");
   const apiKey = process.env.SIEM_AI_API_KEY || settings.aiApiKey || "";
-  const model = resolveSiemAiModel({
-    aiDefaultModel: process.env.SIEM_AI_DEFAULT_MODEL || settings.aiDefaultModel,
-    aiModelOpus: process.env.SIEM_AI_MODEL_OPUS || settings.aiModelOpus,
-    aiModelSonnet: process.env.SIEM_AI_MODEL_SONNET || settings.aiModelSonnet,
-    aiModelHaiku: process.env.SIEM_AI_MODEL_HAIKU || settings.aiModelHaiku,
-  });
-  if (!endpointUrl || !apiKey.trim() || !model) return { message: "SIEM AI endpoint, API key, and model must be configured." };
+  const model = (process.env.SIEM_AI_DEFAULT_MODEL || settings.aiDefaultModel || "").trim();
+  if (!endpointUrl || !model) return { message: "SIEM AI endpoint dan model harus dikonfigurasi." };
 
   const finding = await db.query.siemFindings.findFirst({
     where: and(eq(siemFindings.id, findingId), eq(siemFindings.siteId, auth.activeSiteId)),
