@@ -1,7 +1,16 @@
 // Diagnostic: dump siem_settings AI config (key masked) + live provider test.
 // Run inside container:  docker exec dccheck_app node scripts/check-siem-ai.js
-const { buildDatabaseUrl } = require("../lib/database-url");
 const { Pool } = require("pg");
+
+function buildDatabaseUrl(env = process.env) {
+  if (env.DATABASE_URL) return env.DATABASE_URL;
+  const host = env.DB_HOST || "localhost";
+  const port = env.DB_PORT || "5432";
+  const user = env.DB_USER || "postgres";
+  const password = env.DB_PASSWORD || "postgres";
+  const name = env.DB_NAME || "dccheck";
+  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${name}`;
+}
 
 async function main() {
   const url = buildDatabaseUrl();
