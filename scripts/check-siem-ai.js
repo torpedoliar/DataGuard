@@ -35,30 +35,37 @@ async function main() {
     console.log("  key_head        :", row.key_head);
   }
 
-  // Live test using EXACTLY what is stored in the DB.
+  // Live tests using stored DB config, varying the prompt wording.
   const s = r.rows[0];
   if (s && s.ai_endpoint_url && s.ai_default_model) {
     let ep = String(s.ai_endpoint_url).trim().replace(/\/+$/, "");
     if (!ep.endsWith("/chat/completions")) ep += "/chat/completions";
     const headers = { "Content-Type": "application/json" };
     if (s.full_key && s.full_key.trim()) headers.Authorization = "Bearer " + s.full_key.trim();
-    console.log("\nLive test ->", ep, "(auth:", headers.Authorization ? "yes" : "no", ")");
-    try {
-      const resp = await fetch(ep, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          model: s.ai_default_model,
-          messages: [{ role: "user", content: "say hi" }],
-          temperature: 0.2,
-          response_format: { type: "json_object" },
-        }),
-      });
-      const text = await resp.text();
-      console.log("STATUS:", resp.status);
-      console.log("BODY:", text.slice(0, 600));
-    } catch (e) {
-      console.log("FETCH ERROR:", e.message);
+
+    const cases = [
+      { label: "CAPITAL JSON (like real app)", sys: "You produce evidence-only defensive SIEM analysis as strict JSON.", user: "Return strict JSON with keys: summary. say hi" },
+      { label: "lowercase json", sys: "Respond only with json.", user: "Return a json object that says hi" },
+    ];
+    for (const c of cases) {
+      console.log("\nLive test [" + c.label + "] ->", ep);
+      try {
+        const resp = await fetch(ep, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model: s.ai_default_model,
+            messages: [{ role: "system", content: c.sys }, { role: "user", content: c.user }],
+            temperature: 0.2,
+            response_format: { type: "json_object" },
+          }),
+        });
+        const text = await resp.text();
+        console.log("STATUS:", resp.status);
+        console.log("BODY:", text.slice(0, 400));
+      } catch (e) {
+        console.log("FETCH ERROR:", e.message);
+      }
     }
   } else {
     console.log("\nSkipping live test: endpoint or model missing in DB.");
