@@ -108,14 +108,47 @@ async function main() {
     }
   }
 
-  let data;
+  // Mirror the SHIPPED parser (parseChatCompletionBody) to prove the live
+  // response now parses end-to-end.
+  function readChoiceContent(parsed) {
+    const c = parsed.choices?.[0];
+    return c?.message?.content ?? c?.delta?.content ?? "";
+  }
+  function parseChatCompletionBody(raw) {
+    const t = raw.trim();
+    if (!t) throw new Error("empty");
+    if (!t.includes("data:")) return readChoiceContent(JSON.parse(t));
+    let streamed = "", lastMessage = "", sawChunk = false;
+    for (const line of t.split(/\r?\n/)) {
+      const tr = line.trim();
+      if (!tr.startsWith("data:")) continue;
+      const p = tr.slice(5).trim();
+      if (!p || p === "[DONE]") continue;
+      let parsed;
+      try { parsed = JSON.parse(p); } catch { continue; }
+      sawChunk = true;
+      const c = parsed.choices?.[0];
+      if (c?.delta?.content) streamed += c.delta.content;
+      if (c?.message?.content) lastMessage = c.message.content;
+    }
+    if (!sawChunk) {
+      const idx = t.indexOf("data:");
+      const head = idx > 0 ? t.slice(0, idx).trim() : "";
+      if (head) return readChoiceContent(JSON.parse(head));
+    }
+    const content = streamed || lastMessage;
+    if (!content) throw new Error("empty content");
+    return content;
+  }
+
+  let content;
   try {
-    data = JSON.parse(rawBody);
-  } catch {
-    console.log("\nCannot use envelope as-is; raw body saved to /tmp/siem-raw-body.txt");
+    content = parseChatCompletionBody(rawBody);
+    console.log("SHIPPED PARSER: OK -> content length", content.length);
+  } catch (e) {
+    console.log("SHIPPED PARSER: FAILS ->", e.message, "(raw body saved to /tmp/siem-raw-body.txt)");
     return;
   }
-  const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
     console.log("NO STRING CONTENT. Full response:");
     console.log(JSON.stringify(data, null, 2).slice(0, 1500));

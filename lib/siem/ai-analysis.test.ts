@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSiemAiPrompt, extractFirstJsonObject, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, requestSiemAiAnalysis } from "./ai-analysis";
+import { buildSiemAiPrompt, extractFirstJsonObject, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, parseChatCompletionBody, requestSiemAiAnalysis } from "./ai-analysis";
 
 describe("SIEM AI analysis", () => {
   it("normalizes OpenAI-compatible chat completion endpoints", () => {
@@ -64,6 +64,47 @@ describe("SIEM AI analysis", () => {
 
     const result = await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "m", prompt: "p", fetchFn });
     expect(result).toEqual({ summary: "hi" });
+  });
+
+  it("parses an SSE envelope with a completion object and a [DONE] trailer", async () => {
+    // Reproduces production: provider returns Content-Type text/event-stream for
+    // large responses, body = {full chat.completion json}data: [DONE]\n\n
+    const completion = JSON.stringify({ choices: [{ message: { content: '{"summary":"sse-ok"}' } }] });
+    const body = `${completion}data: [DONE]\n\n`;
+    const fetchFn = (async () =>
+      new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } })) as unknown as typeof fetch;
+
+    const result = await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "m", prompt: "p", fetchFn });
+    expect(result).toEqual({ summary: "sse-ok" });
+  });
+
+  it("parses a true multi-chunk SSE stream by reassembling delta content", async () => {
+    const chunk = (delta: string) => `data: ${JSON.stringify({ choices: [{ delta: { content: delta } }] })}\n\n`;
+    const body = chunk('{"sum') + chunk('mary":') + chunk('"streamed"}') + "data: [DONE]\n\n";
+    const fetchFn = (async () =>
+      new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } })) as unknown as typeof fetch;
+
+    const result = await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "m", prompt: "p", fetchFn });
+    expect(result).toEqual({ summary: "streamed" });
+  });
+
+  it("parseChatCompletionBody reads non-streaming JSON", () => {
+    const body = JSON.stringify({ choices: [{ message: { content: "hello" } }] });
+    expect(parseChatCompletionBody(body)).toBe("hello");
+  });
+
+  it("parseChatCompletionBody reads a completion object with a [DONE] trailer", () => {
+    const body = JSON.stringify({ choices: [{ message: { content: "hi" } }] }) + "data: [DONE]\n\n";
+    expect(parseChatCompletionBody(body)).toBe("hi");
+  });
+
+  it("parseChatCompletionBody reassembles streamed deltas", () => {
+    const d = (c: string) => `data: ${JSON.stringify({ choices: [{ delta: { content: c } }] })}\n\n`;
+    expect(parseChatCompletionBody(d("a") + d("b") + d("c") + "data: [DONE]\n\n")).toBe("abc");
+  });
+
+  it("parseChatCompletionBody throws on empty body", () => {
+    expect(() => parseChatCompletionBody("   ")).toThrow();
   });
 
   it("builds redacted evidence-only prompts", () => {

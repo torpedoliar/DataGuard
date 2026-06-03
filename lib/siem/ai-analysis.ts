@@ -157,6 +157,69 @@ export function normalizeSiemAiAnalysis(value: unknown, model: string, generated
   };
 }
 
+type ChatCompletionLike = {
+  choices?: { message?: { content?: string }; delta?: { content?: string } }[];
+};
+
+// Pull the assistant message content out of a parsed chat-completion object,
+// accepting both the non-streaming shape (choices[].message.content) and a
+// single streaming chunk shape (choices[].delta.content).
+function readChoiceContent(parsed: ChatCompletionLike): string {
+  const choice = parsed.choices?.[0];
+  return choice?.message?.content ?? choice?.delta?.content ?? "";
+}
+
+// Some OpenAI-compatible gateways (observed with 9router + DeepSeek on large
+// answers) ignore the non-streaming request and return Content-Type
+// text/event-stream. The body is then either a single completion object with a
+// trailing `data: [DONE]` marker, or a real SSE stream of `data: {...}` chunks.
+// A plain JSON.parse on that whole body throws "non-whitespace after JSON", so
+// parse the envelope defensively here, before extracting the inner analysis.
+export function parseChatCompletionBody(raw: string): string {
+  const text = raw.trim();
+  if (!text) throw new Error("AI provider returned empty response.");
+
+  // Fast path: a clean JSON object body.
+  if (!text.includes("data:")) {
+    return readChoiceContent(JSON.parse(text) as ChatCompletionLike);
+  }
+
+  // SSE path: collect `data:` payloads, ignore the [DONE] sentinel, and
+  // concatenate streamed deltas (non-streamed bodies yield a single chunk).
+  let streamed = "";
+  let lastMessage = "";
+  let sawChunk = false;
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    const payload = trimmed.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+    let parsed: ChatCompletionLike;
+    try {
+      parsed = JSON.parse(payload) as ChatCompletionLike;
+    } catch {
+      continue; // skip keep-alive / non-JSON event lines
+    }
+    sawChunk = true;
+    const choice = parsed.choices?.[0];
+    if (choice?.delta?.content) streamed += choice.delta.content;
+    if (choice?.message?.content) lastMessage = choice.message.content;
+  }
+
+  // The first `data:` may itself be a full completion object directly
+  // concatenated with `data: [DONE]` (no newline between them); handle that by
+  // parsing up to the first balanced JSON object when line-splitting found none.
+  if (!sawChunk) {
+    const idx = text.indexOf("data:");
+    const head = idx > 0 ? text.slice(0, idx).trim() : "";
+    if (head) return readChoiceContent(JSON.parse(head) as ChatCompletionLike);
+  }
+
+  const content = streamed || lastMessage;
+  if (!content) throw new Error("AI provider returned empty response.");
+  return content;
+}
+
 export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey?: string | null; model: string; prompt: string; fetchFn?: typeof fetch }) {
   const fetchImpl = input.fetchFn ?? fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -173,6 +236,7 @@ export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey
         { role: "user", content: input.prompt },
       ],
       temperature: 0.2,
+      stream: false,
       response_format: { type: "json_object" },
     }),
   });
@@ -182,8 +246,12 @@ export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey
     const snippet = body.trim().slice(0, 200);
     throw new Error(`AI provider rejected request (HTTP ${response.status})${snippet ? `: ${snippet}` : "."}`);
   }
-  const data = await response.json() as { choices?: { message?: { content?: string } }[] };
-  const content = data.choices?.[0]?.message?.content;
+
+  // Read the raw body and parse the envelope ourselves: the provider sometimes
+  // replies with text/event-stream even for a non-streaming request, which
+  // response.json() cannot handle.
+  const raw = await response.text();
+  const content = parseChatCompletionBody(raw);
   if (!content) throw new Error("AI provider returned empty response.");
   return extractFirstJsonObject(content);
 }
