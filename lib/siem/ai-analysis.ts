@@ -4,9 +4,6 @@ export type SiemAiSettingsInput = {
   aiEnabled: boolean;
   aiEndpointUrl: string | null;
   aiApiKey: string | null;
-  aiModelOpus: string | null;
-  aiModelSonnet: string | null;
-  aiModelHaiku: string | null;
   aiDefaultModel: string | null;
   aiMaxSampleEvents: number;
   aiMaxRawLength: number;
@@ -56,10 +53,6 @@ export function normalizeOpenAiCompatibleEndpoint(value: string) {
   const trimmed = value.trim().replace(/\/+$/, "");
   if (!trimmed) return null;
   return trimmed.endsWith("/chat/completions") ? trimmed : `${trimmed}/chat/completions`;
-}
-
-export function resolveSiemAiModel(settings: Pick<SiemAiSettingsInput, "aiDefaultModel" | "aiModelOpus" | "aiModelSonnet" | "aiModelHaiku">) {
-  return settings.aiDefaultModel?.trim() || settings.aiModelSonnet?.trim() || settings.aiModelOpus?.trim() || settings.aiModelHaiku?.trim() || null;
 }
 
 export function buildSiemAiPrompt(input: { finding: SiemAiFindingInput; events: SiemAiEventSample[]; maxRawLength: number }) {
@@ -119,14 +112,15 @@ export function normalizeSiemAiAnalysis(value: unknown, model: string, generated
   };
 }
 
-export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey: string; model: string; prompt: string; fetchFn?: typeof fetch }) {
+export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey?: string | null; model: string; prompt: string; fetchFn?: typeof fetch }) {
   const fetchImpl = input.fetchFn ?? fetch;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const apiKey = input.apiKey?.trim();
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
   const response = await fetchImpl(input.endpointUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${input.apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
       model: input.model,
       messages: [

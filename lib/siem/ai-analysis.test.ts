@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSiemAiPrompt, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, resolveSiemAiModel } from "./ai-analysis";
+import { buildSiemAiPrompt, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, requestSiemAiAnalysis } from "./ai-analysis";
 
 describe("SIEM AI analysis", () => {
   it("normalizes OpenAI-compatible chat completion endpoints", () => {
@@ -8,10 +8,29 @@ describe("SIEM AI analysis", () => {
     expect(normalizeOpenAiCompatibleEndpoint(" ")).toBeNull();
   });
 
-  it("resolves default model with fallback order", () => {
-    expect(resolveSiemAiModel({ aiDefaultModel: "manual", aiModelOpus: "opus", aiModelSonnet: "sonnet", aiModelHaiku: "haiku" })).toBe("manual");
-    expect(resolveSiemAiModel({ aiDefaultModel: null, aiModelOpus: "opus", aiModelSonnet: "sonnet", aiModelHaiku: "haiku" })).toBe("sonnet");
-    expect(resolveSiemAiModel({ aiDefaultModel: null, aiModelOpus: null, aiModelSonnet: null, aiModelHaiku: null })).toBeNull();
+  it("omits the Authorization header when no api key is provided", async () => {
+    let capturedHeaders: Record<string, string> = {};
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      capturedHeaders = init.headers as Record<string, string>;
+      return new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "m", prompt: "p", fetchFn });
+
+    expect(capturedHeaders.Authorization).toBeUndefined();
+    expect(capturedHeaders["Content-Type"]).toBe("application/json");
+  });
+
+  it("sends a Bearer Authorization header when an api key is provided", async () => {
+    let capturedHeaders: Record<string, string> = {};
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      capturedHeaders = init.headers as Record<string, string>;
+      return new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", apiKey: "sk-123", model: "m", prompt: "p", fetchFn });
+
+    expect(capturedHeaders.Authorization).toBe("Bearer sk-123");
   });
 
   it("builds redacted evidence-only prompts", () => {
