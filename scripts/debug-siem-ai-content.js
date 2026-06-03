@@ -87,8 +87,34 @@ async function main() {
       response_format: { type: "json_object" },
     }),
   });
-  console.log("HTTP", resp.status);
-  const data = await resp.json();
+  console.log("HTTP", resp.status, "content-type:", resp.headers.get("content-type"));
+
+  // Read the RAW body first — the failure is in parsing THIS envelope.
+  const rawBody = await resp.text();
+  fs.writeFileSync("/tmp/siem-raw-body.txt", rawBody);
+  console.log("raw body length:", rawBody.length);
+  try {
+    JSON.parse(rawBody);
+    console.log("ENVELOPE JSON.parse: OK");
+  } catch (e) {
+    console.log("ENVELOPE JSON.parse: FAILS ->", e.message, "  <<< THIS is the real bug");
+    const m = /position (\d+)/.exec(e.message);
+    if (m) {
+      const p = Number(m[1]);
+      console.log("---- envelope bytes around", p, "----");
+      console.log(JSON.stringify(rawBody.slice(Math.max(0, p - 80), p + 80)));
+      console.log("---- char codes at boundary ----");
+      console.log([...rawBody.slice(p - 2, p + 6)].map((c) => c.charCodeAt(0)));
+    }
+  }
+
+  let data;
+  try {
+    data = JSON.parse(rawBody);
+  } catch {
+    console.log("\nCannot use envelope as-is; raw body saved to /tmp/siem-raw-body.txt");
+    return;
+  }
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
     console.log("NO STRING CONTENT. Full response:");
