@@ -147,28 +147,23 @@ echo "Waiting for app to become ready..."
 sleep 10
 
 # ==================================================================
-# STEP 5: SYNC DATABASE SCHEMA (additive only, no data loss)
+# STEP 5: SYNC DATABASE SCHEMA (versioned migrations, non-interactive)
 # ==================================================================
 echo ""
 echo "[5/6] Syncing database schema..."
-echo "      (drizzle push is additive - it only ADDS new columns/tables)"
+echo "      (applying committed migrations from drizzle/ - deterministic, no prompts)"
 SCHEMA_SYNC_OUTPUT=""
 SCHEMA_SYNC_EXIT_CODE=0
 set +e
-SCHEMA_SYNC_OUTPUT="$("${COMPOSE_CMD[@]}" exec -T app npx drizzle-kit push 2>&1)"
+SCHEMA_SYNC_OUTPUT="$("${COMPOSE_CMD[@]}" exec -T app npm run db:migrate 2>&1)"
 SCHEMA_SYNC_EXIT_CODE=$?
 set -e
 if [ -n "${SCHEMA_SYNC_OUTPUT//[[:space:]]/}" ]; then echo "$SCHEMA_SYNC_OUTPUT"; fi
 
-if [ "$SCHEMA_SYNC_EXIT_CODE" -ne 0 ] && echo "$SCHEMA_SYNC_OUTPUT" | grep -Eq "No changes detected|Pulling schema from database"; then
-    echo "WARN - Docker reported an exec error after schema check completed. Continuing."
-    SCHEMA_SYNC_EXIT_CODE=0
-fi
-
 if [ "$SCHEMA_SYNC_EXIT_CODE" -ne 0 ]; then
     echo "WARN - Compose schema sync failed; retrying with direct docker exec..."
     set +e
-    SCHEMA_SYNC_OUTPUT="$(docker exec dccheck_app npx drizzle-kit push 2>&1)"
+    SCHEMA_SYNC_OUTPUT="$(docker exec dccheck_app npm run db:migrate 2>&1)"
     SCHEMA_SYNC_EXIT_CODE=$?
     set -e
     if [ -n "${SCHEMA_SYNC_OUTPUT//[[:space:]]/}" ]; then echo "$SCHEMA_SYNC_OUTPUT"; fi

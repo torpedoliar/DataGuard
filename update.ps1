@@ -192,15 +192,15 @@ Write-Host "Waiting for app to become ready..." -ForegroundColor DarkGray
 Start-Sleep -Seconds 10
 
 # ==================================================================
-# STEP 5: SYNC DATABASE SCHEMA (additive only, no data loss)
+# STEP 5: SYNC DATABASE SCHEMA (versioned migrations, non-interactive)
 # ==================================================================
 Write-Host ""
 Write-Host "[5/6] Syncing database schema..." -ForegroundColor Yellow
-Write-Host "      (drizzle push is additive - it only ADDS new columns/tables)" -ForegroundColor DarkGray
+Write-Host "      (applying committed migrations from drizzle/ - deterministic, no prompts)" -ForegroundColor DarkGray
 $schemaSyncOutput = @()
 $schemaSyncExitCode = 1
 try {
-    $schemaSyncOutput = & $mainCmd $extraArgs exec -T app npx drizzle-kit push 2>&1
+    $schemaSyncOutput = & $mainCmd $extraArgs exec -T app npm run db:migrate 2>&1
     $schemaSyncExitCode = $LASTEXITCODE
 }
 catch {
@@ -211,15 +211,10 @@ catch {
 $schemaSyncText = ($schemaSyncOutput | Out-String)
 if ($schemaSyncText.Trim()) { Write-Host $schemaSyncText.TrimEnd() }
 
-if ($schemaSyncExitCode -ne 0 -and ($schemaSyncText -match "No changes detected|Pulling schema from database")) {
-    Write-Host "WARN - Docker reported an exec error after schema check completed. Continuing." -ForegroundColor Yellow
-    $schemaSyncExitCode = 0
-}
-
 if ($schemaSyncExitCode -ne 0) {
     Write-Host "WARN - Compose schema sync failed; retrying with direct docker exec..." -ForegroundColor Yellow
     try {
-        $schemaSyncOutput = & docker exec dccheck_app npx drizzle-kit push 2>&1
+        $schemaSyncOutput = & docker exec dccheck_app npm run db:migrate 2>&1
         $schemaSyncExitCode = $LASTEXITCODE
     }
     catch {

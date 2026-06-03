@@ -109,28 +109,23 @@ for attempt in $(seq 1 30); do
 done
 
 # ==================================================================
-# STEP 4: SYNC DATABASE SCHEMA (drizzle push)
+# STEP 4: SYNC DATABASE SCHEMA (versioned migrations)
 # ==================================================================
 echo ""
 echo "[4/6] Syncing database schema..."
-echo "      drizzle-kit push is additive: safe to run on existing data."
+echo "      applying committed migrations from drizzle/ (deterministic, no prompts)."
 SCHEMA_SYNC_OUTPUT=""
 SCHEMA_SYNC_EXIT_CODE=0
 set +e
-SCHEMA_SYNC_OUTPUT="$("${COMPOSE_CMD[@]}" exec -T "$APP_SERVICE" npx drizzle-kit push 2>&1)"
+SCHEMA_SYNC_OUTPUT="$("${COMPOSE_CMD[@]}" exec -T "$APP_SERVICE" npm run db:migrate 2>&1)"
 SCHEMA_SYNC_EXIT_CODE=$?
 set -e
 if [ -n "${SCHEMA_SYNC_OUTPUT//[[:space:]]/}" ]; then echo "$SCHEMA_SYNC_OUTPUT"; fi
 
-if [ "$SCHEMA_SYNC_EXIT_CODE" -ne 0 ] && echo "$SCHEMA_SYNC_OUTPUT" | grep -Eq "No changes detected|Pulling schema from database"; then
-    echo "WARN  - Compose reported an exec error after schema check completed. Continuing."
-    SCHEMA_SYNC_EXIT_CODE=0
-fi
-
 if [ "$SCHEMA_SYNC_EXIT_CODE" -ne 0 ]; then
     echo "WARN  - Compose schema sync failed; retrying with direct docker exec..."
     set +e
-    SCHEMA_SYNC_OUTPUT="$(docker exec "$APP_CONTAINER" npx drizzle-kit push 2>&1)"
+    SCHEMA_SYNC_OUTPUT="$(docker exec "$APP_CONTAINER" npm run db:migrate 2>&1)"
     SCHEMA_SYNC_EXIT_CODE=$?
     set -e
     if [ -n "${SCHEMA_SYNC_OUTPUT//[[:space:]]/}" ]; then echo "$SCHEMA_SYNC_OUTPUT"; fi
