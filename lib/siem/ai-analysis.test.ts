@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSiemAiPrompt, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, requestSiemAiAnalysis } from "./ai-analysis";
+import { buildSiemAiPrompt, extractFirstJsonObject, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, requestSiemAiAnalysis } from "./ai-analysis";
 
 describe("SIEM AI analysis", () => {
   it("normalizes OpenAI-compatible chat completion endpoints", () => {
@@ -31,6 +31,39 @@ describe("SIEM AI analysis", () => {
     await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", apiKey: "sk-123", model: "m", prompt: "p", fetchFn });
 
     expect(capturedHeaders.Authorization).toBe("Bearer sk-123");
+  });
+
+  it("parses clean JSON content", () => {
+    expect(extractFirstJsonObject('{"summary":"ok"}')).toEqual({ summary: "ok" });
+  });
+
+  it("parses JSON wrapped in markdown fences", () => {
+    expect(extractFirstJsonObject('```json\n{"summary":"ok"}\n```')).toEqual({ summary: "ok" });
+  });
+
+  it("parses JSON followed by trailing reasoning text", () => {
+    const content = '{"summary":"ok","evidence":["a"]}\n\nThe above explains the finding.';
+    expect(extractFirstJsonObject(content)).toEqual({ summary: "ok", evidence: ["a"] });
+  });
+
+  it("ignores braces inside string values when extracting", () => {
+    const content = '{"summary":"contains } brace"}trailing';
+    expect(extractFirstJsonObject(content)).toEqual({ summary: "contains } brace" });
+  });
+
+  it("throws when no JSON object is present", () => {
+    expect(() => extractFirstJsonObject("no json here")).toThrow();
+  });
+
+  it("extracts JSON from provider content via requestSiemAiAnalysis", async () => {
+    const fetchFn = (async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: '```json\n{"summary":"hi"}\n```\nextra reasoning' } }] }),
+        { status: 200 },
+      )) as unknown as typeof fetch;
+
+    const result = await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "m", prompt: "p", fetchFn });
+    expect(result).toEqual({ summary: "hi" });
   });
 
   it("builds redacted evidence-only prompts", () => {

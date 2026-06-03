@@ -99,6 +99,51 @@ function asStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+// Providers (esp. reasoning models like DeepSeek) often wrap the JSON in
+// markdown fences or append trailing reasoning text after the object, so a
+// naive JSON.parse on the whole content throws. Extract the first balanced
+// top-level JSON object instead.
+export function extractFirstJsonObject(content: string): unknown {
+  const trimmed = content.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // fall through to extraction
+  }
+
+  // Strip a leading ```json / ``` fence and anything after a closing fence.
+  const fenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+  try {
+    return JSON.parse(fenced.trim());
+  } catch {
+    // fall through to balanced-brace scan
+  }
+
+  const source = fenced;
+  const start = source.indexOf("{");
+  if (start === -1) throw new Error("AI provider returned no JSON object.");
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < source.length; i += 1) {
+    const ch = source[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return JSON.parse(source.slice(start, i + 1));
+    }
+  }
+  throw new Error("AI provider returned malformed JSON.");
+}
+
 export function normalizeSiemAiAnalysis(value: unknown, model: string, generatedAt = new Date()): SiemAiAnalysis {
   const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
@@ -136,5 +181,5 @@ export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey
   const data = await response.json() as { choices?: { message?: { content?: string } }[] };
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("AI provider returned empty response.");
-  return JSON.parse(content) as unknown;
+  return extractFirstJsonObject(content);
 }
