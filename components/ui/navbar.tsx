@@ -111,6 +111,9 @@ export default function Navbar({
                         <Link href="/checklist" className={navLinkClass("/checklist")}>Dashboard</Link>
                         <Link href="/report" className={navLinkClass("/report")}>Reports</Link>
                         <Link href="/admin/incidents" className={navLinkClass("/admin/incidents")}>Incidents</Link>
+                        {isAdmin && (
+                            <Link href="/admin/siem" className={navLinkClass("/admin/siem")}>SIEM</Link>
+                        )}
                         <Link href="/grid" className={navLinkClass("/grid")}>Grid View</Link>
                         <Link href="/about" className={navLinkClass("/about")}>About</Link>
                         {isAdmin && (
