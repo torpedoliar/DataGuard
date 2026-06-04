@@ -102,6 +102,44 @@ async function main() {
         console.log("FETCH ERROR:", e.message);
       }
     }
+
+    // DISCRIMINATOR: a single CLEAN request that never includes `temperature`,
+    // sent once with no retry. Wait out any gateway error-cache/circuit-breaker
+    // window ("reset after 30s") first so we hit the model, not a stale 400.
+    //   - 200 OK            -> client retry CAN work; the bug is that earlier
+    //                          attempts hit the cached breaker. Fix = don't send
+    //                          temperature at all (omit from base body).
+    //   - 400 temperature   -> gateway INJECTS temperature itself; no client
+    //                          payload can fix it. Fix = gateway/router config.
+    console.log("\nWaiting 35s for gateway error-cache to reset, then sending a CLEAN no-temperature request...");
+    await new Promise((res) => setTimeout(res, 35000));
+    console.log("Clean test [no temperature, no response_format, single shot] ->", ep);
+    try {
+      const resp = await fetch(ep, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model: s.ai_default_model,
+          messages: [
+            { role: "system", content: "You produce evidence-only defensive SIEM analysis as strict JSON." },
+            { role: "user", content: "Return strict JSON with keys: summary. say hi" },
+          ],
+          stream: false,
+        }),
+      });
+      const text = await resp.text();
+      console.log("CLEAN STATUS:", resp.status);
+      console.log("CLEAN BODY:", text.slice(0, 400));
+      if (resp.ok) {
+        console.log(">> DIAGNOSIS: clean request WORKS. Earlier 400s = gateway error-cache on the first temperature attempt. FIX: stop sending temperature.");
+      } else if (/`?temperature`?/i.test(text)) {
+        console.log(">> DIAGNOSIS: gateway rejects temperature even when we never sent it. The GATEWAY injects it. FIX: gateway/router config, not the app.");
+      } else {
+        console.log(">> DIAGNOSIS: different error now — read CLEAN BODY above.");
+      }
+    } catch (e) {
+      console.log("CLEAN FETCH ERROR:", e.message);
+    }
   } else {
     console.log("\nSkipping live test: endpoint or model missing in DB.");
   }
