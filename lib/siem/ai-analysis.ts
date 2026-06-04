@@ -1,4 +1,4 @@
-import { redactSensitiveText } from "./redaction";
+import { createHostMasker, redactSensitiveText } from "./redaction";
 
 export type SiemAiSettingsInput = {
   aiEnabled: boolean;
@@ -57,6 +57,17 @@ export function normalizeOpenAiCompatibleEndpoint(value: string) {
 
 export function buildSiemAiPrompt(input: { finding: SiemAiFindingInput; events: SiemAiEventSample[]; maxRawLength: number }) {
   const finding = input.finding;
+  // One masker per prompt: IPs/MACs become stable HOST_x/MAC_x tokens so the
+  // AI can correlate relationships without ever seeing a real address. We send
+  // no device identity (name/model/vendor) — only severity, category, the
+  // syslog message, and analysis text. Scrub secrets, then mask hosts.
+  const mask = createHostMasker();
+  const scrub = (value: string) => mask.text(redactSensitiveText(value));
+
+  // Pre-register every username so scrub() also masks the name where it appears
+  // inside syslog message text, not just in the structured field.
+  for (const event of input.events) mask.user(event.username);
+
   const events = input.events.map((event) => ({
     id: event.id,
     receivedAt: event.receivedAt.toISOString(),
@@ -64,15 +75,16 @@ export function buildSiemAiPrompt(input: { finding: SiemAiFindingInput; events: 
     normalizedType: event.normalizedType,
     action: event.action,
     outcome: event.outcome,
-    username: event.username,
-    srcIp: event.srcIp,
-    dstIp: event.dstIp,
-    message: redactSensitiveText(event.message).slice(0, input.maxRawLength),
-    rawMessage: event.rawMessage ? redactSensitiveText(event.rawMessage).slice(0, input.maxRawLength) : null,
+    user: mask.user(event.username),
+    srcHost: mask.host(event.srcIp),
+    dstHost: mask.host(event.dstIp),
+    message: scrub(event.message).slice(0, input.maxRawLength),
+    rawMessage: event.rawMessage ? scrub(event.rawMessage).slice(0, input.maxRawLength) : null,
   }));
 
   return [
     "You are a defensive SIEM analyst. Use only evidence in this prompt. Do not invent external facts, IP reputation, malware names, or user intent. Do not recommend destructive action first.",
+    "Hosts are masked as HOST_x tokens; treat them as opaque identifiers and do not guess real addresses or device identities.",
     "Return strict JSON with keys: summary, likelyCause, impact, recommendedActions, evidence. recommendedActions and evidence must be arrays of strings.",
     "Finding:",
     JSON.stringify({
@@ -80,15 +92,13 @@ export function buildSiemAiPrompt(input: { finding: SiemAiFindingInput; events: 
       title: finding.title,
       severity: finding.severity,
       status: finding.status,
-      summary: redactSensitiveText(finding.summary),
-      humanAnalysis: finding.humanAnalysis ? redactSensitiveText(finding.humanAnalysis) : null,
-      recommendedAction: finding.recommendedAction ? redactSensitiveText(finding.recommendedAction) : null,
+      summary: scrub(finding.summary),
+      humanAnalysis: finding.humanAnalysis ? scrub(finding.humanAnalysis) : null,
+      recommendedAction: finding.recommendedAction ? scrub(finding.recommendedAction) : null,
       eventCount: finding.eventCount,
-      correlationKey: finding.correlationKey,
-      sourceIp: finding.sourceIp,
-      deviceName: finding.deviceName,
+      sourceHost: mask.host(finding.sourceIp),
       ruleName: finding.ruleName,
-      ruleDescription: finding.ruleDescription,
+      ruleDescription: finding.ruleDescription ? scrub(finding.ruleDescription) : null,
     }, null, 2),
     "Sample events:",
     JSON.stringify(events, null, 2),

@@ -198,6 +198,48 @@ describe("SIEM AI analysis", () => {
     expect(prompt).not.toContain("secret");
     expect(prompt).not.toContain("abc123");
     expect(prompt).not.toContain("xyz");
+    // No raw IP, device identity, or correlationKey leaks IP/host.
+    expect(prompt).not.toContain("10.0.0.5");
+    expect(prompt).not.toContain("Router");
+    expect(prompt).not.toContain("deviceName");
+    expect(prompt).not.toContain("correlationKey");
+    expect(prompt).not.toContain("srcIp");
+    // Username is PII -> masked to a token, raw name absent.
+    expect(prompt).not.toContain("admin");
+    expect(prompt).not.toContain("username");
+    expect(prompt).toContain("USER_A");
+    // IPs are replaced by stable masked tokens; same IP -> same token.
+    expect(prompt).toContain("HOST_A");
+    expect(prompt).toContain("sourceHost");
+    expect(prompt).toContain("srcHost");
+  });
+
+  it("masks IPs and MACs consistently in free text", () => {
+    const prompt = buildSiemAiPrompt({
+      maxRawLength: 2000,
+      finding: {
+        id: 1, title: "t", severity: "High", status: "Open",
+        summary: "traffic from 192.168.1.10 to 192.168.1.20",
+        humanAnalysis: null, recommendedAction: null, eventCount: 1,
+        correlationKey: "k", sourceIp: "192.168.1.10", deviceName: "CoreSW",
+        ruleName: "r", ruleDescription: "d",
+      },
+      events: [{
+        id: 1, receivedAt: new Date("2026-05-24T12:00:00.000Z"),
+        category: "Network", normalizedType: null, action: null, outcome: null,
+        username: null, srcIp: "192.168.1.10", dstIp: "192.168.1.20",
+        message: "src 192.168.1.10 mac 00:1a:2b:3c:4d:5e dst 192.168.1.20",
+        rawMessage: null,
+      }],
+    });
+    expect(prompt).not.toContain("192.168.1.10");
+    expect(prompt).not.toContain("192.168.1.20");
+    expect(prompt).not.toContain("00:1a:2b:3c:4d:5e");
+    expect(prompt).not.toContain("CoreSW");
+    // sourceIp, srcIp in event, and the in-text IP all map to the same token.
+    expect(prompt).toContain("HOST_A");
+    expect(prompt).toContain("HOST_B");
+    expect(prompt).toContain("MAC_A");
   });
 
   it("normalizes provider JSON into stored analysis", () => {
