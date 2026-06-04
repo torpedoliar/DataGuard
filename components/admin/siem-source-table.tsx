@@ -25,7 +25,7 @@ export type SiemSourceRow = {
   sourceIp: string;
   hostname: string | null;
   displayName: string;
-  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux";
+  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux" | "watchguard";
   product: string | null;
   parserProfile: string;
   trustLevel: "unknown" | "trusted" | "untrusted";
@@ -47,7 +47,7 @@ type SortKey = "displayName" | "sourceIp" | "vendor" | "trustLevel" | "lastSeenA
 type SortDir = "asc" | "desc";
 
 const fieldClass = "ops-input h-9 px-3 text-sm";
-const vendors = ["generic", "mikrotik", "cisco", "fortigate", "linux"] as const;
+const vendors = ["generic", "mikrotik", "cisco", "fortigate", "linux", "watchguard"] as const;
 const trustLevels = ["unknown", "trusted", "untrusted"] as const;
 
 function trustTone(trustLevel: SiemSourceRow["trustLevel"]) {
@@ -56,9 +56,10 @@ function trustTone(trustLevel: SiemSourceRow["trustLevel"]) {
   return "warning";
 }
 
+import { formatWibDateTime } from "@/lib/ui/datetime";
 function formatDate(date: Date | null) {
   if (!date) return "Never";
-  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(date));
+  return formatWibDateTime(date);
 }
 
 function EditSourceModal({ source, devices, onClose }: { source: SiemSourceRow; devices: SiemSourceDeviceOption[]; onClose: () => void }) {

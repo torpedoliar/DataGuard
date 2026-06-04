@@ -15,6 +15,7 @@ export type SiemEventFilters = {
   normalizedType?: string;
   severity?: number;
   sourceIp?: string;
+  eventIds?: number[];
   start?: string;
   end?: string;
 };
@@ -47,6 +48,7 @@ export async function getSiemEventExplorerData(filters: SiemEventFilters) {
   if (filters.normalizedType) eventConditions.push(eq(syslogEvents.normalizedType, filters.normalizedType));
   if (typeof filters.severity === "number" && !Number.isNaN(filters.severity)) eventConditions.push(eq(syslogEvents.severity, filters.severity));
   if (filters.sourceIp) eventConditions.push(eq(syslogEvents.sourceIp, filters.sourceIp));
+  if (filters.eventIds?.length) eventConditions.push(inArray(syslogEvents.id, filters.eventIds));
   if (startDate) eventConditions.push(gte(syslogEvents.receivedAt, startDate));
   if (endDate) eventConditions.push(lte(syslogEvents.receivedAt, endDate));
   if (filters.q) {

@@ -50,6 +50,13 @@
       "when": 1780466401957,
       "tag": "0006_damp_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780536110445,
+      "tag": "0007_abandoned_the_initiative",
+      "breakpoints": true
     }
   ]
 }

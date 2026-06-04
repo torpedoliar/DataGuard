@@ -2,6 +2,7 @@ import { db } from "../../db";
 import { siemAlerts, siemFindings, siemSettings } from "../../db/schema";
 import { sendTelegramAlert } from "../telegram";
 import { and, eq, ne } from "drizzle-orm";
+import { formatWibForAlert } from "../ui/datetime";
 import { redactSensitiveText } from "./redaction";
 import type { SiemSeverity } from "./types";
 
@@ -11,10 +12,11 @@ function isAtLeastSeverity(value: SiemSeverity, minimum: SiemSeverity) {
   return severityRank[value] >= severityRank[minimum];
 }
 
-function alertMessage(input: { findingId: number; title: string; severity: SiemSeverity; siteName: string | null; deviceName: string | null; sourceIp: string | null; summary: string; recommendedAction: string | null }) {
+function alertMessage(input: { findingId: number; title: string; severity: SiemSeverity; siteName: string | null; deviceName: string | null; sourceIp: string | null; summary: string; recommendedAction: string | null; lastSeenAt: Date }) {
   return redactSensitiveText([
     "*SIEM Finding*",
     `Severity: ${input.severity}`,
+    `Last seen: ${formatWibForAlert(input.lastSeenAt)}`,
     `Site: ${input.siteName ?? "-"}`,
     `Device: ${input.deviceName ?? "Unmapped"}`,
     `Source: ${input.sourceIp ?? "-"}`,
@@ -61,6 +63,7 @@ export async function queueSiemTelegramAlerts() {
         sourceIp: finding.source?.sourceIp ?? null,
         summary: finding.humanAnalysis ?? finding.summary,
         recommendedAction: finding.recommendedAction,
+        lastSeenAt: finding.lastSeenAt,
       }),
     });
     queued++;

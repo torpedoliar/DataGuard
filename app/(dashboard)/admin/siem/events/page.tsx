@@ -12,6 +12,7 @@ function firstParam(value: string | string[] | undefined) {
 function parseFilters(params: { [key: string]: string | string[] | undefined }): SiemEventFilters {
   const severity = firstParam(params.severity);
   const page = firstParam(params.page);
+  const eventIds = firstParam(params.eventIds);
 
   return {
     page: page ? Number(page) : 1,
@@ -21,6 +22,7 @@ function parseFilters(params: { [key: string]: string | string[] | undefined }):
     normalizedType: firstParam(params.normalizedType),
     severity: severity ? Number(severity) : undefined,
     sourceIp: firstParam(params.sourceIp),
+    eventIds: eventIds ? eventIds.split(",").map(Number).filter((n) => Number.isFinite(n)) : undefined,
     start: firstParam(params.start),
     end: firstParam(params.end),
   };

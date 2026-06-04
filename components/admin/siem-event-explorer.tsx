@@ -31,7 +31,7 @@ type ParsedEventRow = {
   siteName: string | null;
   deviceName: string | null;
   sourceDisplayName: string | null;
-  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux" | null;
+  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux" | "watchguard" | null;
   parser: string;
   category: string | null;
   normalizedType: string | null;
@@ -92,9 +92,10 @@ function indicatorTone(severity: InjectionIndicator["severity"]) {
   return "info";
 }
 
+import { formatWibDateTime } from "@/lib/ui/datetime";
 function formatDate(date: Date | null) {
   if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "medium" }).format(new Date(date));
+  return formatWibDateTime(date, { seconds: true });
 }
 
 function buildPageHref(searchParams: URLSearchParams, page: number) {

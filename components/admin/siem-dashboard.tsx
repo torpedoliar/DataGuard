@@ -30,8 +30,9 @@ export type SiemDashboardStats = {
   }[];
 };
 
+import { formatWibDateTime } from "@/lib/ui/datetime";
 function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(date));
+  return formatWibDateTime(date);
 }
 
 function StatCard({ label, value, detail, tone = "neutral" }: { label: string; value: number; detail: string; tone?: "neutral" | "danger" | "warning" | "info" | "success" }) {

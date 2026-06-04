@@ -13,7 +13,7 @@ const sourceUpdateSchema = z.object({
   deviceId: z.coerce.number().nullable().optional(),
   displayName: z.string().min(1, "Display name is required"),
   hostname: z.string().nullable().optional(),
-  vendor: z.enum(["generic", "mikrotik", "cisco", "fortigate", "linux"]),
+  vendor: z.enum(["generic", "mikrotik", "cisco", "fortigate", "linux", "watchguard"]),
   parserProfile: z.string().min(1, "Parser profile is required"),
   trustLevel: z.enum(["unknown", "trusted", "untrusted"]),
   enabled: z.coerce.boolean(),

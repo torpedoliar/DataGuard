@@ -49,8 +49,9 @@ function statusTone(status: SiemFindingRow["status"]) {
   return "success";
 }
 
+import { formatWibDateTime } from "@/lib/ui/datetime";
 function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(date));
+  return formatWibDateTime(date);
 }
 
 function FindingStatusForm({ finding }: { finding: SiemFindingRow }) {
@@ -180,7 +181,11 @@ export default function SiemFindingTable({ findings }: { findings: SiemFindingRo
                 <div className="flex flex-col items-end gap-2">
                   <FindingStatusForm finding={finding} />
                   <div className="flex gap-2">
-                    <ActionButton href={`/admin/siem/events?sourceIp=${finding.sourceIp ?? ""}`} variant="ghost" size="sm" icon={<Eye className="size-4" />}>Events</ActionButton>
+                    <ActionButton
+                      href={finding.sampleEventIds.length
+                        ? `/admin/siem/events?eventIds=${finding.sampleEventIds.join(",")}`
+                        : `/admin/siem/events?sourceIp=${finding.sourceIp ?? ""}`}
+                      variant="ghost" size="sm" icon={<Eye className="size-4" />}>Events</ActionButton>
                     {finding.status === "Resolved" && <CheckCircle2 className="mt-1 size-4 text-emerald-300" />}
                   </div>
                   <GenerateAiAnalysisForm finding={finding} />

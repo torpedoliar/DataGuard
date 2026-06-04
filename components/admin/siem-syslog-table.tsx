@@ -31,7 +31,7 @@ type SyslogMessageRow = {
   deviceName: string | null;
   siteName: string | null;
   sourceDisplayName: string | null;
-  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux" | null;
+  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux" | "watchguard" | null;
   category: string | null;
   normalizedType: string | null;
 };
@@ -54,9 +54,10 @@ type SyslogData = {
 
 const fieldClass = "ops-input h-9 px-3 text-sm";
 
+import { formatWibDateTime } from "@/lib/ui/datetime";
 function formatDate(date: Date | null) {
   if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "medium" }).format(new Date(date));
+  return formatWibDateTime(date, { seconds: true });
 }
 
 function buildPageHref(searchParams: URLSearchParams, page: number) {

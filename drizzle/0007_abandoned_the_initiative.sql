@@ -1,0 +1,1 @@
+ALTER TYPE "public"."syslog_vendor" ADD VALUE 'watchguard';
