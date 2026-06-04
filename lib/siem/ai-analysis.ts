@@ -220,38 +220,73 @@ export function parseChatCompletionBody(raw: string): string {
   return content;
 }
 
+// Optional OpenAI-style tuning params. Different backends behind the same
+// gateway accept different subsets: DeepSeek takes temperature +
+// response_format; Anthropic models (claude-opus-4-8) reject `temperature`
+// ("deprecated for this model") and may reject `response_format` too. These are
+// stripped adaptively on a 400 so one config works across any swapped-in model.
+const OPTIONAL_REQUEST_PARAMS = ["temperature", "response_format"] as const;
+type OptionalParam = (typeof OPTIONAL_REQUEST_PARAMS)[number];
+
+// A gateway 400 names the offending field in backticks, e.g.
+// "`temperature` is deprecated for this model." Pull out any of our optional
+// params it complained about so we can drop just those and retry.
+function offendingParamsFromError(body: string): OptionalParam[] {
+  const lowered = body.toLowerCase();
+  return OPTIONAL_REQUEST_PARAMS.filter((param) => lowered.includes(`\`${param}\``));
+}
+
 export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey?: string | null; model: string; prompt: string; fetchFn?: typeof fetch }) {
   const fetchImpl = input.fetchFn ?? fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const apiKey = input.apiKey?.trim();
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-  const response = await fetchImpl(input.endpointUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: input.model,
-      messages: [
-        { role: "system", content: "You produce evidence-only defensive SIEM analysis as strict JSON." },
-        { role: "user", content: input.prompt },
-      ],
-      temperature: 0.2,
-      stream: false,
-      response_format: { type: "json_object" },
-    }),
-  });
+  const baseBody: Record<string, unknown> = {
+    model: input.model,
+    messages: [
+      { role: "system", content: "You produce evidence-only defensive SIEM analysis as strict JSON." },
+      { role: "user", content: input.prompt },
+    ],
+    stream: false,
+    temperature: 0.2,
+    response_format: { type: "json_object" },
+  };
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    const snippet = body.trim().slice(0, 200);
+  // Try with all optional params, then drop whichever the gateway rejects and
+  // retry. Bounded by the number of optional params (one strip per 400).
+  const dropped = new Set<OptionalParam>();
+  for (let attempt = 0; attempt <= OPTIONAL_REQUEST_PARAMS.length; attempt += 1) {
+    const body: Record<string, unknown> = { ...baseBody };
+    for (const param of dropped) delete body[param];
+
+    const response = await fetchImpl(input.endpointUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) {
+      // Read the raw body and parse the envelope ourselves: the provider
+      // sometimes replies with text/event-stream even for a non-streaming
+      // request, which response.json() cannot handle.
+      const raw = await response.text();
+      const content = parseChatCompletionBody(raw);
+      if (!content) throw new Error("AI provider returned empty response.");
+      return extractFirstJsonObject(content);
+    }
+
+    const errorBody = await response.text().catch(() => "");
+    if (response.status === 400) {
+      const offending = offendingParamsFromError(errorBody).filter((param) => !dropped.has(param));
+      if (offending.length > 0) {
+        for (const param of offending) dropped.add(param);
+        continue; // retry without the rejected param(s)
+      }
+    }
+    const snippet = errorBody.trim().slice(0, 200);
     throw new Error(`AI provider rejected request (HTTP ${response.status})${snippet ? `: ${snippet}` : "."}`);
   }
 
-  // Read the raw body and parse the envelope ourselves: the provider sometimes
-  // replies with text/event-stream even for a non-streaming request, which
-  // response.json() cannot handle.
-  const raw = await response.text();
-  const content = parseChatCompletionBody(raw);
-  if (!content) throw new Error("AI provider returned empty response.");
-  return extractFirstJsonObject(content);
+  throw new Error("AI provider rejected request after dropping unsupported parameters.");
 }

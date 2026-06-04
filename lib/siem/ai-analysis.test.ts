@@ -107,6 +107,59 @@ describe("SIEM AI analysis", () => {
     expect(() => parseChatCompletionBody("   ")).toThrow();
   });
 
+  it("drops `temperature` and retries when the gateway rejects it (Anthropic models)", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as Record<string, unknown>;
+      bodies.push(body);
+      if ("temperature" in body) {
+        return new Response(
+          JSON.stringify({ error: { message: "[claude/claude-opus-4-8] [400]: `temperature` is deprecated for this model." } }),
+          { status: 400 },
+        );
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{"summary":"opus-ok"}' } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const result = await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "claude-opus-4-8", prompt: "p", fetchFn });
+    expect(result).toEqual({ summary: "opus-ok" });
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]).toHaveProperty("temperature");
+    expect(bodies[1]).not.toHaveProperty("temperature");
+    // response_format is untouched because the gateway never complained about it.
+    expect(bodies[1]).toHaveProperty("response_format");
+  });
+
+  it("drops multiple rejected params across retries", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as Record<string, unknown>;
+      bodies.push(body);
+      if ("temperature" in body) {
+        return new Response(JSON.stringify({ error: { message: "`temperature` is not supported" } }), { status: 400 });
+      }
+      if ("response_format" in body) {
+        return new Response(JSON.stringify({ error: { message: "`response_format` is not supported" } }), { status: 400 });
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{"summary":"clean"}' } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const result = await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "m", prompt: "p", fetchFn });
+    expect(result).toEqual({ summary: "clean" });
+    expect(bodies).toHaveLength(3);
+    expect(bodies[2]).not.toHaveProperty("temperature");
+    expect(bodies[2]).not.toHaveProperty("response_format");
+  });
+
+  it("surfaces a 400 that is not about a known optional param", async () => {
+    const fetchFn = (async () =>
+      new Response(JSON.stringify({ error: { message: "model not found" } }), { status: 400 })) as unknown as typeof fetch;
+
+    await expect(
+      requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "bogus", prompt: "p", fetchFn }),
+    ).rejects.toThrow(/HTTP 400/);
+  });
+
   it("builds redacted evidence-only prompts", () => {
     const prompt = buildSiemAiPrompt({
       maxRawLength: 2000,
