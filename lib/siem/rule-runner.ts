@@ -122,6 +122,22 @@ export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
   return { evaluatedRules: ruleRows.length, evaluatedEvents: eventRows.length, candidates: candidates.length, created, updated };
 }
 
+// Columns that a re-seed (rule worker startup) refreshes from code. NOTE:
+// `enabled` and `alertEnabled` are deliberately absent — those are
+// user-controlled via /admin/siem/rules and must survive restarts/updates.
+export const RESEED_CONFLICT_UPDATE_KEYS = [
+  "name",
+  "description",
+  "severity",
+  "category",
+  "ruleType",
+  "conditions",
+  "groupBy",
+  "threshold",
+  "windowSeconds",
+  "cooldownSeconds",
+] as const;
+
 export async function seedDefaultSiemRules(rules: SeedSiemRule[]) {
   for (const rule of rules) {
     await db.insert(siemRules).values({
@@ -140,6 +156,7 @@ export async function seedDefaultSiemRules(rules: SeedSiemRule[]) {
       alertEnabled: rule.alertEnabled ?? false,
     }).onConflictDoUpdate({
       target: siemRules.key,
+      // Refresh metadata from code, but preserve user-set enabled/alertEnabled.
       set: {
         name: sql`excluded.name`,
         description: sql`excluded.description`,
@@ -151,7 +168,6 @@ export async function seedDefaultSiemRules(rules: SeedSiemRule[]) {
         threshold: sql`excluded.threshold`,
         windowSeconds: sql`excluded.window_seconds`,
         cooldownSeconds: sql`excluded.cooldown_seconds`,
-        alertEnabled: sql`excluded.alert_enabled`,
         updatedAt: new Date(),
       },
     });
