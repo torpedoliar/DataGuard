@@ -1,6 +1,45 @@
 // Diagnostic: dump siem_settings AI config (key masked) + live provider test.
 // Run inside container:  docker exec dccheck_app node scripts/check-siem-ai.js
+//
+// The live test mirrors the SHIPPED app logic (lib/siem/ai-analysis.ts): it
+// sends the optional OpenAI-style tuning params, then drops whichever the
+// gateway rejects on a 400 and retries. This makes one config work across any
+// swapped-in model — DeepSeek (takes temperature + response_format), Anthropic
+// (claude-opus-4-8 rejects `temperature`), GPT, Gemini, etc. Keep in sync.
 const { Pool } = require("pg");
+
+// Optional params different backends accept different subsets of. A gateway 400
+// names the offending field in backticks, e.g. "`temperature` is deprecated for
+// this model." — pull those out, drop them, retry. Bounded by param count.
+const OPTIONAL_REQUEST_PARAMS = ["temperature", "response_format"];
+function offendingParamsFromError(body) {
+  const lowered = String(body).toLowerCase();
+  return OPTIONAL_REQUEST_PARAMS.filter((p) => lowered.includes("`" + p + "`"));
+}
+
+// POST with adaptive param-stripping retry (mirror of requestSiemAiAnalysis).
+// Returns { status, body, dropped, attempts }.
+async function postWithAdaptiveRetry(ep, headers, baseBody) {
+  const dropped = new Set();
+  let last = { status: 0, body: "" };
+  for (let attempt = 0; attempt <= OPTIONAL_REQUEST_PARAMS.length; attempt += 1) {
+    const body = { ...baseBody };
+    for (const p of dropped) delete body[p];
+    const resp = await fetch(ep, { method: "POST", headers, body: JSON.stringify(body) });
+    const text = await resp.text();
+    last = { status: resp.status, body: text };
+    if (resp.ok) return { ...last, dropped: [...dropped], attempts: attempt + 1 };
+    if (resp.status === 400) {
+      const offending = offendingParamsFromError(text).filter((p) => !dropped.has(p));
+      if (offending.length > 0) {
+        for (const p of offending) dropped.add(p);
+        continue; // retry without the rejected param(s)
+      }
+    }
+    break; // non-400, or 400 we can't fix by dropping a known param
+  }
+  return { ...last, dropped: [...dropped], attempts: OPTIONAL_REQUEST_PARAMS.length + 1 };
+}
 
 function buildDatabaseUrl(env = process.env) {
   if (env.DATABASE_URL) return env.DATABASE_URL;
@@ -50,19 +89,15 @@ async function main() {
     for (const c of cases) {
       console.log("\nLive test [" + c.label + "] ->", ep);
       try {
-        const resp = await fetch(ep, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            model: s.ai_default_model,
-            messages: [{ role: "system", content: c.sys }, { role: "user", content: c.user }],
-            temperature: 0.2,
-            response_format: { type: "json_object" },
-          }),
+        const result = await postWithAdaptiveRetry(ep, headers, {
+          model: s.ai_default_model,
+          messages: [{ role: "system", content: c.sys }, { role: "user", content: c.user }],
+          temperature: 0.2,
+          response_format: { type: "json_object" },
         });
-        const text = await resp.text();
-        console.log("STATUS:", resp.status);
-        console.log("BODY:", text.slice(0, 400));
+        console.log("STATUS:", result.status, "(attempts:", result.attempts + ")");
+        if (result.dropped.length) console.log("DROPPED PARAMS:", result.dropped.join(", "));
+        console.log("BODY:", result.body.slice(0, 400));
       } catch (e) {
         console.log("FETCH ERROR:", e.message);
       }
