@@ -3,7 +3,7 @@ import SiemDashboard from "@/components/admin/siem-dashboard";
 import ActionButton from "@/components/ui/action-button";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
-import { FileSearch, RadioTower, ScrollText, ShieldAlert } from "lucide-react";
+import { FileSearch, RadioTower, ScrollText, ShieldAlert, SlidersHorizontal } from "lucide-react";
 import { redirect } from "next/navigation";
 
 export default async function SiemPage() {
@@ -38,6 +38,7 @@ export default async function SiemPage() {
             <ActionButton href="/admin/siem/events" variant="secondary" icon={<FileSearch className="size-4" />}>Events</ActionButton>
             <ActionButton href="/admin/siem/findings" variant="secondary" icon={<ShieldAlert className="size-4" />}>Findings</ActionButton>
             <ActionButton href="/admin/siem/sources" variant="secondary" icon={<RadioTower className="size-4" />}>Sources</ActionButton>
+            <ActionButton href="/admin/siem/rules" variant="secondary" icon={<SlidersHorizontal className="size-4" />}>Rules</ActionButton>
           </>
         }
       />
