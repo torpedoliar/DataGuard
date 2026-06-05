@@ -1,6 +1,8 @@
 import { db } from "../../db";
-import { siemAlerts, siemFindings, siemSettings, syslogEvents, syslogEventsRaw } from "../../db/schema";
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { siemAlerts, siemEvidenceEvents, siemFindings, syslogEvents, syslogEventsRaw, syslogSources } from "../../db/schema";
+import { and, eq, inArray, lt, ne, sql } from "drizzle-orm";
+import { archiveFindingEvidence } from "./evidence";
+import { partitionsForWindow, isPartitionFullyExpired, partitionName } from "./partitioning";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -30,6 +32,9 @@ export type SiemRetentionCleanupResult = {
   eventsDeleted: number;
   findingsDeleted: number;
   alertsDeleted: number;
+  evidenceArchivedFindings: number;
+  partitionsCreated: number;
+  partitionsDropped: number;
 };
 
 export function normalizeRetentionDays(value: number | null | undefined, fallback: number) {
@@ -73,28 +78,188 @@ export function buildSiemRetentionCutoffs(settings: Partial<RetentionSettings> |
   };
 }
 
-export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?: number } = {}): Promise<SiemRetentionCleanupResult> {
-  const batchSize = Math.max(1, Math.min(Math.floor(options.batchSize ?? 1000), 10000));
-  const [settings] = await db.select({
-    rawRetentionDays: siemSettings.rawRetentionDays,
-    eventRetentionDays: siemSettings.eventRetentionDays,
-    findingRetentionDays: siemSettings.findingRetentionDays,
-    alertRetentionDays: siemSettings.alertRetentionDays,
-  }).from(siemSettings).limit(1);
-  const cutoffs = buildSiemRetentionCutoffs(settings, options.now ?? new Date());
+const PARTITIONED_TABLES = ["syslog_events", "syslog_events_raw"] as const;
 
+/** Idempotently create weekly partitions covering recent + upcoming weeks. */
+async function ensurePartitions(now: Date): Promise<number> {
+  let created = 0;
+  const weeks = partitionsForWindow(now, 1, 2); // last week + this week + 2 ahead
+  for (const base of PARTITIONED_TABLES) {
+    for (const week of weeks) {
+      const name = partitionName(base, week.start);
+      const startIso = week.start.toISOString();
+      const endIso = week.end.toISOString();
+      // CREATE TABLE IF NOT EXISTS ... PARTITION OF is idempotent.
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS ${sql.identifier(name)}
+        PARTITION OF ${sql.identifier(base)}
+        FOR VALUES FROM (${startIso}) TO (${endIso})
+      `);
+      created++;
+    }
+  }
+  return created;
+}
+
+/** Drop partitions whose entire range is older than the most-lenient cutoff. */
+async function dropExpiredPartitions(base: string, cutoff: Date, now: Date): Promise<number> {
+  // List existing partitions of `base` from pg_inherits.
+  const rows = await db.execute<{ child: string }>(sql`
+    SELECT c.relname AS child
+    FROM pg_inherits i
+    JOIN pg_class c ON c.oid = i.inhrelid
+    JOIN pg_class p ON p.oid = i.inhparent
+    WHERE p.relname = ${base}
+  `);
+  const partitions = (rows.rows ?? rows) as Array<{ child: string }>;
+  let dropped = 0;
+  // Look back up to 520 weeks (~10y) to find candidate week ranges by name.
+  const candidates = partitionsForWindow(now, 520, 0);
+  const byName = new Map(candidates.map((week) => [partitionName(base, week.start), week]));
+  for (const partition of partitions) {
+    const week = byName.get(partition.child);
+    if (!week) continue; // unknown/legacy partition name → never auto-drop
+    if (isPartitionFullyExpired(week, cutoff)) {
+      await db.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(partition.child)}`);
+      dropped++;
+    }
+  }
+  return dropped;
+}
+
+export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?: number } = {}): Promise<SiemRetentionCleanupResult> {
+  const now = options.now ?? new Date();
+  const batchSize = Math.max(1, Math.min(Math.floor(options.batchSize ?? 1000), 10000));
+
+  const [settings] = await db.execute<{
+    raw_retention_days: number | null;
+    event_retention_days: number | null;
+    finding_retention_days: number | null;
+    alert_retention_days: number | null;
+  }>(sql`
+    SELECT raw_retention_days, event_retention_days, finding_retention_days, alert_retention_days
+    FROM siem_settings LIMIT 1
+  `).then((res) => (res.rows ?? res) as Array<{
+    raw_retention_days: number | null;
+    event_retention_days: number | null;
+    finding_retention_days: number | null;
+    alert_retention_days: number | null;
+  }>);
+
+  const globalEventDays = normalizeRetentionDays(settings?.event_retention_days, DEFAULT_SIEM_RETENTION_DAYS.events);
+  const globalRawDays = normalizeRetentionDays(settings?.raw_retention_days, DEFAULT_SIEM_RETENTION_DAYS.raw);
+  const globalFindingDays = normalizeRetentionDays(settings?.finding_retention_days, DEFAULT_SIEM_RETENTION_DAYS.findings);
+  const globalAlertDays = normalizeRetentionDays(settings?.alert_retention_days, DEFAULT_SIEM_RETENTION_DAYS.alerts);
+
+  const eventCutoff = cutoff(now, globalEventDays);
+  const rawCutoff = cutoff(now, globalRawDays);
+  const findingCutoff = cutoff(now, globalFindingDays);
+  const alertCutoff = cutoff(now, globalAlertDays);
+
+  // Load source overrides (only the column needed for the lenient cutoff + per-source delete).
+  const sources = await db
+    .select({ id: syslogSources.id, eventRetentionDays: syslogSources.eventRetentionDays })
+    .from(syslogSources);
+
+  // ----- PHASE A: archive finding evidence before any deletion -----
+  // Archive non-Resolved findings that still reference events but are not yet archived.
+  // We archive eagerly (any unarchived finding with events) so a later partition drop
+  // can never destroy referenced events.
+  const unarchived = await db
+    .select({ id: siemFindings.id, sampleEventIds: siemFindings.sampleEventIds })
+    .from(siemFindings)
+    .where(and(eq(siemFindings.evidenceArchived, false), ne(siemFindings.status, "Resolved")))
+    .limit(batchSize);
+
+  let evidenceArchivedFindings = 0;
+  for (const finding of unarchived) {
+    await archiveFindingEvidence(finding);
+    evidenceArchivedFindings++;
+  }
+
+  // ----- PHASE B: partition maintenance (create upcoming, drop fully-expired) -----
+  const partitionsCreated = await ensurePartitions(now);
+  const lenientCutoff = mostLenientEventCutoff(sources, globalEventDays, now);
+  let partitionsDropped = 0;
+  partitionsDropped += await dropExpiredPartitions("syslog_events", lenientCutoff, now);
+  // raw partitions follow the raw cutoff but never drop newer than the event lenient cutoff,
+  // so referenced raws joined to live events are never lost.
+  const lenientRawCutoff = new Date(Math.min(rawCutoff.getTime(), lenientCutoff.getTime()));
+  partitionsDropped += await dropExpiredPartitions("syslog_events_raw", lenientRawCutoff, now);
+
+  // ----- PHASE C: precise per-source delete inside still-live partitions -----
+  let eventsDeleted = 0;
+  for (const source of sources) {
+    const sourceDays = resolveSourceCutoffDays(source.eventRetentionDays, globalEventDays);
+    // Sources at/above the global default are fully handled by partition drops.
+    if (sourceDays >= globalEventDays) continue;
+    const sourceCutoff = cutoff(now, sourceDays);
+    // Loop batched deletes until drained.
+    // Skip events that belong to an unresolved-but-already-archived finding? Not needed:
+    // evidence is self-contained, so deleting the hot event is safe post-archive.
+    // We still avoid deleting events newer than the source cutoff.
+    let done = false;
+    while (!done) {
+      const victims = await db
+        .select({ id: syslogEvents.id })
+        .from(syslogEvents)
+        .where(and(eq(syslogEvents.sourceId, source.id), lt(syslogEvents.receivedAt, sourceCutoff)))
+        .limit(batchSize);
+      if (victims.length === 0) {
+        done = true;
+      } else {
+        const ids = victims.map((row) => row.id);
+        const deleted = await db.delete(syslogEvents).where(inArray(syslogEvents.id, ids)).returning({ id: syslogEvents.id });
+        eventsDeleted += deleted.length;
+        if (victims.length < batchSize) done = true;
+      }
+    }
+  }
+
+  // Global event delete for events with NO source mapping (sourceId IS NULL) past global cutoff,
+  // covering rows inside still-live partitions.
+  let done = false;
+  while (!done) {
+    const victims = await db
+      .select({ id: syslogEvents.id })
+      .from(syslogEvents)
+      .where(and(sql`${syslogEvents.sourceId} is null`, lt(syslogEvents.receivedAt, eventCutoff)))
+      .limit(batchSize);
+    if (victims.length === 0) {
+      done = true;
+    } else {
+      const ids = victims.map((row) => row.id);
+      const deleted = await db.delete(syslogEvents).where(inArray(syslogEvents.id, ids)).returning({ id: syslogEvents.id });
+      eventsDeleted += deleted.length;
+      if (victims.length < batchSize) done = true;
+    }
+  }
+
+  // Orphan raw events (no surviving event) older than the raw cutoff, inside live partitions.
+  const deletedRawEvents = await db.delete(syslogEventsRaw)
+    .where(and(
+      lt(syslogEventsRaw.receivedAt, rawCutoff),
+      sql`not exists (select 1 from ${syslogEvents} where ${syslogEvents.rawEventId} = ${syslogEventsRaw.id})`,
+    ))
+    .returning({ id: syslogEventsRaw.id });
+
+  // ----- Findings & alerts own expiry (never driven by the log stream) -----
   const oldAlerts = await db.delete(siemAlerts)
-    .where(lt(siemAlerts.createdAt, cutoffs.alerts))
+    .where(lt(siemAlerts.createdAt, alertCutoff))
     .returning({ id: siemAlerts.id });
 
-  const staleFindings = await db.select({ id: siemFindings.id }).from(siemFindings)
-    .where(and(eq(siemFindings.status, "Resolved"), lt(siemFindings.lastSeenAt, cutoffs.findings)))
+  const staleFindings = await db
+    .select({ id: siemFindings.id })
+    .from(siemFindings)
+    .where(and(eq(siemFindings.status, "Resolved"), lt(siemFindings.lastSeenAt, findingCutoff)))
     .limit(batchSize);
   const staleFindingIds = staleFindings.map((finding) => finding.id);
 
   let findingAlertsDeleted = 0;
   let findingsDeleted = 0;
   if (staleFindingIds.length > 0) {
+    // Evidence rows FK to findings with no cascade; delete them first.
+    await db.delete(siemEvidenceEvents).where(inArray(siemEvidenceEvents.findingId, staleFindingIds));
     const alertsForFindings = await db.delete(siemAlerts)
       .where(inArray(siemAlerts.findingId, staleFindingIds))
       .returning({ id: siemAlerts.id });
@@ -105,20 +270,13 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
     findingsDeleted = deletedFindings.length;
   }
 
-  const deletedEvents = await db.delete(syslogEvents)
-    .where(lt(syslogEvents.receivedAt, cutoffs.events))
-    .returning({ id: syslogEvents.id });
-  const deletedRawEvents = await db.delete(syslogEventsRaw)
-    .where(and(
-      lt(syslogEventsRaw.receivedAt, cutoffs.raw),
-      sql`not exists (select 1 from ${syslogEvents} where ${syslogEvents.rawEventId} = ${syslogEventsRaw.id})`,
-    ))
-    .returning({ id: syslogEventsRaw.id });
-
   return {
     rawEventsDeleted: deletedRawEvents.length,
-    eventsDeleted: deletedEvents.length,
+    eventsDeleted,
     findingsDeleted,
     alertsDeleted: oldAlerts.length + findingAlertsDeleted,
+    evidenceArchivedFindings,
+    partitionsCreated,
+    partitionsDropped,
   };
 }

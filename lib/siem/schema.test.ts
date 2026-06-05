@@ -35,6 +35,8 @@ describe("SIEM schema", () => {
       "enabled",
       "lastSeenAt",
       "eventCount",
+      "rawRetentionDays",
+      "eventRetentionDays",
       "createdAt",
       "updatedAt",
     ]);
@@ -109,6 +111,7 @@ describe("SIEM schema", () => {
       "firstSeenAt",
       "lastSeenAt",
       "sampleEventIds",
+      "evidenceArchived",
       "correlationKey",
       "acknowledgedBy",
       "acknowledgedAt",
