@@ -57,6 +57,13 @@
       "when": 1780536110445,
       "tag": "0007_abandoned_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780622000000,
+      "tag": "0008_siem_retention_scale",
+      "breakpoints": true
     }
   ]
 }

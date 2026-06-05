@@ -438,6 +438,8 @@ export const syslogSources = pgTable("syslog_sources", {
   enabled: boolean("enabled").notNull().default(true),
   lastSeenAt: timestamp("last_seen_at"),
   eventCount: integer("event_count").notNull().default(0),
+  rawRetentionDays: integer("raw_retention_days"),
+  eventRetentionDays: integer("event_retention_days"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -549,6 +551,7 @@ export const siemFindings = pgTable("siem_findings", {
   firstSeenAt: timestamp("first_seen_at").notNull(),
   lastSeenAt: timestamp("last_seen_at").notNull(),
   sampleEventIds: jsonb("sample_event_ids").$type<number[]>().notNull().default(sql`'[]'::jsonb`),
+  evidenceArchived: boolean("evidence_archived").notNull().default(false),
   correlationKey: text("correlation_key").notNull(),
   acknowledgedBy: integer("acknowledged_by").references(() => users.id),
   acknowledgedAt: timestamp("acknowledged_at"),
@@ -606,6 +609,33 @@ export const siemSettings = pgTable("siem_settings", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const siemEvidenceEvents = pgTable("siem_evidence_events", {
+  id: serial("id").primaryKey(),
+  findingId: integer("finding_id").references(() => siemFindings.id).notNull(),
+  originalEventId: integer("original_event_id").notNull(),
+  eventTime: timestamp("event_time"),
+  receivedAt: timestamp("received_at").notNull(),
+  sourceIp: text("source_ip").notNull(),
+  hostname: text("hostname"),
+  deviceId: integer("device_id").references(() => devices.id),
+  sourceId: integer("source_id").references(() => syslogSources.id),
+  message: text("message").notNull(),
+  rawMessage: text("raw_message"),
+  category: text("category"),
+  normalizedType: text("normalized_type"),
+  action: text("action"),
+  outcome: text("outcome"),
+  srcIp: text("src_ip"),
+  dstIp: text("dst_ip"),
+  username: text("username"),
+  severity: integer("severity"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  archivedAt: timestamp("archived_at").defaultNow(),
+}, (table) => ({
+  findingIdx: index("siem_evidence_events_finding_idx").on(table.findingId),
+  originalIdx: index("siem_evidence_events_original_idx").on(table.originalEventId),
+}));
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   user: one(users, {
@@ -686,6 +716,13 @@ export const siemFindingsRelations = relations(siemFindings, ({ one, many }) => 
     relationName: "resolvedSiemFindings",
   }),
   alerts: many(siemAlerts),
+}));
+
+export const siemEvidenceEventsRelations = relations(siemEvidenceEvents, ({ one }) => ({
+  finding: one(siemFindings, {
+    fields: [siemEvidenceEvents.findingId],
+    references: [siemFindings.id],
+  }),
 }));
 
 export const siemAlertsRelations = relations(siemAlerts, ({ one }) => ({
