@@ -1,11 +1,12 @@
 "use server";
 
 import { db } from "@/db";
-import { siemFindings, siemSettings, syslogEvents, syslogEventsRaw } from "@/db/schema";
+import { siemFindings, siemSettings } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
 import { buildSiemAiPrompt, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, requestSiemAiAnalysis, type SiemAiEventSample } from "@/lib/siem/ai-analysis";
-import { and, eq, inArray } from "drizzle-orm";
+import { getFindingEvidence } from "@/lib/siem/evidence";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function testSiemAiConnection(prevState: unknown, formData: FormData) {
@@ -66,24 +67,10 @@ export async function generateSiemAiAnalysis(prevState: unknown, formData: FormD
   });
   if (!finding) return { message: "SIEM finding not found." };
 
-  const sampleEventIds = finding.sampleEventIds.slice(0, settings.aiMaxSampleEvents);
-  const eventRows = sampleEventIds.length > 0
-    ? await db.select({
-      id: syslogEvents.id,
-      receivedAt: syslogEvents.receivedAt,
-      category: syslogEvents.category,
-      normalizedType: syslogEvents.normalizedType,
-      action: syslogEvents.action,
-      outcome: syslogEvents.outcome,
-      username: syslogEvents.username,
-      srcIp: syslogEvents.srcIp,
-      dstIp: syslogEvents.dstIp,
-      message: syslogEvents.message,
-      rawMessage: syslogEventsRaw.rawMessage,
-    }).from(syslogEvents)
-      .leftJoin(syslogEventsRaw, eq(syslogEvents.rawEventId, syslogEventsRaw.id))
-      .where(and(eq(syslogEvents.siteId, auth.activeSiteId), inArray(syslogEvents.id, sampleEventIds)))
-    : [];
+  const eventRows = await getFindingEvidence(
+    { id: finding.id, evidenceArchived: finding.evidenceArchived, sampleEventIds: finding.sampleEventIds },
+    { limit: settings.aiMaxSampleEvents, siteId: auth.activeSiteId },
+  );
 
   const prompt = buildSiemAiPrompt({
     maxRawLength: settings.aiMaxRawLength,
