@@ -23,6 +23,10 @@ const resolveItems: NavItem[] = [
   { href: "/report", label: "Reports", icon: "chart-column" },
 ];
 
+const siemItems: NavItem[] = [
+  { href: "/admin/siem", label: "SIEM", icon: "shield-alert" },
+];
+
 const adminItems: NavItem[] = [
   { href: "/admin", label: "Devices", icon: "server" },
   { href: "/admin/settings", label: "Settings", icon: "settings" },
@@ -46,6 +50,10 @@ export function getAppNavigation(role: UserRole): NavGroup[] {
     { label: "Operate", items: operateItems },
     { label: "Resolve", items: resolveItems },
   ];
+
+  if (role === "admin" || role === "superadmin") {
+    groups.push({ label: "SIEM", items: siemItems });
+  }
 
   if (role === "admin" || role === "superadmin") {
     groups.push({ label: "Admin", items: adminItems });

@@ -24,6 +24,7 @@ import {
   Search,
   Server,
   Settings,
+  ShieldAlert,
   Tag,
   User,
   Users,
@@ -62,6 +63,7 @@ const iconMap: Record<string, LucideIcon> = {
   users: Users,
   "building-2": Building2,
   settings: Settings,
+  "shield-alert": ShieldAlert,
   download: Download,
 };
 
