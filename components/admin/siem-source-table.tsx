@@ -32,6 +32,8 @@ export type SiemSourceRow = {
   enabled: boolean;
   lastSeenAt: Date | null;
   eventCount: number;
+  rawRetentionDays: number | null;
+  eventRetentionDays: number | null;
   createdAt: Date | null;
   updatedAt: Date | null;
 };
@@ -129,6 +131,30 @@ function EditSourceModal({ source, devices, onClose }: { source: SiemSourceRow; 
                 <option value="false">Disabled</option>
               </select>
             </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              Raw retention (days)
+              <input
+                name="rawRetentionDays"
+                type="number"
+                min={1}
+                max={3650}
+                defaultValue={source.rawRetentionDays ?? ""}
+                placeholder="Follow global"
+                className={`${fieldClass} w-full`}
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              Event retention (days)
+              <input
+                name="eventRetentionDays"
+                type="number"
+                min={1}
+                max={3650}
+                defaultValue={source.eventRetentionDays ?? ""}
+                placeholder="Follow global"
+                className={`${fieldClass} w-full`}
+              />
+            </label>
           </div>
 
           {state?.errors && <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{Object.values(state.errors).flat().join(" ")}</div>}
@@ -220,12 +246,13 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
               <th className="px-5 py-3 text-left"><button type="button" onClick={() => handleSort("trustLevel")} className="inline-flex items-center gap-1.5">Trust {renderSortIcon("trustLevel")}</button></th>
               <th className="px-5 py-3 text-left"><button type="button" onClick={() => handleSort("lastSeenAt")} className="inline-flex items-center gap-1.5">Last Seen {renderSortIcon("lastSeenAt")}</button></th>
               <th className="px-5 py-3 text-right"><button type="button" onClick={() => handleSort("eventCount")} className="inline-flex items-center gap-1.5">Events {renderSortIcon("eventCount")}</button></th>
+              <th className="px-5 py-3 text-right">Retention</th>
               <th className="px-5 py-3 text-right">Actions</th>
             </tr>
           </DataTableHead>
           <DataTableBody>
             {filtered.length === 0 ? (
-              <DataTableEmpty colSpan={8} title={search || trustFilter ? "No SIEM sources match filters" : "No SIEM sources yet"} description="Unknown sources appear here after syslog packets arrive and unknown-source handling is enabled." />
+              <DataTableEmpty colSpan={9} title={search || trustFilter ? "No SIEM sources match filters" : "No SIEM sources yet"} description="Unknown sources appear here after syslog packets arrive and unknown-source handling is enabled." />
             ) : filtered.map((source) => (
               <tr key={source.id} className="transition-colors hover:bg-ops-surface">
                 <td className="px-5 py-3">
@@ -245,6 +272,9 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
                 <td className="whitespace-nowrap px-5 py-3"><StatusBadge tone={trustTone(source.trustLevel)} dot>{source.trustLevel}</StatusBadge></td>
                 <td className="whitespace-nowrap px-5 py-3 text-sm text-ops-muted">{formatDate(source.lastSeenAt)}</td>
                 <td className="whitespace-nowrap px-5 py-3 text-right font-mono text-sm text-ops-text">{source.eventCount.toLocaleString("id-ID")}</td>
+                <td className="whitespace-nowrap px-5 py-3 text-right text-sm text-ops-muted">
+                  {source.eventRetentionDays ? `${source.eventRetentionDays}d` : "Global"}
+                </td>
                 <td className="whitespace-nowrap px-5 py-3 text-right">
                   <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingSource(source)} title="Edit source mapping">
                     <Edit className="size-4 text-blue-300" />

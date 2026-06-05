@@ -17,6 +17,8 @@ const sourceUpdateSchema = z.object({
   parserProfile: z.string().min(1, "Parser profile is required"),
   trustLevel: z.enum(["unknown", "trusted", "untrusted"]),
   enabled: z.coerce.boolean(),
+  rawRetentionDays: z.coerce.number().int().min(1).max(3650).nullable().optional(),
+  eventRetentionDays: z.coerce.number().int().min(1).max(3650).nullable().optional(),
 });
 
 export async function getSiemSources() {
@@ -41,6 +43,8 @@ export async function getSiemSources() {
       enabled: syslogSources.enabled,
       lastSeenAt: syslogSources.lastSeenAt,
       eventCount: syslogSources.eventCount,
+      rawRetentionDays: syslogSources.rawRetentionDays,
+      eventRetentionDays: syslogSources.eventRetentionDays,
       createdAt: syslogSources.createdAt,
       updatedAt: syslogSources.updatedAt,
     })
@@ -76,6 +80,8 @@ export async function updateSiemSource(prevState: unknown, formData: FormData) {
     parserProfile: formData.get("parserProfile"),
     trustLevel: formData.get("trustLevel"),
     enabled: formData.get("enabled") === "true",
+    rawRetentionDays: formData.get("rawRetentionDays") || null,
+    eventRetentionDays: formData.get("eventRetentionDays") || null,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -100,6 +106,8 @@ export async function updateSiemSource(prevState: unknown, formData: FormData) {
     parserProfile: parsed.data.parserProfile,
     trustLevel: parsed.data.trustLevel,
     enabled: parsed.data.enabled,
+    rawRetentionDays: parsed.data.rawRetentionDays ?? null,
+    eventRetentionDays: parsed.data.eventRetentionDays ?? null,
     updatedAt: new Date(),
   }).where(eq(syslogSources.id, parsed.data.id));
 
