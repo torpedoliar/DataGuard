@@ -37,6 +37,29 @@ export function normalizeRetentionDays(value: number | null | undefined, fallbac
   return Math.floor(value);
 }
 
+/** A source's effective retention days: its override if valid, else the global default. */
+export function resolveSourceCutoffDays(override: number | null | undefined, globalDays: number): number {
+  if (!Number.isFinite(override) || !override || (override as number) < 1) return globalDays;
+  return Math.floor(override as number);
+}
+
+/**
+ * The cutoff date below which a whole partition may be dropped: now minus the
+ * LARGEST retention across all sources (and the global default). Any data older
+ * than this is expired for every source, so the partition is safe to drop.
+ */
+export function mostLenientEventCutoff(
+  sources: Array<{ eventRetentionDays: number | null }>,
+  globalDays: number,
+  now: Date,
+): Date {
+  let maxDays = globalDays;
+  for (const source of sources) {
+    maxDays = Math.max(maxDays, resolveSourceCutoffDays(source.eventRetentionDays, globalDays));
+  }
+  return new Date(now.getTime() - maxDays * MS_PER_DAY);
+}
+
 function cutoff(now: Date, days: number) {
   return new Date(now.getTime() - days * MS_PER_DAY);
 }
