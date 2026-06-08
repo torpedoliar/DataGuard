@@ -10,6 +10,10 @@ export type SiemIngestSettingsData = {
   defaultSiemSiteId: number | null;
   unknownSourceEnabled: boolean;
   alertMinSeverity: SiemSeverity;
+  rawRetentionDays: number;
+  eventRetentionDays: number;
+  findingRetentionDays: number;
+  alertRetentionDays: number;
   sites: { id: number; name: string; code: string }[];
 };
 
@@ -80,6 +84,61 @@ export default function SiemIngestSettingsForm({ initialData }: { initialData: S
           </select>
           <span className="text-xs text-slate-500">Finding di bawah severity ini tidak akan masuk antrean alert Telegram.</span>
         </label>
+      </div>
+
+      <div className="rounded-lg border border-slate-700/50 bg-slate-800/40 p-4">
+        <h3 className="text-sm font-semibold text-white">Retention (hari)</h3>
+        <p className="mt-1 text-xs text-slate-400">Data lebih tua dari batas ini akan dihapus otomatis oleh retention worker.</p>
+        <div className="mt-3 grid gap-4 md:grid-cols-4">
+          <label className="space-y-1.5 text-sm font-medium text-slate-300">
+            Raw Events
+            <input
+              name="rawRetentionDays"
+              type="number"
+              min={1}
+              max={3650}
+              defaultValue={initialData.rawRetentionDays}
+              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+            />
+            <span className="text-xs text-slate-500">Default: 90 hari</span>
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-slate-300">
+            Events
+            <input
+              name="eventRetentionDays"
+              type="number"
+              min={1}
+              max={3650}
+              defaultValue={initialData.eventRetentionDays}
+              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+            />
+            <span className="text-xs text-slate-500">Default: 180 hari</span>
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-slate-300">
+            Findings
+            <input
+              name="findingRetentionDays"
+              type="number"
+              min={1}
+              max={3650}
+              defaultValue={initialData.findingRetentionDays}
+              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+            />
+            <span className="text-xs text-slate-500">Default: 365 hari</span>
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-slate-300">
+            Alerts
+            <input
+              name="alertRetentionDays"
+              type="number"
+              min={1}
+              max={3650}
+              defaultValue={initialData.alertRetentionDays}
+              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+            />
+            <span className="text-xs text-slate-500">Default: 365 hari</span>
+          </label>
+        </div>
       </div>
 
       {state?.errors && (

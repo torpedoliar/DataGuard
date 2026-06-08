@@ -25,6 +25,10 @@ const ingestSettingsSchema = z.object({
     .transform((value) => (value === "" ? null : value)),
   unknownSourceEnabled: z.coerce.boolean(),
   alertMinSeverity: z.enum(siemSeverities),
+  rawRetentionDays: z.coerce.number().int().min(1).max(3650).optional(),
+  eventRetentionDays: z.coerce.number().int().min(1).max(3650).optional(),
+  findingRetentionDays: z.coerce.number().int().min(1).max(3650).optional(),
+  alertRetentionDays: z.coerce.number().int().min(1).max(3650).optional(),
 });
 
 export async function getSiemAiSettings() {
@@ -92,6 +96,10 @@ export async function getSiemIngestSettings() {
     defaultSiemSiteId: settings?.defaultSiemSiteId ?? null,
     unknownSourceEnabled: settings?.unknownSourceEnabled ?? true,
     alertMinSeverity: (settings?.alertMinSeverity ?? "High") as (typeof siemSeverities)[number],
+    rawRetentionDays: settings?.rawRetentionDays ?? 90,
+    eventRetentionDays: settings?.eventRetentionDays ?? 180,
+    findingRetentionDays: settings?.findingRetentionDays ?? 365,
+    alertRetentionDays: settings?.alertRetentionDays ?? 365,
     sites: siteRows,
   };
 }
@@ -105,6 +113,10 @@ export async function updateSiemIngestSettings(prevState: unknown, formData: For
     defaultSiemSiteId: formData.get("defaultSiemSiteId") ?? "",
     unknownSourceEnabled: formData.get("unknownSourceEnabled") === "true",
     alertMinSeverity: formData.get("alertMinSeverity"),
+    rawRetentionDays: formData.get("rawRetentionDays") || undefined,
+    eventRetentionDays: formData.get("eventRetentionDays") || undefined,
+    findingRetentionDays: formData.get("findingRetentionDays") || undefined,
+    alertRetentionDays: formData.get("alertRetentionDays") || undefined,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -113,6 +125,10 @@ export async function updateSiemIngestSettings(prevState: unknown, formData: For
     defaultSiemSiteId: parsed.data.defaultSiemSiteId,
     unknownSourceEnabled: parsed.data.unknownSourceEnabled,
     alertMinSeverity: parsed.data.alertMinSeverity,
+    rawRetentionDays: parsed.data.rawRetentionDays ?? undefined,
+    eventRetentionDays: parsed.data.eventRetentionDays ?? undefined,
+    findingRetentionDays: parsed.data.findingRetentionDays ?? undefined,
+    alertRetentionDays: parsed.data.alertRetentionDays ?? undefined,
     updatedAt: new Date(),
   };
 
