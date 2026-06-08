@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import dotenv from "dotenv";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { brands, categories, devices, locations, siemSettings, sites, syslogEvents, syslogEventsRaw, syslogSources } from "../db/schema";
 import { processRawSyslogEvent } from "../lib/siem/process-raw-event";
@@ -9,8 +9,23 @@ import type { SiemVendor } from "../lib/siem/types";
 
 dotenv.config();
 
-const batchSize = Number(process.env.SIEM_PARSER_BATCH_SIZE ?? 100);
-const pollIntervalMs = Number(process.env.SIEM_PARSER_POLL_INTERVAL_MS ?? 5000);
+const batchSize = Number(process.env.SIEM_PARSER_BATCH_SIZE ?? 1000);
+const pollIntervalMs = Number(process.env.SIEM_PARSER_POLL_INTERVAL_MS ?? 2000);
+const contextTtlMs = Number(process.env.SIEM_PARSER_CONTEXT_TTL_MS ?? 30000);
+// Postgres caps a statement at 65535 bind params. syslog_events has ~30 columns,
+// so 500 rows/insert (~15k params) stays well under the limit.
+const insertChunkSize = Number(process.env.SIEM_PARSER_INSERT_CHUNK_SIZE ?? 500);
+
+type ParserContext = Awaited<ReturnType<typeof loadContext>>;
+
+let cachedContext: ParserContext | null = null;
+let contextLoadedAt = 0;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
 
 async function loadContext() {
   const [sourceRows, deviceRows, siteRows, settingsRows] = await Promise.all([
@@ -40,12 +55,75 @@ async function loadContext() {
   };
 }
 
+async function getContext() {
+  const now = Date.now();
+  if (!cachedContext || now - contextLoadedAt > contextTtlMs) {
+    cachedContext = await loadContext();
+    contextLoadedAt = now;
+  }
+  return cachedContext;
+}
+
+type RawRow = typeof syslogEventsRaw.$inferSelect;
+type EventInsert = typeof syslogEvents.$inferInsert;
+
+// Auto-create syslog sources for unknown IPs before the main pass so later rows
+// in the same batch (same IP) match the freshly created source. Dedupes by IP.
+async function ensureUnknownSources(rows: RawRow[], context: ParserContext) {
+  if (!context.settings?.unknownSourceEnabled) return;
+
+  const known = new Set(context.sources.map((source) => source.sourceIp));
+  const pending = new Map<string, { hostname: string | null; siteId: number; receivedAt: Date }>();
+
+  for (const raw of rows) {
+    if (known.has(raw.sourceIp) || pending.has(raw.sourceIp)) continue;
+    const initial = processRawSyslogEvent({ rawMessage: raw.rawMessage, vendor: "generic" });
+    const match = matchSyslogSource({ sourceIp: raw.sourceIp, hostname: initial.hostname, sources: context.sources, devices: context.devices });
+    if (match.matchType !== "unknown") continue;
+    const siteId = match.siteId ?? context.settings?.defaultSiemSiteId ?? null;
+    if (!siteId) continue;
+    pending.set(raw.sourceIp, { hostname: initial.hostname, siteId, receivedAt: raw.receivedAt });
+  }
+
+  for (const [sourceIp, info] of pending) {
+    const [created] = await db.insert(syslogSources).values({
+      siteId: info.siteId,
+      sourceIp,
+      hostname: info.hostname,
+      displayName: info.hostname ?? sourceIp,
+      vendor: "generic",
+      parserProfile: "generic",
+      lastSeenAt: info.receivedAt,
+      eventCount: 0,
+    }).returning();
+    if (created) {
+      context.sources.push({
+        id: created.id,
+        siteId: created.siteId,
+        deviceId: created.deviceId,
+        sourceIp: created.sourceIp,
+        hostname: created.hostname,
+        vendor: created.vendor,
+        parserProfile: created.parserProfile,
+      });
+    }
+  }
+}
+
 async function runOnce() {
   const rows = await db.select().from(syslogEventsRaw)
     .where(eq(syslogEventsRaw.ingestStatus, "received"))
     .orderBy(asc(syslogEventsRaw.receivedAt))
     .limit(batchSize);
-  const context = await loadContext();
+  if (rows.length === 0) return 0;
+
+  const context = await getContext();
+  await ensureUnknownSources(rows, context);
+
+  const eventValues: EventInsert[] = [];
+  const parsedIds: number[] = [];
+  const failedIds: number[] = [];
+  const sourceAgg = new Map<number, { count: number; lastSeenAt: Date }>();
 
   for (const raw of rows) {
     const initial = processRawSyslogEvent({ rawMessage: raw.rawMessage, vendor: "generic" });
@@ -53,38 +131,13 @@ async function runOnce() {
     const siteId = match.siteId ?? context.settings?.defaultSiemSiteId ?? null;
     const device = context.devices.find((candidate) => candidate.id === match.deviceId) ?? null;
     const site = context.sites.find((candidate) => candidate.id === siteId) ?? null;
-    let sourceId = match.sourceId;
-
-    if (match.matchType === "unknown" && context.settings?.unknownSourceEnabled && siteId) {
-      const [createdSource] = await db.insert(syslogSources).values({
-        siteId,
-        sourceIp: raw.sourceIp,
-        hostname: initial.hostname,
-        displayName: initial.hostname ?? raw.sourceIp,
-        vendor: "generic",
-        parserProfile: "generic",
-        lastSeenAt: raw.receivedAt,
-        eventCount: 0,
-      }).returning();
-      if (createdSource) {
-        sourceId = createdSource.id;
-        context.sources.push({
-          id: createdSource.id,
-          siteId: createdSource.siteId,
-          deviceId: createdSource.deviceId,
-          sourceIp: createdSource.sourceIp,
-          hostname: createdSource.hostname,
-          vendor: createdSource.vendor,
-          parserProfile: createdSource.parserProfile,
-        });
-      }
-    }
+    const sourceId = match.sourceId;
 
     const processed = processRawSyslogEvent({ rawMessage: raw.rawMessage, vendor: match.vendor as SiemVendor });
     const metadata = { ...processed.metadata, enrichment: buildAssetMetadata({ site, device }), matchType: match.matchType };
 
     if (processed.ingestStatus === "parsed") {
-      await db.insert(syslogEvents).values({
+      eventValues.push({
         rawEventId: raw.id,
         eventTime: processed.eventTime,
         receivedAt: raw.receivedAt,
@@ -116,14 +169,42 @@ async function runOnce() {
         tags: processed.tags,
         metadata,
       });
+      parsedIds.push(raw.id);
+    } else {
+      failedIds.push(raw.id);
     }
 
     if (sourceId) {
-      await db.update(syslogSources).set({ lastSeenAt: raw.receivedAt, eventCount: sql`${syslogSources.eventCount} + 1`, updatedAt: new Date() }).where(eq(syslogSources.id, sourceId));
+      const existing = sourceAgg.get(sourceId);
+      if (existing) {
+        existing.count += 1;
+        if (raw.receivedAt > existing.lastSeenAt) existing.lastSeenAt = raw.receivedAt;
+      } else {
+        sourceAgg.set(sourceId, { count: 1, lastSeenAt: raw.receivedAt });
+      }
     }
-
-    await db.update(syslogEventsRaw).set({ ingestStatus: processed.ingestStatus, parseError: processed.parseError }).where(and(eq(syslogEventsRaw.id, raw.id), eq(syslogEventsRaw.ingestStatus, "received")));
   }
+
+  // Atomic: insert parsed events and flip raw status together. If this transaction
+  // rolls back (crash/restart mid-batch), rows stay "received" and are reprocessed
+  // without producing duplicate syslog_events.
+  await db.transaction(async (tx) => {
+    for (const part of chunk(eventValues, insertChunkSize)) {
+      await tx.insert(syslogEvents).values(part);
+    }
+    for (const ids of chunk(parsedIds, 1000)) {
+      await tx.update(syslogEventsRaw).set({ ingestStatus: "parsed", parseError: null })
+        .where(and(inArray(syslogEventsRaw.id, ids), eq(syslogEventsRaw.ingestStatus, "received")));
+    }
+    for (const ids of chunk(failedIds, 1000)) {
+      await tx.update(syslogEventsRaw).set({ ingestStatus: "parse_failed", parseError: "Unsupported syslog format" })
+        .where(and(inArray(syslogEventsRaw.id, ids), eq(syslogEventsRaw.ingestStatus, "received")));
+    }
+    for (const [sourceId, agg] of sourceAgg) {
+      await tx.update(syslogSources).set({ lastSeenAt: agg.lastSeenAt, eventCount: sql`${syslogSources.eventCount} + ${agg.count}`, updatedAt: new Date() })
+        .where(eq(syslogSources.id, sourceId));
+    }
+  });
 
   return rows.length;
 }
@@ -132,7 +213,8 @@ async function loop() {
   while (true) {
     const count = await runOnce();
     if (count > 0) console.log(`Parsed ${count} raw syslog events`);
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    // Full batch means backlog remains — keep draining without sleeping.
+    if (count < batchSize) await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
 }
 
