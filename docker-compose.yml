@@ -110,6 +110,19 @@ services:
     networks:
       - dccheck_net
 
+  incidents-overdue-notify:
+    image: dc-check-app:latest
+    container_name: dccheck_incidents_overdue_notify
+    restart: unless-stopped
+    command: npm run incidents:notify-overdue:loop
+    env_file:
+      - .env.production
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - dccheck_net
+
   db:
     image: postgres:15-alpine
     container_name: dccheck_postgres

@@ -2,10 +2,16 @@ import "dotenv/config";
 
 import { db } from "@/db";
 import { incidents, sites } from "@/db/schema";
+import { logAuditManual } from "@/lib/audit";
 import { sendTelegramAlert } from "@/lib/telegram";
 import { and, eq, isNull, lt, ne, or } from "drizzle-orm";
 
-async function main() {
+export interface NotifyOverdueResult {
+  notified: number;
+  scanned: number;
+}
+
+export async function notifyOverdueIncidents(): Promise<NotifyOverdueResult> {
   const overdue = await db.select({
     id: incidents.id,
     title: incidents.title,
@@ -39,9 +45,23 @@ async function main() {
   }
 
   console.log(`Overdue incident notifications sent: ${sent}`);
+
+  await logAuditManual({
+    action: "UPDATE",
+    entity: "incident",
+    detail: `INCIDENTS_NOTIFY scanned=${overdue.length} notified=${sent}`,
+  });
+
+  return { notified: sent, scanned: overdue.length };
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+async function main() {
+  await notifyOverdueIncidents();
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

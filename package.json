@@ -18,6 +18,7 @@
     "seed:users": "tsx scripts/seed-users.ts",
     "reset:devices": "tsx scripts/reset-devices.ts",
     "incidents:notify-overdue": "tsx scripts/notify-overdue-incidents.ts",
+    "incidents:notify-overdue:loop": "tsx scripts/notify-overdue-loop.ts",
     "syslog:receiver": "tsx scripts/syslog-receiver.ts",
     "siem:parser": "tsx scripts/siem-parser-worker.ts",
     "siem:rules": "tsx scripts/siem-rule-worker.ts",
