@@ -9,6 +9,7 @@ import { renderTelegramTemplate, sendTelegramAlert } from "@/lib/telegram";
 import { verifySession } from "../lib/session";
 import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
+import { logAudit } from "../lib/audit";
 import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -94,6 +95,14 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
             siteId: auth.activeSiteId,
             userId: session.userId,
             items: incidentItems,
+        });
+
+        await logAudit({
+            action: "CREATE",
+            entity: "checklist",
+            entityId: entry.id,
+            entityName: `${checkDate} ${shift}`,
+            detail: `Checklist submitted with ${deviceIds.length} items, ${alertItems.length} alerts`,
         });
 
         // 5. Dispatch Telegram Alerts (if applicable)
@@ -283,6 +292,14 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
             });
         }
 
+        await logAudit({
+            action: "UPDATE",
+            entity: "checklist",
+            entityId: entryId,
+            entityName: `${checkDate} ${shift}`,
+            detail: `Checklist updated with ${deviceIds.length} items`,
+        });
+
         revalidatePath("/checklist");
         revalidatePath("/report");
         return { success: true, message: "Checklist updated successfully" };
@@ -332,6 +349,14 @@ export async function deleteChecklistEntry(entryId: number) {
 
         // Delete entry
         await db.delete(checklistEntries).where(eq(checklistEntries.id, entryId));
+
+        await logAudit({
+            action: "DELETE",
+            entity: "checklist",
+            entityId: entryId,
+            entityName: `${entry.checkDate} ${entry.shift}`,
+            detail: `Checklist entry deleted (${items.length} items, ${items.filter((i) => i.photoPath).length} photos)`,
+        });
 
         revalidatePath("/checklist");
         revalidatePath("/report");

@@ -388,6 +388,14 @@ export async function addIncidentUpdate(prevState: unknown, formData: FormData) 
     photoPath,
   });
 
+  await logAudit({
+    action: "UPDATE",
+    entity: "incident",
+    entityId: incidentId,
+    entityName: existing.title,
+    detail: `Update added${photoPath ? " (with evidence photo)" : ""}`,
+  });
+
   revalidateIncidentPaths(incidentId);
   return { success: true };
 }

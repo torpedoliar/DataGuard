@@ -5,6 +5,7 @@ import { db } from "../db";
 import { checklistEntries, checklistItems, devices, incidents, locations } from "../db/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { verifySession } from "../lib/session";
+import { logAudit } from "../lib/audit";
 import type { IncidentStatus } from "@/lib/incidents";
 import * as XLSX from "xlsx";
 
@@ -230,5 +231,13 @@ export async function exportToExcel(startDate: string, endDate: string, incident
 
     // Generate buffer
     const buffer = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
+
+    await logAudit({
+        action: "EXPORT",
+        entity: "checklist",
+        entityName: `Excel ${startDate}..${endDate}`,
+        detail: `start=${startDate}, end=${endDate}, status=${incidentStatus ?? "all"}, rows=${excelData.length}`,
+    });
+
     return buffer;
 }
