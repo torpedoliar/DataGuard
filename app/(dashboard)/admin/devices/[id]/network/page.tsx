@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Network, Server, ArrowLeft } from "lucide-react";
 import AddPortForm from "@/components/admin/add-port-form";
 import PortTable from "@/components/admin/port-table";
+import ImportPortForm from "@/components/admin/import-port-form";
 
 export default async function NetworkDocumentationPage({
     params,
@@ -118,6 +119,8 @@ export default async function NetworkDocumentationPage({
             </div>
 
             <AddPortForm deviceId={deviceId} vlans={vlans} otherDevices={otherDevices} />
+
+            <ImportPortForm deviceId={deviceId} />
 
             <div className="mt-8">
                 <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white flex items-center gap-2">

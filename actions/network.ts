@@ -249,6 +249,124 @@ export async function downloadPortImportTemplate(deviceId: number) {
     return XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
 }
 
+export type PortImportResult = {
+  success: boolean;
+  inserted: number;
+  errors: string[];
+  message?: string;
+};
+
+export async function importPortsFromFile(
+  deviceId: number,
+  formData: FormData,
+): Promise<PortImportResult> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) {
+    return { success: false, inserted: 0, errors: [auth.message] };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false, inserted: 0, errors: ["Empty file"] };
+  }
+
+  const [device] = await db
+    .select({ id: devices.id })
+    .from(devices)
+    .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)))
+    .limit(1);
+
+  if (!device) {
+    return { success: false, inserted: 0, errors: ["Perangkat tidak ditemukan di site aktif."] };
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const fileName = file.name.toLowerCase();
+
+  let rows: Record<string, unknown>[];
+  try {
+    if (fileName.endsWith(".csv") || file.type === "text/csv") {
+      const text = buffer.toString("utf8");
+      const workbook = XLSX.read(text, { type: "string" });
+      const firstSheet = workbook.SheetNames[0];
+      if (!firstSheet) {
+        return { success: false, inserted: 0, errors: ["Empty file"] };
+      }
+      rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[firstSheet], { defval: "" });
+    } else {
+      const workbook = XLSX.read(buffer, { type: "buffer" });
+      const worksheet = workbook.Sheets.Ports ?? workbook.Sheets[workbook.SheetNames[0]];
+      if (!worksheet) {
+        return { success: false, inserted: 0, errors: ["Sheet 'Ports' not found in import file."] };
+      }
+      rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: "" });
+    }
+  } catch (error) {
+    return {
+      success: false,
+      inserted: 0,
+      errors: [`Failed to parse file: ${error instanceof Error ? error.message : "unknown error"}`],
+    };
+  }
+
+  if (rows.length === 0) {
+    return { success: false, inserted: 0, errors: ["Empty file"] };
+  }
+
+  if (rows.length > 500) {
+    return { success: false, inserted: 0, errors: ["Maksimum 500 port bisa diimport dalam satu file."] };
+  }
+
+  const [siteVlans, existingPorts] = await Promise.all([
+    db
+      .select({ id: vlans.id, vlanId: vlans.vlanId, name: vlans.name })
+      .from(vlans)
+      .where(eq(vlans.siteId, auth.activeSiteId)),
+    db
+      .select({ portName: networkPorts.portName })
+      .from(networkPorts)
+      .where(eq(networkPorts.deviceId, deviceId)),
+  ]);
+
+  const parsed = parseNetworkPortImportRows(rows, {
+    deviceId,
+    vlanRefs: siteVlans,
+    existingPortNames: existingPorts.map((port) => port.portName),
+  });
+
+  if (parsed.errors.length > 0) {
+    return { success: false, inserted: 0, errors: parsed.errors };
+  }
+
+  try {
+    await db.insert(networkPorts).values(parsed.ports);
+    await logAudit({
+      action: "CREATE",
+      entity: "network_port",
+      entityName: `Import (${parsed.ports.length} ports)`,
+      detail: `DeviceID: ${deviceId}`,
+    });
+  } catch (error) {
+    return {
+      success: false,
+      inserted: 0,
+      errors: [
+        `Failed to insert ports: ${error instanceof Error ? error.message : "unknown error"}`,
+      ],
+    };
+  }
+
+  revalidatePath("/admin/network");
+  revalidatePath(`/admin/devices/${deviceId}/network`);
+
+  return {
+    success: true,
+    inserted: parsed.ports.length,
+    errors: [],
+    message: `${parsed.ports.length} ports imported successfully.`,
+  };
+}
+
 export async function importPortsFromXlsx(deviceId: number, base64Xlsx: string) {
     const auth = await requireActiveSiteAdminAction();
     if (!auth.ok) throw new Error(auth.message);
