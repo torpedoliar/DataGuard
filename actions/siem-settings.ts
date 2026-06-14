@@ -211,3 +211,94 @@ export async function updateSiemRules(prevState: unknown, formData: FormData) {
   revalidatePath("/admin/siem/rules");
   return { success: true };
 }
+
+const ruleDetailSchema = z.object({
+  id: z.coerce.number().int().min(1),
+  name: z.string().min(1, "Name is required").max(200),
+  description: z.string().max(2000).default(""),
+  severity: z.enum(siemSeverities),
+  category: z.string().min(1, "Category is required").max(100),
+  threshold: z
+    .union([z.coerce.number().int().min(1).max(100000), z.literal("")])
+    .transform((value) => (value === "" ? null : value))
+    .optional(),
+  windowSeconds: z
+    .union([z.coerce.number().int().min(1).max(86400), z.literal("")])
+    .transform((value) => (value === "" ? null : value))
+    .optional(),
+  conditions: z.string().refine(
+    (value) => {
+      if (!value.trim()) return true;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "Conditions must be valid JSON." },
+  ).optional(),
+});
+
+export async function updateSiemRuleDetail(prevState: unknown, formData: FormData) {
+  void prevState;
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+
+  const conditionsRaw = String(formData.get("conditions") ?? "");
+  const parsed = ruleDetailSchema.safeParse({
+    id: formData.get("id"),
+    name: formData.get("name"),
+    description: formData.get("description") ?? "",
+    severity: formData.get("severity"),
+    category: formData.get("category"),
+    threshold: formData.get("threshold") ?? "",
+    windowSeconds: formData.get("windowSeconds") ?? "",
+    conditions: conditionsRaw,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const existing = await db.query.siemRules.findFirst({ where: eq(siemRules.id, parsed.data.id) });
+  if (!existing) return { message: "SIEM rule not found." };
+
+  // Parse the conditions JSON (or empty object when blank) so we can persist a
+  // proper jsonb object. Validation above ensures it's parseable; we just
+  // convert the empty-string sentinel to {} for storage. The schema column
+  // is NOT NULL so we must always send a value.
+  let conditionsValue: Record<string, unknown> = {};
+  const trimmedConditions = parsed.data.conditions?.trim() ?? "";
+  if (trimmedConditions) {
+    try {
+      const parsedConditions = JSON.parse(trimmedConditions);
+      conditionsValue = (parsedConditions && typeof parsedConditions === "object" && !Array.isArray(parsedConditions))
+        ? (parsedConditions as Record<string, unknown>)
+        : {};
+    } catch {
+      return { errors: { conditions: ["Conditions must be valid JSON."] } };
+    }
+  }
+
+  await db
+    .update(siemRules)
+    .set({
+      name: parsed.data.name,
+      description: parsed.data.description,
+      severity: parsed.data.severity,
+      category: parsed.data.category,
+      threshold: parsed.data.threshold ?? null,
+      windowSeconds: parsed.data.windowSeconds ?? null,
+      conditions: conditionsValue,
+      updatedAt: new Date(),
+    })
+    .where(eq(siemRules.id, parsed.data.id));
+
+  revalidatePath("/admin/siem/rules");
+  await logAudit({
+    action: "UPDATE",
+    entity: "settings",
+    entityName: "SIEM Rule",
+    entityId: parsed.data.id,
+    detail: `Updated rule "${parsed.data.name}" (${parsed.data.severity}, ${parsed.data.category})`,
+  });
+  return { success: true, message: "SIEM rule updated." };
+}

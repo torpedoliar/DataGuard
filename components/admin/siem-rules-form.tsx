@@ -1,8 +1,9 @@
 "use client";
 
-import { updateSiemRules } from "@/actions/siem-settings";
+import { updateSiemRuleDetail, updateSiemRules } from "@/actions/siem-settings";
 import ActionButton from "@/components/ui/action-button";
 import { siemSeverities, type SiemSeverity } from "@/lib/siem/types";
+import { Edit, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
 
@@ -19,12 +20,136 @@ export type SiemRuleRow = {
 
 type ToggleState = Record<number, { enabled: boolean; alertEnabled: boolean }>;
 
+function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => void }) {
+  const router = useRouter();
+  const [state, action, isPending] = useActionState(updateSiemRuleDetail, undefined);
+
+  useEffect(() => {
+    if (state?.success) {
+      router.refresh();
+      onClose();
+    }
+  }, [state?.success, router, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-ops-border bg-ops-surface-raised shadow-xl">
+        <div className="flex items-center justify-between border-b border-ops-border px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-ops-text">Edit SIEM Rule</h3>
+            <p className="text-sm text-ops-muted">{rule.key}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-ops-muted hover:bg-ops-surface hover:text-ops-text" disabled={isPending}>
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <form action={action} className="space-y-4 p-5">
+          <input type="hidden" name="id" value={rule.id} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1.5 text-sm font-medium text-ops-text md:col-span-2">
+              Name
+              <input
+                name="name"
+                defaultValue={rule.name}
+                required
+                maxLength={200}
+                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text md:col-span-2">
+              Description
+              <textarea
+                name="description"
+                defaultValue={rule.description}
+                maxLength={2000}
+                rows={2}
+                className="w-full rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-sm text-ops-text"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              Severity
+              <select
+                name="severity"
+                defaultValue={rule.severity}
+                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+              >
+                {siemSeverities.map((severity) => (
+                  <option key={severity} value={severity}>{severity}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              Category
+              <input
+                name="category"
+                defaultValue={rule.category}
+                required
+                maxLength={100}
+                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              Threshold
+              <input
+                name="threshold"
+                type="number"
+                min={1}
+                max={100000}
+                placeholder="(none)"
+                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+              />
+              <span className="text-xs text-ops-muted">Used for threshold/sequence rules. Leave blank otherwise.</span>
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              Window (seconds)
+              <input
+                name="windowSeconds"
+                type="number"
+                min={1}
+                max={86400}
+                placeholder="(none)"
+                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text md:col-span-2">
+              Conditions (JSON)
+              <textarea
+                name="conditions"
+                rows={4}
+                placeholder="{}"
+                className="w-full rounded-md border border-ops-border bg-ops-surface px-3 py-2 font-mono text-xs text-ops-text"
+              />
+              <span className="text-xs text-ops-muted">Optional. Must be valid JSON object. Leave blank to clear.</span>
+            </label>
+          </div>
+
+          {state?.errors && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+              {Object.values(state.errors).flat().join(" ")}
+            </div>
+          )}
+          {state?.message && !state.success && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{state.message}</div>
+          )}
+
+          <div className="flex justify-end gap-3 border-t border-ops-border pt-4">
+            <ActionButton type="button" variant="secondary" onClick={onClose} disabled={isPending}>Cancel</ActionButton>
+            <ActionButton type="submit" isPending={isPending}>Save Rule</ActionButton>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: SiemRuleRow[]; alertMinSeverity: SiemSeverity }) {
   const router = useRouter();
   const [state, action, isPending] = useActionState(updateSiemRules, undefined);
   const [toggles, setToggles] = useState<ToggleState>(() =>
     Object.fromEntries(rules.map((rule) => [rule.id, { enabled: rule.enabled, alertEnabled: rule.alertEnabled }])),
   );
+  const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
 
   useEffect(() => {
     if (state?.success) router.refresh();
@@ -46,6 +171,7 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
     setToggles((prev) => ({ ...prev, [id]: { ...prev[id], alertEnabled: value } }));
 
   const ruleIds = rules.map((rule) => rule.id).join(",");
+  const editingRule = editingRuleId !== null ? rules.find((rule) => rule.id === editingRuleId) ?? null : null;
 
   return (
     <form action={action} className="mt-6 space-y-6">
@@ -104,6 +230,15 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
                       />
                       Kirim ke Telegram
                     </label>
+                    <button
+                      type="button"
+                      onClick={() => setEditingRuleId(rule.id)}
+                      className="inline-flex items-center gap-1 rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-300 transition-colors hover:border-blue-400 hover:text-white"
+                      title="Edit rule detail (severity, threshold, conditions, ...)"
+                    >
+                      <Edit className="size-3.5" />
+                      Edit
+                    </button>
                   </div>
                 </div>
               );
@@ -127,6 +262,8 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
       <div className="flex justify-end">
         <ActionButton type="submit" isPending={isPending}>Simpan Pengaturan Rule</ActionButton>
       </div>
+
+      {editingRule && <EditRuleModal rule={editingRule} onClose={() => setEditingRuleId(null)} />}
     </form>
   );
 }

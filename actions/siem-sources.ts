@@ -1,10 +1,10 @@
 "use server";
 
 import { db } from "@/db";
-import { devices, sites, syslogSources } from "@/db/schema";
+import { devices, sites, syslogEvents, syslogSources } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -114,4 +114,43 @@ export async function updateSiemSource(prevState: unknown, formData: FormData) {
   revalidatePath("/admin/siem/sources");
   await logAudit({ action: "UPDATE", entity: "syslog_source", entityId: parsed.data.id, entityName: parsed.data.displayName });
   return { success: true, message: "SIEM source updated successfully" };
+}
+
+const sourceDeleteSchema = z.object({
+  id: z.coerce.number().int().min(1),
+});
+
+export async function deleteSiemSource(prevState: unknown, formData: FormData) {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+
+  const parsed = sourceDeleteSchema.safeParse({ id: formData.get("id") });
+  if (!parsed.success) return { message: "Invalid source id." };
+  const id = parsed.data.id;
+
+  const existing = await db.query.syslogSources.findFirst({
+    where: and(eq(syslogSources.id, id), or(eq(syslogSources.siteId, auth.activeSiteId), isNull(syslogSources.siteId))),
+  });
+  if (!existing) return { message: "Syslog source not found for active site." };
+
+  // Count events that will be detached (preserved with sourceId=null).
+  const eventCountRows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(syslogEvents)
+    .where(eq(syslogEvents.sourceId, id));
+  const detachedCount = eventCountRows[0]?.count ?? 0;
+
+  // Detach events (set sourceId = null) but don't delete them — audit trail.
+  await db.update(syslogEvents).set({ sourceId: null }).where(eq(syslogEvents.sourceId, id));
+  await db.delete(syslogSources).where(eq(syslogSources.id, id));
+
+  revalidatePath("/admin/siem/sources");
+  await logAudit({
+    action: "DELETE",
+    entity: "syslog_source",
+    entityId: id,
+    entityName: existing.displayName,
+    detail: `Detached ${detachedCount} events`,
+  });
+  return { success: true, message: "Source deleted. Events retained with sourceId=null." };
 }

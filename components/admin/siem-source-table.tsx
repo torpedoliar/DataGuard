@@ -1,6 +1,6 @@
 "use client";
 
-import { updateSiemSource } from "@/actions/siem-sources";
+import { deleteSiemSource, updateSiemSource } from "@/actions/siem-sources";
 import ActionButton from "@/components/ui/action-button";
 import DataToolbar from "@/components/ui/data-toolbar";
 import {
@@ -11,7 +11,7 @@ import {
   DataTableHead,
 } from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
-import { ArrowDown, ArrowUp, ArrowUpDown, Edit, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Edit, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
 
@@ -276,9 +276,12 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
                   {source.eventRetentionDays ? `${source.eventRetentionDays}d` : "Global"}
                 </td>
                 <td className="whitespace-nowrap px-5 py-3 text-right">
-                  <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingSource(source)} title="Edit source mapping">
-                    <Edit className="size-4 text-blue-300" />
-                  </ActionButton>
+                  <div className="inline-flex items-center gap-1">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingSource(source)} title="Edit source mapping">
+                      <Edit className="size-4 text-blue-300" />
+                    </ActionButton>
+                    <DeleteSourceButton source={source} />
+                  </div>
                 </td>
               </tr>
             ))}
@@ -288,5 +291,31 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
 
       {editingSource && <EditSourceModal source={editingSource} devices={devices} onClose={() => setEditingSource(null)} />}
     </div>
+  );
+}
+
+function DeleteSourceButton({ source }: { source: SiemSourceRow }) {
+  const router = useRouter();
+  const [state, action, isPending] = useActionState(deleteSiemSource, undefined);
+
+  useEffect(() => {
+    if (state?.success) router.refresh();
+  }, [state?.success, router]);
+
+  return (
+    <form
+      action={action}
+      onSubmit={(event) => {
+        if (!window.confirm(`Delete source "${source.displayName}"? Events are preserved (sourceId=null).`)) {
+          event.preventDefault();
+        }
+      }}
+      className="inline-flex"
+    >
+      <input type="hidden" name="id" value={source.id} />
+      <ActionButton type="submit" variant="ghost" size="icon" disabled={isPending} title="Delete source (events preserved)">
+        <Trash2 className="size-4 text-red-300" />
+      </ActionButton>
+    </form>
   );
 }
