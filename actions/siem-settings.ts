@@ -17,6 +17,9 @@ const aiSettingsSchema = z.object({
   aiDefaultModel: z.string().min(1, "Model wajib diisi.").max(120),
   aiMaxSampleEvents: z.coerce.number().int().min(1).max(20),
   aiMaxRawLength: z.coerce.number().int().min(200).max(10000),
+  // Per-finding regeneration cooldown. 0 disables the gate entirely so an
+  // operator can still always re-run on demand. Default in the DB is 1h.
+  aiRegenerateCooldownSec: z.coerce.number().int().min(0).max(86400),
 });
 
 const ingestSettingsSchema = z.object({
@@ -44,6 +47,7 @@ export async function getSiemAiSettings() {
     aiReady: Boolean((process.env.SIEM_AI_ENDPOINT_URL || settings?.aiEndpointUrl) && (process.env.SIEM_AI_DEFAULT_MODEL || settings?.aiDefaultModel)),
     aiMaxSampleEvents: settings?.aiMaxSampleEvents ?? 5,
     aiMaxRawLength: settings?.aiMaxRawLength ?? 2000,
+    aiRegenerateCooldownSec: settings?.aiRegenerateCooldownSec ?? 3600,
   };
 }
 
@@ -59,6 +63,7 @@ export async function updateSiemAiSettings(prevState: unknown, formData: FormDat
     aiDefaultModel: formData.get("aiDefaultModel"),
     aiMaxSampleEvents: formData.get("aiMaxSampleEvents"),
     aiMaxRawLength: formData.get("aiMaxRawLength"),
+    aiRegenerateCooldownSec: formData.get("aiRegenerateCooldownSec"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -69,6 +74,7 @@ export async function updateSiemAiSettings(prevState: unknown, formData: FormDat
     aiDefaultModel: parsed.data.aiDefaultModel.trim(),
     aiMaxSampleEvents: parsed.data.aiMaxSampleEvents,
     aiMaxRawLength: parsed.data.aiMaxRawLength,
+    aiRegenerateCooldownSec: parsed.data.aiRegenerateCooldownSec,
     updatedAt: new Date(),
   };
   if (parsed.data.aiApiKey?.trim()) values.aiApiKey = parsed.data.aiApiKey.trim();

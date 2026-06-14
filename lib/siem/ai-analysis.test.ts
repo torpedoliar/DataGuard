@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSiemAiPrompt, extractFirstJsonObject, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, parseChatCompletionBody, requestSiemAiAnalysis } from "./ai-analysis";
+import { buildSiemAiPrompt, detectAiAuthRequirement, extractFirstJsonObject, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, parseChatCompletionBody, requestSiemAiAnalysis } from "./ai-analysis";
 
 describe("SIEM AI analysis", () => {
   it("normalizes OpenAI-compatible chat completion endpoints", () => {
@@ -239,5 +239,45 @@ describe("SIEM AI analysis", () => {
       recommendedActions: ["D"],
       evidence: ["E"],
     });
+  });
+});
+
+describe("detectAiAuthRequirement", () => {
+  it("returns requiresKey=true on 401", async () => {
+    const fetchFn = (async () => new Response("unauthorized", { status: 401 })) as unknown as typeof fetch;
+    const result = await detectAiAuthRequirement("https://router.local/v1", fetchFn);
+    expect(result.requiresKey).toBe(true);
+    expect(result.status).toBe(401);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("returns requiresKey=true on 403", async () => {
+    const fetchFn = (async () => new Response("forbidden", { status: 403 })) as unknown as typeof fetch;
+    const result = await detectAiAuthRequirement("https://router.local/v1", fetchFn);
+    expect(result.requiresKey).toBe(true);
+    expect(result.status).toBe(403);
+  });
+
+  it("returns requiresKey=false on 200", async () => {
+    const fetchFn = (async () => new Response("ok", { status: 200 })) as unknown as typeof fetch;
+    const result = await detectAiAuthRequirement("https://router.local/v1/models", fetchFn);
+    expect(result.requiresKey).toBe(false);
+    expect(result.status).toBe(200);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("returns requiresKey=false on 405 method not allowed (endpoint reachable, no key needed for HEAD)", async () => {
+    const fetchFn = (async () => new Response("method not allowed", { status: 405 })) as unknown as typeof fetch;
+    const result = await detectAiAuthRequirement("https://router.local/v1/chat/completions", fetchFn);
+    expect(result.requiresKey).toBe(false);
+    expect(result.status).toBe(405);
+  });
+
+  it("returns requiresKey=true and surfaces the error on network failure", async () => {
+    const fetchFn = (async () => { throw new Error("ECONNREFUSED"); }) as unknown as typeof fetch;
+    const result = await detectAiAuthRequirement("https://unreachable.local/v1", fetchFn);
+    expect(result.requiresKey).toBe(true);
+    expect(result.status).toBe(0);
+    expect(result.error).toContain("ECONNREFUSED");
   });
 });

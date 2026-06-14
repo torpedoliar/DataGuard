@@ -14,6 +14,7 @@ type SiemAiSettingsData = {
   aiReady: boolean;
   aiMaxSampleEvents: number;
   aiMaxRawLength: number;
+  aiRegenerateCooldownSec: number;
 };
 
 export default function SiemAiSettingsForm({ initialData }: { initialData: SiemAiSettingsData }) {
@@ -21,10 +22,21 @@ export default function SiemAiSettingsForm({ initialData }: { initialData: SiemA
   const [state, action, isPending] = useActionState(updateSiemAiSettings, undefined);
   const [testState, testAction, isTesting] = useActionState(testSiemAiConnection, undefined);
   const [enabled, setEnabled] = useState(initialData.aiEnabled);
+  const [probe] = useState<{ requiresKey: boolean; status: number; error?: string } | null>(null);
 
   useEffect(() => {
     if (state?.success) router.refresh();
   }, [state?.success, router]);
+
+  // Surface a soft warning when the test-connection error indicates the gateway
+  // requires an API key. Avoids hard-coding the gateway URL in the UI.
+  const lastTest = testState as
+    | { ok: boolean; message: string; requiresKey?: boolean }
+    | undefined;
+  const needsKey = Boolean(
+    (lastTest && !lastTest.ok && lastTest.requiresKey) ||
+      (probe?.requiresKey && !initialData.aiApiKeyConfigured),
+  );
 
   return (
     <form action={action} className="mt-6 max-w-5xl space-y-4 rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
@@ -37,6 +49,12 @@ export default function SiemAiSettingsForm({ initialData }: { initialData: SiemA
           {initialData.aiReady ? "Siap" : "Belum lengkap"}
         </span>
       </div>
+
+      {needsKey && (
+        <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-200">
+          Endpoint ini sepertinya membutuhkan API key. Isi kolom API Key lalu coba lagi, atau simpan dulu agar perubahan dipakai oleh test connection.
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1.5 text-sm font-medium text-slate-300">
@@ -68,6 +86,11 @@ export default function SiemAiSettingsForm({ initialData }: { initialData: SiemA
             <input name="aiMaxRawLength" type="number" min="200" max="10000" defaultValue={initialData.aiMaxRawLength} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white" />
           </label>
         </div>
+        <label className="space-y-1.5 text-sm font-medium text-slate-300">
+          Regeneration Cooldown (seconds)
+          <input name="aiRegenerateCooldownSec" type="number" min="0" max="86400" defaultValue={initialData.aiRegenerateCooldownSec} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white" />
+          <span className="block text-xs font-normal text-slate-500">0 = selalu izinkan regenerate manual. Default 3600 (1 jam).</span>
+        </label>
       </div>
 
       {state?.errors && <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">{Object.values(state.errors).flat().join(" ")}</div>}

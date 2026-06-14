@@ -617,6 +617,7 @@ export const siemSettings = pgTable("siem_settings", {
   aiDefaultModel: text("ai_default_model"),
   aiMaxSampleEvents: integer("ai_max_sample_events").notNull().default(5),
   aiMaxRawLength: integer("ai_max_raw_length").notNull().default(2000),
+  aiRegenerateCooldownSec: integer("ai_regenerate_cooldown_sec").notNull().default(3600),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

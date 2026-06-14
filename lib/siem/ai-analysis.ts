@@ -275,3 +275,36 @@ export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey
     throw new Error(`AI provider rejected request (HTTP ${response.status})${snippet ? `: ${snippet}` : "."}`);
   }
 }
+
+// Lightly probe an OpenAI-compatible endpoint to figure out whether the
+// gateway in front of it (e.g. 9router) requires a caller-supplied API key.
+// The UI labels the key as "optional" today, which causes confusing 401s for
+// operators running behind an auth-required gateway. The check is best-effort:
+// any 401/403 means a key is needed; 2xx or 405 (method not allowed on a
+// reachable server) means no key is required for plain chat calls. A network
+// failure is treated as "unknown" → `requiresKey: true` so admins are warned
+// to set a key before saving.
+export type AiAuthProbe = { requiresKey: boolean; status: number; error?: string };
+
+export async function detectAiAuthRequirement(
+  endpointUrl: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<AiAuthProbe> {
+  // Probe against the base URL (strip a trailing /chat/completions if the
+  // operator pasted the full chat URL, since HEADing that is wasteful).
+  const probeUrl = endpointUrl.replace(/\/chat\/completions\/?$/i, "").replace(/\/+$/, "");
+  try {
+    const response = await fetchFn(probeUrl, { method: "HEAD" });
+    if (response.status === 401 || response.status === 403) {
+      return { requiresKey: true, status: response.status };
+    }
+    if (response.status >= 200 && response.status < 500) {
+      return { requiresKey: false, status: response.status };
+    }
+    // 5xx: assume the key is fine (server is the problem).
+    return { requiresKey: false, status: response.status };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Network error";
+    return { requiresKey: true, status: 0, error: message };
+  }
+}

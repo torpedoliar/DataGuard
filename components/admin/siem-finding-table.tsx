@@ -100,6 +100,13 @@ function CreateIncidentForm({ finding }: { finding: SiemFindingRow }) {
 function GenerateAiAnalysisForm({ finding }: { finding: SiemFindingRow }) {
   const router = useRouter();
   const [state, action, isPending] = useActionState(generateSiemAiAnalysis, undefined);
+  // The action returns `cooldownRemainingSec` + `cooldownSec` whenever the
+  // per-finding cooldown blocked a regenerate; surface that to the user
+  // without round-tripping the table.
+  const blocked = state && "cooldownRemainingSec" in state && typeof (state as { cooldownRemainingSec?: number }).cooldownRemainingSec === "number";
+  const cooldownSec = (state as { cooldownSec?: number } | undefined)?.cooldownSec;
+  const cooldownRemainingSec = (state as { cooldownRemainingSec?: number } | undefined)?.cooldownRemainingSec;
+  const lastRegeneratedAt = (state as { lastRegeneratedAt?: string } | undefined)?.lastRegeneratedAt;
 
   useEffect(() => {
     if (state?.success) router.refresh();
@@ -112,8 +119,21 @@ function GenerateAiAnalysisForm({ finding }: { finding: SiemFindingRow }) {
         <ActionButton type="submit" size="sm" variant="secondary" isPending={isPending}>AI Analysis</ActionButton>
       </form>
       {state?.message && !state.success && <p className="text-xs text-red-200">{state.message}</p>}
+      {blocked && (
+        <p className="text-[10px] text-amber-200" title={lastRegeneratedAt ? `Last regenerated ${lastRegeneratedAt}` : undefined}>
+          Last regenerated {formatRelativeCooldown(finding.aiGeneratedAt)} (cooldown {cooldownSec ?? "?"}s, try in {cooldownRemainingSec ?? "?"}s).
+        </p>
+      )}
     </div>
   );
+}
+
+function formatRelativeCooldown(aiGeneratedAt: Date | null) {
+  if (!aiGeneratedAt) return "never";
+  const ageSec = Math.max(0, Math.floor((Date.now() - aiGeneratedAt.getTime()) / 1000));
+  if (ageSec < 60) return `${ageSec}s ago`;
+  if (ageSec < 3600) return `${Math.floor(ageSec / 60)}m ago`;
+  return `${Math.floor(ageSec / 3600)}h ago`;
 }
 
 function AiAnalysisBlock({ analysis }: { analysis: Record<string, unknown> }) {

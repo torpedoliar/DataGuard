@@ -1,0 +1,1 @@
+ALTER TABLE "siem_settings" ADD COLUMN "ai_regenerate_cooldown_sec" integer DEFAULT 3600 NOT NULL;

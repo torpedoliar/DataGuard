@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { siemSettings } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
-import { normalizeOpenAiCompatibleEndpoint } from "@/lib/siem/ai-analysis";
+import { detectAiAuthRequirement, normalizeOpenAiCompatibleEndpoint } from "@/lib/siem/ai-analysis";
 import { generateSiemAiAnalysisForFinding } from "@/lib/siem/ai-queue";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -42,8 +42,19 @@ export async function testSiemAiConnection(prevState: unknown, formData: FormDat
     void providerJson;
     return { ok: true, message: `Berhasil terhubung ke ${model} (${elapsedMs} ms).` };
   } catch (error) {
-    console.error("SIEM AI connection test failed", error);
+    // If the provider rejected with 401/403, run a lightweight auth probe so the
+    // operator can see *why* the call failed ("the gateway requires a key" is
+    // far more actionable than a raw HTTP 401 stack). The probe is best-effort.
+    const probe = await detectAiAuthRequirement(endpointUrl).catch(() => null);
     const detail = error instanceof Error ? error.message : "Unknown error";
+    const requiresKey = probe?.requiresKey ?? /HTTP 401|HTTP 403/.test(detail);
+    if (requiresKey) {
+      return {
+        ok: false,
+        message: `Gagal terhubung: ${detail} — endpoint ini sepertinya membutuhkan API key. Isi kolom API Key lalu coba lagi.`,
+        requiresKey: true,
+      };
+    }
     return { ok: false, message: `Gagal terhubung: ${detail}` };
   }
 }
@@ -64,6 +75,24 @@ export async function generateSiemAiAnalysis(prevState: unknown, formData: FormD
 
   const [settings] = await db.select().from(siemSettings).limit(1);
   if (!settings?.aiEnabled) return { message: "SIEM AI analysis is disabled." };
+
+  // N18: per-finding regeneration cooldown (default 1h, configurable via
+  // `siemSettings.aiRegenerateCooldownSec`). Operators can still regenerate on
+  // demand after the window elapses, but a hot finding is short-circuited so
+  // we do not pay for an LLM call on every accidental click.
+  const cooldownSec = settings.aiRegenerateCooldownSec ?? 3600;
+  if (finding.aiGeneratedAt) {
+    const ageSec = (Date.now() - finding.aiGeneratedAt.getTime()) / 1000;
+    if (ageSec < cooldownSec) {
+      const remaining = Math.max(0, Math.round(cooldownSec - ageSec));
+      return {
+        message: `AI analysis regenerated ${Math.floor(ageSec)}s ago. Cooldown is ${cooldownSec}s (try again in ${remaining}s).`,
+        cooldownRemainingSec: remaining,
+        cooldownSec,
+        lastRegeneratedAt: finding.aiGeneratedAt.toISOString(),
+      };
+    }
+  }
 
   const result = await generateSiemAiAnalysisForFinding(findingId, {
     maxSampleEvents: settings.aiMaxSampleEvents,
