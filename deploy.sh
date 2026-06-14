@@ -199,13 +199,22 @@ DB_USER_VAL="$(grep -E '^[[:space:]]*DB_USER=' "$ENV_FILE" | head -n1 | cut -d= 
 "${COMPOSE_CMD[@]}" --env-file "$ENV_FILE" up -d "$DB_SERVICE"
 
 echo "      Waiting for PostgreSQL to accept connections..."
+# Prefer compose's healthcheck state — falls back to direct pg_isready if compose
+# hasn't reported `healthy` yet (e.g. ps output delayed on first start).
 for attempt in $(seq 1 60); do
-    if docker exec "$DB_CONTAINER" pg_isready -U "$DB_USER_VAL" -d dccheck >/dev/null 2>&1; then
-        echo "OK    - Database is ready (took ~${attempt}s)"
+    DB_STATE="$("${COMPOSE_CMD[@]}" --env-file "$ENV_FILE" ps --format '{{.Service}}={{.Health}}' "$DB_SERVICE" 2>/dev/null | tail -n1 | cut -d= -f2-)"
+    if [ "$DB_STATE" = "healthy" ]; then
+        echo "OK    - Database is healthy (took ~${attempt}s, via compose healthcheck)"
         break
     fi
+    if docker exec "$DB_CONTAINER" pg_isready -U "${DB_USER_VAL:-administrator}" -d "${DB_NAME:-dccheck}" >/dev/null 2>&1; then
+        if [ "$attempt" -ge 5 ]; then
+            echo "OK    - Database is ready (took ~${attempt}s, via pg_isready fallback)"
+            break
+        fi
+    fi
     if [ "$attempt" -eq 60 ]; then
-        echo "ERROR - Database never reported ready after 60s."
+        echo "ERROR - Database never reported ready/healthy after 60s."
         echo "        Check: ${COMPOSE_CMD[*]} logs $DB_SERVICE"
         exit 1
     fi

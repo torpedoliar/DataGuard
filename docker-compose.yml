@@ -15,9 +15,15 @@ services:
       HOSTNAME: "0.0.0.0"
     volumes:
       - dccheck_uploads:/app/public/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     networks:
       - dccheck_net
 
@@ -35,7 +41,7 @@ services:
       SYSLOG_UDP_PORT: "1514"
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     networks:
       - dccheck_net
 
@@ -48,7 +54,7 @@ services:
       - .env.production
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     networks:
       - dccheck_net
 
@@ -61,7 +67,7 @@ services:
       - .env.production
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     networks:
       - dccheck_net
 
@@ -74,7 +80,7 @@ services:
       - .env.production
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     networks:
       - dccheck_net
 
@@ -87,7 +93,7 @@ services:
       - .env.production
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     networks:
       - dccheck_net
 
@@ -105,6 +111,12 @@ services:
       - "0.0.0.0:3002:5432"
     volumes:
       - dccheck_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-administrator} -d ${DB_NAME:-dccheck}"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     networks:
       - dccheck_net
 
