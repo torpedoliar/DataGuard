@@ -22,7 +22,7 @@ export const syslogVendorEnum = pgEnum("syslog_vendor", ["generic", "mikrotik", 
 export const syslogTrustLevelEnum = pgEnum("syslog_trust_level", ["unknown", "trusted", "untrusted"]);
 export const siemRuleTypeEnum = pgEnum("siem_rule_type", ["single_event", "threshold", "sequence", "absence", "baseline_anomaly"]);
 export const siemFindingStatusEnum = pgEnum("siem_finding_status", ["Open", "Acknowledged", "Resolved"]);
-export const siemAlertChannelEnum = pgEnum("siem_alert_channel", ["telegram", "email", "webhook"]);
+export const siemAlertChannelEnum = pgEnum("siem_alert_channel", ["telegram"]);
 export const siemAlertStatusEnum = pgEnum("siem_alert_status", ["pending", "sent", "failed"]);
 
 // ==================== SITES ====================
@@ -586,10 +586,6 @@ export const siemSettings = pgTable("siem_settings", {
   id: serial("id").primaryKey(),
   defaultSiemSiteId: integer("default_siem_site_id").references(() => sites.id),
   udpPort: integer("udp_port").notNull().default(514),
-  tcpEnabled: boolean("tcp_enabled").notNull().default(false),
-  tcpPort: integer("tcp_port").notNull().default(514),
-  tlsEnabled: boolean("tls_enabled").notNull().default(false),
-  tlsPort: integer("tls_port").notNull().default(6514),
   maxMessageSize: integer("max_message_size").notNull().default(16384),
   queueLimit: integer("queue_limit").notNull().default(1000),
   batchSize: integer("batch_size").notNull().default(100),

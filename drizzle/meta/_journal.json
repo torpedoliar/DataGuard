@@ -64,6 +64,20 @@
       "when": 1780622000000,
       "tag": "0008_siem_retention_scale",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781417681000,
+      "tag": "0009_siem_alert_channel_telegram_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781417682000,
+      "tag": "0010_siem_settings_drop_tcp_tls",
+      "breakpoints": true
     }
   ]
 }
