@@ -78,6 +78,20 @@
       "when": 1781417682000,
       "tag": "0010_siem_settings_drop_tcp_tls",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781419280528,
+      "tag": "0011_stale_human_robot",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781420040357,
+      "tag": "0012_lowly_husk",
+      "breakpoints": true
     }
   ]
 }

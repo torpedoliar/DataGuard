@@ -631,6 +631,7 @@ export const siemEvidenceEvents = pgTable("siem_evidence_events", {
 }, (table) => ({
   findingIdx: index("siem_evidence_events_finding_idx").on(table.findingId),
   originalIdx: index("siem_evidence_events_original_idx").on(table.originalEventId),
+  findingOriginalUnique: uniqueIndex("siem_evidence_events_finding_id_original_event_id_unique").on(table.findingId, table.originalEventId),
 }));
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({

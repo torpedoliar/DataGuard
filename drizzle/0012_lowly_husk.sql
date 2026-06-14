@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "siem_evidence_events_finding_id_original_event_id_unique" ON "siem_evidence_events" USING btree ("finding_id","original_event_id");

@@ -62,45 +62,40 @@ export async function archiveFindingEvidence(finding: { id: number; sampleEventI
     return 0;
   }
 
-  const existing = await db
-    .select({ originalEventId: siemEvidenceEvents.originalEventId })
-    .from(siemEvidenceEvents)
-    .where(eq(siemEvidenceEvents.findingId, finding.id));
-  const already = new Set(existing.map((row) => row.originalEventId));
-  const missing = finding.sampleEventIds.filter((id) => !already.has(id));
+  const rows = await db
+    .select({
+      id: syslogEvents.id,
+      eventTime: syslogEvents.eventTime,
+      receivedAt: syslogEvents.receivedAt,
+      sourceIp: syslogEvents.sourceIp,
+      hostname: syslogEvents.hostname,
+      deviceId: syslogEvents.deviceId,
+      sourceId: syslogEvents.sourceId,
+      message: syslogEvents.message,
+      rawMessage: syslogEventsRaw.rawMessage,
+      category: syslogEvents.category,
+      normalizedType: syslogEvents.normalizedType,
+      action: syslogEvents.action,
+      outcome: syslogEvents.outcome,
+      srcIp: syslogEvents.srcIp,
+      dstIp: syslogEvents.dstIp,
+      username: syslogEvents.username,
+      severity: syslogEvents.severity,
+      metadata: syslogEvents.metadata,
+    })
+    .from(syslogEvents)
+    .leftJoin(syslogEventsRaw, eq(syslogEvents.rawEventId, syslogEventsRaw.id))
+    .where(inArray(syslogEvents.id, finding.sampleEventIds));
 
   let inserted = 0;
-  if (missing.length > 0) {
-    const rows = await db
-      .select({
-        id: syslogEvents.id,
-        eventTime: syslogEvents.eventTime,
-        receivedAt: syslogEvents.receivedAt,
-        sourceIp: syslogEvents.sourceIp,
-        hostname: syslogEvents.hostname,
-        deviceId: syslogEvents.deviceId,
-        sourceId: syslogEvents.sourceId,
-        message: syslogEvents.message,
-        rawMessage: syslogEventsRaw.rawMessage,
-        category: syslogEvents.category,
-        normalizedType: syslogEvents.normalizedType,
-        action: syslogEvents.action,
-        outcome: syslogEvents.outcome,
-        srcIp: syslogEvents.srcIp,
-        dstIp: syslogEvents.dstIp,
-        username: syslogEvents.username,
-        severity: syslogEvents.severity,
-        metadata: syslogEvents.metadata,
-      })
-      .from(syslogEvents)
-      .leftJoin(syslogEventsRaw, eq(syslogEvents.rawEventId, syslogEventsRaw.id))
-      .where(inArray(syslogEvents.id, missing));
-
-    if (rows.length > 0) {
-      const snapshots = rows.map((row) => buildEvidenceSnapshot(finding.id, row as JoinedEventRow));
-      await db.insert(siemEvidenceEvents).values(snapshots);
-      inserted = snapshots.length;
-    }
+  if (rows.length > 0) {
+    const snapshots = rows.map((row) => buildEvidenceSnapshot(finding.id, row as JoinedEventRow));
+    const insertedRows = await db
+      .insert(siemEvidenceEvents)
+      .values(snapshots)
+      .onConflictDoNothing({ target: [siemEvidenceEvents.findingId, siemEvidenceEvents.originalEventId] })
+      .returning({ id: siemEvidenceEvents.id });
+    inserted = insertedRows.length;
   }
 
   await db.update(siemFindings).set({ evidenceArchived: true, updatedAt: new Date() }).where(eq(siemFindings.id, finding.id));
