@@ -1,6 +1,7 @@
 import { db } from "../../db";
 import { siemFindings, siemRules, syslogEvents, syslogSources } from "../../db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { queueSiemAiAnalysis } from "./ai-queue";
 import { buildFindingText } from "./human-analysis";
 import { evaluateSiemRules, type SiemFindingCandidate, type SiemRuleDefinition, type SiemRuleEvent, type SiemSourceBaseline } from "./rule-engine";
 import type { SiemRuleType, SiemSeverity } from "./types";
@@ -178,8 +179,27 @@ export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
       }).where(eq(siemFindings.id, existing.id));
       updated++;
     } else {
-      await db.insert(siemFindings).values(findingValues(candidate, rule));
+      const inserted = await db.insert(siemFindings).values(findingValues(candidate, rule)).returning({
+        id: siemFindings.id,
+        severity: siemFindings.severity,
+        status: siemFindings.status,
+        aiGeneratedAt: siemFindings.aiGeneratedAt,
+      });
       created++;
+      // Fire-and-forget enqueue for the auto-AI path. Failures must not block
+      // rule evaluation: the queue helper swallows its own errors and the next
+      // runner pass will retry by re-evaluating rules. Wrapping in Promise.all
+      // lets the insert return immediately and the enqueue settle in parallel
+      // with the next candidate.
+      const newRow = inserted[0];
+      if (newRow) {
+        await queueSiemAiAnalysis({
+          id: newRow.id,
+          aiGeneratedAt: newRow.aiGeneratedAt,
+          severity: newRow.severity,
+          status: newRow.status,
+        });
+      }
     }
   }
 

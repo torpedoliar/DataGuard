@@ -84,6 +84,19 @@ services:
     networks:
       - dccheck_net
 
+  siem-ai:
+    image: dc-check-app:latest
+    container_name: dccheck_siem_ai
+    restart: unless-stopped
+    command: npm run siem:ai
+    env_file:
+      - .env.production
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - dccheck_net
+
   siem-retention:
     image: dc-check-app:latest
     container_name: dccheck_siem_retention

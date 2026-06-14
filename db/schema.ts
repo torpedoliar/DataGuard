@@ -24,6 +24,7 @@ export const siemRuleTypeEnum = pgEnum("siem_rule_type", ["single_event", "thres
 export const siemFindingStatusEnum = pgEnum("siem_finding_status", ["Open", "Acknowledged", "Resolved"]);
 export const siemAlertChannelEnum = pgEnum("siem_alert_channel", ["telegram"]);
 export const siemAlertStatusEnum = pgEnum("siem_alert_status", ["pending", "sent", "failed"]);
+export const siemAiJobStatusEnum = pgEnum("siem_ai_job_status", ["pending", "running", "completed", "failed"]);
 
 // ==================== SITES ====================
 export const sites = pgTable("sites", {
@@ -580,6 +581,20 @@ export const siemAlerts = pgTable("siem_alerts", {
 }, (table) => ({
   findingIdx: index("siem_alerts_finding_idx").on(table.findingId),
   statusCreatedIdx: index("siem_alerts_status_created_idx").on(table.status, table.createdAt),
+}));
+
+export const siemAiJobs = pgTable("siem_ai_jobs", {
+  id: serial("id").primaryKey(),
+  findingId: integer("finding_id").references(() => siemFindings.id, { onDelete: "cascade" }).notNull(),
+  status: siemAiJobStatusEnum("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  findingIdx: index("siem_ai_jobs_finding_idx").on(table.findingId),
+  statusCreatedIdx: index("siem_ai_jobs_status_created_idx").on(table.status, table.createdAt),
 }));
 
 export const siemSettings = pgTable("siem_settings", {

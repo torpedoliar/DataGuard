@@ -1,13 +1,14 @@
 "use server";
 
 import { db } from "@/db";
-import { siemFindings, siemSettings } from "@/db/schema";
+import { siemSettings } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
-import { buildSiemAiPrompt, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, requestSiemAiAnalysis, type SiemAiEventSample } from "@/lib/siem/ai-analysis";
-import { getFindingEvidence } from "@/lib/siem/evidence";
+import { normalizeOpenAiCompatibleEndpoint } from "@/lib/siem/ai-analysis";
+import { generateSiemAiAnalysisForFinding } from "@/lib/siem/ai-queue";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { siemFindings } from "@/db/schema";
 
 export async function testSiemAiConnection(prevState: unknown, formData: FormData) {
   void prevState;
@@ -34,6 +35,8 @@ export async function testSiemAiConnection(prevState: unknown, formData: FormDat
 
   try {
     const startedAt = Date.now();
+    // Lazy-load to keep the test action on a different code path from generation.
+    const { requestSiemAiAnalysis } = await import("@/lib/siem/ai-analysis");
     const providerJson = await requestSiemAiAnalysis({ endpointUrl, apiKey, model, prompt });
     const elapsedMs = Date.now() - startedAt;
     void providerJson;
@@ -53,54 +56,23 @@ export async function generateSiemAiAnalysis(prevState: unknown, formData: FormD
   const findingId = Number(formData.get("id"));
   if (!findingId) return { message: "Invalid SIEM finding." };
 
-  const [settings] = await db.select().from(siemSettings).limit(1);
-  if (!settings?.aiEnabled) return { message: "SIEM AI analysis is disabled." };
-
-  const endpointUrl = normalizeOpenAiCompatibleEndpoint(process.env.SIEM_AI_ENDPOINT_URL || settings.aiEndpointUrl || "");
-  const apiKey = process.env.SIEM_AI_API_KEY || settings.aiApiKey || "";
-  const model = (process.env.SIEM_AI_DEFAULT_MODEL || settings.aiDefaultModel || "").trim();
-  if (!endpointUrl || !model) return { message: "SIEM AI endpoint dan model harus dikonfigurasi." };
-
+  // Confirm the finding belongs to the active site before doing any work.
   const finding = await db.query.siemFindings.findFirst({
     where: and(eq(siemFindings.id, findingId), eq(siemFindings.siteId, auth.activeSiteId)),
-    with: { rule: true, source: true, device: true },
   });
   if (!finding) return { message: "SIEM finding not found." };
 
-  const eventRows = await getFindingEvidence(
-    { id: finding.id, evidenceArchived: finding.evidenceArchived, sampleEventIds: finding.sampleEventIds },
-    { limit: settings.aiMaxSampleEvents, siteId: auth.activeSiteId },
-  );
+  const [settings] = await db.select().from(siemSettings).limit(1);
+  if (!settings?.aiEnabled) return { message: "SIEM AI analysis is disabled." };
 
-  const prompt = buildSiemAiPrompt({
+  const result = await generateSiemAiAnalysisForFinding(findingId, {
+    maxSampleEvents: settings.aiMaxSampleEvents,
     maxRawLength: settings.aiMaxRawLength,
-    finding: {
-      id: finding.id,
-      title: finding.title,
-      severity: finding.severity,
-      status: finding.status,
-      summary: finding.summary,
-      humanAnalysis: finding.humanAnalysis,
-      recommendedAction: finding.recommendedAction,
-      eventCount: finding.eventCount,
-      correlationKey: finding.correlationKey,
-      sourceIp: finding.source?.sourceIp ?? null,
-      deviceName: finding.device?.name ?? null,
-      ruleName: finding.rule?.name ?? null,
-      ruleDescription: finding.rule?.description ?? null,
-    },
-    events: eventRows as SiemAiEventSample[],
   });
-
-  try {
-    const providerJson = await requestSiemAiAnalysis({ endpointUrl, apiKey, model, prompt });
-    const analysis = normalizeSiemAiAnalysis(providerJson, model);
-    await db.update(siemFindings).set({ aiAnalysis: analysis, aiGeneratedAt: new Date(), updatedAt: new Date() }).where(eq(siemFindings.id, finding.id));
-    await logAudit({ action: "UPDATE", entity: "siem_finding", entityId: finding.id, entityName: finding.title, detail: "SIEM AI analysis generated" });
-    revalidatePath("/admin/siem/findings");
-    return { success: true };
-  } catch (error) {
-    console.error("SIEM AI analysis failed", error);
-    return { message: "SIEM AI provider failed to generate analysis." };
+  if (!result.ok) {
+    return { message: result.error === "AI provider failed" ? "SIEM AI provider failed to generate analysis." : (result.error ?? "SIEM AI failed.") };
   }
+  revalidatePath("/admin/siem/findings");
+  void logAudit; // logAudit is invoked inside the lib helper.
+  return { success: true };
 }
