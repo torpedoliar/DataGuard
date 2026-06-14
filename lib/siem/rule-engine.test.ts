@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCorrelationKey, evaluateSiemRules, eventMatchesRule, type SiemRuleDefinition, type SiemRuleEvent } from "./rule-engine";
+import { buildCorrelationKey, evaluateAbsence, evaluateBaseline, evaluateSiemRules, eventMatchesRule, type SiemRuleDefinition, type SiemRuleEvent } from "./rule-engine";
 
 const baseRule: SiemRuleDefinition = {
   id: 1,
@@ -92,5 +92,133 @@ describe("evaluateSiemRules", () => {
 
     expect(findings).toHaveLength(1);
     expect(findings[0]?.sampleEventIds).toEqual([1, 2, 3]);
+  });
+});
+
+describe("evaluateAbsence", () => {
+  const absenceRule: SiemRuleDefinition = {
+    ...baseRule,
+    id: 10,
+    key: "health.source_silent",
+    name: "Syslog source silent",
+    description: "Expected syslog source stopped sending logs.",
+    severity: "High",
+    category: "SIEM Health",
+    ruleType: "absence",
+    conditions: { normalizedTypes: [] },
+    groupBy: ["sourceId"],
+    threshold: null,
+    windowSeconds: 1800,
+  };
+
+  const now = new Date("2026-05-24T00:30:00.000Z");
+
+  it("emits a finding for every expected sourceId that has no events in the window", () => {
+    const expectedSourceIds = [200, 201, 202];
+    const events = [
+      event({ id: 1, sourceId: 201, receivedAt: new Date("2026-05-24T00:29:00.000Z") }),
+    ];
+
+    const findings = evaluateAbsence(absenceRule, events, { now, expectedSourceIds });
+
+    expect(findings).toHaveLength(2);
+    const sourceIds = findings.map((f) => f.sourceId).sort();
+    expect(sourceIds).toEqual([200, 202]);
+    expect(findings[0]?.eventCount).toBe(0);
+    expect(findings[0]?.correlationKey).toBe("health.source_silent|sourceId:200");
+  });
+
+  it("returns no findings when every expected sourceId has events in the window", () => {
+    const expectedSourceIds = [200, 201];
+    const events = [
+      event({ id: 1, sourceId: 200, receivedAt: new Date("2026-05-24T00:29:00.000Z") }),
+      event({ id: 2, sourceId: 201, receivedAt: new Date("2026-05-24T00:29:30.000Z") }),
+    ];
+
+    expect(evaluateAbsence(absenceRule, events, { now, expectedSourceIds })).toEqual([]);
+  });
+
+  it("returns no findings when the rule is disabled", () => {
+    const disabledRule = { ...absenceRule, enabled: false };
+    const expectedSourceIds = [200, 201, 202];
+    const events: SiemRuleEvent[] = [];
+
+    expect(evaluateAbsence(disabledRule, events, { now, expectedSourceIds })).toEqual([]);
+  });
+});
+
+describe("evaluateBaseline", () => {
+  const baselineRule: SiemRuleDefinition = {
+    ...baseRule,
+    id: 11,
+    key: "health.log_volume_spike",
+    name: "Sudden log volume spike",
+    description: "Source emits far more logs than recent baseline.",
+    severity: "Medium",
+    category: "SIEM Health",
+    ruleType: "baseline_anomaly",
+    conditions: { normalizedTypes: [] },
+    groupBy: ["sourceId"],
+    threshold: 3,
+    windowSeconds: 900,
+  };
+
+  const now = new Date("2026-05-24T00:30:00.000Z");
+
+  it("emits a finding when current 15m count exceeds threshold × baseline hourly average", () => {
+    const events = Array.from({ length: 50 }, (_, i) =>
+      event({ id: 1000 + i, sourceId: 200, receivedAt: new Date(now.getTime() - (50 - i) * 1000) }),
+    );
+    const baseline = { sourceId: 200, avgPerHour: 10 };
+
+    const findings = evaluateBaseline(baselineRule, events, { now, baselineBySource: new Map([[200, baseline]]) });
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.sourceId).toBe(200);
+    expect(findings[0]?.eventCount).toBe(50);
+    expect(findings[0]?.correlationKey).toBe("health.log_volume_spike|sourceId:200");
+  });
+
+  it("returns no findings when current 15m count is at or below threshold × baseline", () => {
+    // baseline 10/h × threshold 3 × window 0.25h = 7.5 events max before alert
+    const events = Array.from({ length: 5 }, (_, i) =>
+      event({ id: 2000 + i, sourceId: 200, receivedAt: new Date(now.getTime() - (5 - i) * 1000) }),
+    );
+    const baseline = { sourceId: 200, avgPerHour: 10 };
+
+    expect(evaluateBaseline(baselineRule, events, { now, baselineBySource: new Map([[200, baseline]]) })).toEqual([]);
+  });
+
+  it("does not fire at the boundary (current = 7) just below threshold × baseline", () => {
+    // baseline 10/h × threshold 3 × window 0.25h = 7.5; current=7 must not fire
+    const events = Array.from({ length: 7 }, (_, i) =>
+      event({ id: 4000 + i, sourceId: 200, receivedAt: new Date(now.getTime() - (7 - i) * 1000) }),
+    );
+    const baseline = { sourceId: 200, avgPerHour: 10 };
+
+    expect(evaluateBaseline(baselineRule, events, { now, baselineBySource: new Map([[200, baseline]]) })).toEqual([]);
+  });
+
+  it("fires at the boundary (current = 8) just above threshold × baseline", () => {
+    // baseline 10/h × threshold 3 × window 0.25h = 7.5; current=8 must fire
+    const events = Array.from({ length: 8 }, (_, i) =>
+      event({ id: 5000 + i, sourceId: 200, receivedAt: new Date(now.getTime() - (8 - i) * 1000) }),
+    );
+    const baseline = { sourceId: 200, avgPerHour: 10 };
+
+    const findings = evaluateBaseline(baselineRule, events, { now, baselineBySource: new Map([[200, baseline]]) });
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.eventCount).toBe(8);
+  });
+
+  it("returns no findings when the rule is disabled", () => {
+    const disabledRule = { ...baselineRule, enabled: false };
+    const events = Array.from({ length: 50 }, (_, i) =>
+      event({ id: 3000 + i, sourceId: 200, receivedAt: new Date(now.getTime() - (50 - i) * 1000) }),
+    );
+    const baseline = { sourceId: 200, avgPerHour: 10 };
+
+    expect(evaluateBaseline(disabledRule, events, { now, baselineBySource: new Map([[200, baseline]]) })).toEqual([]);
   });
 });

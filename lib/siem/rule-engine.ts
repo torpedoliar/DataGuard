@@ -43,6 +43,27 @@ export type SiemRuleEvent = {
   tags: string[];
 };
 
+export type SiemSourceBaseline = {
+  sourceId: number;
+  avgPerHour: number;
+};
+
+export type SiemAbsenceOptions = {
+  now: Date;
+  expectedSourceIds: number[];
+};
+
+export type SiemBaselineOptions = {
+  now: Date;
+  baselineBySource: Map<number, SiemSourceBaseline>;
+};
+
+export type EvaluateSiemRulesOptions = {
+  now?: Date;
+  absence?: Map<number, number[]>;
+  baseline?: Map<number, SiemSourceBaseline>;
+};
+
 export type SiemFindingCandidate = {
   ruleId: number;
   ruleKey: string;
@@ -189,12 +210,28 @@ function evaluateSequence(rule: SiemRuleDefinition, events: SiemRuleEvent[]) {
   return candidates;
 }
 
-export function evaluateSiemRules(input: { rules: SiemRuleDefinition[]; events: SiemRuleEvent[] }) {
+export function evaluateSiemRules(input: {
+  rules: SiemRuleDefinition[];
+  events: SiemRuleEvent[];
+  options?: EvaluateSiemRulesOptions;
+}) {
   const candidates: SiemFindingCandidate[] = [];
+  const now = input.options?.now ?? new Date();
 
   for (const rule of input.rules) {
     if (!rule.enabled) continue;
-    if (rule.ruleType === "absence" || rule.ruleType === "baseline_anomaly") continue;
+
+    if (rule.ruleType === "absence") {
+      const expected = input.options?.absence?.get(rule.id) ?? [];
+      candidates.push(...evaluateAbsence(rule, input.events, { now, expectedSourceIds: expected }));
+      continue;
+    }
+
+    if (rule.ruleType === "baseline_anomaly") {
+      const baselineBySource = input.options?.baseline ?? new Map();
+      candidates.push(...evaluateBaseline(rule, input.events, { now, baselineBySource }));
+      continue;
+    }
 
     const matchingEvents = input.events.filter((event) => eventMatchesRule(rule, event));
     if (matchingEvents.length === 0) continue;
@@ -204,5 +241,87 @@ export function evaluateSiemRules(input: { rules: SiemRuleDefinition[]; events: 
     if (rule.ruleType === "sequence") candidates.push(...evaluateSequence(rule, matchingEvents));
   }
 
+  return candidates;
+}
+
+export function evaluateAbsence(rule: SiemRuleDefinition, events: SiemRuleEvent[], options: SiemAbsenceOptions): SiemFindingCandidate[] {
+  if (!rule.enabled) return [];
+  if (!rule.groupBy.includes("sourceId")) return [];
+  if (options.expectedSourceIds.length === 0) return [];
+
+  const windowMs = (rule.windowSeconds ?? 1800) * 1000;
+  const cutoff = options.now.getTime() - windowMs;
+  const presentSourceIds = new Set<number>();
+  for (const event of events) {
+    if (event.sourceId == null) continue;
+    if (event.receivedAt.getTime() < cutoff) continue;
+    if (eventMatchesRule(rule, event)) presentSourceIds.add(event.sourceId);
+  }
+
+  const candidates: SiemFindingCandidate[] = [];
+  for (const sourceId of options.expectedSourceIds) {
+    if (presentSourceIds.has(sourceId)) continue;
+    const correlationKey = `${rule.key}|sourceId:${sourceId}`;
+    candidates.push({
+      ruleId: rule.id,
+      ruleKey: rule.key,
+      title: `${rule.name}: source #${sourceId}`,
+      summary: `${rule.description} No events received from source #${sourceId} in the last ${rule.windowSeconds ?? 1800} seconds (as of ${options.now.toISOString()}).`,
+      severity: rule.severity,
+      siteId: null,
+      deviceId: null,
+      sourceId,
+      eventCount: 0,
+      firstSeenAt: options.now,
+      lastSeenAt: options.now,
+      sampleEventIds: [],
+      correlationKey,
+    });
+  }
+  return candidates;
+}
+
+export function evaluateBaseline(rule: SiemRuleDefinition, events: SiemRuleEvent[], options: SiemBaselineOptions): SiemFindingCandidate[] {
+  if (!rule.enabled) return [];
+  if (!rule.groupBy.includes("sourceId")) return [];
+  if (!rule.threshold) return [];
+  if (!rule.windowSeconds) return [];
+
+  const windowMs = (rule.windowSeconds ?? 900) * 1000;
+  const windowHours = (rule.windowSeconds ?? 900) / 3600;
+  const cutoff = options.now.getTime() - windowMs;
+  const counts = new Map<number, number>();
+  for (const event of events) {
+    if (event.sourceId == null) continue;
+    if (event.receivedAt.getTime() < cutoff) continue;
+    if (eventMatchesRule(rule, event)) counts.set(event.sourceId, (counts.get(event.sourceId) ?? 0) + 1);
+  }
+
+  const candidates: SiemFindingCandidate[] = [];
+  for (const [sourceId, baseline] of options.baselineBySource) {
+    const current = counts.get(sourceId) ?? 0;
+    const expectedMax = rule.threshold * baseline.avgPerHour * windowHours;
+    if (current <= expectedMax) continue;
+    const correlationKey = `${rule.key}|sourceId:${sourceId}`;
+    const matched = events
+      .filter((event) => event.sourceId === sourceId && event.receivedAt.getTime() >= cutoff && eventMatchesRule(rule, event))
+      .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime());
+    const samples = matched.slice(-10);
+    candidates.push({
+      ruleId: rule.id,
+      ruleKey: rule.key,
+      title: `${rule.name}: source #${sourceId}`,
+      summary: `${rule.description} ${current} event(s) in the last ${rule.windowSeconds ?? 900} seconds (baseline ${baseline.avgPerHour.toFixed(1)}/h, threshold ${rule.threshold}×).`,
+      severity: rule.severity,
+      siteId: null,
+      deviceId: null,
+      sourceId,
+      eventCount: current,
+      firstSeenAt: matched[0]?.receivedAt ?? options.now,
+      lastSeenAt: matched[matched.length - 1]?.receivedAt ?? options.now,
+      sampleEventIds: samples.map((event) => event.id),
+      correlationKey,
+    });
+  }
   return candidates;
 }

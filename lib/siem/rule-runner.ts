@@ -1,8 +1,8 @@
 import { db } from "../../db";
-import { siemFindings, siemRules, syslogEvents } from "../../db/schema";
+import { siemFindings, siemRules, syslogEvents, syslogSources } from "../../db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { buildFindingText } from "./human-analysis";
-import { evaluateSiemRules, type SiemFindingCandidate, type SiemRuleDefinition, type SiemRuleEvent } from "./rule-engine";
+import { evaluateSiemRules, type SiemFindingCandidate, type SiemRuleDefinition, type SiemRuleEvent, type SiemSourceBaseline } from "./rule-engine";
 import type { SiemRuleType, SiemSeverity } from "./types";
 
 export type SiemRuleRunnerOptions = {
@@ -77,20 +77,84 @@ function findingValues(candidate: SiemFindingCandidate, rule: SiemRuleDefinition
   };
 }
 
+async function buildAbsenceMap(rules: SiemRuleDefinition[]): Promise<Map<number, number[]>> {
+  const absenceRules = rules.filter((rule) => rule.ruleType === "absence" && rule.groupBy.includes("sourceId"));
+  const map = new Map<number, number[]>();
+  if (absenceRules.length === 0) return map;
+
+  const sourceRows = await db
+    .select({ id: syslogSources.id })
+    .from(syslogSources)
+    .where(eq(syslogSources.enabled, true));
+
+  const allSourceIds = sourceRows.map((row) => row.id);
+  for (const rule of absenceRules) map.set(rule.id, allSourceIds);
+  return map;
+}
+
+async function buildBaselineMap(
+  rules: SiemRuleDefinition[],
+  eventRows: (typeof syslogEvents.$inferSelect)[],
+  now: Date,
+): Promise<Map<number, SiemSourceBaseline>> {
+  const baselineRules = rules.filter((rule) => rule.ruleType === "baseline_anomaly" && rule.groupBy.includes("sourceId"));
+  const map = new Map<number, SiemSourceBaseline>();
+  if (baselineRules.length === 0) return map;
+
+  const sourceIds = new Set<number>();
+  for (const row of eventRows) if (row.sourceId != null) sourceIds.add(row.sourceId);
+  if (sourceIds.size === 0) return map;
+
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const historyRows = await db
+    .select({ sourceId: syslogEvents.sourceId })
+    .from(syslogEvents)
+    .where(and(gte(syslogEvents.receivedAt, sevenDaysAgo)));
+
+  const counts = new Map<number, number>();
+  for (const row of historyRows) {
+    if (row.sourceId == null) continue;
+    counts.set(row.sourceId, (counts.get(row.sourceId) ?? 0) + 1);
+  }
+  const hours = 7 * 24;
+  for (const sourceId of sourceIds) {
+    const total = counts.get(sourceId) ?? 0;
+    if (total === 0) continue;
+    map.set(sourceId, { sourceId, avgPerHour: total / hours });
+  }
+  return map;
+}
+
 export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
   const now = options.now ?? new Date();
   const lookbackSeconds = options.lookbackSeconds ?? 900;
   const limit = options.limit ?? 500;
-  const since = new Date(now.getTime() - lookbackSeconds * 1000);
 
-  const [ruleRows, eventRows] = await Promise.all([
-    db.select().from(siemRules).where(eq(siemRules.enabled, true)),
-    db.select().from(syslogEvents).where(gte(syslogEvents.receivedAt, since)).orderBy(desc(syslogEvents.receivedAt)).limit(limit),
-  ]);
-
+  const [ruleRows] = await Promise.all([db.select().from(siemRules).where(eq(siemRules.enabled, true))]);
   const rules = ruleRows.map(asRule);
   const ruleById = new Map(rules.map((rule) => [rule.id, rule]));
-  const candidates = evaluateSiemRules({ rules, events: eventRows.map(asEvent) });
+
+  const absenceWindowMax = rules
+    .filter((rule) => rule.ruleType === "absence" && rule.groupBy.includes("sourceId"))
+    .reduce((max, rule) => Math.max(max, rule.windowSeconds ?? 0), 0);
+  const baselineWindowMax = rules
+    .filter((rule) => rule.ruleType === "baseline_anomaly" && rule.groupBy.includes("sourceId"))
+    .reduce((max, rule) => Math.max(max, rule.windowSeconds ?? 0), 0);
+  const eventLookbackSeconds = Math.max(lookbackSeconds, absenceWindowMax, baselineWindowMax);
+  const since = new Date(now.getTime() - eventLookbackSeconds * 1000);
+
+  const eventRows = await db
+    .select()
+    .from(syslogEvents)
+    .where(gte(syslogEvents.receivedAt, since))
+    .orderBy(desc(syslogEvents.receivedAt))
+    .limit(limit);
+
+  const [absenceMap, baselineMap] = await Promise.all([
+    buildAbsenceMap(rules),
+    buildBaselineMap(rules, eventRows, now),
+  ]);
+  const candidates = evaluateSiemRules({ rules, events: eventRows.map(asEvent), options: { now, absence: absenceMap, baseline: baselineMap } });
   let created = 0;
   let updated = 0;
 
