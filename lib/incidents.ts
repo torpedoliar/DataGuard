@@ -83,6 +83,20 @@ export function canTransitionIncidentStatus(input: {
   return staffTransitions[input.current].includes(input.next);
 }
 
+/**
+ * Pure: returns the list of allowed next statuses for the given role.
+ * Does NOT require DB.
+ */
+export function allowedNextStatuses(input: {
+  isAdmin: boolean;
+  isAssignee: boolean;
+  current: IncidentStatus;
+}): IncidentStatus[] {
+  return incidentStatuses.filter((next) =>
+    canTransitionIncidentStatus({ ...input, next }),
+  );
+}
+
 export function isRecurringIncident(recentDeviceIncidentCount: number): boolean {
   return recentDeviceIncidentCount >= 2;
 }

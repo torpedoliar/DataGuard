@@ -18,6 +18,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
 
   const canAdmin = await hasAdminAccess();
   const users = canAdmin ? await getAssignableIncidentUsers() : [];
+  const isAssignee = incident.assignedToId === session.userId;
 
-  return <IncidentDetail incident={incident} users={users} canAdmin={canAdmin} />;
+  return <IncidentDetail incident={incident} users={users} canAdmin={canAdmin} isAssignee={isAssignee} />;
 }

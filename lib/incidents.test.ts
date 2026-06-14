@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  allowedNextStatuses,
   canTransitionIncidentStatus,
   calculateIncidentDueDate,
   getDefaultIncidentSeverity,
@@ -34,5 +35,27 @@ describe("incident domain rules", () => {
     expect(isRecurringIncident(0)).toBe(false);
     expect(isRecurringIncident(1)).toBe(false);
     expect(isRecurringIncident(2)).toBe(true);
+  });
+});
+
+describe("allowedNextStatuses", () => {
+  it("returns every status to admins from Open", () => {
+    expect(allowedNextStatuses({ isAdmin: true, isAssignee: false, current: "Open" }))
+      .toEqual(["Open", "In Progress", "Resolved", "Verified"]);
+  });
+
+  it("returns only In Progress for staff assignees from Open", () => {
+    expect(allowedNextStatuses({ isAdmin: false, isAssignee: true, current: "Open" }))
+      .toEqual(["In Progress"]);
+  });
+
+  it("returns only the current status to staff assignees from Resolved (terminal for staff)", () => {
+    expect(allowedNextStatuses({ isAdmin: false, isAssignee: true, current: "Resolved" }))
+      .toEqual(["Resolved"]);
+  });
+
+  it("returns Open and Verified to admins from Verified (re-open allowed)", () => {
+    expect(allowedNextStatuses({ isAdmin: true, isAssignee: false, current: "Verified" }))
+      .toEqual(["Open", "Verified"]);
   });
 });

@@ -3,7 +3,7 @@
 import { changeIncidentStatus } from "@/actions/incidents";
 import ActionButton from "@/components/ui/action-button";
 import FormSection from "@/components/ui/form-section";
-import { incidentStatuses, resolutionActions, resolutionCategories } from "@/lib/incidents";
+import { allowedNextStatuses, resolutionActions, resolutionCategories, type IncidentStatus } from "@/lib/incidents";
 import { useActionState } from "react";
 
 type ActionState = { message?: string; success?: boolean } | null;
@@ -11,8 +11,20 @@ type ActionState = { message?: string; success?: boolean } | null;
 const fieldClass = "ops-input w-full px-3 py-2 text-sm";
 const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
 
-export default function IncidentStatusForm({ incidentId, currentStatus }: { incidentId: number; currentStatus: string }) {
+export default function IncidentStatusForm({
+  incidentId,
+  currentStatus,
+  isAdmin,
+  isAssignee,
+}: {
+  incidentId: number;
+  currentStatus: IncidentStatus;
+  isAdmin: boolean;
+  isAssignee: boolean;
+}) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(changeIncidentStatus, null);
+
+  const allowed = allowedNextStatuses({ isAdmin, isAssignee, current: currentStatus });
 
   return (
     <form action={formAction}>
@@ -34,7 +46,7 @@ export default function IncidentStatusForm({ incidentId, currentStatus }: { inci
           <div>
             <label className={labelClass}>Status</label>
             <select name="status" defaultValue={currentStatus} className={fieldClass}>
-              {incidentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+              {allowed.map((status) => <option key={status} value={status}>{status}</option>)}
             </select>
           </div>
           <div>

@@ -18,10 +18,12 @@ export default function IncidentDetail({
   incident,
   users,
   canAdmin,
+  isAssignee,
 }: {
   incident: IncidentDetailModel;
   users: { id: number; username: string }[];
   canAdmin: boolean;
+  isAssignee: boolean;
 }) {
   return (
     <main className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-5 px-4 py-5 lg:px-6 xl:grid-cols-3">
@@ -101,7 +103,7 @@ export default function IncidentDetail({
             currentDueDate={incident.dueDate}
           />
         )}
-        <IncidentStatusForm incidentId={incident.id} currentStatus={incident.status} />
+        <IncidentStatusForm incidentId={incident.id} currentStatus={incident.status} isAdmin={canAdmin} isAssignee={isAssignee} />
         <IncidentUpdateForm incidentId={incident.id} />
       </aside>
     </main>
