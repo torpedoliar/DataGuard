@@ -42,16 +42,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
 
+# Database connection values (DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME)
+# MUST be supplied at runtime via the .env.production file mounted by docker-compose.
+# Hardcoding defaults here would leak credentials into image layers.
+
 # Buat group/user non-root untuk keamanan
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
-
-# Database connection — decomposed agar tidak ada masalah URL encoding
-ENV DB_HOST="db"
-ENV DB_PORT="5432"
-ENV DB_USER="administrator"
-ENV DB_PASSWORD="Arabika1927"
-ENV DB_NAME="dccheck"
 
 # Beri ownership hanya ke workdir kosong dan tarball, bukan recursive seluruh hasil build.
 RUN chown nextjs:nodejs /app

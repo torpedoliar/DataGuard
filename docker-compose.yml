@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -10,13 +8,9 @@ services:
     restart: always
     ports:
       - "0.0.0.0:3001:3001"
+    env_file:
+      - .env.production
     environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_USER: administrator
-      DB_PASSWORD: "Arabika1927"
-      DB_NAME: dccheck
-      SESSION_SECRET: fe5cae864dfd8e1445580fdd5b1c5f9e
       PORT: "3001"
       HOSTNAME: "0.0.0.0"
     volumes:
@@ -34,12 +28,9 @@ services:
     command: npm run syslog:receiver
     ports:
       - "0.0.0.0:514:1514/udp"
+    env_file:
+      - .env.production
     environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_USER: administrator
-      DB_PASSWORD: "Arabika1927"
-      DB_NAME: dccheck
       SYSLOG_UDP_HOST: "0.0.0.0"
       SYSLOG_UDP_PORT: "1514"
     depends_on:
@@ -53,12 +44,8 @@ services:
     container_name: dccheck_siem_parser
     restart: unless-stopped
     command: npm run siem:parser
-    environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_USER: administrator
-      DB_PASSWORD: "Arabika1927"
-      DB_NAME: dccheck
+    env_file:
+      - .env.production
     depends_on:
       db:
         condition: service_started
@@ -70,12 +57,8 @@ services:
     container_name: dccheck_siem_rules
     restart: unless-stopped
     command: npm run siem:rules
-    environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_USER: administrator
-      DB_PASSWORD: "Arabika1927"
-      DB_NAME: dccheck
+    env_file:
+      - .env.production
     depends_on:
       db:
         condition: service_started
@@ -87,12 +70,8 @@ services:
     container_name: dccheck_siem_alerts
     restart: unless-stopped
     command: npm run siem:alerts
-    environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_USER: administrator
-      DB_PASSWORD: "Arabika1927"
-      DB_NAME: dccheck
+    env_file:
+      - .env.production
     depends_on:
       db:
         condition: service_started
@@ -104,12 +83,8 @@ services:
     container_name: dccheck_siem_retention
     restart: unless-stopped
     command: npm run siem:retention
-    environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_USER: administrator
-      DB_PASSWORD: "Arabika1927"
-      DB_NAME: dccheck
+    env_file:
+      - .env.production
     depends_on:
       db:
         condition: service_started
@@ -120,10 +95,12 @@ services:
     image: postgres:15-alpine
     container_name: dccheck_postgres
     restart: always
+    env_file:
+      - .env.production
     environment:
-      POSTGRES_USER: administrator
-      POSTGRES_PASSWORD: "Arabika1927"
-      POSTGRES_DB: dccheck
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "0.0.0.0:3002:5432"
     volumes:

@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Explicitly re-allow the documented production template so it can be
+# committed even though `.env*` would otherwise ignore it.
+!.env.example.production
 
 # vercel
 .vercel

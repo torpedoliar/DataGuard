@@ -181,6 +181,17 @@ Main services:
 
 > Production note: rotate default credentials and `SESSION_SECRET` before exposing the stack.
 
+### Production secrets
+
+The repository no longer ships a `.env.production` with credentials. The recommended workflow:
+
+1. Run `./deploy.sh` on a fresh server. It will auto-generate a `.env.production` file with random `DB_PASSWORD` and `SESSION_SECRET` values, write it with `chmod 600`, and start the full stack.
+2. For manual provisioning (CI/CD, image registry, restoring an existing deployment), copy `.env.example.production` to `.env.production` and fill each variable. Each var documents how to generate a strong value.
+3. **NEVER** commit `.env.production`. The `.gitignore` already excludes every `.env*` file.
+4. To rotate secrets on an existing deployment, follow the operator-driven procedure (no `rotate-secrets.sh` script ships in this repo yet — TODO). The supported workflow today: back up the database via the in-app backup feature, generate a fresh `.env.production` (e.g. `mv .env.production .env.production.bak && ./deploy.sh`), and restore the dump into the recreated database.
+
+The app refuses to start in production if `SESSION_SECRET` is missing, shorter than 32 characters, or still set to the development default.
+
 ---
 
 ## Backup and restore

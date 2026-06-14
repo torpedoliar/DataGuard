@@ -9,8 +9,18 @@
 # - Hanya container aplikasi/stateless worker yang di-rebuild dan di-restart
 # - Backup database WAJIB berhasil sebelum proses lanjut
 # ============================================
+#
+# ENV_FILE: this script reads secrets from the same env file as deploy.sh
+# (default: .env.production). Override by exporting ENV_FILE before running.
+# Keep this in sync with deploy.sh's `ENV_FILE` constant — both must point
+# to the same file or compose will fail to find the live DB credentials.
+# ============================================
 
 set -euo pipefail
+
+# Path to the env file. Must match deploy.sh. Operators can override:
+#   ENV_FILE=/path/to/.env.production ./update.sh
+ENV_FILE="${ENV_FILE:-.env.production}"
 
 echo ""
 echo "============================================"
@@ -41,8 +51,8 @@ fi
 # ---- Read DB credentials from running container ----
 DB_USER="administrator"
 DB_NAME="dccheck"
-FETCHED_USER="$("${COMPOSE_CMD[@]}" exec -T db printenv POSTGRES_USER 2>/dev/null || docker exec dccheck_postgres printenv POSTGRES_USER 2>/dev/null || true)"
-FETCHED_NAME="$("${COMPOSE_CMD[@]}" exec -T db printenv POSTGRES_DB 2>/dev/null || docker exec dccheck_postgres printenv POSTGRES_DB 2>/dev/null || true)"
+FETCHED_USER="$("${COMPOSE_CMD[@]}" --env-file "$ENV_FILE" exec -T db printenv POSTGRES_USER 2>/dev/null || docker exec dccheck_postgres printenv POSTGRES_USER 2>/dev/null || true)"
+FETCHED_NAME="$("${COMPOSE_CMD[@]}" --env-file "$ENV_FILE" exec -T db printenv POSTGRES_DB 2>/dev/null || docker exec dccheck_postgres printenv POSTGRES_DB 2>/dev/null || true)"
 if [ -n "${FETCHED_USER//[[:space:]]/}" ]; then DB_USER="$(echo "$FETCHED_USER" | tr -d '\r' | xargs)"; fi
 if [ -n "${FETCHED_NAME//[[:space:]]/}" ]; then DB_NAME="$(echo "$FETCHED_NAME" | tr -d '\r' | xargs)"; fi
 if [ -z "${DB_NAME//[[:space:]]/}" ]; then DB_NAME="dccheck"; fi
@@ -124,7 +134,7 @@ echo ""
 echo "[3/6] Rebuilding app image (database untouched)..."
 echo "      Workers reuse image: ${SIEM_WORKER_SERVICES[*]}"
 echo "      This may take 2-5 minutes..."
-if ! "${COMPOSE_CMD[@]}" build --no-cache "$APP_SERVICE"; then
+if ! "${COMPOSE_CMD[@]}" --env-file "$ENV_FILE" build --no-cache "$APP_SERVICE"; then
     echo "ERROR: Build failed! Aborting update."
     echo "Your current running version is still intact."
     echo "Backup file: $BACKUP_FILE"
@@ -137,7 +147,7 @@ echo "OK - App image rebuilt successfully"
 # ==================================================================
 echo ""
 echo "[4/6] Restarting app (database stays running)..."
-if ! "${COMPOSE_CMD[@]}" up -d --no-deps --force-recreate --remove-orphans "$APP_SERVICE"; then
+if ! "${COMPOSE_CMD[@]}" --env-file "$ENV_FILE" up -d --no-deps --force-recreate --remove-orphans "$APP_SERVICE"; then
     echo "ERROR: App restart failed! Check docker compose logs."
     echo "Backup file: $BACKUP_FILE"
     exit 1
@@ -155,7 +165,7 @@ echo "      (applying committed migrations from drizzle/ - deterministic, no pro
 SCHEMA_SYNC_OUTPUT=""
 SCHEMA_SYNC_EXIT_CODE=0
 set +e
-SCHEMA_SYNC_OUTPUT="$("${COMPOSE_CMD[@]}" exec -T app npm run db:migrate 2>&1)"
+SCHEMA_SYNC_OUTPUT="$("${COMPOSE_CMD[@]}" --env-file "$ENV_FILE" exec -T app npm run db:migrate 2>&1)"
 SCHEMA_SYNC_EXIT_CODE=$?
 set -e
 if [ -n "${SCHEMA_SYNC_OUTPUT//[[:space:]]/}" ]; then echo "$SCHEMA_SYNC_OUTPUT"; fi
@@ -182,7 +192,7 @@ echo "OK - Database schema synced"
 echo ""
 echo "[6/6] Restarting SIEM workers (database stays running)..."
 echo "      Services: ${SIEM_WORKER_SERVICES[*]}"
-if ! "${COMPOSE_CMD[@]}" up -d --no-deps --force-recreate --remove-orphans "${SIEM_WORKER_SERVICES[@]}"; then
+if ! "${COMPOSE_CMD[@]}" --env-file "$ENV_FILE" up -d --no-deps --force-recreate --remove-orphans "${SIEM_WORKER_SERVICES[@]}"; then
     echo "ERROR: SIEM worker restart failed! Check docker compose logs."
     echo "Backup file: $BACKUP_FILE"
     exit 1
