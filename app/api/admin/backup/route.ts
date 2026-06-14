@@ -1,4 +1,4 @@
-import { requireSuperadmin } from "@/actions/backup-restore";
+import { requireSuperadminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
 import { buildBackupArchive } from "@/lib/backup/build-archive";
 import { resolveBackupEnv } from "@/lib/backup/env";
@@ -9,10 +9,10 @@ export const runtime = "nodejs";
 export const maxDuration = 600;
 
 export async function GET() {
-  const guard = await requireSuperadmin();
+  const guard = await requireSuperadminAction();
   if (!guard.ok) {
     return new Response(JSON.stringify({ message: guard.message }), {
-      status: guard.status,
+      status: 401,
       headers: { "content-type": "application/json" },
     });
   }
