@@ -1,7 +1,7 @@
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { sites, userSites } from "@/db/schema";
+import { sites, userSites, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import MapSelector from "@/components/ui/map-selector";
 import { getSettings } from "@/actions/settings";
@@ -39,6 +39,36 @@ export default async function SelectSitePage() {
             );
     }
 
+    // N50: if the session landed here without a pre-selected site, but the
+    // user only has 1 site to choose from, jump straight to /checklist.
+    if (!session.activeSiteId) {
+        const isStaffWithSingleSite =
+            session.role !== "superadmin" && availableSites.length === 1;
+        if (isStaffWithSingleSite) {
+            const { switchSite } = await import("@/actions/auth");
+            await switchSite(availableSites[0].id);
+            redirect("/checklist");
+        }
+    }
+
+    // N50: pre-select the user's defaultSiteId on the map when present and
+    // accessible. Falls back to "no selection" so they have to click.
+    let defaultSelectedId: number | null = null;
+    if (!session.activeSiteId) {
+        const me = await db.query.users.findFirst({
+            where: eq(users.id, session.userId),
+        });
+        const userDefault = me?.defaultSiteId ?? null;
+        if (
+            userDefault &&
+            availableSites.some((s) => s.id === userDefault)
+        ) {
+            defaultSelectedId = userDefault;
+        } else if (availableSites.length === 1) {
+            defaultSelectedId = availableSites[0].id;
+        }
+    }
+
     // Filter sites that have coordinates
     const sitesWithCoords = availableSites
         .filter((s) => s.latitude && s.longitude)
@@ -64,6 +94,7 @@ export default async function SelectSitePage() {
                 sites={sitesWithCoords}
                 username={session.username}
                 appName={appSettings.appName}
+                defaultSelectedId={defaultSelectedId}
             />
 
             {sitesWithoutCoords.length > 0 && (

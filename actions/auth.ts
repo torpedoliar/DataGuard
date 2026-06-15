@@ -115,16 +115,53 @@ export async function login(prevState: unknown, formData: FormData) {
     // Cast role safely
     const role = user.role as "superadmin" | "admin" | "staff";
 
-    // Create session WITHOUT a pre-selected site.
-    // User will pick their site on the interactive map page.
-    await createSession(user.id, user.username, role, null, null);
+    // Decide which site the session should land on (N50):
+    //  1. superadmin with no preference → null (picks on /select-site)
+    //  2. user has defaultSiteId AND still has access via userSites → use it
+    //  3. user has exactly 1 accessible site → auto-pick it
+    //  4. otherwise → null (picks on /select-site)
+    let activeSiteId: number | null = null;
+    let activeSiteName: string | null = null;
+    let redirectTo = "/select-site";
+
+    if (role !== "superadmin") {
+        // Fetch the list of active sites the user has access to. We re-use
+        // the same join that the /select-site page uses so the two paths
+        // agree on which sites count.
+        const accessible = await db
+            .select({ id: sites.id, name: sites.name })
+            .from(userSites)
+            .innerJoin(sites, eq(userSites.siteId, sites.id))
+            .where(
+                and(
+                    eq(userSites.userId, user.id),
+                    eq(sites.isActive, true)
+                )
+            )
+            .limit(50);
+
+        const accessibleIds = new Set(accessible.map((s) => s.id));
+
+        if (user.defaultSiteId && accessibleIds.has(user.defaultSiteId)) {
+            const chosen = accessible.find((s) => s.id === user.defaultSiteId);
+            activeSiteId = user.defaultSiteId;
+            activeSiteName = chosen?.name ?? null;
+            redirectTo = "/checklist";
+        } else if (accessible.length === 1) {
+            activeSiteId = accessible[0].id;
+            activeSiteName = accessible[0].name;
+            redirectTo = "/checklist";
+        }
+    }
+
+    await createSession(user.id, user.username, role, activeSiteId, activeSiteName);
 
     // Update last login time (non-blocking)
     updateUserLastLogin(user.id).catch(console.error);
 
     await logAuditManual({ action: "LOGIN", userId: user.id, username: user.username, userRole: role, detail: "Login successful" });
 
-    redirect("/select-site");
+    redirect(redirectTo);
 }
 
 export async function logout() {

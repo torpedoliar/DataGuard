@@ -65,6 +65,11 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   photoPath: text("photo_path"),
   isActive: boolean("is_active").default(true),
+  // Pre-selected site the user wants to land on after login (N50).
+  // Validated against userSites on save; nullable for users with no preference
+  // (login flow falls back to the existing /select-site experience, except for
+  // users with exactly 1 accessible site, who auto-pick).
+  defaultSiteId: integer("default_site_id").references(() => sites.id),
   lastLogin: timestamp("last_login"),
   failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
   lockoutUntil: timestamp("lockout_until"),

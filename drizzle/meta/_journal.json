@@ -141,6 +141,13 @@
       "when": 1781536289813,
       "tag": "0020_siem_dashboard_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1781537000000,
+      "tag": "0021_user_default_site",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,10 @@ interface MapSelectorProps {
   sites: SiteMarker[];
   username: string;
   appName: string;
+  // N50: optional pre-selection. When set, this site is shown as "current
+  // selection" but the user still has to click to enter — we never auto-navigate
+  // from a multi-site map to avoid surprising users.
+  defaultSelectedId?: number | null;
 }
 
 // Convert lat/lng to SVG coordinates.
@@ -39,12 +43,14 @@ function geoToSvg(lat: number, lng: number): { x: number; y: number } {
   return { x, y };
 }
 
-export default function MapSelector({ sites, username, appName }: MapSelectorProps) {
+export default function MapSelector({ sites, username, appName, defaultSelectedId = null }: MapSelectorProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [hoveredSite, setHoveredSite] = useState<SiteMarker | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const [selectedSite, setSelectedSite] = useState<SiteMarker | null>(null);
+  const [selectedSite, setSelectedSite] = useState<SiteMarker | null>(
+    defaultSelectedId != null ? sites.find((s) => s.id === defaultSelectedId) ?? null : null,
+  );
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   const handleSiteClick = async (site: SiteMarker) => {
@@ -120,6 +126,7 @@ export default function MapSelector({ sites, username, appName }: MapSelectorPro
               const percentX = (svgCoords.x / 792.546) * 100;
               const percentY = (svgCoords.y / 316.664) * 100;
               const active = hoveredSite?.id === site.id;
+              const isPreset = defaultSelectedId === site.id;
 
               return (
                 <button
@@ -140,10 +147,23 @@ export default function MapSelector({ sites, username, appName }: MapSelectorPro
                   <span
                     className={clsx(
                       "absolute size-9 rounded-full border transition-colors",
-                      active ? "border-ops-accent bg-ops-accent/20" : "border-ops-accent/35 bg-ops-bg/80",
+                      active
+                        ? "border-ops-accent bg-ops-accent/20"
+                        : isPreset
+                          ? "border-ops-accent bg-ops-accent/12"
+                          : "border-ops-accent/35 bg-ops-bg/80",
                     )}
                   />
-                  <span className={clsx("relative size-3 rounded-full transition-transform", active ? "scale-125 bg-ops-accent" : "bg-[#b7f5e4]")} />
+                  <span
+                    className={clsx(
+                      "relative size-3 rounded-full transition-transform",
+                      active
+                        ? "scale-125 bg-ops-accent"
+                        : isPreset
+                          ? "scale-110 bg-[#b7f5e4]"
+                          : "bg-[#b7f5e4]",
+                    )}
+                  />
                   <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded bg-ops-bg/90 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-[0.08em] text-[#b7f5e4]">
                     {site.code}
                   </span>

@@ -152,6 +152,18 @@ export async function updateUser(prevState: unknown, formData: FormData) {
     const email = formData.get("email") as string;
     const role = formData.get("role") as "superadmin" | "admin" | "staff";
     const isActive = formData.get("isActive") === "on";
+    // defaultSiteId — read as either a number (set to that site) or empty
+    // string (clear the preference). N50.
+    const rawDefaultSiteId = formData.get("defaultSiteId");
+    let defaultSiteId: number | null | undefined = undefined;
+    if (typeof rawDefaultSiteId === "string") {
+        if (rawDefaultSiteId.trim() === "") {
+            defaultSiteId = null;
+        } else {
+            const parsed = Number(rawDefaultSiteId);
+            defaultSiteId = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+        }
+    }
 
     if (username) updateData.username = username;
     if (email !== undefined) updateData.email = email || null;
@@ -167,6 +179,16 @@ export async function updateUser(prevState: unknown, formData: FormData) {
         if (existingUser && existingUser.id !== id) {
             return { message: "Username already exists" };
         }
+    }
+
+    // Validate defaultSiteId against the user's site bindings. If the user
+    // is not a superadmin, the default must be one of the sites they're
+    // being assigned to. Superadmins (no site bindings) can have any site.
+    if (defaultSiteId !== undefined) {
+        if (defaultSiteId !== null && role !== "superadmin" && !siteIds.includes(defaultSiteId)) {
+            return { message: "Default site must be one of the user's assigned sites" };
+        }
+        updateData.defaultSiteId = defaultSiteId;
     }
 
     try {
