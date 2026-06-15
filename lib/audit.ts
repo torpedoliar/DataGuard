@@ -32,6 +32,7 @@ export type AuditEntity =
     | "vlan"
     | "network_port"
     | "syslog_source"
+    | "syslog_event"
     | "siem_finding"
     | "checklist"
     | "incident"

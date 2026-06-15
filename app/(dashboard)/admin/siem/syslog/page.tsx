@@ -1,6 +1,7 @@
 import { getSiemSyslogData, type SiemSyslogFilters } from "@/actions/siem-syslog";
 import { getQuarantinedEventsCount } from "@/actions/siem-events";
 import SiemSyslogTable from "@/components/admin/siem-syslog-table";
+import SiemPruneForm from "@/components/admin/siem-prune-form";
 import ActionButton from "@/components/ui/action-button";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
@@ -71,6 +72,8 @@ export default async function SiemSyslogPage({
       ) : (
         <SiemSyslogTable data={data} />
       )}
+
+      {session.role === "superadmin" && <SiemPruneForm />}
     </main>
   );
 }
