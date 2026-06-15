@@ -27,6 +27,11 @@ vi.mock("./partitioning", () => {
   return { partitionsForWindow, isPartitionFullyExpired, partitionName };
 });
 
+vi.mock("./snapshots", () => ({
+  captureSiemSnapshot: vi.fn().mockResolvedValue({ capturedAt: new Date("2026-06-15T00:00:00.000Z"), counters: { raw24h: 0, parsed24h: 0, openFindings: 0, criticalFindings: 0, unmappedSources: 0, pendingAlerts: 0, failedAlerts: 0 } }),
+  getSiemSnapshots: vi.fn().mockResolvedValue([]),
+}));
+
 import { db } from "../../db";
 import {
   buildSiemRetentionCutoffs,
@@ -37,6 +42,7 @@ import {
   runSiemRetentionCleanup,
 } from "./retention";
 import { archiveFindingEvidenceInTx } from "./evidence";
+import { captureSiemSnapshot } from "./snapshots";
 import { siemEventsQuarantine, syslogEvents, syslogSources } from "../../db/schema";
 
 const mockedDb = db as unknown as {
@@ -47,6 +53,7 @@ const mockedDb = db as unknown as {
   execute: ReturnType<typeof vi.fn>;
   transaction: ReturnType<typeof vi.fn>;
 };
+const mockedCaptureSiemSnapshot = captureSiemSnapshot as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -349,6 +356,75 @@ describe("runSiemRetentionCleanup — quarantine", () => {
     expect(result.quarantineRetentionDeleted).toBe(3);
     expect(result.eventsQuarantined).toBe(0);
   });
+
+  it("captures a dashboard snapshot at the end of the run (N24)", async () => {
+    mockedDb.execute.mockResolvedValueOnce({
+      rows: [
+        {
+          raw_retention_days: 90,
+          event_retention_days: 180,
+          finding_retention_days: 365,
+          alert_retention_days: 365,
+          quarantine_enabled: true,
+          quarantine_retention_days: 365,
+        },
+      ],
+    });
+    mockedDb.select.mockReturnValueOnce(makeSourcesChain([]));
+    // No orphan events.
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    });
+    // No quarantine retention rows.
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    });
+    // No raw events to delete, no alerts to delete, no stale findings.
+    mockedDb.delete.mockReturnValueOnce(makeDeleteChain([]).delete());
+    mockedDb.delete.mockReturnValueOnce(makeDeleteChain([]).delete());
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    });
+
+    await runSiemRetentionCleanup({ now: new Date("2026-06-15T00:00:00.000Z") });
+
+    // Snapshot capture is called exactly once after retention has run.
+    expect(mockedCaptureSiemSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("still returns success if the snapshot capture throws (best-effort)", async () => {
+    mockedDb.execute.mockResolvedValueOnce({
+      rows: [
+        {
+          raw_retention_days: 90,
+          event_retention_days: 180,
+          finding_retention_days: 365,
+          alert_retention_days: 365,
+          quarantine_enabled: true,
+          quarantine_retention_days: 365,
+        },
+      ],
+    });
+    mockedDb.select.mockReturnValueOnce(makeSourcesChain([]));
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    });
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    });
+    mockedDb.delete.mockReturnValueOnce(makeDeleteChain([]).delete());
+    mockedDb.delete.mockReturnValueOnce(makeDeleteChain([]).delete());
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    });
+
+    mockedCaptureSiemSnapshot.mockRejectedValueOnce(new Error("snapshot boom"));
+
+    const result = await runSiemRetentionCleanup({ now: new Date("2026-06-15T00:00:00.000Z") });
+    // No throw; the call returns the normal cleanup result envelope.
+    expect(result).toBeDefined();
+    expect(result.eventsDeleted).toBe(0);
+  });
 });
 
 describe("runSiemRetentionCleanup — evidence archive atomicity (N29)", () => {
@@ -590,3 +666,4 @@ describe("runSiemRetentionCleanup — evidence archive atomicity (N29)", () => {
 void syslogEvents;
 void syslogSources;
 void siemEventsQuarantine;
+void mockedCaptureSiemSnapshot;

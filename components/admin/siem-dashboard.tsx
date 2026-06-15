@@ -10,6 +10,17 @@ import StatusBadge from "@/components/ui/status-badge";
 import { getIncidentSeverityTone } from "@/lib/ui/status";
 import { AlertTriangle, Bell, FileSearch, RadioTower, ScrollText, ShieldAlert } from "lucide-react";
 
+export type SiemDashboardSnapshot = {
+  capturedAt: string;
+  raw24h: number;
+  parsed24h: number;
+  openFindings: number;
+  criticalFindings: number;
+  unmappedSources: number;
+  pendingAlerts: number;
+  failedAlerts: number;
+};
+
 export type SiemDashboardStats = {
   raw24h: number;
   parsed24h: number;
@@ -28,6 +39,11 @@ export type SiemDashboardStats = {
     sourceIp: string | null;
     deviceName: string | null;
   }[];
+  timeseries: {
+    "24h": SiemDashboardSnapshot[];
+    "7d": SiemDashboardSnapshot[];
+    "30d": SiemDashboardSnapshot[];
+  };
 };
 
 import { formatWibDateTime } from "@/lib/ui/datetime";
@@ -53,7 +69,136 @@ function StatCard({ label, value, detail, tone = "neutral" }: { label: string; v
   );
 }
 
+/**
+ * A series of values to plot on the time-series line chart.
+ * - `color` is a CSS color (with currentColor fallback).
+ * - `values` are the y-values; x is implicit (uniformly distributed).
+ */
+export type TimeseriesSeries = {
+  label: string;
+  color: string;
+  values: number[];
+};
+
+/**
+ * Tiny SVG line chart used by the SIEM dashboard. Renders one path per
+ * series with grid lines and min/max axis labels. Pure presentational,
+ * no library — keeps the bundle small and the markup greppable.
+ */
+function TimeseriesChart({
+  title,
+  series,
+  empty,
+}: {
+  title: string;
+  series: TimeseriesSeries[];
+  empty?: string;
+}) {
+  const width = 200;
+  const height = 60;
+  const padding = { top: 6, right: 4, bottom: 12, left: 4 };
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+
+  // Flatten values to compute a shared y-scale. Empty arrays plot at y=0.
+  const allValues = series.flatMap((s) => s.values);
+  const max = allValues.length > 0 ? Math.max(...allValues, 1) : 1;
+  const min = allValues.length > 0 ? Math.min(...allValues, 0) : 0;
+  const range = Math.max(max - min, 1);
+
+  const xFor = (i: number, n: number) => {
+    if (n <= 1) return padding.left + innerW / 2;
+    return padding.left + (i * innerW) / (n - 1);
+  };
+  const yFor = (v: number) => padding.top + innerH - ((v - min) / range) * innerH;
+
+  // 4 horizontal grid lines (top, 1/3, 2/3, bottom)
+  const gridYs = [0, 0.33, 0.66, 1].map((t) => padding.top + innerH * t);
+
+  const hasData = series.some((s) => s.values.length > 0);
+
+  return (
+    <div className="ops-panel p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">{title}</p>
+        <div className="flex gap-3">
+          {series.map((s) => (
+            <span key={s.label} className="flex items-center gap-1 text-[10px] text-ops-muted">
+              <span className="inline-block h-1.5 w-3 rounded-sm" style={{ backgroundColor: s.color }} />
+              {s.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      {hasData ? (
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          width="100%"
+          height={height}
+          role="img"
+          aria-label={`${title} time-series chart`}
+        >
+          {gridYs.map((y, idx) => (
+            <line
+              key={`grid-${idx}`}
+              x1={padding.left}
+              x2={padding.left + innerW}
+              y1={y}
+              y2={y}
+              stroke="currentColor"
+              strokeOpacity="0.15"
+              strokeWidth="0.5"
+            />
+          ))}
+          {series.map((s) => {
+            if (s.values.length === 0) return null;
+            const d = s.values
+              .map((v, i) => `${i === 0 ? "M" : "L"}${xFor(i, s.values.length).toFixed(2)},${yFor(v).toFixed(2)}`)
+              .join(" ");
+            return (
+              <path
+                key={s.label}
+                d={d}
+                fill="none"
+                stroke={s.color}
+                strokeWidth="1.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            );
+          })}
+          <text x={padding.left} y={height - 1} fontSize="8" fill="currentColor" opacity="0.6">
+            {min}
+          </text>
+          <text
+            x={padding.left + innerW}
+            y={height - 1}
+            fontSize="8"
+            fill="currentColor"
+            opacity="0.6"
+            textAnchor="end"
+          >
+            {max}
+          </text>
+        </svg>
+      ) : (
+        <div className="flex h-[60px] items-center justify-center text-xs text-ops-muted">
+          {empty ?? "No history yet — snapshots start after deploy."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function toSeriesValues(
+  snaps: SiemDashboardSnapshot[],
+  pick: (snap: SiemDashboardSnapshot) => number,
+): number[] {
+  return snaps.map(pick);
+}
+
 export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) {
+  const ts = stats.timeseries ?? { "24h": [], "7d": [], "30d": [] };
   return (
     <div className="space-y-5">
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -84,6 +229,36 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
             <p className="mt-2 text-2xl font-bold text-ops-text">{stats.failedAlerts.toLocaleString("id-ID")}</p>
           </div>
           <AlertTriangle className="size-8 text-red-200" />
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <div>
+          <h2 className="text-lg font-bold text-ops-text">Time-Series Trends</h2>
+          <p className="text-sm text-ops-muted">Hourly snapshot history — the three windows share the same x-axis (oldest to newest) and a per-chart y-scale.</p>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-3">
+          <TimeseriesChart
+            title="Event Volume (24h)"
+            series={[
+              { label: "Raw", color: "#60a5fa", values: toSeriesValues(ts["24h"], (s) => s.raw24h) },
+              { label: "Parsed", color: "#34d399", values: toSeriesValues(ts["24h"], (s) => s.parsed24h) },
+            ]}
+          />
+          <TimeseriesChart
+            title="Findings (7d)"
+            series={[
+              { label: "Open", color: "#fbbf24", values: toSeriesValues(ts["7d"], (s) => s.openFindings) },
+              { label: "Critical", color: "#f87171", values: toSeriesValues(ts["7d"], (s) => s.criticalFindings) },
+            ]}
+          />
+          <TimeseriesChart
+            title="Alerts (30d)"
+            series={[
+              { label: "Pending", color: "#60a5fa", values: toSeriesValues(ts["30d"], (s) => s.pendingAlerts) },
+              { label: "Failed", color: "#f87171", values: toSeriesValues(ts["30d"], (s) => s.failedAlerts) },
+            ]}
+          />
         </div>
       </section>
 

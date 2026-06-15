@@ -671,6 +671,24 @@ export const siemEventsQuarantine = pgTable("siem_events_quarantine", {
   quarantinedAtIdx: index("siem_events_quarantine_quarantined_at_idx").on(table.quarantinedAt),
 }));
 
+// ==================== SIEM DASHBOARD SNAPSHOTS (N24) ====================
+// Hourly snapshots of the seven SIEM dashboard counters. Populated by the
+// siem-snapshot worker (or lazy from the dashboard action) and read by
+// getSiemDashboardStats to build 24h/7d/30d time-series for the charts.
+export const siemDashboardSnapshots = pgTable("siem_dashboard_snapshots", {
+  id: serial("id").primaryKey(),
+  capturedAt: timestamp("captured_at").defaultNow().notNull(),
+  raw24h: integer("raw_24h").notNull().default(0),
+  parsed24h: integer("parsed_24h").notNull().default(0),
+  openFindings: integer("open_findings").notNull().default(0),
+  criticalFindings: integer("critical_findings").notNull().default(0),
+  unmappedSources: integer("unmapped_sources").notNull().default(0),
+  pendingAlerts: integer("pending_alerts").notNull().default(0),
+  failedAlerts: integer("failed_alerts").notNull().default(0),
+}, (table) => ({
+  capturedAtIdx: index("siem_dashboard_snapshots_captured_at_idx").on(table.capturedAt),
+}));
+
 export const siemEvidenceEvents = pgTable("siem_evidence_events", {
   id: serial("id").primaryKey(),
   findingId: integer("finding_id").references(() => siemFindings.id).notNull(),

@@ -25,6 +25,7 @@
     "siem:alerts": "tsx scripts/siem-alert-worker.ts",
     "siem:retention": "tsx scripts/siem-retention-worker.ts",
     "siem:ai": "tsx scripts/siem-ai-worker.ts",
+    "siem:snapshot": "tsx scripts/siem-snapshot-worker.ts",
     "backup:scheduler": "tsx scripts/scheduled-backup.ts",
     "backup:restore": "tsx scripts/restore-from-file.ts"
   },

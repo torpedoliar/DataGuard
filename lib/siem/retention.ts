@@ -3,6 +3,7 @@ import { siemAlerts, siemEvidenceEvents, siemEventsQuarantine, siemFindings, sys
 import { and, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import { archiveFindingEvidenceInTx } from "./evidence";
 import { partitionsForWindow, isPartitionFullyExpired, partitionName } from "./partitioning";
+import { captureSiemSnapshot } from "./snapshots";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -342,6 +343,15 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
       .returning({ id: siemFindings.id });
     findingAlertsDeleted = alertsForFindings.length;
     findingsDeleted = deletedFindings.length;
+  }
+
+  // Capture a dashboard snapshot. This is best-effort and runs after the
+  // cleanup phases, so a snapshot failure can never poison the retention
+  // work that already succeeded. The error is logged but not thrown.
+  try {
+    await captureSiemSnapshot();
+  } catch (error) {
+    console.error("SIEM retention: dashboard snapshot capture failed", error);
   }
 
   return {
