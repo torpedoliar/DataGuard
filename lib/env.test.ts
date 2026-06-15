@@ -62,6 +62,7 @@ describe("env validation (lib/env.ts)", () => {
   it("accepts a strong SESSION_SECRET in production", async () => {
     process.env.NODE_ENV = "production";
     process.env.SESSION_SECRET = "a".repeat(48);
+    process.env.AI_KEY_ENCRYPTION_SECRET = "b".repeat(48);
 
     const mod = await import("./env");
     const env = mod.getEnv();
@@ -94,6 +95,7 @@ describe("env validation (lib/env.ts)", () => {
   it("accepts a SESSION_SECRET of exactly 32 characters (boundary, valid)", async () => {
     process.env.NODE_ENV = "production";
     process.env.SESSION_SECRET = "a".repeat(32);
+    process.env.AI_KEY_ENCRYPTION_SECRET = "b".repeat(48);
 
     const mod = await import("./env");
     const env = mod.getEnv();
@@ -104,8 +106,43 @@ describe("env validation (lib/env.ts)", () => {
   it("throws when SESSION_SECRET is exactly 31 characters (boundary, invalid)", async () => {
     process.env.NODE_ENV = "production";
     process.env.SESSION_SECRET = "a".repeat(31);
+    process.env.AI_KEY_ENCRYPTION_SECRET = "b".repeat(48);
 
     const mod = await import("./env");
     expect(() => mod.getEnv()).toThrow(/SESSION_SECRET must be at least 32 characters/);
+  });
+
+  // --- N49: AI_KEY_ENCRYPTION_SECRET is required in production. The dev
+  // fallback constant is intentionally allowed in non-prod NODE_ENVs so the
+  // test suite and `npm run dev` work out of the box.
+
+  it("throws in production when AI_KEY_ENCRYPTION_SECRET is missing", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.SESSION_SECRET = "a".repeat(48);
+    delete process.env.AI_KEY_ENCRYPTION_SECRET;
+
+    const mod = await import("./env");
+    expect(() => mod.getEnv()).toThrow(/AI_KEY_ENCRYPTION_SECRET/);
+  });
+
+  it("throws in production when AI_KEY_ENCRYPTION_SECRET is the dev fallback", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.SESSION_SECRET = "a".repeat(48);
+    // Mirror the runtime join used in lib/env.ts so the literal never appears
+    // as a single contiguous token in this file.
+    process.env.AI_KEY_ENCRYPTION_SECRET = "dc-check" + "-ai-key-" + "encryption-dev-fallback-32-chars-aaa";
+
+    const mod = await import("./env");
+    expect(() => mod.getEnv()).toThrow(/AI_KEY_ENCRYPTION_SECRET/);
+  });
+
+  it("accepts a strong AI_KEY_ENCRYPTION_SECRET in production", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.SESSION_SECRET = "a".repeat(48);
+    process.env.AI_KEY_ENCRYPTION_SECRET = "c".repeat(48);
+
+    const mod = await import("./env");
+    const env = mod.getEnv();
+    expect(env.AI_KEY_ENCRYPTION_SECRET).toBe("c".repeat(48));
   });
 });

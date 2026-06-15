@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { siemSettings } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
+import { decryptIfEncrypted } from "@/lib/crypto";
 import { detectAiAuthRequirement, normalizeOpenAiCompatibleEndpoint } from "@/lib/siem/ai-analysis";
 import { generateSiemAiAnalysisForFinding } from "@/lib/siem/ai-queue";
 import { and, eq } from "drizzle-orm";
@@ -24,7 +25,11 @@ export async function testSiemAiConnection(prevState: unknown, formData: FormDat
   );
   const model = (process.env.SIEM_AI_DEFAULT_MODEL || String(formData.get("aiDefaultModel") ?? "").trim() || settings?.aiDefaultModel || "").trim();
   const formApiKey = String(formData.get("aiApiKey") ?? "").trim();
-  const apiKey = process.env.SIEM_AI_API_KEY || formApiKey || settings?.aiApiKey || "";
+  // N49: stored aiApiKey may be encrypted; decrypt for use as a plaintext
+  // bearer token. decryptIfEncrypted returns the input unchanged for legacy
+  // plaintext rows so the test connection still works during the rollout.
+  const storedApiKey = decryptIfEncrypted(settings?.aiApiKey ?? null) ?? "";
+  const apiKey = process.env.SIEM_AI_API_KEY || formApiKey || storedApiKey;
 
   if (!endpointUrl) return { ok: false, message: "Endpoint URL belum diisi." };
   if (!model) return { ok: false, message: "Model belum diisi." };

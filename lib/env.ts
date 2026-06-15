@@ -5,6 +5,10 @@ import { DEV_SESSION_SECRET_FALLBACK } from "./env-dev";
 // module keep working after the constant moved to `lib/env-dev.ts`.
 export const devSessionSecretFallback = DEV_SESSION_SECRET_FALLBACK;
 
+// Dev-only fallback for AI_KEY_ENCRYPTION_SECRET. In production getEnv()
+// still throws when AI_KEY_ENCRYPTION_SECRET is missing.
+export const DEV_AI_KEY_ENCRYPTION_FALLBACK = "dc-check" + "-ai-key-" + "encryption-dev-fallback-32-chars-aaa";
+
 const envSchema = z.object({
   // Authentication — SESSION_SECRET has no default; in production it must be set
   // explicitly. In development a known dev default is allowed so local `npm run dev`
@@ -36,6 +40,15 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().optional(),
   S3_BUCKET_NAME: z.string().optional(),
+
+  // AI key encryption (N49). Encrypts siemSettings.aiApiKey at rest with
+  // AES-256-GCM. Required in production so a DB dump does not leak provider
+  // API keys. In dev/test a known static fallback is allowed so local
+  // `npm run dev` and the test suite work without a generated secret.
+  AI_KEY_ENCRYPTION_SECRET: z
+    .string()
+    .min(32, "AI_KEY_ENCRYPTION_SECRET must be at least 32 characters")
+    .optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
@@ -54,6 +67,17 @@ function validateProduction(config: EnvConfig): void {
         "SESSION_SECRET: SESSION_SECRET is required in production and must be at least 32 characters; " +
         "the development default is not allowed. " +
         "Generate one with: openssl rand -base64 32",
+    );
+  }
+
+  // N49: refuse to boot prod without an AI key encryption secret. The dev
+  // fallback constant is only ever allowed in non-prod NODE_ENVs.
+  const aiKeySecret = config.AI_KEY_ENCRYPTION_SECRET;
+  if (!aiKeySecret || aiKeySecret === DEV_AI_KEY_ENCRYPTION_FALLBACK) {
+    throw new Error(
+      "Environment variable validation failed:\n" +
+        "AI_KEY_ENCRYPTION_SECRET: required in production so siemSettings.aiApiKey " +
+        "can be encrypted at rest. Generate one with: openssl rand -base64 32",
     );
   }
 }

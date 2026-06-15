@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { siemRules, siemSettings, sites } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
+import { encryptString } from "@/lib/crypto";
 import { parseSiemRulesFormData } from "@/lib/siem/rule-settings-form";
 import { siemSeverities } from "@/lib/siem/types";
 import { asc, eq } from "drizzle-orm";
@@ -87,7 +88,7 @@ export async function updateSiemAiSettings(prevState: unknown, formData: FormDat
     aiRegenerateCooldownSec: parsed.data.aiRegenerateCooldownSec,
     updatedAt: new Date(),
   };
-  if (parsed.data.aiApiKey?.trim()) values.aiApiKey = parsed.data.aiApiKey.trim();
+  if (parsed.data.aiApiKey?.trim()) values.aiApiKey = encryptString(parsed.data.aiApiKey.trim());
 
   if (existing) await db.update(siemSettings).set(values).where(eq(siemSettings.id, existing.id));
   else await db.insert(siemSettings).values({ ...values, aiApiKey: values.aiApiKey ?? null });

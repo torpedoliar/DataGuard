@@ -1,6 +1,7 @@
 import { db } from "../../db";
 import { siemAiJobs, siemFindings, siemSettings } from "../../db/schema";
 import { logAudit } from "../audit";
+import { decryptIfEncrypted } from "../crypto";
 import { buildSiemAiPrompt, normalizeOpenAiCompatibleEndpoint, normalizeSiemAiAnalysis, requestSiemAiAnalysis, type SiemAiEventSample } from "./ai-analysis";
 import { getFindingEvidence } from "./evidence";
 import { eq, sql } from "drizzle-orm";
@@ -59,7 +60,9 @@ export async function generateSiemAiAnalysisForFinding(
   if (!settings?.aiEnabled) return { ok: false, error: "AI disabled" };
 
   const endpointUrl = normalizeOpenAiCompatibleEndpoint(process.env.SIEM_AI_ENDPOINT_URL || settings.aiEndpointUrl || "");
-  const apiKey = process.env.SIEM_AI_API_KEY || settings.aiApiKey || "";
+  // N49: aiApiKey is encrypted at rest; decrypt before using it as a bearer.
+  const storedApiKey = decryptIfEncrypted(settings.aiApiKey) ?? "";
+  const apiKey = process.env.SIEM_AI_API_KEY || storedApiKey;
   const model = (process.env.SIEM_AI_DEFAULT_MODEL || settings.aiDefaultModel || "").trim();
   if (!endpointUrl || !model) return { ok: false, error: "Endpoint/model not configured" };
 
