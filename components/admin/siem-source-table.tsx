@@ -25,7 +25,7 @@ export type SiemSourceRow = {
   sourceIp: string;
   hostname: string | null;
   displayName: string;
-  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux" | "watchguard";
+  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux" | "watchguard" | "paloalto" | "juniper" | "checkpoint";
   product: string | null;
   parserProfile: string;
   trustLevel: "unknown" | "trusted" | "untrusted";
@@ -49,7 +49,7 @@ type SortKey = "displayName" | "sourceIp" | "vendor" | "trustLevel" | "lastSeenA
 type SortDir = "asc" | "desc";
 
 const fieldClass = "ops-input h-9 px-3 text-sm";
-const vendors = ["generic", "mikrotik", "cisco", "fortigate", "linux", "watchguard"] as const;
+const vendors = ["generic", "mikrotik", "cisco", "fortigate", "linux", "watchguard", "paloalto", "juniper", "checkpoint"] as const;
 const trustLevels = ["unknown", "trusted", "untrusted"] as const;
 
 function trustTone(trustLevel: SiemSourceRow["trustLevel"]) {

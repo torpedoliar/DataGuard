@@ -148,6 +148,13 @@
       "when": 1781537000000,
       "tag": "0021_user_default_site",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1781538000000,
+      "tag": "0022_siem_vendor_new_normalizers",
+      "breakpoints": true
     }
   ]
 }

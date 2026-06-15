@@ -31,7 +31,7 @@ type SyslogMessageRow = {
   deviceName: string | null;
   siteName: string | null;
   sourceDisplayName: string | null;
-  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux" | "watchguard" | null;
+  vendor: "generic" | "mikrotik" | "cisco" | "fortigate" | "linux" | "watchguard" | "paloalto" | "juniper" | "checkpoint" | null;
   category: string | null;
   normalizedType: string | null;
 };

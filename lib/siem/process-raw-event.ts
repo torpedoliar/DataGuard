@@ -1,15 +1,27 @@
+import { normalizeCheckpoint } from "./normalizers/checkpoint";
 import { normalizeCisco } from "./normalizers/cisco";
 import { normalizeFortigate } from "./normalizers/fortigate";
 import { normalizeGeneric } from "./normalizers/generic";
+import { normalizeJuniper } from "./normalizers/juniper";
 import { normalizeLinux } from "./normalizers/linux";
 import { normalizeMikrotik } from "./normalizers/mikrotik";
+import { normalizePaloAlto } from "./normalizers/paloalto";
 import { normalizeWatchguard } from "./normalizers/watchguard";
 import { parseSyslogMessage } from "./syslog-parser";
 import type { SiemVendor } from "./types";
 
 export function processRawSyslogEvent(input: { rawMessage: string; vendor: SiemVendor }) {
   const parsed = parseSyslogMessage(input.rawMessage);
-  const normalizer = input.vendor === "cisco" ? normalizeCisco : input.vendor === "fortigate" ? normalizeFortigate : input.vendor === "linux" ? normalizeLinux : input.vendor === "mikrotik" ? normalizeMikrotik : input.vendor === "watchguard" ? normalizeWatchguard : normalizeGeneric;
+  const normalizer =
+    input.vendor === "cisco" ? normalizeCisco
+    : input.vendor === "fortigate" ? normalizeFortigate
+    : input.vendor === "linux" ? normalizeLinux
+    : input.vendor === "mikrotik" ? normalizeMikrotik
+    : input.vendor === "watchguard" ? normalizeWatchguard
+    : input.vendor === "paloalto" ? normalizePaloAlto
+    : input.vendor === "juniper" ? normalizeJuniper
+    : input.vendor === "checkpoint" ? normalizeCheckpoint
+    : normalizeGeneric;
   const normalized = normalizer(parsed.message);
 
   return {

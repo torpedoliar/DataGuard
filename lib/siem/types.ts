@@ -10,7 +10,7 @@ export type SiemAlertStatus = typeof siemAlertStatuses[number];
 export const siemRuleTypes = ["single_event", "threshold", "sequence", "absence", "baseline_anomaly"] as const;
 export type SiemRuleType = typeof siemRuleTypes[number];
 
-export const siemVendors = ["generic", "mikrotik", "cisco", "fortigate", "linux", "watchguard"] as const;
+export const siemVendors = ["generic", "mikrotik", "cisco", "fortigate", "linux", "watchguard", "paloalto", "juniper", "checkpoint"] as const;
 export type SiemVendor = typeof siemVendors[number];
 
 export const syslogIngestStatuses = ["received", "parsed", "parse_failed", "dropped"] as const;
