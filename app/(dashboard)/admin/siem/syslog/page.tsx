@@ -1,9 +1,10 @@
 import { getSiemSyslogData, type SiemSyslogFilters } from "@/actions/siem-syslog";
+import { getQuarantinedEventsCount } from "@/actions/siem-events";
 import SiemSyslogTable from "@/components/admin/siem-syslog-table";
 import ActionButton from "@/components/ui/action-button";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
-import { FileSearch, RadioTower, ShieldAlert } from "lucide-react";
+import { Archive, FileSearch, RadioTower, ShieldAlert } from "lucide-react";
 import { redirect } from "next/navigation";
 
 function firstParam(value: string | string[] | undefined) {
@@ -39,6 +40,8 @@ export default async function SiemSyslogPage({
 
   const params = await searchParams;
   const data = await getSiemSyslogData(parseFilters(params));
+  const quarantineStatus = await getQuarantinedEventsCount();
+  const quarantineCount = quarantineStatus.ok ? quarantineStatus.count ?? 0 : 0;
 
   return (
     <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
@@ -48,6 +51,14 @@ export default async function SiemSyslogPage({
         description="View parsed syslog messages, severity, facility, source IP, and device mapping for active-site devices."
         actions={
           <>
+            <div
+              className="inline-flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200"
+              title="Orphan syslog events quarantined for forensics (>24h old). Auto-purged after quarantine retention period."
+            >
+              <Archive className="size-3.5" />
+              <span className="font-medium">Quarantined:</span>
+              <span className="font-mono">{quarantineCount.toLocaleString()}</span>
+            </div>
             <ActionButton href="/admin/siem/events" variant="secondary" icon={<FileSearch className="size-4" />}>Event Explorer</ActionButton>
             <ActionButton href="/admin/siem/findings" variant="secondary" icon={<ShieldAlert className="size-4" />}>Findings</ActionButton>
             <ActionButton href="/admin/siem/sources" variant="secondary" icon={<RadioTower className="size-4" />}>Sources</ActionButton>

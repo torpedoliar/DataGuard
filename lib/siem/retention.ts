@@ -1,5 +1,5 @@
 import { db } from "../../db";
-import { siemAlerts, siemEvidenceEvents, siemFindings, syslogEvents, syslogEventsRaw, syslogSources } from "../../db/schema";
+import { siemAlerts, siemEvidenceEvents, siemEventsQuarantine, siemFindings, syslogEvents, syslogEventsRaw, syslogSources } from "../../db/schema";
 import { and, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import { archiveFindingEvidence } from "./evidence";
 import { partitionsForWindow, isPartitionFullyExpired, partitionName } from "./partitioning";
@@ -30,6 +30,8 @@ export type SiemRetentionCutoffs = {
 export type SiemRetentionCleanupResult = {
   rawEventsDeleted: number;
   eventsDeleted: number;
+  eventsQuarantined: number;
+  quarantineRetentionDeleted: number;
   findingsDeleted: number;
   alertsDeleted: number;
   evidenceArchivedFindings: number;
@@ -136,20 +138,27 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
     event_retention_days: number | null;
     finding_retention_days: number | null;
     alert_retention_days: number | null;
+    quarantine_enabled: boolean | null;
+    quarantine_retention_days: number | null;
   }>(sql`
-    SELECT raw_retention_days, event_retention_days, finding_retention_days, alert_retention_days
+    SELECT raw_retention_days, event_retention_days, finding_retention_days, alert_retention_days,
+           quarantine_enabled, quarantine_retention_days
     FROM siem_settings LIMIT 1
   `).then((res) => (res.rows ?? res) as Array<{
     raw_retention_days: number | null;
     event_retention_days: number | null;
     finding_retention_days: number | null;
     alert_retention_days: number | null;
+    quarantine_enabled: boolean | null;
+    quarantine_retention_days: number | null;
   }>);
 
   const globalEventDays = normalizeRetentionDays(settings?.event_retention_days, DEFAULT_SIEM_RETENTION_DAYS.events);
   const globalRawDays = normalizeRetentionDays(settings?.raw_retention_days, DEFAULT_SIEM_RETENTION_DAYS.raw);
   const globalFindingDays = normalizeRetentionDays(settings?.finding_retention_days, DEFAULT_SIEM_RETENTION_DAYS.findings);
   const globalAlertDays = normalizeRetentionDays(settings?.alert_retention_days, DEFAULT_SIEM_RETENTION_DAYS.alerts);
+  const quarantineEnabled = settings?.quarantine_enabled !== false;
+  const quarantineRetentionDays = normalizeRetentionDays(settings?.quarantine_retention_days, 365);
 
   const eventCutoff = cutoff(now, globalEventDays);
   const rawCutoff = cutoff(now, globalRawDays);
@@ -216,12 +225,23 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
     }
   }
 
-  // Global event delete for events with NO source mapping (sourceId IS NULL) past global cutoff,
-  // covering rows inside still-live partitions.
+  // Global event handling for events with NO source mapping (sourceId IS NULL) past global cutoff,
+  // covering rows inside still-live partitions. When quarantine is enabled, INSERT into
+  // siem_events_quarantine first, then DELETE from syslog_events. Otherwise, just delete.
+  let eventsQuarantined = 0;
   let done = false;
   while (!done) {
     const victims = await db
-      .select({ id: syslogEvents.id })
+      .select({
+        id: syslogEvents.id,
+        rawEventId: syslogEvents.rawEventId,
+        eventTime: syslogEvents.eventTime,
+        receivedAt: syslogEvents.receivedAt,
+        sourceIp: syslogEvents.sourceIp,
+        hostname: syslogEvents.hostname,
+        severity: syslogEvents.severity,
+        message: syslogEvents.message,
+      })
       .from(syslogEvents)
       .where(and(sql`${syslogEvents.sourceId} is null`, lt(syslogEvents.receivedAt, eventCutoff)))
       .limit(batchSize);
@@ -229,9 +249,53 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
       done = true;
     } else {
       const ids = victims.map((row) => row.id);
-      const deleted = await db.delete(syslogEvents).where(inArray(syslogEvents.id, ids)).returning({ id: syslogEvents.id });
-      eventsDeleted += deleted.length;
+      if (quarantineEnabled) {
+        // Atomic: insert quarantine rows + delete source rows. Use a transaction
+        // so an interrupted cleanup can never end up with quarantine rows but
+        // no corresponding originals lost (or vice versa).
+        await db.transaction(async (tx) => {
+          await tx.insert(siemEventsQuarantine).values(
+            victims.map((row) => ({
+              originalEventId: row.id,
+              rawEventId: row.rawEventId,
+              eventTime: row.eventTime,
+              receivedAt: row.receivedAt,
+              sourceIp: row.sourceIp,
+              hostname: row.hostname,
+              severity: row.severity,
+              message: row.message,
+              quarantinedAt: new Date(),
+              quarantinedReason: "sourceId null past retention cutoff",
+            })),
+          );
+          await tx.delete(syslogEvents).where(inArray(syslogEvents.id, ids));
+        });
+        eventsQuarantined += victims.length;
+      } else {
+        const deleted = await db.delete(syslogEvents).where(inArray(syslogEvents.id, ids)).returning({ id: syslogEvents.id });
+        eventsDeleted += deleted.length;
+      }
       if (victims.length < batchSize) done = true;
+    }
+  }
+
+  // Quarantine retention: drop rows past quarantine retention.
+  const quarantineCutoff = cutoff(now, quarantineRetentionDays);
+  let quarantineRetentionDeleted = 0;
+  let qDone = false;
+  while (!qDone) {
+    const victims = await db
+      .select({ id: siemEventsQuarantine.id })
+      .from(siemEventsQuarantine)
+      .where(lt(siemEventsQuarantine.quarantinedAt, quarantineCutoff))
+      .limit(batchSize);
+    if (victims.length === 0) {
+      qDone = true;
+    } else {
+      const ids = victims.map((row) => row.id);
+      const deleted = await db.delete(siemEventsQuarantine).where(inArray(siemEventsQuarantine.id, ids)).returning({ id: siemEventsQuarantine.id });
+      quarantineRetentionDeleted += deleted.length;
+      if (victims.length < batchSize) qDone = true;
     }
   }
 
@@ -273,6 +337,8 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
   return {
     rawEventsDeleted: deletedRawEvents.length,
     eventsDeleted,
+    eventsQuarantined,
+    quarantineRetentionDeleted,
     findingsDeleted,
     alertsDeleted: oldAlerts.length + findingAlertsDeleted,
     evidenceArchivedFindings,

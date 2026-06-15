@@ -1,10 +1,10 @@
 "use server";
 
 import { db } from "@/db";
-import { devices, sites, syslogEvents, syslogEventsRaw, syslogSources } from "@/db/schema";
+import { devices, siemEventsQuarantine, sites, syslogEvents, syslogEventsRaw, syslogSources } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { inspectRawLogInjection } from "@/lib/siem/injection-inspector";
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
 
 export type SiemEventFilters = {
   page?: number;
@@ -151,4 +151,21 @@ export async function getSiemEventExplorerData(filters: SiemEventFilters) {
     currentPage,
     pageSize,
   };
+}
+
+/**
+ * Returns the number of quarantined events older than 24h. Transient rows from
+ * a recent cleanup pass are excluded so the UI count is stable.
+ * Admin-only.
+ */
+export async function getQuarantinedEventsCount(): Promise<{ ok: boolean; count?: number; message?: string }> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { ok: false, message: auth.message };
+
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(siemEventsQuarantine)
+    .where(lt(siemEventsQuarantine.quarantinedAt, cutoff));
+  return { ok: true, count: rows[0]?.count ?? 0 };
 }

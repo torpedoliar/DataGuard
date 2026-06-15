@@ -613,6 +613,8 @@ export const siemSettings = pgTable("siem_settings", {
   alertRetentionDays: integer("alert_retention_days").notNull().default(365),
   alertMinSeverity: incidentSeverityEnum("alert_min_severity").notNull().default("High"),
   unknownSourceEnabled: boolean("unknown_source_enabled").notNull().default(true),
+  quarantineEnabled: boolean("quarantine_enabled").notNull().default(true),
+  quarantineRetentionDays: integer("quarantine_retention_days").notNull().default(365),
   aiEnabled: boolean("ai_enabled").notNull().default(false),
   aiEndpointUrl: text("ai_endpoint_url"),
   aiApiKey: text("ai_api_key"),
@@ -623,6 +625,23 @@ export const siemSettings = pgTable("siem_settings", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const siemEventsQuarantine = pgTable("siem_events_quarantine", {
+  id: serial("id").primaryKey(),
+  originalEventId: integer("original_event_id").notNull(),
+  eventTime: timestamp("event_time"),
+  receivedAt: timestamp("received_at").notNull(),
+  sourceIp: text("source_ip").notNull(),
+  hostname: text("hostname"),
+  message: text("message").notNull(),
+  severity: integer("severity"),
+  rawEventId: integer("raw_event_id"),
+  quarantinedAt: timestamp("quarantined_at").defaultNow(),
+  quarantinedReason: text("quarantined_reason"),
+}, (table) => ({
+  receivedAtIdx: index("siem_events_quarantine_received_at_idx").on(table.receivedAt),
+  quarantinedAtIdx: index("siem_events_quarantine_quarantined_at_idx").on(table.quarantinedAt),
+}));
 
 export const siemEvidenceEvents = pgTable("siem_evidence_events", {
   id: serial("id").primaryKey(),
