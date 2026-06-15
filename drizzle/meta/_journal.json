@@ -106,6 +106,13 @@
       "when": 1781488907392,
       "tag": "0015_add_login_lockout",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0016_si_partitioned",
+      "breakpoints": true
     }
   ]
 }

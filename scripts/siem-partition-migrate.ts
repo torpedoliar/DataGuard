@@ -1,4 +1,10 @@
 #!/usr/bin/env tsx
+/**
+ * @deprecated Use `drizzle/0016_si_partitioned.sql` instead. This script
+ * remains for emergency manual use only. Idempotent drizzle migration is
+ * the supported path; both can coexist (manual script is a no-op if the
+ * table is already partitioned).
+ */
 import dotenv from "dotenv";
 import { Pool } from "pg";
 import { buildDatabaseUrl } from "../lib/database-url";
