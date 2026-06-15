@@ -18,7 +18,7 @@ export default function LoginPage() {
       <section className="w-full max-w-[30rem]">
         <div className="mb-6 flex items-center gap-3 px-1">
           <div className="flex size-10 items-center justify-center rounded-md bg-ops-accent text-slate-950">
-            <Server className="size-5" />
+            <Server aria-hidden="true" className="size-5" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-normal font-display">{t("title")}</h1>
@@ -36,24 +36,24 @@ export default function LoginPage() {
             <label>
               <span className={labelClass}>{t("username")}</span>
               <div className="relative">
-                <User className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
-                <input id="username" name="username" type="text" required className={fieldClass} placeholder={t("usernamePlaceholder")} />
+                <User aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+                <input id="username" name="username" type="text" required aria-label={t("username")} className={fieldClass} placeholder={t("usernamePlaceholder")} />
               </div>
-              {state?.errors?.username && <p className="mt-1 text-sm text-red-300">{state.errors.username}</p>}
+              {state?.errors?.username && <p id="username-error" className="mt-1 text-sm text-red-300">{state.errors.username}</p>}
             </label>
 
             <label>
               <span className={labelClass}>{t("password")}</span>
               <div className="relative">
-                <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
-                <input id="password" name="password" type="password" required className={fieldClass} placeholder={t("passwordPlaceholder")} />
+                <LockKeyhole aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+                <input id="password" name="password" type="password" required aria-label={t("password")} className={fieldClass} placeholder={t("passwordPlaceholder")} />
               </div>
-              {state?.errors?.password && <p className="mt-1 text-sm text-red-300">{state.errors.password}</p>}
+              {state?.errors?.password && <p id="password-error" className="mt-1 text-sm text-red-300">{state.errors.password}</p>}
             </label>
 
             {state?.message && (
-              <div className="flex items-start gap-2 rounded-md border border-red-400/25 bg-red-400/10 p-3 text-sm text-red-200">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <div role="alert" className="flex items-start gap-2 rounded-md border border-red-400/25 bg-red-400/10 p-3 text-sm text-red-200">
+                <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                 <span>{state.message}</span>
               </div>
             )}

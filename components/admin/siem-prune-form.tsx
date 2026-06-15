@@ -83,6 +83,7 @@ export default function SiemPruneForm() {
               required
               value={cutoff}
               onChange={(event) => setCutoff(event.target.value)}
+              aria-label="Cutoff date for events to prune"
               className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
             />
           </div>
@@ -93,6 +94,7 @@ export default function SiemPruneForm() {
                 name="includeEvents"
                 checked={includeEvents}
                 onChange={(event) => setIncludeEvents(event.target.checked)}
+                aria-label="Prune parsed syslog_events rows"
                 className="size-4 rounded border-slate-600 bg-slate-900 text-red-500 focus:ring-red-500"
               />
               <span>
@@ -105,6 +107,7 @@ export default function SiemPruneForm() {
                 name="rawEventsOnly"
                 checked={includeRawOrphans}
                 onChange={(event) => setIncludeRawOrphans(event.target.checked)}
+                aria-label="Prune orphan syslog_events_raw rows"
                 className="size-4 rounded border-slate-600 bg-slate-900 text-red-500 focus:ring-red-500"
               />
               <span>

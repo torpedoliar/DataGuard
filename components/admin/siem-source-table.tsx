@@ -83,8 +83,8 @@ function EditSourceModal({ source, devices, onClose }: { source: SiemSourceRow; 
             <h3 className="text-lg font-semibold text-ops-text">Map SIEM Source</h3>
             <p className="text-sm text-ops-muted">{source.sourceIp}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md p-1 text-ops-muted hover:bg-ops-surface hover:text-ops-text" disabled={isPending}>
-            <X className="size-5" />
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-ops-muted hover:bg-ops-surface hover:text-ops-text" disabled={isPending} aria-label="Close dialog">
+            <X aria-hidden="true" className="size-5" />
           </button>
         </div>
 
@@ -277,8 +277,8 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
                 </td>
                 <td className="whitespace-nowrap px-5 py-3 text-right">
                   <div className="inline-flex items-center gap-1">
-                    <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingSource(source)} title="Edit source mapping">
-                      <Edit className="size-4 text-blue-300" />
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingSource(source)} aria-label="Edit source mapping" title="Edit source mapping">
+                      <Edit aria-hidden="true" className="size-4 text-blue-300" />
                     </ActionButton>
                     <DeleteSourceButton source={source} />
                   </div>
@@ -313,8 +313,8 @@ function DeleteSourceButton({ source }: { source: SiemSourceRow }) {
       className="inline-flex"
     >
       <input type="hidden" name="id" value={source.id} />
-      <ActionButton type="submit" variant="ghost" size="icon" disabled={isPending} title="Delete source (events preserved)">
-        <Trash2 className="size-4 text-red-300" />
+      <ActionButton type="submit" variant="danger" size="icon" disabled={isPending} aria-label="Delete source (events preserved)" title="Delete source (events preserved)">
+        <Trash2 aria-hidden="true" className="size-4" />
       </ActionButton>
     </form>
   );

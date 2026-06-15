@@ -2,6 +2,7 @@
 
 import ActionButton from "@/components/ui/action-button";
 import DataToolbar from "@/components/ui/data-toolbar";
+import IconButton from "@/components/ui/icon-button";
 import {
   DataTable,
   DataTableBody,
@@ -84,9 +85,11 @@ export default function BrandTable({ brands }: { brands: Brand[] }) {
               className={`${fieldClass} w-full pl-9 pr-8`}
             />
             {search && (
-              <button type="button" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text" title="Clear search">
-                <X className="size-3.5" />
-              </button>
+              <IconButton
+                icon={<X aria-hidden="true" className="size-3.5" />}
+                label="Clear search"
+                onClick={() => setSearch("")}
+              />
             )}
           </div>
           <span className="text-xs font-medium text-ops-muted">{filtered.length} of {brands.length} Brands</span>
@@ -125,11 +128,11 @@ export default function BrandTable({ brands }: { brands: Brand[] }) {
                   </td>
                   <td className="whitespace-nowrap px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
-                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingBrand(brand)} title="Edit">
-                        <Edit className="size-4 text-blue-300" />
+                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingBrand(brand)} aria-label="Edit" title="Edit">
+                        <Edit aria-hidden="true" className="size-4 text-blue-300" />
                       </ActionButton>
-                      <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingBrand(brand)} title="Delete">
-                        <Trash2 className="size-4" />
+                      <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingBrand(brand)} aria-label="Delete" title="Delete">
+                        <Trash2 aria-hidden="true" className="size-4" />
                       </ActionButton>
                     </div>
                   </td>

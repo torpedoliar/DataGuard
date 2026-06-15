@@ -13,6 +13,7 @@ type ActionButtonBaseProps = {
   icon?: ReactNode;
   children?: ReactNode;
   className?: string;
+  "aria-label"?: string;
 };
 
 type ActionButtonProps = ActionButtonBaseProps & {
@@ -24,6 +25,7 @@ type ActionButtonProps = ActionButtonBaseProps & {
   disabled?: boolean;
   onClick?: MouseEventHandler<HTMLButtonElement | HTMLAnchorElement>;
   formAction?: ComponentProps<"button">["formAction"];
+  "aria-label"?: string;
 };
 
 const variantClasses: Record<ActionButtonVariant, string> = {
@@ -60,23 +62,13 @@ function actionButtonClassName({
 }
 
 export default function ActionButton(props: ActionButtonProps) {
-  const {
-    href,
-    target,
-    rel,
-    title,
-    type = "button",
-    disabled: disabledProp,
-    onClick,
-    formAction,
-    variant = "primary",
-    size = "md",
-    isPending = false,
-    icon,
-    children,
-    className,
-  } = props;
+  const { href, target, rel, title, type = "button", disabled: disabledProp, onClick, formAction, variant = "primary", size = "md", isPending = false, icon, children, className } = props;
   const disabled = isPending || disabledProp;
+  // Icon-only buttons (size === "icon" and no visible text) MUST have an
+  // accessible name. Prefer an explicit `aria-label`; fall back to the `title`
+  // hint, which the caller is already required to provide.
+  const isIconOnly = size === "icon" && children === undefined;
+  const ariaLabel = isIconOnly ? (props["aria-label"] ?? title) : props["aria-label"];
   const content = (
     <>
       {isPending ? <Loader2 className="size-4 animate-spin" /> : icon}
@@ -92,6 +84,7 @@ export default function ActionButton(props: ActionButtonProps) {
         target={target}
         rel={rel}
         title={title}
+        aria-label={ariaLabel}
         onClick={onClick as MouseEventHandler<HTMLAnchorElement> | undefined}
         aria-disabled={disabled || undefined}
         className={classes}
@@ -105,6 +98,7 @@ export default function ActionButton(props: ActionButtonProps) {
     <button
       type={type}
       title={title}
+      aria-label={ariaLabel}
       onClick={onClick as MouseEventHandler<HTMLButtonElement> | undefined}
       formAction={formAction}
       disabled={disabled}

@@ -57,6 +57,7 @@ export default function ImportPortForm({ deviceId }: { deviceId: number }) {
               accept=".csv,.xlsx"
               onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
               disabled={isPending}
+              aria-label="Choose a CSV or XLSX file to import"
               className="hidden"
             />
           </label>

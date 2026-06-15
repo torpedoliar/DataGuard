@@ -3,6 +3,7 @@
 import { takeoutFromRack, toggleDeviceStatus } from "@/actions/master-data";
 import ActionButton from "@/components/ui/action-button";
 import DataToolbar from "@/components/ui/data-toolbar";
+import IconButton from "@/components/ui/icon-button";
 import {
   DataTable,
   DataTableBody,
@@ -219,14 +220,11 @@ export default function DeviceTable({
                 className={`${fieldClass} w-full pl-9 pr-8`}
               />
               {searchQuery && (
-                <button
-                  type="button"
+                <IconButton
+                  icon={<X aria-hidden="true" className="size-3.5" />}
+                  label="Clear search"
                   onClick={() => { setSearchQuery(""); setCurrentPage(1); }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text"
-                  title="Clear search"
-                >
-                  <X className="size-3.5" />
-                </button>
+                />
               )}
             </div>
 
@@ -347,9 +345,10 @@ export default function DeviceTable({
                                   size="icon"
                                   onClick={() => handleTakeout(device)}
                                   disabled={isPending}
+                                  aria-label="Take out from rack"
                                   title="Take out from rack"
                                 >
-                                  <PackageOpen className="size-4 text-amber-300" />
+                                  <PackageOpen aria-hidden="true" className="size-4 text-amber-300" />
                                 </ActionButton>
                               )}
                             </div>
@@ -365,7 +364,7 @@ export default function DeviceTable({
                           )}
                         </td>
                         <td className="px-5 py-3 text-center">
-                          <button type="button" onClick={() => handleToggleStatus(device.id)} disabled={isPending} title={`Click to ${isActive ? "deactivate" : "activate"}`}>
+                          <button type="button" onClick={() => handleToggleStatus(device.id)} disabled={isPending} aria-label={`${isActive ? "Deactivate" : "Activate"} ${device.name}`} title={`Click to ${isActive ? "deactivate" : "activate"}`}>
                             <StatusBadge tone={getActiveTone(isActive)} dot>
                               <Power className="size-3" />
                               {isActive ? "Active" : "Inactive"}
@@ -375,21 +374,21 @@ export default function DeviceTable({
                         <td className="px-5 py-3 text-right">
                           <div className="inline-flex items-center justify-end gap-1">
                             {device.ipAddress && (
-                              <ActionButton type="button" variant="ghost" size="icon" onClick={() => setManageDevice(device)} title="Manage device remotely">
-                                <MonitorPlay className="size-4 text-indigo-300" />
+                              <ActionButton type="button" variant="ghost" size="icon" onClick={() => setManageDevice(device)} aria-label="Manage device remotely" title="Manage device remotely">
+                                <MonitorPlay aria-hidden="true" className="size-4 text-indigo-300" />
                               </ActionButton>
                             )}
-                            <ActionButton href={`/admin/devices/${device.id}/network`} variant="ghost" size="icon" title="Network ports">
-                              <Network className="size-4 text-teal-300" />
+                            <ActionButton href={`/admin/devices/${device.id}/network`} variant="ghost" size="icon" aria-label="Network ports" title="Network ports">
+                              <Network aria-hidden="true" className="size-4 text-teal-300" />
                             </ActionButton>
-                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setPrintingDevice(device)} title="Print QR">
-                              <QrCode className="size-4" />
+                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setPrintingDevice(device)} aria-label="Print QR" title="Print QR">
+                              <QrCode aria-hidden="true" className="size-4" />
                             </ActionButton>
-                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingDevice(device)} title="Edit">
-                              <Edit className="size-4 text-blue-300" />
+                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingDevice(device)} aria-label="Edit" title="Edit">
+                              <Edit aria-hidden="true" className="size-4 text-blue-300" />
                             </ActionButton>
-                            <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingDevice(device)} title="Delete">
-                              <Trash2 className="size-4" />
+                            <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingDevice(device)} aria-label="Delete" title="Delete">
+                              <Trash2 aria-hidden="true" className="size-4" />
                             </ActionButton>
                           </div>
                         </td>
@@ -455,8 +454,8 @@ export default function DeviceTable({
                 <h3 className="text-lg font-bold text-ops-text">Manage Device</h3>
                 <p className="mt-0.5 text-xs text-ops-muted">{manageDevice.name} ({manageDevice.ipAddress})</p>
               </div>
-              <ActionButton type="button" variant="ghost" size="icon" onClick={() => { setManageDevice(null); setCustomPort(""); }} title="Close">
-                <X className="size-4" />
+              <ActionButton type="button" variant="ghost" size="icon" onClick={() => { setManageDevice(null); setCustomPort(""); }} aria-label="Close" title="Close">
+                <X aria-hidden="true" className="size-4" />
               </ActionButton>
             </div>
             <div className="space-y-4 p-5">
