@@ -37,6 +37,7 @@ export type AuditEntity =
     | "incident"
     | "settings"
     | "site"
+    | "site_telegram_chat"
     | "user_site"
     | "session";
 

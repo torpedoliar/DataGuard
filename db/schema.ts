@@ -40,6 +40,22 @@ export const sites = pgTable("sites", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ==================== SITE TELEGRAM CHAT IDS (N23) ====================
+// Multi-recipient per site, with optional severity filter. Falls back to
+// sites.telegram_chat_id when this table is empty.
+export const siteTelegramChatIds = pgTable("site_telegram_chat_ids", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "cascade" }).notNull(),
+  chatId: text("chat_id").notNull(),
+  label: text("label").notNull(),
+  // Comma-separated list of severities: "Low,Medium,High,Critical". Null = all severities.
+  severityFilter: text("severity_filter"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  siteIdIdx: index("site_telegram_chat_ids_site_id_idx").on(table.siteId),
+}));
+
 // ==================== USERS ====================
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -221,6 +237,14 @@ export const sitesRelations = relations(sites, ({ many }) => ({
   syslogSources: many(syslogSources),
   syslogEvents: many(syslogEvents),
   siemFindings: many(siemFindings),
+  telegramChats: many(siteTelegramChatIds),
+}));
+
+export const siteTelegramChatIdsRelations = relations(siteTelegramChatIds, ({ one }) => ({
+  site: one(sites, {
+    fields: [siteTelegramChatIds.siteId],
+    references: [sites.id],
+  }),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({

@@ -1,5 +1,5 @@
 import { db } from "../../db";
-import { siemAlerts, siemFindings, siemSettings } from "../../db/schema";
+import { siemAlerts, siemFindings, siemSettings, siteTelegramChatIds } from "../../db/schema";
 import { sendTelegramAlert } from "../telegram";
 import { and, eq, ne } from "drizzle-orm";
 import { formatWibForAlert } from "../ui/datetime";
@@ -26,6 +26,60 @@ function alertMessage(input: { findingId: number; title: string; severity: SiemS
   ].join("\n"));
 }
 
+export type SiteTelegramRecipient = {
+  chatId: string;
+  severityFilter: string | null;
+  label?: string | null;
+};
+
+/**
+ * Resolve the list of telegram recipients for a site.
+ *
+ * - Reads from `site_telegram_chat_ids` first (multi-recipient).
+ * - Falls back to the legacy `sites.telegram_chat_id` only when the multi-recipient
+ *   table is empty for the site (preserves existing N1 behaviour for sites that
+ *   have not yet been migrated).
+ * - Filters out disabled rows and rows whose `severity_filter` does not include
+ *   the supplied severity. A null/empty filter matches any severity.
+ */
+export async function resolveSiteTelegramRecipients(
+  siteId: number,
+  severity: SiemSeverity,
+  legacyChatId: string | null | undefined,
+): Promise<SiteTelegramRecipient[]> {
+  const rows = await db
+    .select({
+      chatId: siteTelegramChatIds.chatId,
+      severityFilter: siteTelegramChatIds.severityFilter,
+      label: siteTelegramChatIds.label,
+      enabled: siteTelegramChatIds.enabled,
+    })
+    .from(siteTelegramChatIds)
+    .where(eq(siteTelegramChatIds.siteId, siteId));
+
+  if (rows.length === 0) {
+    const legacy = legacyChatId?.trim();
+    if (!legacy) return [];
+    return [{ chatId: legacy, severityFilter: null }];
+  }
+
+  return rows
+    .filter((row) => row.enabled)
+    .filter((row) => {
+      if (!row.severityFilter) return true;
+      const allowed = row.severityFilter
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return allowed.includes(severity);
+    })
+    .map((row) => ({
+      chatId: row.chatId,
+      severityFilter: row.severityFilter,
+      label: row.label,
+    }));
+}
+
 export async function queueSiemTelegramAlerts() {
   const settings = await db.select().from(siemSettings).limit(1);
   const minSeverity = (settings[0]?.alertMinSeverity ?? "High") as SiemSeverity;
@@ -47,26 +101,37 @@ export async function queueSiemTelegramAlerts() {
     if (!finding.rule?.alertEnabled) continue;
     if (!isAtLeastSeverity(finding.severity as SiemSeverity, minSeverity)) continue;
     if (finding.alerts.some((alert) => alert.channel === "telegram")) continue;
-    if (!finding.site?.telegramChatId) continue;
+    if (!finding.site) continue;
 
-    await db.insert(siemAlerts).values({
+    const recipients = await resolveSiteTelegramRecipients(
+      finding.site.id,
+      finding.severity as SiemSeverity,
+      finding.site.telegramChatId,
+    );
+    if (recipients.length === 0) continue;
+
+    const message = alertMessage({
       findingId: finding.id,
-      channel: "telegram",
-      recipient: finding.site.telegramChatId,
-      status: "pending",
-      message: alertMessage({
-        findingId: finding.id,
-        title: finding.title,
-        severity: finding.severity as SiemSeverity,
-        siteName: finding.site.name,
-        deviceName: finding.device?.name ?? null,
-        sourceIp: finding.source?.sourceIp ?? null,
-        summary: finding.humanAnalysis ?? finding.summary,
-        recommendedAction: finding.recommendedAction,
-        lastSeenAt: finding.lastSeenAt,
-      }),
+      title: finding.title,
+      severity: finding.severity as SiemSeverity,
+      siteName: finding.site.name,
+      deviceName: finding.device?.name ?? null,
+      sourceIp: finding.source?.sourceIp ?? null,
+      summary: finding.humanAnalysis ?? finding.summary,
+      recommendedAction: finding.recommendedAction,
+      lastSeenAt: finding.lastSeenAt,
     });
-    queued++;
+
+    for (const recipient of recipients) {
+      await db.insert(siemAlerts).values({
+        findingId: finding.id,
+        channel: "telegram",
+        recipient: recipient.chatId,
+        status: "pending",
+        message,
+      });
+      queued++;
+    }
   }
 
   return { queued };

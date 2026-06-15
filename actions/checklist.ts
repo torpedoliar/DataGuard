@@ -2,7 +2,7 @@
 "use server";
 
 import { db } from "../db";
-import { checklistEntries, checklistItems, users, sites, devices } from "../db/schema";
+import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds } from "../db/schema";
 import { createIncidentsForChecklistItems } from "@/actions/incidents";
 import { getTelegramAlertTemplate } from "@/actions/settings";
 import { renderTelegramTemplate, sendTelegramAlert } from "@/lib/telegram";
@@ -14,6 +14,34 @@ import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
+
+const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const;
+type ChecklistSeverity = keyof typeof SEVERITY_RANK;
+
+async function resolveChecklistRecipients(siteId: number, severity: ChecklistSeverity, legacyChatId: string | null | undefined) {
+    const rows = await db
+        .select({
+            chatId: siteTelegramChatIds.chatId,
+            severityFilter: siteTelegramChatIds.severityFilter,
+            enabled: siteTelegramChatIds.enabled,
+        })
+        .from(siteTelegramChatIds)
+        .where(eq(siteTelegramChatIds.siteId, siteId));
+
+    if (rows.length === 0) {
+        const legacy = legacyChatId?.trim();
+        return legacy ? [{ chatId: legacy }] : [];
+    }
+
+    return rows
+        .filter((row) => row.enabled)
+        .filter((row) => {
+            if (!row.severityFilter) return true;
+            const allowed = row.severityFilter.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+            return allowed.includes(severity);
+        })
+        .map((row) => ({ chatId: row.chatId }));
+}
 
 export async function submitChecklist(prevState: unknown, formData: FormData) {
     const auth = await requireActiveSiteAction();
@@ -114,7 +142,19 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                     getTelegramAlertTemplate(),
                 ]);
 
-                if (site?.telegramChatId) {
+                const recipients = await resolveChecklistRecipients(
+                    auth.activeSiteId,
+                    // Map the worst item severity to a single severity bucket
+                    // for filter purposes. Critical > High > Medium > Low.
+                    alertItems.some((a) => a.status === "Error")
+                        ? "Critical"
+                        : alertItems.some((a) => a.status === "Warning")
+                            ? "Medium"
+                            : "Low",
+                    site?.telegramChatId,
+                );
+
+                if (site && recipients.length > 0) {
                     const failedIds = alertItems.map(a => a.deviceId);
                     const devicesInfo = await db.query.devices.findMany({
                         where: inArray(devices.id, failedIds),
@@ -153,7 +193,9 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                     const message = messages.join("\n\n---\n\n");
 
                     // Async dispatch so we don't block the UI response
-                    sendTelegramAlert(site.telegramChatId, message).catch(console.error);
+                    for (const recipient of recipients) {
+                        sendTelegramAlert(recipient.chatId, message).catch(console.error);
+                    }
                 }
             } catch (e) {
                 console.error("Failed to dispatch telegram alerts:", e);

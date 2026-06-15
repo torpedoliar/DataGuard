@@ -3,7 +3,8 @@
 import { useEffect, useState, useMemo, useTransition } from "react";
 import { getSites, addSite, updateSite, deleteSite, getSiteUsers, getUnassignedUsers, assignUserToSite, updateUserSiteRole, removeUserFromSite } from "@/actions/sites";
 import { migrateToMultiSite } from "@/actions/migrate-multisite";
-import { Building2, Plus, Pencil, Trash2, Users, Loader2, UserPlus, ShieldCheck, ShieldAlert, X } from "lucide-react";
+import SiteTelegramChats from "@/components/admin/site-telegram-chats";
+import { Building2, Plus, Pencil, Trash2, Users, Loader2, UserPlus, ShieldCheck, ShieldAlert, X, Send } from "lucide-react";
 
 type Site = {
     id: number; name: string; code: string; address: string | null;
@@ -23,6 +24,7 @@ export default function SiteManagementPage() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [editSite, setEditSite] = useState<Site | null>(null);
     const [manageSite, setManageSite] = useState<Site | null>(null);
+    const [telegramSite, setTelegramSite] = useState<Site | null>(null);
     const [siteUsers, setSiteUsers] = useState<SiteUser[]>([]);
     const [unassigned, setUnassigned] = useState<UnassignedUser[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -298,6 +300,9 @@ export default function SiteManagementPage() {
                                 </td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center justify-end gap-2">
+                                        <button onClick={() => setTelegramSite(site)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition" title="Telegram Recipients">
+                                            <Send className="h-4 w-4" />
+                                        </button>
                                         <button onClick={() => openUserManager(site)} className="p-2 text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg transition" title="Kelola User">
                                             <Users className="h-4 w-4" />
                                         </button>
@@ -394,6 +399,29 @@ export default function SiteManagementPage() {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Telegram Recipients Modal (N23) */}
+            {telegramSite && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setTelegramSite(null)}>
+                    <div className="bg-white dark:bg-card-dark rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                    <Send className="h-5 w-5 text-blue-500" />
+                                    Telegram Recipients &mdash; {telegramSite.name}
+                                </h3>
+                                <p className="text-sm text-slate-500 mt-0.5">Kelola multi-recipient telegram untuk site ini.</p>
+                            </div>
+                            <button onClick={() => setTelegramSite(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition">
+                                <X className="h-5 w-5 text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <SiteTelegramChats siteId={telegramSite.id} />
                         </div>
                     </div>
                 </div>

@@ -120,6 +120,13 @@
       "when": 1781493399329,
       "tag": "0017_watery_silver_surfer",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781500001000,
+      "tag": "0018_site_telegram_chat_ids",
+      "breakpoints": true
     }
   ]
 }

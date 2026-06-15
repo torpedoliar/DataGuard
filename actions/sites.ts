@@ -1,11 +1,13 @@
 "use server";
 
 import { db } from "@/db";
-import { sites, userSites, users } from "@/db/schema";
+import { sites, siteTelegramChatIds, userSites, users } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { verifySession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit";
+
+export type SiteTelegramChatRecord = typeof siteTelegramChatIds.$inferSelect;
 
 // ==================== SITE CRUD ====================
 
@@ -205,5 +207,129 @@ export async function removeUserFromSite(assignmentId: number) {
         return { success: true, message: "User berhasil dihapus dari site." };
     } catch (error) {
         return { message: "Gagal menghapus assignment user." };
+    }
+}
+
+// ==================== SITE TELEGRAM CHAT IDS (N23) ====================
+
+const VALID_SEVERITIES = new Set(["Low", "Medium", "High", "Critical"]);
+
+function normalizeSeverityFilter(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const tokens = value
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    const filtered = tokens.filter((s) => VALID_SEVERITIES.has(s));
+    if (filtered.length === 0) return null;
+    // De-dupe while preserving order.
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of filtered) {
+        if (!seen.has(t)) {
+            seen.add(t);
+            out.push(t);
+        }
+    }
+    return out.join(",");
+}
+
+export async function getSiteTelegramChats(siteId: number) {
+    const session = await verifySession();
+    if (!session) return [];
+    return await db
+        .select()
+        .from(siteTelegramChatIds)
+        .where(eq(siteTelegramChatIds.siteId, siteId))
+        .orderBy(desc(siteTelegramChatIds.createdAt));
+}
+
+export async function addSiteTelegramChat(
+    siteId: number,
+    chatId: string,
+    label: string,
+    severityFilter?: string | null,
+) {
+    const session = await verifySession();
+    if (!session || session.role !== "superadmin") {
+        return { message: "Hanya Super Admin yang dapat menambah telegram chat." };
+    }
+
+    const trimmedChatId = (chatId ?? "").trim();
+    const trimmedLabel = (label ?? "").trim();
+    if (!trimmedChatId) return { message: "Chat ID wajib diisi." };
+    if (!trimmedLabel) return { message: "Label wajib diisi." };
+
+    const normalizedFilter = normalizeSeverityFilter(severityFilter ?? null);
+
+    try {
+        const [row] = await db.insert(siteTelegramChatIds).values({
+            siteId,
+            chatId: trimmedChatId,
+            label: trimmedLabel,
+            severityFilter: normalizedFilter,
+            enabled: true,
+        }).returning();
+
+        await logAudit({
+            action: "CREATE",
+            entity: "site",
+            entityName: trimmedLabel,
+            detail: `SiteID: ${siteId}, ChatID: ${trimmedChatId}${normalizedFilter ? `, severities: ${normalizedFilter}` : ""}`,
+        });
+
+        revalidatePath("/admin/sites");
+        return { success: true, message: "Telegram chat berhasil ditambahkan." };
+    } catch (error) {
+        return { message: "Gagal menambahkan telegram chat." };
+    }
+}
+
+export async function removeSiteTelegramChat(id: number) {
+    const session = await verifySession();
+    if (!session || session.role !== "superadmin") {
+        return { message: "Hanya Super Admin yang dapat menghapus telegram chat." };
+    }
+
+    try {
+        const [existing] = await db
+            .select()
+            .from(siteTelegramChatIds)
+            .where(eq(siteTelegramChatIds.id, id))
+            .limit(1);
+        if (!existing) return { message: "Telegram chat tidak ditemukan." };
+
+        await db.delete(siteTelegramChatIds).where(eq(siteTelegramChatIds.id, id));
+
+        await logAudit({
+            action: "DELETE",
+            entity: "site_telegram_chat",
+            entityId: id,
+            entityName: existing.label,
+            detail: `SiteID: ${existing.siteId}`,
+        });
+
+        revalidatePath("/admin/sites");
+        return { success: true, message: "Telegram chat berhasil dihapus." };
+    } catch (error) {
+        return { message: "Gagal menghapus telegram chat." };
+    }
+}
+
+export async function toggleSiteTelegramChat(id: number, enabled: boolean) {
+    const session = await verifySession();
+    if (!session || session.role !== "superadmin") {
+        return { message: "Hanya Super Admin yang dapat mengubah telegram chat." };
+    }
+
+    try {
+        await db
+            .update(siteTelegramChatIds)
+            .set({ enabled })
+            .where(eq(siteTelegramChatIds.id, id));
+        revalidatePath("/admin/sites");
+        return { success: true };
+    } catch (error) {
+        return { message: "Gagal mengubah status telegram chat." };
     }
 }

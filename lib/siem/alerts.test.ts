@@ -33,8 +33,9 @@ import { sendTelegramAlert } from "../telegram";
 import {
   queueSiemTelegramAlerts,
   sendPendingSiemTelegramAlerts,
+  resolveSiteTelegramRecipients,
 } from "./alerts";
-import { siemAlerts, siemFindings, siemSettings } from "../../db/schema";
+import { siemAlerts, siemFindings, siemSettings, siteTelegramChatIds } from "../../db/schema";
 
 const mockedDb = db as unknown as {
   select: ReturnType<typeof vi.fn>;
@@ -90,6 +91,14 @@ function makeSettingsChain(rows: unknown[]) {
   return { select, from, limit };
 }
 
+// Chain for site_telegram_chat_ids: select({...}).from(siteTelegramChatIds).where(pred) → rows
+function makeSelectFromWhere(rows: unknown[]) {
+  const where = vi.fn().mockResolvedValue(rows);
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+  return { select, from, where };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -102,6 +111,8 @@ describe("queueSiemTelegramAlerts", () => {
   it("only inserts channel='telegram' rows when alert is eligible", async () => {
     mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([makeFinding()]);
+    // Recipient resolver: 1 chat, all severities
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
 
     const insertedValues: unknown[] = [];
     mockedDb.insert.mockImplementation(() => ({
@@ -153,6 +164,104 @@ describe("queueSiemTelegramAlerts", () => {
     expect(result.queued).toBe(0);
     expect(insertedValues).toHaveLength(0);
   });
+
+  it("inserts one alert per recipient when site has multiple enabled chat rows (multi-recipient)", async () => {
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
+    mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([makeFinding({ severity: "Critical" })]);
+    // Two enabled chats, no severity filter → both receive
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([
+      { chatId: "ops-1", severityFilter: null, enabled: true },
+      { chatId: "sec-1", severityFilter: null, enabled: true },
+    ]));
+
+    const insertedValues: unknown[] = [];
+    mockedDb.insert.mockImplementation(() => ({
+      values: (v: unknown) => {
+        insertedValues.push(v);
+        return Promise.resolve();
+      },
+    }));
+
+    const result = await queueSiemTelegramAlerts();
+
+    expect(result.queued).toBe(2);
+    expect(insertedValues).toHaveLength(2);
+    const recipients = insertedValues.map((v) => (v as { recipient: string }).recipient).sort();
+    expect(recipients).toEqual(["ops-1", "sec-1"]);
+    for (const v of insertedValues) {
+      expect(v).toMatchObject({ channel: "telegram", status: "pending", findingId: 1 });
+    }
+  });
+
+  it("filters recipients by severity_filter (one matches, one does not)", async () => {
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
+    mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([makeFinding({ severity: "Critical" })]);
+    // Chat A: filter "High,Critical" → matches Critical
+    // Chat B: filter "Low,Medium"    → does not match Critical
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([
+      { chatId: "ops-hc", severityFilter: "High,Critical", enabled: true },
+      { chatId: "mgmt-lm", severityFilter: "Low,Medium", enabled: true },
+    ]));
+
+    const insertedValues: unknown[] = [];
+    mockedDb.insert.mockImplementation(() => ({
+      values: (v: unknown) => {
+        insertedValues.push(v);
+        return Promise.resolve();
+      },
+    }));
+
+    const result = await queueSiemTelegramAlerts();
+
+    expect(result.queued).toBe(1);
+    expect(insertedValues).toHaveLength(1);
+    expect(insertedValues[0]).toMatchObject({ channel: "telegram", recipient: "ops-hc" });
+  });
+
+  it("falls back to legacy sites.telegramChatId when site_telegram_chat_ids is empty", async () => {
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
+    mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
+      makeFinding({ site: { id: 10, name: "DC-JKT", telegramChatId: "legacy-99" } }),
+    ]);
+    // No rows in multi-recipient table
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+
+    const insertedValues: unknown[] = [];
+    mockedDb.insert.mockImplementation(() => ({
+      values: (v: unknown) => {
+        insertedValues.push(v);
+        return Promise.resolve();
+      },
+    }));
+
+    const result = await queueSiemTelegramAlerts();
+    expect(result.queued).toBe(1);
+    expect(insertedValues[0]).toMatchObject({ recipient: "legacy-99" });
+  });
+});
+
+describe("resolveSiteTelegramRecipients", () => {
+  it("returns empty list when no rows and no legacy chat id", async () => {
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    const out = await resolveSiteTelegramRecipients(10, "High", null);
+    expect(out).toEqual([]);
+  });
+
+  it("returns legacy chat id when multi-recipient table is empty", async () => {
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    const out = await resolveSiteTelegramRecipients(10, "High", "legacy-1");
+    expect(out).toEqual([{ chatId: "legacy-1", severityFilter: null }]);
+  });
+
+  it("drops disabled rows and rows whose filter does not include severity", async () => {
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([
+      { chatId: "a", severityFilter: "High,Critical", enabled: true },
+      { chatId: "b", severityFilter: "Low,Medium", enabled: true },
+      { chatId: "c", severityFilter: null, enabled: false },
+    ]));
+    const out = await resolveSiteTelegramRecipients(10, "Critical", "ignored");
+    expect(out.map((r) => r.chatId).sort()).toEqual(["a"]);
+  });
 });
 
 describe("sendPendingSiemTelegramAlerts", () => {
@@ -203,3 +312,4 @@ describe("sendPendingSiemTelegramAlerts", () => {
 void siemSettings;
 void siemFindings;
 void siemAlerts;
+void siteTelegramChatIds;

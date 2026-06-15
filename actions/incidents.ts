@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { devices, incidentUpdates, incidents, sites, userSites, users } from "@/db/schema";
+import { devices, incidentUpdates, incidents, sites, siteTelegramChatIds, userSites, users } from "@/db/schema";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
 import {
@@ -98,11 +98,39 @@ async function getRecurringDeviceCounts(siteId: number, deviceIds: number[]) {
   return new Map(rows.map((row) => [row.deviceId, Number(row.count)]));
 }
 
+async function resolveIncidentRecipients(siteId: number, severity: IncidentSeverity, legacyChatId: string | null | undefined) {
+  const rows = await db
+    .select({
+      chatId: siteTelegramChatIds.chatId,
+      severityFilter: siteTelegramChatIds.severityFilter,
+      enabled: siteTelegramChatIds.enabled,
+    })
+    .from(siteTelegramChatIds)
+    .where(eq(siteTelegramChatIds.siteId, siteId));
+
+  if (rows.length === 0) {
+    const legacy = legacyChatId?.trim();
+    return legacy ? [{ chatId: legacy }] : [];
+  }
+
+  return rows
+    .filter((row) => row.enabled)
+    .filter((row) => {
+      if (!row.severityFilter) return true;
+      const allowed = row.severityFilter.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+      return allowed.includes(severity);
+    })
+    .map((row) => ({ chatId: row.chatId }));
+}
+
 async function notifyCriticalIncidents(siteId: number, criticalIncidents: IncidentRecord[]) {
   if (criticalIncidents.length === 0) return;
 
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId) });
-  if (!site?.telegramChatId) return;
+  if (!site) return;
+
+  const recipients = await resolveIncidentRecipients(siteId, "Critical", site.telegramChatId);
+  if (recipients.length === 0) return;
 
   const message = [
     "*Critical Incident Opened*",
@@ -110,17 +138,23 @@ async function notifyCriticalIncidents(siteId: number, criticalIncidents: Incide
     ...criticalIncidents.map((incident) => `#${incident.id} ${incident.title}`),
   ].join("\n");
 
-  await sendTelegramAlert(site.telegramChatId, message);
+  for (const recipient of recipients) {
+    await sendTelegramAlert(recipient.chatId, message);
+  }
 }
 
 async function notifyResolvedWaitingVerification(siteId: number, incidentId: number, title: string) {
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId) });
-  if (!site?.telegramChatId) return;
+  if (!site) return;
 
-  await sendTelegramAlert(
-    site.telegramChatId,
-    `*Incident Resolved*\nSite: ${site.name}\n#${incidentId} ${title}\nWaiting for admin verification.`,
-  );
+  // Resolved is treated as Low-severity for filter purposes.
+  const recipients = await resolveIncidentRecipients(siteId, "Low", site.telegramChatId);
+  if (recipients.length === 0) return;
+
+  const message = `*Incident Resolved*\nSite: ${site.name}\n#${incidentId} ${title}\nWaiting for admin verification.`;
+  for (const recipient of recipients) {
+    await sendTelegramAlert(recipient.chatId, message);
+  }
 }
 
 export async function getIncidentStats() {
