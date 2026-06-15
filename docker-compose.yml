@@ -34,11 +34,19 @@ services:
     command: npm run syslog:receiver
     ports:
       - "0.0.0.0:514:1514/udp"
+      - "0.0.0.0:${SYSLOG_TCP_PORT:-601}:1515/tcp"
+      - "0.0.0.0:${SYSLOG_TLS_PORT:-6514}:1516/tcp"
     env_file:
       - .env.production
     environment:
       SYSLOG_UDP_HOST: "0.0.0.0"
       SYSLOG_UDP_PORT: "1514"
+      SYSLOG_TCP_PORT: "${SYSLOG_TCP_PORT:-1515}"
+      SYSLOG_TLS_PORT: "${SYSLOG_TLS_PORT:-1516}"
+      TLS_CERT_PATH: "${TLS_CERT_PATH:-/etc/siem/tls/cert.pem}"
+      TLS_KEY_PATH: "${TLS_KEY_PATH:-/etc/siem/tls/key.pem}"
+    volumes:
+      - dccheck_si_tls:/etc/siem/tls:ro
     depends_on:
       db:
         condition: service_healthy
@@ -171,6 +179,7 @@ volumes:
   dccheck_pgdata:
   dccheck_uploads:
   dccheck_backups:
+  dccheck_si_tls:
 
 
 networks:

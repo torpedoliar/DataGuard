@@ -32,6 +32,16 @@ const ingestSettingsSchema = z.object({
   eventRetentionDays: z.coerce.number().int().min(1).max(3650).optional(),
   findingRetentionDays: z.coerce.number().int().min(1).max(3650).optional(),
   alertRetentionDays: z.coerce.number().int().min(1).max(3650).optional(),
+  tcpPort: z
+    .union([z.coerce.number().int().min(1).max(65535), z.literal("")])
+    .transform((value) => (value === "" ? null : value))
+    .optional(),
+  tlsPort: z
+    .union([z.coerce.number().int().min(1).max(65535), z.literal("")])
+    .transform((value) => (value === "" ? null : value))
+    .optional(),
+  tlsCertPath: z.string().max(500).optional().or(z.literal("")),
+  tlsKeyPath: z.string().max(500).optional().or(z.literal("")),
 });
 
 export async function getSiemAiSettings() {
@@ -106,6 +116,10 @@ export async function getSiemIngestSettings() {
     eventRetentionDays: settings?.eventRetentionDays ?? 180,
     findingRetentionDays: settings?.findingRetentionDays ?? 365,
     alertRetentionDays: settings?.alertRetentionDays ?? 365,
+    tcpPort: settings?.tcpPort ?? null,
+    tlsPort: settings?.tlsPort ?? null,
+    tlsCertPath: settings?.tlsCertPath ?? "",
+    tlsKeyPath: settings?.tlsKeyPath ?? "",
     sites: siteRows,
   };
 }
@@ -123,6 +137,10 @@ export async function updateSiemIngestSettings(prevState: unknown, formData: For
     eventRetentionDays: formData.get("eventRetentionDays") || undefined,
     findingRetentionDays: formData.get("findingRetentionDays") || undefined,
     alertRetentionDays: formData.get("alertRetentionDays") || undefined,
+    tcpPort: formData.get("tcpPort") ?? "",
+    tlsPort: formData.get("tlsPort") ?? "",
+    tlsCertPath: formData.get("tlsCertPath") ?? "",
+    tlsKeyPath: formData.get("tlsKeyPath") ?? "",
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -135,6 +153,10 @@ export async function updateSiemIngestSettings(prevState: unknown, formData: For
     eventRetentionDays: parsed.data.eventRetentionDays ?? undefined,
     findingRetentionDays: parsed.data.findingRetentionDays ?? undefined,
     alertRetentionDays: parsed.data.alertRetentionDays ?? undefined,
+    tcpPort: parsed.data.tcpPort ?? null,
+    tlsPort: parsed.data.tlsPort ?? null,
+    tlsCertPath: (parsed.data.tlsCertPath ?? "").trim() || null,
+    tlsKeyPath: (parsed.data.tlsKeyPath ?? "").trim() || null,
     updatedAt: new Date(),
   };
 
