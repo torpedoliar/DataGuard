@@ -1,6 +1,11 @@
 import { db } from "../../db";
 import { siemEvidenceEvents, siemFindings, syslogEvents, syslogEventsRaw } from "../../db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "../../db/schema";
+
+/** Drizzle transaction handle. */
+export type SiemDbTx = NodePgDatabase<typeof schema> | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Shape of a syslog_events row left-joined with its raw message. */
 export type JoinedEventRow = {
@@ -52,17 +57,26 @@ export function buildEvidenceSnapshot(findingId: number, row: JoinedEventRow): E
 }
 
 /**
- * Archive the referenced events of a finding into siem_evidence_events and mark
- * the finding evidenceArchived=true. Idempotent: skips events already archived
- * for this finding. Returns the number of evidence rows inserted.
+ * Per-finding archive logic that participates in a caller-owned transaction.
+ * The caller (typically `retention.ts`) is responsible for holding the row
+ * lock acquired via `FOR UPDATE SKIP LOCKED` so two concurrent retention
+ * workers cannot both archive the same finding.
+ *
+ * Idempotent: the unique index on (findingId, originalEventId) protects
+ * concurrent inserts (see PR-1.4). The `evidenceArchived` flag is flipped
+ * inside the same transaction so an interrupted archive cannot leave a
+ * half-archived finding whose evidence rows are already inserted.
  */
-export async function archiveFindingEvidence(finding: { id: number; sampleEventIds: number[] }): Promise<number> {
+export async function archiveFindingEvidenceInTx(
+  tx: SiemDbTx,
+  finding: { id: number; sampleEventIds: number[] },
+): Promise<number> {
   if (finding.sampleEventIds.length === 0) {
-    await db.update(siemFindings).set({ evidenceArchived: true, updatedAt: new Date() }).where(eq(siemFindings.id, finding.id));
+    await tx.update(siemFindings).set({ evidenceArchived: true, updatedAt: new Date() }).where(eq(siemFindings.id, finding.id));
     return 0;
   }
 
-  const rows = await db
+  const rows = await tx
     .select({
       id: syslogEvents.id,
       eventTime: syslogEvents.eventTime,
@@ -90,7 +104,7 @@ export async function archiveFindingEvidence(finding: { id: number; sampleEventI
   let inserted = 0;
   if (rows.length > 0) {
     const snapshots = rows.map((row) => buildEvidenceSnapshot(finding.id, row as JoinedEventRow));
-    const insertedRows = await db
+    const insertedRows = await tx
       .insert(siemEvidenceEvents)
       .values(snapshots)
       .onConflictDoNothing({ target: [siemEvidenceEvents.findingId, siemEvidenceEvents.originalEventId] })
@@ -98,8 +112,23 @@ export async function archiveFindingEvidence(finding: { id: number; sampleEventI
     inserted = insertedRows.length;
   }
 
-  await db.update(siemFindings).set({ evidenceArchived: true, updatedAt: new Date() }).where(eq(siemFindings.id, finding.id));
+  await tx.update(siemFindings).set({ evidenceArchived: true, updatedAt: new Date() }).where(eq(siemFindings.id, finding.id));
   return inserted;
+}
+
+/**
+ * Archive the referenced events of a finding into siem_evidence_events and mark
+ * the finding evidenceArchived=true. Idempotent: skips events already archived
+ * for this finding. Returns the number of evidence rows inserted.
+ *
+ * Wraps `archiveFindingEvidenceInTx` in its own transaction so callers that
+ * have not yet acquired a `FOR UPDATE SKIP LOCKED` row lock still get atomic
+ * insert+flag behavior. Concurrent callers may still race at the candidate
+ * select; callers that need cross-call coordination should manage the
+ * transaction themselves (see `lib/siem/retention.ts`).
+ */
+export async function archiveFindingEvidence(finding: { id: number; sampleEventIds: number[] }): Promise<number> {
+  return db.transaction(async (tx) => archiveFindingEvidenceInTx(tx, finding));
 }
 
 export type FindingEvidenceSample = {

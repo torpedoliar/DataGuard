@@ -16,6 +16,7 @@ vi.mock("../../db", () => {
 
 vi.mock("./evidence", () => ({
   archiveFindingEvidence: vi.fn().mockResolvedValue(undefined),
+  archiveFindingEvidenceInTx: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("./partitioning", () => {
@@ -35,6 +36,7 @@ import {
   mostLenientEventCutoff,
   runSiemRetentionCleanup,
 } from "./retention";
+import { archiveFindingEvidenceInTx } from "./evidence";
 import { siemEventsQuarantine, syslogEvents, syslogSources } from "../../db/schema";
 
 const mockedDb = db as unknown as {
@@ -174,14 +176,46 @@ describe("runSiemRetentionCleanup — quarantine", () => {
     // (2) sources select (no per-source override → all skipped at source level)
     mockedDb.select.mockReturnValueOnce(makeSourcesChain([]));
 
-    // (3) unarchived findings select → []
-    mockedDb.select.mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([]),
-        }),
-      }),
+    // (3) unarchived findings select → []. The candidate select is now run on
+    // the transaction handle (not on db), so we only need to set up a tx mock.
+    // db.select is NOT consumed for the unarchived-findings query any more.
+    // db.select is still used for: sources, orphan events, quarantine retention, stale findings.
+
+    // db.transaction runs the insert+delete atomically. Capture the values.
+    // The unarchived-findings select is also on the tx, returning [].
+    // The chain looks like: tx.select(...).from(...).where(...).limit(N).for("update", {skipLocked:true})
+    // The terminal (after .for()) must be a thenable resolving to the row set.
+    const terminalThenable: { then: (r: (v: unknown[]) => unknown) => Promise<unknown> } = {
+      then: (r: (v: unknown[]) => unknown) => Promise.resolve(r([])),
+    };
+    // The "after .limit()" node still has .for() (Drizzle's locking clause
+    // can be appended to the limited select).
+    const afterLimit = { for: vi.fn().mockReturnValue(terminalThenable) };
+    let capturedQuarantineValues: unknown[] | undefined;
+    const txInsertChain = makeInsertChain();
+    txInsertChain.values.mockImplementation((rows: unknown[]) => {
+      capturedQuarantineValues = Array.isArray(rows) ? rows : [rows];
+      return Promise.resolve(undefined);
     });
+    const txDeleteChain = makeDeleteChain([{ id: 555 }]);
+    // .where(...) → has both .limit() and .for(); both terminators return the same thenable.
+    const txWhereResult = {
+      limit: vi.fn().mockReturnValue(afterLimit),
+      for: vi.fn().mockReturnValue(terminalThenable),
+    };
+    const txSelect = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue(txWhereResult) }),
+    });
+    const tx = {
+      select: txSelect,
+      insert: vi.fn().mockReturnValue(txInsertChain.insert()),
+      delete: vi.fn().mockReturnValue(txDeleteChain.delete()),
+    };
+    // First call: the archive phase (FOR UPDATE SKIP LOCKED + per-finding archive).
+    // Second call: the quarantine insert+delete atomic pair.
+    mockedDb.transaction
+      .mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx))
+      .mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx));
 
     // (4) orphan-event select (sourceId IS NULL) returns one row
     const orphanVictim = {
@@ -211,20 +245,6 @@ describe("runSiemRetentionCleanup — quarantine", () => {
       }),
     });
 
-    // db.transaction runs the insert+delete atomically. Capture the values.
-    let capturedQuarantineValues: unknown[] | undefined;
-    const txInsertChain = makeInsertChain();
-    txInsertChain.values.mockImplementation((rows: unknown[]) => {
-      capturedQuarantineValues = Array.isArray(rows) ? rows : [rows];
-      return Promise.resolve(undefined);
-    });
-    const txDeleteChain = makeDeleteChain([{ id: 555 }]);
-    const tx = {
-      insert: vi.fn().mockReturnValue(txInsertChain.insert()),
-      delete: vi.fn().mockReturnValue(txDeleteChain.delete()),
-    };
-    mockedDb.transaction.mockImplementationOnce(async (fn: (tx: typeof tx) => Promise<unknown>) => fn(tx));
-
     // (6) syslogEventsRaw delete → []
     mockedDb.delete.mockReturnValueOnce(makeDeleteChain([]).delete());
     // (7) siemAlerts delete → []
@@ -240,8 +260,9 @@ describe("runSiemRetentionCleanup — quarantine", () => {
 
     const result = await runSiemRetentionCleanup({ now: new Date("2026-06-15T00:00:00.000Z") });
 
-    // db.transaction must have been called
-    expect(mockedDb.transaction).toHaveBeenCalledTimes(1);
+    // db.transaction was called twice: once for the archive phase (FOR UPDATE
+    // SKIP LOCKED), once for the quarantine insert+delete atomic pair.
+    expect(mockedDb.transaction).toHaveBeenCalledTimes(2);
     // The insert into quarantine must have run inside the transaction
     expect(tx.insert).toHaveBeenCalled();
     expect(txInsertChain.values).toHaveBeenCalledTimes(1);
@@ -280,15 +301,7 @@ describe("runSiemRetentionCleanup — quarantine", () => {
       ],
     });
     mockedDb.select.mockReturnValueOnce(makeSourcesChain([]));
-
-    // unarchived findings select → []
-    mockedDb.select.mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([]),
-        }),
-      }),
-    });
+    // unarchived findings select is on tx, not on db.select
 
     // No orphan events to quarantine (returns []).
     const emptyOrphanSelect = {
@@ -335,6 +348,241 @@ describe("runSiemRetentionCleanup — quarantine", () => {
     expect(qDel.where).toHaveBeenCalled();
     expect(result.quarantineRetentionDeleted).toBe(3);
     expect(result.eventsQuarantined).toBe(0);
+  });
+});
+
+describe("runSiemRetentionCleanup — evidence archive atomicity (N29)", () => {
+  function defaultSettings() {
+    return {
+      raw_retention_days: 90,
+      event_retention_days: 180,
+      finding_retention_days: 365,
+      alert_retention_days: 365,
+      quarantine_enabled: true,
+      quarantine_retention_days: 365,
+    };
+  }
+
+  /**
+   * Builds a chainable tx.select() mock that returns `rows` for the
+   * unarchived-findings query, including the .for("update", {skipLocked:true})
+   * locking clause. The chain looks like:
+   *   tx.select(...).from(...).where(...).limit(N).for("update", {skipLocked:true})
+   * and the terminal (after .for()) is a thenable resolving to `rows`.
+   */
+  function makeUnarchivedTxSelect(rows: Array<{ id: number; sampleEventIds: number[] }>) {
+    const terminal: { then: (r: (v: unknown[]) => unknown) => Promise<unknown> } = {
+      then: (r: (v: unknown[]) => unknown) => Promise.resolve(r(rows)),
+    };
+    const forFn = vi.fn().mockReturnValue(terminal);
+    const chain: { limit: unknown; for: unknown; where?: unknown; from?: unknown } = { for: forFn, limit: undefined };
+    const limit = vi.fn().mockReturnValue(chain);
+    chain.limit = limit;
+    const where = vi.fn().mockReturnValue(chain);
+    chain.where = where;
+    const from = vi.fn().mockReturnValue(chain);
+    chain.from = from;
+    const select = vi.fn().mockReturnValue(chain);
+    return { select, from, where, limit, for: forFn };
+  }
+
+  it("selects unarchived findings with FOR UPDATE SKIP LOCKED inside a transaction", async () => {
+    mockedDb.execute.mockResolvedValueOnce({ rows: [defaultSettings()] });
+    // sources
+    mockedDb.select.mockReturnValueOnce(makeSourcesChain([]));
+
+    const archiveCalls: unknown[] = [];
+    const capturedTxSelect = makeUnarchivedTxSelect([
+      { id: 1, sampleEventIds: [10, 11] },
+      { id: 2, sampleEventIds: [] },
+    ]);
+    const tx = {
+      select: capturedTxSelect.select,
+    };
+    mockedDb.transaction.mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx));
+    (archiveFindingEvidenceInTx as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (passedTx: unknown, finding: unknown) => {
+      archiveCalls.push({ tx: passedTx, finding });
+      return 0;
+    });
+
+    // The remaining selects/deletes in the run return empty.
+    // orphan events select → []
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    });
+    // quarantine retention select → []
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
+      }),
+    });
+    mockedDb.delete.mockReturnValueOnce(makeDeleteChain([]).delete());
+    mockedDb.delete.mockReturnValueOnce(makeDeleteChain([]).delete());
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
+      }),
+    });
+
+    const result = await runSiemRetentionCleanup({ now: new Date("2026-06-15T00:00:00.000Z") });
+
+    // The unarchived-findings select was performed on the transaction handle, not on db.
+    expect(tx.select).toHaveBeenCalled();
+    // The candidate select used the FOR UPDATE SKIP LOCKED locking clause.
+    expect(capturedTxSelect.for).toHaveBeenCalledWith("update", { skipLocked: true });
+    // archiveFindingEvidenceInTx was called once per unarchived finding, on the tx.
+    expect(archiveFindingEvidenceInTx).toHaveBeenCalledTimes(2);
+    expect((archiveCalls[0] as { tx: unknown }).tx).toBe(tx);
+    expect((archiveCalls[0] as { finding: { id: number } }).finding.id).toBe(1);
+    expect((archiveCalls[1] as { finding: { id: number } }).finding.id).toBe(2);
+    expect(result.evidenceArchivedFindings).toBe(2);
+    // The legacy public archiveFindingEvidence must NOT be called from retention.
+    expect((await import("./evidence")).archiveFindingEvidence).toBeDefined();
+  });
+
+  it("two concurrent retention calls each archive a disjoint set of findings (SKIP LOCKED prevents double-archive)", async () => {
+    /**
+     * The first call's tx.select(...) holds the row locks; the second call's
+     * tx.select(...) returns an empty row set because the rows are locked.
+     * Concretely: candidate select #1 returns both findings, candidate select #2
+     * returns none. The aggregate processed set has both findings, neither is
+     * processed twice.
+     */
+    // Both calls' settings queries return the same shape. Use mockResolvedValue
+    // (no Once) so each of the 2 calls gets a settings row. We then queue
+    // every other execute (CREATE/DROP) as a default-returning object, since
+    // they only care about `rows` being an array.
+    mockedDb.execute.mockImplementation((() => {
+      let count = 0;
+      return () => {
+        count++;
+        // First call from each run: the settings SELECT.
+        // (Interleaving means we can't know which call is "first", so the
+        // simplest correct setup is to return settings for the first 2
+        // executes, then empty rows afterwards.)
+        if (count <= 2) {
+          return Promise.resolve({ rows: [defaultSettings()] });
+        }
+        return Promise.resolve({ rows: [] });
+      };
+    })());
+
+    const call1Selects = makeUnarchivedTxSelect([
+      { id: 100, sampleEventIds: [1] },
+      { id: 101, sampleEventIds: [2] },
+    ]);
+    const call2Selects = makeUnarchivedTxSelect([]);
+
+    const tx1 = { select: call1Selects.select };
+    const tx2 = { select: call2Selects.select };
+
+    mockedDb.transaction
+      .mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx1))
+      .mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx2));
+
+    // Track which findings get processed (idempotent count).
+    const processed = new Set<number>();
+    (archiveFindingEvidenceInTx as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (passedTx: unknown, finding: { id: number }) => {
+      // If the same finding is presented twice, fail the test.
+      if (processed.has(finding.id)) {
+        throw new Error(`Finding ${finding.id} was archived twice`);
+      }
+      processed.add(finding.id);
+      return 0;
+    });
+
+    // Provide a generic chain for all db.select calls inside either run.
+    // The runs are concurrent, so the order of mock consumption between the
+    // two calls is not deterministic. We queue enough mocks to satisfy
+    // EITHER ordering: 2 sources + 2 orphan + 2 quar + 2 stale.
+    const emptyOrphan = {
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    };
+    const emptyQuar = {
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    };
+    const emptyStale = {
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    };
+    const sourcesChain = makeSourcesChain([]);
+    mockedDb.select
+      .mockReturnValueOnce(sourcesChain)
+      .mockReturnValueOnce(sourcesChain)
+      .mockReturnValueOnce(emptyOrphan)
+      .mockReturnValueOnce(emptyOrphan)
+      .mockReturnValueOnce(emptyQuar)
+      .mockReturnValueOnce(emptyQuar)
+      .mockReturnValueOnce(emptyStale)
+      .mockReturnValueOnce(emptyStale);
+    // raw events delete + alerts delete for both calls.
+    mockedDb.delete
+      .mockReturnValueOnce(makeDeleteChain([]).delete())
+      .mockReturnValueOnce(makeDeleteChain([]).delete())
+      .mockReturnValueOnce(makeDeleteChain([]).delete())
+      .mockReturnValueOnce(makeDeleteChain([]).delete());
+
+    const [res1, res2] = await Promise.all([
+      runSiemRetentionCleanup({ now: new Date("2026-06-15T00:00:00.000Z") }),
+      runSiemRetentionCleanup({ now: new Date("2026-06-15T00:00:00.000Z") }),
+    ]);
+
+    expect(res1.evidenceArchivedFindings + res2.evidenceArchivedFindings).toBe(2);
+    // Whichever call ran first gets both findings; the second gets 0.
+    expect([res1.evidenceArchivedFindings, res2.evidenceArchivedFindings].sort()).toEqual([0, 2]);
+    expect(processed).toEqual(new Set([100, 101]));
+    // Both calls applied the locking clause.
+    expect(call1Selects.for).toHaveBeenCalledWith("update", { skipLocked: true });
+    expect(call2Selects.for).toHaveBeenCalledWith("update", { skipLocked: true });
+  });
+
+  it("rolls back the whole archive transaction when archiveFindingEvidenceInTx throws (no partial state)", async () => {
+    mockedDb.execute.mockResolvedValueOnce({ rows: [defaultSettings()] });
+    mockedDb.select.mockReturnValueOnce(makeSourcesChain([]));
+
+    const capturedTxSelect = makeUnarchivedTxSelect([
+      { id: 1, sampleEventIds: [10, 11] },
+      { id: 2, sampleEventIds: [20, 21] },
+    ]);
+    const tx = { select: capturedTxSelect.select };
+    mockedDb.transaction.mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => fn(tx));
+
+    // First archive call blows up; the second is never reached. Drizzle's
+    // transaction wrapper would normally observe the rejection and roll back.
+    (archiveFindingEvidenceInTx as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      throw new Error("simulated archive failure");
+    });
+
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    });
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    });
+    mockedDb.delete.mockReturnValueOnce(makeDeleteChain([]).delete());
+    mockedDb.delete.mockReturnValueOnce(makeDeleteChain([]).delete());
+    mockedDb.select.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+    });
+
+    await expect(
+      runSiemRetentionCleanup({ now: new Date("2026-06-15T00:00:00.000Z") }),
+    ).rejects.toThrow(/simulated archive failure/);
+
+    // The candidate select ran on the tx (so locks were acquired on those 2 rows).
+    expect(tx.select).toHaveBeenCalled();
+    // Only the first archive call had a chance to run; the second finding was
+    // never touched (and so could not be partially archived).
+    expect(archiveFindingEvidenceInTx).toHaveBeenCalledTimes(1);
+    // The transaction wrapper received the rejection; nothing past the archive
+    // phase (the orphan-event select, the quarantine retention, the raw delete,
+    // the alerts delete, the stale-findings select) ran, because the call
+    // rejected out of the transaction.
+    // The post-archive mocks queued on db.select/db.delete are never consumed.
+    expect(mockedDb.transaction).toHaveBeenCalledTimes(1);
   });
 });
 

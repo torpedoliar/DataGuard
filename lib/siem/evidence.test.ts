@@ -6,6 +6,7 @@ vi.mock("../../db", () => ({
     select: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
+    transaction: vi.fn(),
   },
 }));
 
@@ -17,6 +18,7 @@ const mockedDb = db as unknown as {
   select: ReturnType<typeof vi.fn>;
   insert: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
+  transaction: ReturnType<typeof vi.fn>;
 };
 
 const baseRow: JoinedEventRow = {
@@ -72,6 +74,10 @@ function makeUpdateSetWhereChain() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: db.transaction forwards to its callback, sharing the underlying
+  // mocked chain. Tests can override mockImplementationOnce when they need
+  // transactional behavior to fail or be observed.
+  mockedDb.transaction.mockImplementation(async (fn: (tx: typeof mockedDb) => Promise<unknown>) => fn(mockedDb));
 });
 
 afterEach(() => {

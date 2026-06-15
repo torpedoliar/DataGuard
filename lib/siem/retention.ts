@@ -1,7 +1,7 @@
 import { db } from "../../db";
 import { siemAlerts, siemEvidenceEvents, siemEventsQuarantine, siemFindings, syslogEvents, syslogEventsRaw, syslogSources } from "../../db/schema";
 import { and, eq, inArray, lt, ne, sql } from "drizzle-orm";
-import { archiveFindingEvidence } from "./evidence";
+import { archiveFindingEvidenceInTx } from "./evidence";
 import { partitionsForWindow, isPartitionFullyExpired, partitionName } from "./partitioning";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -174,17 +174,27 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
   // Archive non-Resolved findings that still reference events but are not yet archived.
   // We archive eagerly (any unarchived finding with events) so a later partition drop
   // can never destroy referenced events.
-  const unarchived = await db
-    .select({ id: siemFindings.id, sampleEventIds: siemFindings.sampleEventIds })
-    .from(siemFindings)
-    .where(and(eq(siemFindings.evidenceArchived, false), ne(siemFindings.status, "Resolved")))
-    .limit(batchSize);
-
+  //
+  // Two retention workers running concurrently must NOT both archive the same
+  // finding. PR-1.4 added a unique index on (findingId, originalEventId) that
+  // makes double-inserts safe at the row level, but the final
+  // `evidenceArchived = true` update would still race (and the second worker
+  // would redo every row's insert). Holding FOR UPDATE SKIP LOCKED inside a
+  // single transaction means the second worker simply skips the row.
   let evidenceArchivedFindings = 0;
-  for (const finding of unarchived) {
-    await archiveFindingEvidence(finding);
-    evidenceArchivedFindings++;
-  }
+  await db.transaction(async (tx) => {
+    const unarchived = await tx
+      .select({ id: siemFindings.id, sampleEventIds: siemFindings.sampleEventIds })
+      .from(siemFindings)
+      .where(and(eq(siemFindings.evidenceArchived, false), ne(siemFindings.status, "Resolved")))
+      .limit(batchSize)
+      .for("update", { skipLocked: true });
+
+    for (const finding of unarchived) {
+      await archiveFindingEvidenceInTx(tx, finding);
+      evidenceArchivedFindings++;
+    }
+  });
 
   // ----- PHASE B: partition maintenance (create upcoming, drop fully-expired) -----
   const partitionsCreated = await ensurePartitions(now);
