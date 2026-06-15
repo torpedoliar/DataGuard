@@ -50,6 +50,8 @@ export const users = pgTable("users", {
   photoPath: text("photo_path"),
   isActive: boolean("is_active").default(true),
   lastLogin: timestamp("last_login"),
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  lockoutUntil: timestamp("lockout_until"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

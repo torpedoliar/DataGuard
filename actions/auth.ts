@@ -16,6 +16,9 @@ const loginSchema = z.object({
     password: z.string().min(1, "Password wajib diisi"),
 });
 
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+
 export async function login(prevState: unknown, formData: FormData) {
     const result = loginSchema.safeParse(Object.fromEntries(formData));
 
@@ -38,6 +41,22 @@ export async function login(prevState: unknown, formData: FormData) {
         };
     }
 
+    // Check if account is currently locked out
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+        const minutesLeft = Math.ceil(
+            (user.lockoutUntil.getTime() - Date.now()) / 60_000,
+        );
+        await logAuditManual({
+            action: "LOGIN",
+            userId: user.id,
+            username: user.username,
+            detail: `Login blocked: account locked (${minutesLeft} min remaining)`,
+        });
+        return {
+            message: `Akun terkunci. Coba lagi dalam ${minutesLeft} menit.`,
+        };
+    }
+
     // Check if user is active
     if (user.isActive === false) {
         await logAuditManual({ action: "LOGIN", userId: user.id, username: user.username, detail: "Login failed: Account disabled" });
@@ -49,10 +68,48 @@ export async function login(prevState: unknown, formData: FormData) {
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
 
     if (!passwordMatch) {
+        // Increment failed attempts atomically
+        const newFailedCount = (user.failedLoginAttempts ?? 0) + 1;
+        const shouldLock = newFailedCount >= MAX_FAILED_ATTEMPTS;
+        const lockoutUntil = shouldLock
+            ? new Date(Date.now() + LOCKOUT_DURATION_MS)
+            : null;
+
+        await db
+            .update(users)
+            .set({
+                failedLoginAttempts: newFailedCount,
+                lockoutUntil,
+            })
+            .where(eq(users.id, user.id));
+
+        if (shouldLock) {
+            await logAuditManual({
+                action: "LOGIN",
+                userId: user.id,
+                username: user.username,
+                detail: "Account locked after 5 failed attempts",
+            });
+            return {
+                message: `Akun terkunci. Coba lagi dalam 15 menit.`,
+            };
+        }
+
         await logAuditManual({ action: "LOGIN", userId: user.id, username: user.username, detail: "Login failed: Incorrect password" });
         return {
             message: "Username atau password salah.",
         };
+    }
+
+    // Successful login: reset counter if needed
+    if ((user.failedLoginAttempts ?? 0) > 0 || user.lockoutUntil) {
+        await db
+            .update(users)
+            .set({
+                failedLoginAttempts: 0,
+                lockoutUntil: null,
+            })
+            .where(eq(users.id, user.id));
     }
 
     // Cast role safely

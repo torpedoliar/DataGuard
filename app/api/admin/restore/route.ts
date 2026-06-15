@@ -3,6 +3,7 @@ import { logAudit } from "@/lib/audit";
 import { resolveBackupEnv } from "@/lib/backup/env";
 import { acquireLock, releaseLock } from "@/lib/backup/lock";
 import { restoreBackupArchive } from "@/lib/backup/restore-archive";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 600;
@@ -12,6 +13,14 @@ export async function POST(request: Request) {
   if (!guard.ok) {
     return new Response(JSON.stringify({ message: guard.message }), {
       status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  const rateCheck = checkRateLimit("admin-restore", guard.session.userId.toString(), { windowMs: 60_000, max: 1 });
+  if (!rateCheck.allowed) {
+    return new Response(JSON.stringify({ message: "Rate limit exceeded" }), {
+      status: 429,
       headers: { "content-type": "application/json" },
     });
   }

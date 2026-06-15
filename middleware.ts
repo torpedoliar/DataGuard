@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decrypt } from "@/lib/session";
 import { verifyCsrfToken } from "@/lib/csrf";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // 1. Specify protected and public routes
 const protectedRoutes = ["/checklist", "/report", "/admin", "/grid", "/audit"];
@@ -24,6 +25,24 @@ export default async function middleware(req: NextRequest) {
     const isProtectedRoute = protectedRoutes.some((route) => path.startsWith(route));
     const isPublicRoute = publicRoutes.includes(path);
     const isSelectSite = path === "/select-site";
+
+    // Rate limit POST /login per client IP (5/min).
+    // Done before any DB work so it stays cheap.
+    if (path === "/login" && req.method === "POST") {
+        const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim()
+            || req.headers.get("x-real-ip")
+            || "unknown";
+        const rate = checkRateLimit("login-ip", ip, { windowMs: 60_000, max: 5 });
+        if (!rate.allowed) {
+            return new NextResponse(
+                JSON.stringify({ message: "Terlalu banyak percobaan. Coba lagi nanti." }),
+                {
+                    status: 429,
+                    headers: { "content-type": "application/json", "retry-after": String(Math.ceil(rate.resetMs / 1000)) },
+                },
+            );
+        }
+    }
 
     // 3. Decrypt the session from the cookie
     const cookie = req.cookies.get("session")?.value;
