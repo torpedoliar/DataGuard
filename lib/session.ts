@@ -3,6 +3,7 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { getEnvValue } from "./env";
+import { generateCsrfToken } from "./csrf-token";
 
 const secretKey = getEnvValue("SESSION_SECRET");
 const encodedKey = new TextEncoder().encode(secretKey);
@@ -57,6 +58,17 @@ export async function createSession(
         sameSite: "lax",
         path: "/",
     });
+
+    // CSRF double-submit token. Non-httpOnly so the client can read it
+    // and echo it back in the X-CSRF-Token header. Lax allows top-level
+    // navigation; the server compares header to cookie via timingSafeEqual.
+    cookieStore.set("csrf", generateCsrfToken(), {
+        httpOnly: false,
+        secure: isSecure,
+        expires: expiresAt,
+        sameSite: "lax",
+        path: "/",
+    });
 }
 
 export async function verifySession() {
@@ -81,4 +93,5 @@ export async function verifySession() {
 export async function deleteSession() {
     const cookieStore = await cookies();
     cookieStore.delete("session");
+    cookieStore.delete("csrf");
 }

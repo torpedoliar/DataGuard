@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decrypt } from "@/lib/session";
+import { verifyCsrfToken } from "@/lib/csrf";
 
 // 1. Specify protected and public routes
 const protectedRoutes = ["/checklist", "/report", "/admin", "/grid", "/audit"];
 const publicRoutes = ["/login"];
+
+// Routes that bypass CSRF protection: health/metrics are public-ish probes,
+// and /api/siem-ingest is an inbound channel from external sources.
+const csrfExemptPrefixes = ["/api/health", "/api/metrics", "/api/siem-ingest"];
+
+function isCsrfExempt(path: string): boolean {
+    return csrfExemptPrefixes.some((p) => path === p || path.startsWith(p + "/"));
+}
+
+function isStateChangingMethod(method: string): boolean {
+    return method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
+}
 
 export default async function middleware(req: NextRequest) {
     // 2. Check if the current route is protected or public
@@ -37,6 +50,22 @@ export default async function middleware(req: NextRequest) {
             return NextResponse.redirect(new URL("/select-site", req.nextUrl));
         }
         return NextResponse.redirect(new URL("/login", req.nextUrl));
+    }
+
+    // 8. CSRF double-submit cookie check for /api/* state-changing requests.
+    // The middleware matcher already excludes /api from auth-redirects, so
+    // this is the dedicated CSRF gate for raw HTTP /api endpoints.
+    if (path.startsWith("/api/") && isStateChangingMethod(req.method)) {
+        if (!isCsrfExempt(path)) {
+            const cookieToken = req.cookies.get("csrf")?.value;
+            const headerToken = req.headers.get("x-csrf-token") ?? undefined;
+            if (!verifyCsrfToken(cookieToken, headerToken)) {
+                return new NextResponse(
+                    JSON.stringify({ message: "CSRF token missing or invalid." }),
+                    { status: 403, headers: { "content-type": "application/json" } },
+                );
+            }
+        }
     }
 
     return NextResponse.next();
