@@ -1,5 +1,5 @@
 import archiver from "archiver";
-import { createReadStream, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Writable } from "node:stream";
@@ -58,4 +58,33 @@ export async function buildBackupArchive(options: BuildBackupOptions): Promise<v
   finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+export type WriteBackupOptions = {
+  filePath: string;
+  uploadsDir: string;
+  database: DatabaseTarget;
+  runShell?: (command: string, args: string[], options?: { env?: NodeJS.ProcessEnv }) => Promise<RunShellResult>;
+};
+
+export type WriteBackupResult = {
+  filePath: string;
+  bytes: number;
+};
+
+/**
+ * Build a backup archive and write it to a local file. Returns the file size
+ * once the write is fully flushed to disk. Reuses `buildBackupArchive`
+ * internally by piping the archive into a file write stream.
+ */
+export async function writeBackupToFile(options: WriteBackupOptions): Promise<WriteBackupResult> {
+  const output = createWriteStream(options.filePath);
+  await buildBackupArchive({
+    output,
+    uploadsDir: options.uploadsDir,
+    database: options.database,
+    runShell: options.runShell,
+  });
+  const stats = statSync(options.filePath);
+  return { filePath: options.filePath, bytes: stats.size };
 }

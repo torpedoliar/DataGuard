@@ -24,7 +24,9 @@
     "siem:rules": "tsx scripts/siem-rule-worker.ts",
     "siem:alerts": "tsx scripts/siem-alert-worker.ts",
     "siem:retention": "tsx scripts/siem-retention-worker.ts",
-    "siem:ai": "tsx scripts/siem-ai-worker.ts"
+    "siem:ai": "tsx scripts/siem-ai-worker.ts",
+    "backup:scheduler": "tsx scripts/scheduled-backup.ts",
+    "backup:restore": "tsx scripts/restore-from-file.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

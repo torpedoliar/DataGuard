@@ -19,7 +19,8 @@ export type AuditAction =
     | "RESTORE"
     | "TEST"
     | "SCHEMA_PUSH"
-    | "SITE_SWITCH";
+    | "SITE_SWITCH"
+    | "BACKUP";
 
 export type AuditEntity =
     | "device"

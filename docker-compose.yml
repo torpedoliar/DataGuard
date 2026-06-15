@@ -123,6 +123,27 @@ services:
     networks:
       - dccheck_net
 
+  backup-scheduler:
+    image: dc-check-app:latest
+    container_name: dccheck_backup_scheduler
+    restart: unless-stopped
+    command: npm run backup:scheduler
+    env_file:
+      - .env.production
+    environment:
+      BACKUP_DIR: /backups
+      BACKUP_SCHEDULE_HOURS: "24"
+      BACKUP_RETENTION_DAILY: "7"
+      BACKUP_RETENTION_WEEKLY: "4"
+      BACKUP_RETENTION_MONTHLY: "12"
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - dccheck_backups:/backups
+    networks:
+      - dccheck_net
+
   db:
     image: postgres:15-alpine
     container_name: dccheck_postgres
@@ -149,6 +170,7 @@ services:
 volumes:
   dccheck_pgdata:
   dccheck_uploads:
+  dccheck_backups:
 
 
 networks:
