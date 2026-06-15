@@ -5,6 +5,7 @@ import SiemAiSettingsForm from "@/components/admin/siem-ai-settings-form";
 import SiemIngestSettingsForm from "@/components/admin/siem-ingest-settings-form";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
 export const metadata = {
     title: "Global Settings | DataGuard Admin",
@@ -16,6 +17,14 @@ export default async function SettingsPage() {
     if (!session || !["admin", "superadmin"].includes(session.role)) {
         redirect("/admin");
     }
+
+    // Activate the next-intl request locale so getTranslations below resolves
+    // messages for the current /<locale>/admin/settings URL.
+    const { getLocale } = await import("next-intl/server");
+    const locale = await getLocale();
+    setRequestLocale(locale);
+
+    const t = await getTranslations("Settings");
 
     const [settings, siemAiSettings, siemIngestSettings] = await Promise.all([
         getSettings(),
@@ -31,9 +40,9 @@ export default async function SettingsPage() {
                         <span className="material-symbols-outlined text-[20px]">settings</span>
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-white tracking-tight">Pengaturan Aplikasi</h1>
+                        <h1 className="text-2xl font-bold text-white tracking-tight">{t("title")}</h1>
                         <p className="text-sm text-slate-400 mt-1">
-                            Sesuaikan branding aplikasi dan template notifikasi Telegram.
+                            {t("description")}
                         </p>
                     </div>
                 </div>

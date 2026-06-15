@@ -7,12 +7,24 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { routing } from "@/i18n/routing";
 
 export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    // Locale resolution for next-intl (server component).
+    // Pages under (dashboard) live at /<locale>/... in the URL, so the first
+    // segment of the path tells us which messages to load.
+    const { getLocale } = await import("next-intl/server");
+    const locale = await getLocale();
+    if (routing.locales.includes(locale as (typeof routing.locales)[number])) {
+        setRequestLocale(locale);
+    }
+    void (await getTranslations("Nav"));
+
     const session = await verifySession();
     if (!session) redirect("/login");
 

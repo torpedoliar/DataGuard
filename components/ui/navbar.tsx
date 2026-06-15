@@ -5,6 +5,7 @@ import Link from "next/link";
 import { logout, switchSite } from "@/actions/auth";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 type SiteInfo = { id: number; name: string; code: string };
 
@@ -25,6 +26,9 @@ export default function Navbar({
     const [isPending, startTransition] = useTransition();
     const isAdmin = ["admin", "superadmin"].includes(user.role);
     const pathname = usePathname();
+    const t = useTranslations("Nav");
+    const tAdmin = useTranslations("AdminMenu");
+    void t; void tAdmin;
 
     const handleSwitchSite = (siteId: number) => {
         startTransition(async () => {

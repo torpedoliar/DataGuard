@@ -8,6 +8,7 @@ import { incidentSeverities, incidentStatuses, type IncidentSeverity, type Incid
 import { verifySession } from "@/lib/session";
 import { AlertTriangle, CalendarClock, CircleAlert, Filter, ShieldAlert } from "lucide-react";
 import { redirect } from "next/navigation";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
 function parseStatus(value: string | string[] | undefined): IncidentStatus | undefined {
   return typeof value === "string" && incidentStatuses.includes(value as IncidentStatus)
@@ -33,6 +34,12 @@ export default async function IncidentListPage({
   const session = await verifySession();
   if (!session) redirect("/login");
   if (!session.activeSiteId) redirect("/select-site");
+
+  // Activate the next-intl request locale for this server component.
+  const { getLocale } = await import("next-intl/server");
+  const locale = await getLocale();
+  setRequestLocale(locale);
+  const t = await getTranslations("Incidents");
 
   const params = await searchParams;
   const filters: IncidentListFilters = {

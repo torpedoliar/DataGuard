@@ -1,0 +1,72 @@
+{
+  "Common": {
+    "appName": "DC Check",
+    "loading": "Memuat…",
+    "error": "Terjadi kesalahan",
+    "save": "Simpan",
+    "cancel": "Batal",
+    "delete": "Hapus",
+    "edit": "Ubah",
+    "back": "Kembali",
+    "search": "Cari",
+    "actions": "Aksi",
+    "submit": "Kirim",
+    "confirm": "Konfirmasi",
+    "close": "Tutup"
+  },
+  "Login": {
+    "title": "DC Check",
+    "subtitle": "Operasi audit data center",
+    "heading": "Masuk",
+    "description": "Gunakan akun operator Anda untuk melanjutkan.",
+    "username": "Nama Pengguna",
+    "password": "Kata Sandi",
+    "usernamePlaceholder": "admin",
+    "passwordPlaceholder": "Kata Sandi",
+    "submit": "Masuk",
+    "errors": {
+      "invalidCredentials": "Nama pengguna atau kata sandi salah",
+      "required": "Kolom ini wajib diisi"
+    }
+  },
+  "Nav": {
+    "dashboard": "Dasbor",
+    "checklist": "Daftar Cek",
+    "reports": "Laporan",
+    "incidents": "Insiden",
+    "admin": "Admin",
+    "profile": "Profil",
+    "siem": "SIEM",
+    "grid": "Tampilan Grid",
+    "about": "Tentang",
+    "newAudit": "Audit Baru",
+    "switchSite": "Ganti Situs",
+    "profileSettings": "Pengaturan Profil",
+    "logOut": "Keluar"
+  },
+  "AdminMenu": {
+    "devices": "Perangkat",
+    "brands": "Merek",
+    "categories": "Kategori",
+    "locations": "Lokasi",
+    "rackManagement": "Manajemen Rak",
+    "rackLayout": "Tata Letak Rak",
+    "vlans": "VLAN",
+    "auditLog": "Log Audit",
+    "users": "Pengguna",
+    "siteManagement": "Manajemen Situs",
+    "globalSettings": "Pengaturan Global",
+    "systemUpdate": "Pembaruan Sistem"
+  },
+  "Settings": {
+    "title": "Pengaturan Aplikasi",
+    "description": "Sesuaikan branding aplikasi dan template notifikasi Telegram.",
+    "telegram": "Telegram",
+    "siem": "SIEM",
+    "aiAnalysis": "Analisis AI"
+  },
+  "Incidents": {
+    "title": "Insiden",
+    "description": "Pantau dan kelola insiden data center"
+  }
+}

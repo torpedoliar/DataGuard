@@ -1,0 +1,72 @@
+{
+  "Common": {
+    "appName": "DC Check",
+    "loading": "Loading…",
+    "error": "An error occurred",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "search": "Search",
+    "actions": "Actions",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "close": "Close"
+  },
+  "Login": {
+    "title": "DC Check",
+    "subtitle": "Data center audit operations",
+    "heading": "Sign In",
+    "description": "Use your operator account to continue.",
+    "username": "Username",
+    "password": "Password",
+    "usernamePlaceholder": "admin",
+    "passwordPlaceholder": "Password",
+    "submit": "Sign In",
+    "errors": {
+      "invalidCredentials": "Invalid username or password",
+      "required": "This field is required"
+    }
+  },
+  "Nav": {
+    "dashboard": "Dashboard",
+    "checklist": "Checklist",
+    "reports": "Reports",
+    "incidents": "Incidents",
+    "admin": "Admin",
+    "profile": "Profile",
+    "siem": "SIEM",
+    "grid": "Grid View",
+    "about": "About",
+    "newAudit": "New Audit",
+    "switchSite": "Switch Site",
+    "profileSettings": "Profile Settings",
+    "logOut": "Log Out"
+  },
+  "AdminMenu": {
+    "devices": "Devices",
+    "brands": "Brands",
+    "categories": "Categories",
+    "locations": "Locations",
+    "rackManagement": "Rack Management",
+    "rackLayout": "Rack Layout",
+    "vlans": "VLANs",
+    "auditLog": "Audit Log",
+    "users": "Users",
+    "siteManagement": "Site Management",
+    "globalSettings": "Global Settings",
+    "systemUpdate": "System Update"
+  },
+  "Settings": {
+    "title": "Application Settings",
+    "description": "Customize application branding and Telegram notification templates.",
+    "telegram": "Telegram",
+    "siem": "SIEM",
+    "aiAnalysis": "AI Analysis"
+  },
+  "Incidents": {
+    "title": "Incidents",
+    "description": "Track and manage data center incidents"
+  }
+}
