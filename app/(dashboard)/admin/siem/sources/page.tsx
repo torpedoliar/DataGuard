@@ -1,7 +1,8 @@
 import { getSiemSources } from "@/actions/siem-sources";
 import SiemSourceTable from "@/components/admin/siem-source-table";
+import EmptyState from "@/components/ui/empty-state";
 import { verifySession } from "@/lib/session";
-import { RadioTower } from "lucide-react";
+import { RadioTower, Radio } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -32,6 +33,12 @@ export default async function SiemSourcesPage() {
 
       {"message" in data && data.message ? (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{data.message}</div>
+      ) : data.sources.length === 0 ? (
+        <EmptyState
+          icon={<Radio className="size-5" />}
+          title="No SIEM sources yet"
+          description="Unknown syslog sources appear here after packets arrive and unknown-source handling is enabled. Add a source mapping once an unknown source is detected."
+        />
       ) : (
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-card-dark">
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">

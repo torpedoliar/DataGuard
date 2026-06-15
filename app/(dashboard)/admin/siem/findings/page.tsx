@@ -2,11 +2,12 @@ import { getSiemFindings, type SiemFindingListFilters } from "@/actions/siem-fin
 import SiemFindingTable from "@/components/admin/siem-finding-table";
 import ActionButton from "@/components/ui/action-button";
 import DataToolbar from "@/components/ui/data-toolbar";
+import EmptyState from "@/components/ui/empty-state";
 import PageHeader from "@/components/ui/page-header";
 import { siemFindingStatuses } from "@/lib/siem/types";
 import { verifySession } from "@/lib/session";
 import { incidentSeverities } from "@/lib/incidents";
-import { Filter, ShieldAlert } from "lucide-react";
+import { Filter, ShieldAlert, ShieldCheck } from "lucide-react";
 import { redirect } from "next/navigation";
 
 function firstParam(value: string | string[] | undefined) {
@@ -65,6 +66,19 @@ export default async function SiemFindingsPage({
 
       {"message" in data && data.message ? (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{data.message}</div>
+      ) : data.findings.length === 0 ? (
+        <EmptyState
+          icon={<ShieldCheck className="size-5" />}
+          title="No SIEM findings"
+          description="Rule worker findings appear here after parsed events match enabled rules. Adjust filters or check rule status."
+          action={
+            filters.status || filters.severity ? (
+              <ActionButton href="/admin/siem/findings" variant="secondary" size="sm">
+                Reset filters
+              </ActionButton>
+            ) : undefined
+          }
+        />
       ) : (
         <SiemFindingTable findings={data.findings} />
       )}

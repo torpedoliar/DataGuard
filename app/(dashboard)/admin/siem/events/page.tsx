@@ -1,7 +1,8 @@
 import { getSiemEventExplorerData, type SiemEventFilters } from "@/actions/siem-events";
 import SiemEventExplorer from "@/components/admin/siem-event-explorer";
+import EmptyState from "@/components/ui/empty-state";
 import { verifySession } from "@/lib/session";
-import { FileSearch } from "lucide-react";
+import { FileSearch, SearchX } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -65,6 +66,12 @@ export default async function SiemEventsPage({
 
       {"message" in data && data.message ? (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{data.message}</div>
+      ) : data.events.length === 0 && data.rawEvents.length === 0 ? (
+        <EmptyState
+          icon={<SearchX className="size-5" />}
+          title="No SIEM events found"
+          description="No parsed or raw events match the current filters. Adjust filters or wait for syslog ingest from known sources."
+        />
       ) : (
         <SiemEventExplorer data={data} />
       )}

@@ -2,6 +2,7 @@ import { getIncidentStats, getIncidents, type IncidentListFilters } from "@/acti
 import IncidentTable from "@/components/admin/incident-table";
 import ActionButton from "@/components/ui/action-button";
 import DataToolbar from "@/components/ui/data-toolbar";
+import EmptyState from "@/components/ui/empty-state";
 import PageHeader from "@/components/ui/page-header";
 import StatsCard from "@/components/ui/stats-card";
 import { incidentSeverities, incidentStatuses, type IncidentSeverity, type IncidentStatus } from "@/lib/incidents";
@@ -98,7 +99,22 @@ export default async function IncidentListPage({
         </form>
       </DataToolbar>
 
-      <IncidentTable incidents={rows} />
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={<ShieldAlert className="size-5" />}
+          title="No incidents to resolve"
+          description="Checklist Warning and Error items create incidents here. Adjust filters or wait for new violations to appear."
+          action={
+            filters.status || filters.severity || filters.due ? (
+              <ActionButton href="/admin/incidents" variant="secondary" size="sm">
+                Reset filters
+              </ActionButton>
+            ) : undefined
+          }
+        />
+      ) : (
+        <IncidentTable incidents={rows} />
+      )}
     </main>
   );
 }
