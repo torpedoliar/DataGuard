@@ -1,13 +1,24 @@
-import { timingSafeEqual } from "node:crypto";
+/**
+ * Constant-time byte comparison. Edge-runtime safe — no node:crypto
+ * dependency, so it can be bundled into the Next.js middleware.
+ */
+function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a[i] ^ b[i];
+  }
+  return diff === 0;
+}
 
 /**
  * Verify a CSRF token from the request against the cookie value using a
  * constant-time comparison. Returns true if the tokens match.
  *
- * This module is intentionally Node-runtime-free on its import path
- * (no `import "server-only"`, no `node:crypto` at module top-level
- * re-exports) so that it can be safely imported by the Next.js Edge
- * middleware via `verifyCsrfToken` only.
+ * Edge-runtime safe: uses TextEncoder + a hand-rolled constant-time loop
+ * instead of node:crypto.timingSafeEqual, which is not available in the
+ * Next.js Edge runtime. Middleware imports this module, so it must stay
+ * Edge-bundleable.
  */
 export function verifyCsrfToken(
   cookieToken: string | undefined,
@@ -16,10 +27,9 @@ export function verifyCsrfToken(
   if (!cookieToken || !requestToken) return false;
   if (cookieToken.length !== requestToken.length) return false;
   try {
-    const a = Buffer.from(cookieToken, "utf8");
-    const b = Buffer.from(requestToken, "utf8");
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
+    const a = new TextEncoder().encode(cookieToken);
+    const b = new TextEncoder().encode(requestToken);
+    return constantTimeEqual(a, b);
   } catch {
     return false;
   }
