@@ -33,6 +33,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG SESSION_SECRET
 ENV SESSION_SECRET=${SESSION_SECRET}
 
+# AI_KEY_ENCRYPTION_SECRET — same story: N49 env validation refuses to boot
+# production without it. Build-time page data collection triggers the same
+# zod schema, so the secret has to be present during the build step too.
+ARG AI_KEY_ENCRYPTION_SECRET
+ENV AI_KEY_ENCRYPTION_SECRET=${AI_KEY_ENCRYPTION_SECRET}
+
 RUN npm run build
 
 # Workaround Bug Podman Windows (Unexpected EOF):
