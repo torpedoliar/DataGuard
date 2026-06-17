@@ -3,6 +3,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # SESSION_SECRET is required at build time (next collects page data
+        # and validates env via zod). Reuse the same value as runtime so the
+        # server doesn't see a different key after restart.
+        # Compose passes the build arg through from the env file via the
+        # ${SESSION_SECRET} interpolation below, but we keep the literal here
+        # so build works even when the env file is .env (not .env.production).
+        SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set in the env file used by compose}
     image: dc-check-app:latest
     container_name: dccheck_app
     restart: always

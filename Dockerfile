@@ -24,6 +24,15 @@ COPY . .
 
 # Environment flag untuk mencegah error lint/typescript saat build
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# SESSION_SECRET is required at build time: Next.js collects page data and
+# validates env vars (zod) for every route. Without this, the build aborts
+# with "SESSION_SECRET is required in production". Pass via:
+#   docker build --build-arg SESSION_SECRET=...
+# or via docker-compose `build.args` (already wired in docker-compose.yml).
+ARG SESSION_SECRET
+ENV SESSION_SECRET=${SESSION_SECRET}
+
 RUN npm run build
 
 # Workaround Bug Podman Windows (Unexpected EOF):
