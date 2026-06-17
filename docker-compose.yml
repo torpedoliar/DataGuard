@@ -9,7 +9,7 @@ services:
         # server doesn't see a different key after restart.
         # Compose passes the build arg through from the env file via the
         # ${SESSION_SECRET} interpolation below, but we keep the literal here
-        # so build works even when the env file is .env (not .env.production).
+        # so build works regardless of which env file the operator uses.
         SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set in the env file used by compose}
         # AI_KEY_ENCRYPTION_SECRET — N49 encryption secret, validated the same
         # way as SESSION_SECRET during the build. Pass it through as a build
@@ -22,7 +22,7 @@ services:
     ports:
       - "0.0.0.0:3001:3001"
     env_file:
-      - .env.production
+      - .env
     environment:
       PORT: "3001"
       HOSTNAME: "0.0.0.0"
@@ -50,7 +50,7 @@ services:
       - "0.0.0.0:${SYSLOG_TCP_PORT:-601}:1515/tcp"
       - "0.0.0.0:${SYSLOG_TLS_PORT:-6514}:1516/tcp"
     env_file:
-      - .env.production
+      - .env
     environment:
       SYSLOG_UDP_HOST: "0.0.0.0"
       SYSLOG_UDP_PORT: "1514"
@@ -72,7 +72,7 @@ services:
     restart: unless-stopped
     command: npm run siem:parser
     env_file:
-      - .env.production
+      - .env
     depends_on:
       db:
         condition: service_healthy
@@ -85,7 +85,7 @@ services:
     restart: unless-stopped
     command: npm run siem:rules
     env_file:
-      - .env.production
+      - .env
     depends_on:
       db:
         condition: service_healthy
@@ -98,7 +98,7 @@ services:
     restart: unless-stopped
     command: npm run siem:alerts
     env_file:
-      - .env.production
+      - .env
     depends_on:
       db:
         condition: service_healthy
@@ -111,7 +111,7 @@ services:
     restart: unless-stopped
     command: npm run siem:ai
     env_file:
-      - .env.production
+      - .env
     depends_on:
       app:
         condition: service_healthy
@@ -124,7 +124,7 @@ services:
     restart: unless-stopped
     command: npm run siem:retention
     env_file:
-      - .env.production
+      - .env
     depends_on:
       db:
         condition: service_healthy
@@ -137,7 +137,7 @@ services:
     restart: unless-stopped
     command: npm run siem:snapshot
     env_file:
-      - .env.production
+      - .env
     depends_on:
       db:
         condition: service_healthy
@@ -150,7 +150,7 @@ services:
     restart: unless-stopped
     command: npm run incidents:notify-overdue:loop
     env_file:
-      - .env.production
+      - .env
     depends_on:
       app:
         condition: service_healthy
@@ -163,7 +163,7 @@ services:
     restart: unless-stopped
     command: npm run backup:scheduler
     env_file:
-      - .env.production
+      - .env
     environment:
       BACKUP_DIR: /backups
       BACKUP_SCHEDULE_HOURS: "24"
@@ -183,7 +183,7 @@ services:
     container_name: dccheck_postgres
     restart: always
     env_file:
-      - .env.production
+      - .env
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
