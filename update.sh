@@ -11,7 +11,7 @@
 # ============================================
 #
 # ENV_FILE: this script reads secrets from the same env file as deploy.sh
-# (default: .env.production). Override by exporting ENV_FILE before running.
+# (default: .env). Override by exporting ENV_FILE before running.
 # Keep this in sync with deploy.sh's `ENV_FILE` constant — both must point
 # to the same file or compose will fail to find the live DB credentials.
 # ============================================
@@ -19,8 +19,8 @@
 set -euo pipefail
 
 # Path to the env file. Must match deploy.sh. Operators can override:
-#   ENV_FILE=/path/to/.env.production ./update.sh
-ENV_FILE="${ENV_FILE:-.env.production}"
+#   ENV_FILE=/path/to/.env ./update.sh
+ENV_FILE="${ENV_FILE:-.env}"
 
 echo ""
 echo "============================================"
@@ -82,20 +82,22 @@ if [ "$DB_RUNNING" -eq 0 ] && [ "$(docker inspect -f '{{.State.Running}}' dcchec
 fi
 
 if [ "$DB_RUNNING" -eq 1 ]; then
-    if [ "$USE_NAMED_DB_CONTAINER" -eq 1 ]; then
-        if ! docker exec -i dccheck_postgres pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE" 2>/dev/null; then
-            echo "CRITICAL: Database backup command failed!"
-            echo "Aborting update to protect your data."
-            rm -f "$BACKUP_FILE"
-            exit 1
-        fi
-    else
-        if ! "${COMPOSE_CMD[@]}" exec -T db pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE" 2>/dev/null; then
-            echo "CRITICAL: Database backup command failed!"
-            echo "Aborting update to protect your data."
-            rm -f "$BACKUP_FILE"
-            exit 1
-        fi
+    # Always use direct docker exec to the running container by name.
+    # `docker compose exec` looks up the project env file (.env.production by
+    # default in some setups) and aborts with exit 1 if it's missing, even
+    # when the container itself is healthy. Going through `docker exec` skips
+    # that lookup and works regardless of which env file the operator uses.
+    DB_CONTAINER="$(docker ps --format "{{.Names}}" | grep -i postgres | head -1 || true)"
+    if [ -z "$DB_CONTAINER" ]; then
+        echo "CRITICAL: Could not locate running postgres container."
+        echo "Aborting update to protect your data."
+        exit 1
+    fi
+    if ! docker exec -i "$DB_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE" 2>&1; then
+        echo "CRITICAL: Database backup command failed!"
+        echo "Aborting update to protect your data."
+        rm -f "$BACKUP_FILE"
+        exit 1
     fi
 
     if [ -s "$BACKUP_FILE" ] && [ "$(wc -c < "$BACKUP_FILE")" -gt 100 ]; then
