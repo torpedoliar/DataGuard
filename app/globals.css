@@ -1,32 +1,33 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #3b82f6;
-  --color-primary-light: #60a5fa;
+  --color-primary: #5eead4;
+  --color-primary-light: #8bf5e3;
   --color-background-light: #0b1120;
   --color-background-dark: #0b1120;
   --color-card-dark: #111827;
   --color-surface-dark: #111827;
   --color-surface-darker: #0b1120;
   --color-border-dark: #1e293b;
+
   --color-success: #22c55e;
-  --color-warning: #f97316;
+  --color-warning: #f59e0b;
   --color-error: #ef4444;
 
-  --color-ops-bg: #090d13;
-  --color-ops-surface: #101721;
-  --color-ops-surface-raised: #111820;
-  --color-ops-border: #263244;
-  --color-ops-muted: #8090a4;
+  --color-ops-bg: #0b1120;
+  --color-ops-surface: #111827;
+  --color-ops-surface-raised: #172033;
+  --color-ops-border: #1e293b;
+  --color-ops-muted: #94a3b8;
   --color-ops-text: #f8fafc;
-  --color-ops-accent: #5dd4b4;
-  --color-ops-info: #60a5fa;
-  --color-ops-success: #3bd17f;
-  --color-ops-warning: #f0b94b;
+  --color-ops-accent: #5eead4;
+  --color-ops-info: #3b82f6;
+  --color-ops-success: #22c55e;
+  --color-ops-warning: #f59e0b;
   --color-ops-orange: #f97316;
-  --color-ops-danger: #ff6b6b;
+  --color-ops-danger: #ef4444;
 
-  --font-display: "Space Grotesk", sans-serif;
+  --font-display: "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
 }
 
@@ -37,8 +38,8 @@ html {
 
 body {
   font-family: var(--font-body), system-ui, sans-serif;
-  background-color: #090d13;
-  color: #f1f5f9;
+  background-color: #0b1120;
+  color: #f8fafc;
 }
 
 /* ===== FORM ELEMENTS ===== */
@@ -47,7 +48,7 @@ select,
 textarea {
   background-color: #111827;
   border-color: #1e293b;
-  color: #f1f5f9;
+  color: #f8fafc;
 }
 
 input::placeholder,
@@ -59,13 +60,13 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  border-color: #5eead4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.2);
 }
 
 /* ===== TABLE ===== */
 table {
-  color: #f1f5f9;
+  color: #f8fafc;
 }
 
 thead {
@@ -73,7 +74,7 @@ thead {
 }
 
 tbody {
-  background-color: #0d1526;
+  background-color: #0b1120;
 }
 
 td,
@@ -124,14 +125,14 @@ th {
 
 /* ===== GLOW CARD UTILITY ===== */
 .glow-card {
-  background: #111820;
-  border: 1px solid #263244;
-  border-radius: 8px;
+  background: #111827;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
   transition: all 0.3s ease;
 }
 .glow-card:hover {
-  border-color: rgba(93, 212, 180, 0.35);
-  box-shadow: 0 0 18px rgba(93, 212, 180, 0.04);
+  border-color: rgba(94, 234, 212, 0.35);
+  box-shadow: 0 0 18px rgba(94, 234, 212, 0.04);
 }
 
 /* ===== STATUS PILLS ===== */
@@ -141,9 +142,9 @@ th {
   border: 1px solid rgba(34, 197, 94, 0.2);
 }
 .pill-warning {
-  background: rgba(249, 115, 22, 0.1);
-  color: #f97316;
-  border: 1px solid rgba(249, 115, 22, 0.2);
+  background: rgba(249, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(249, 158, 11, 0.2);
 }
 .pill-error {
   background: rgba(239, 68, 68, 0.1);
@@ -152,25 +153,25 @@ th {
 }
 
 .ops-panel {
-  background: #111820;
-  border: 1px solid #263244;
-  border-radius: 8px;
+  background: #111827;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
 }
 
 .ops-panel-subtle {
-  background: #101721;
-  border: 1px solid #263244;
-  border-radius: 8px;
+  background: #172033;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
 }
 
 .ops-input {
-  background: #0d141d;
-  border: 1px solid #263244;
+  background: #0b1120;
+  border: 1px solid #1e293b;
   color: #f8fafc;
   border-radius: 6px;
 }
 
 .ops-input:focus {
-  border-color: #5dd4b4;
-  box-shadow: 0 0 0 2px rgba(93, 212, 180, 0.16);
+  border-color: #5eead4;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.16);
 }

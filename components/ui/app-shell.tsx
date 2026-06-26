@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   Boxes,
+  Bell,
   Building2,
   ChartColumn,
   ChevronDown,
@@ -229,6 +230,15 @@ export default function AppShell({
               <ActionButton href="/audit/new" size="sm" icon={<ClipboardCheck className="size-4" />}>
                 <span className="hidden sm:inline">New Audit</span>
               </ActionButton>
+
+              <ActionButton
+                href="/admin/incidents"
+                size="icon"
+                variant="ghost"
+                icon={<Bell className="size-4" />}
+                title="Notifications"
+                aria-label="Notifications"
+              />
 
               <div className="relative">
                 <button
