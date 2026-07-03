@@ -43,7 +43,7 @@ services:
   syslog-receiver:
     image: dc-check-app:latest
     container_name: dccheck_syslog_receiver
-    restart: unless-stopped
+    restart: always
     command: npm run syslog:receiver
     ports:
       - "0.0.0.0:514:1514/udp"
@@ -63,19 +63,31 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('child_process').execSync('npx tsx scripts/healthcheck-syslog-receiver.ts', {stdio:'inherit'})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - dccheck_net
 
   siem-parser:
     image: dc-check-app:latest
     container_name: dccheck_siem_parser
-    restart: unless-stopped
+    restart: always
     command: npm run siem:parser
     env_file:
       - .env
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('child_process').execSync('npx tsx scripts/healthcheck-siem-parser.ts', {stdio:'inherit'})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - dccheck_net
 
@@ -95,13 +107,19 @@ services:
   siem-alerts:
     image: dc-check-app:latest
     container_name: dccheck_siem_alerts
-    restart: unless-stopped
+    restart: always
     command: npm run siem:alerts
     env_file:
       - .env
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('child_process').execSync('npx tsx scripts/healthcheck-siem-alerts.ts', {stdio:'inherit'})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - dccheck_net
 

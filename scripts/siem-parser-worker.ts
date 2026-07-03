@@ -1,5 +1,6 @@
 #!/usr/bin/env tsx
 import dotenv from "dotenv";
+import fs from "node:fs";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { brands, categories, devices, locations, siemSettings, sites, syslogEvents, syslogEventsRaw, syslogSources } from "../db/schema";
@@ -15,6 +16,37 @@ const contextTtlMs = Number(process.env.SIEM_PARSER_CONTEXT_TTL_MS ?? 30000);
 // Postgres caps a statement at 65535 bind params. syslog_events has ~30 columns,
 // so 500 rows/insert (~15k params) stays well under the limit.
 const insertChunkSize = Number(process.env.SIEM_PARSER_INSERT_CHUNK_SIZE ?? 500);
+const errorSleepMs = Number(process.env.SIEM_PARSER_ERROR_SLEEP_MS ?? 5000);
+const healthIntervalMs = Number(process.env.SIEM_PARSER_HEALTH_INTERVAL_MS ?? 60_000);
+const healthFile = process.env.HEALTH_FILE_PATH || "/tmp/dccheck-siem-parser.health.json";
+
+type HealthStatus = {
+  updatedAt: string;
+  lastParsedAt?: string;
+  lastError?: string;
+  parsedTotal: number;
+};
+
+let parsedTotal = 0;
+let lastError: string | undefined;
+
+function writeHealth(status: HealthStatus) {
+  try {
+    fs.writeFileSync(healthFile, JSON.stringify(status), "utf8");
+  } catch (error) {
+    console.error("Failed to write parser health file", error);
+  }
+}
+
+function publishHealth() {
+  writeHealth({
+    updatedAt: new Date().toISOString(),
+    lastParsedAt: parsedTotal > 0 ? new Date().toISOString() : undefined,
+    lastError,
+    parsedTotal,
+  });
+  lastError = undefined;
+}
 
 type ParserContext = Awaited<ReturnType<typeof loadContext>>;
 
@@ -209,16 +241,50 @@ async function runOnce() {
   return rows.length;
 }
 
+let stopping = false;
+
 async function loop() {
-  while (true) {
-    const count = await runOnce();
-    if (count > 0) console.log(`Parsed ${count} raw syslog events`);
-    // Full batch means backlog remains — keep draining without sleeping.
-    if (count < batchSize) await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  publishHealth();
+  let lastHealthAt = Date.now();
+
+  while (!stopping) {
+    try {
+      const count = await runOnce();
+      if (count > 0) {
+        parsedTotal += count;
+        console.log(`Parsed ${count} raw syslog events`);
+      }
+      // Full batch means backlog remains — keep draining without sleeping.
+      if (count < batchSize) {
+        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      console.error("SIEM parser tick failed, retrying", error);
+      await new Promise((resolve) => setTimeout(resolve, errorSleepMs));
+    }
+
+    const now = Date.now();
+    if (now - lastHealthAt > healthIntervalMs) {
+      publishHealth();
+      console.log("siem parser heartbeat", { parsedTotal });
+      lastHealthAt = now;
+    }
   }
 }
 
 void loop().catch((error) => {
-  console.error("SIEM parser worker failed", error);
+  console.error("SIEM parser worker fatal error", error);
   process.exit(1);
 });
+
+async function shutdown() {
+  if (stopping) return;
+  stopping = true;
+  publishHealth();
+  process.exit(0);
+}
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => { void shutdown(); });
+}

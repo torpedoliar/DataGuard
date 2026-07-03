@@ -14,6 +14,11 @@ function getDb(): NodePgDatabase<typeof schema> {
         const url = buildDatabaseUrl(process.env, { requireCompleteConfig: true });
 
         const pool = new Pool({ connectionString: url });
+        // An idle pool error (e.g., Postgres restart) must not crash the worker.
+        // The pool will reconnect on the next query; log it for observability.
+        pool.on("error", (err) => {
+            console.error("Unexpected DB pool error", err);
+        });
         _db = drizzle(pool, { schema });
     }
     return _db;

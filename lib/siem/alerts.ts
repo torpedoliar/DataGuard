@@ -97,41 +97,51 @@ export async function queueSiemTelegramAlerts() {
   });
 
   let queued = 0;
+  let skipped = 0;
   for (const finding of rows) {
-    if (!finding.rule?.alertEnabled) continue;
-    if (!isAtLeastSeverity(finding.severity as SiemSeverity, minSeverity)) continue;
-    if (finding.alerts.some((alert) => alert.channel === "telegram")) continue;
-    if (!finding.site) continue;
+    try {
+      if (!finding.rule?.alertEnabled) continue;
+      if (!isAtLeastSeverity(finding.severity as SiemSeverity, minSeverity)) continue;
+      if (finding.alerts.some((alert) => alert.channel === "telegram")) continue;
+      if (!finding.site) continue;
 
-    const recipients = await resolveSiteTelegramRecipients(
-      finding.site.id,
-      finding.severity as SiemSeverity,
-      finding.site.telegramChatId,
-    );
-    if (recipients.length === 0) continue;
+      const recipients = await resolveSiteTelegramRecipients(
+        finding.site.id,
+        finding.severity as SiemSeverity,
+        finding.site.telegramChatId,
+      );
+      if (recipients.length === 0) continue;
 
-    const message = alertMessage({
-      findingId: finding.id,
-      title: finding.title,
-      severity: finding.severity as SiemSeverity,
-      siteName: finding.site.name,
-      deviceName: finding.device?.name ?? null,
-      sourceIp: finding.source?.sourceIp ?? null,
-      summary: finding.humanAnalysis ?? finding.summary,
-      recommendedAction: finding.recommendedAction,
-      lastSeenAt: finding.lastSeenAt,
-    });
-
-    for (const recipient of recipients) {
-      await db.insert(siemAlerts).values({
+      const message = alertMessage({
         findingId: finding.id,
-        channel: "telegram",
-        recipient: recipient.chatId,
-        status: "pending",
-        message,
+        title: finding.title,
+        severity: finding.severity as SiemSeverity,
+        siteName: finding.site.name,
+        deviceName: finding.device?.name ?? null,
+        sourceIp: finding.source?.sourceIp ?? null,
+        summary: finding.humanAnalysis ?? finding.summary,
+        recommendedAction: finding.recommendedAction,
+        lastSeenAt: finding.lastSeenAt,
       });
-      queued++;
+
+      for (const recipient of recipients) {
+        await db.insert(siemAlerts).values({
+          findingId: finding.id,
+          channel: "telegram",
+          recipient: recipient.chatId,
+          status: "pending",
+          message,
+        });
+        queued++;
+      }
+    } catch (error) {
+      console.error(`SIEM alert queue failed for finding ${finding.id}, skipping`, error);
+      skipped++;
     }
+  }
+
+  if (skipped > 0) {
+    console.warn(`SIEM alert queue skipped ${skipped} findings due to errors`);
   }
 
   return { queued };
@@ -149,12 +159,22 @@ export async function sendPendingSiemTelegramAlerts() {
   let sent = 0;
   let failed = 0;
   for (const alert of alerts) {
-    const result = await sendTelegramAlert(alert.recipient, alert.message);
-    if (result.success) {
-      await db.update(siemAlerts).set({ status: "sent", sentAt: new Date(), error: null }).where(eq(siemAlerts.id, alert.id));
-      sent++;
-    } else {
-      await db.update(siemAlerts).set({ status: "failed", error: result.message }).where(eq(siemAlerts.id, alert.id));
+    try {
+      const result = await sendTelegramAlert(alert.recipient, alert.message);
+      if (result.success) {
+        await db.update(siemAlerts).set({ status: "sent", sentAt: new Date(), error: null }).where(eq(siemAlerts.id, alert.id));
+        sent++;
+      } else {
+        await db.update(siemAlerts).set({ status: "failed", error: result.message }).where(eq(siemAlerts.id, alert.id));
+        failed++;
+      }
+    } catch (error) {
+      console.error(`SIEM alert send failed for alert ${alert.id}, marking failed`, error);
+      try {
+        await db.update(siemAlerts).set({ status: "failed", error: "Internal error" }).where(eq(siemAlerts.id, alert.id));
+      } catch (dbError) {
+        console.error(`Failed to mark alert ${alert.id} as failed`, dbError);
+      }
       failed++;
     }
   }
