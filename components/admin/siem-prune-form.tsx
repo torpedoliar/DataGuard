@@ -32,6 +32,7 @@ export default function SiemPruneForm() {
 
   // Open the modal; do not submit yet.
   const handleOpenConfirm = (event: React.FormEvent<HTMLFormElement>) => {
+    if (pendingClose.current) return;
     event.preventDefault();
     if (!cutoff || (!includeEvents && !includeRawOrphans)) return;
     setShowModal(true);

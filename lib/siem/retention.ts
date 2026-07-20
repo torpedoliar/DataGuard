@@ -96,7 +96,7 @@ async function ensurePartitions(now: Date): Promise<number> {
       await db.execute(sql`
         CREATE TABLE IF NOT EXISTS ${sql.identifier(name)}
         PARTITION OF ${sql.identifier(base)}
-        FOR VALUES FROM (${startIso}) TO (${endIso})
+        FOR VALUES FROM (${sql.raw(`'${startIso}'`)}) TO (${sql.raw(`'${endIso}'`)})
       `);
       created++;
     }
