@@ -64,11 +64,11 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "require('child_process').execSync('npx tsx scripts/healthcheck-syslog-receiver.ts', {stdio:'inherit'})"]
+      test: ["CMD", "npx", "tsx", "scripts/healthcheck-syslog-receiver.ts"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
-      start_period: 30s
+      start_period: 45s
     networks:
       - dccheck_net
 
@@ -83,11 +83,11 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "require('child_process').execSync('npx tsx scripts/healthcheck-siem-parser.ts', {stdio:'inherit'})"]
+      test: ["CMD", "npx", "tsx", "scripts/healthcheck-siem-parser.ts"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
-      start_period: 30s
+      start_period: 45s
     networks:
       - dccheck_net
 
@@ -115,11 +115,11 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "require('child_process').execSync('npx tsx scripts/healthcheck-siem-alerts.ts', {stdio:'inherit'})"]
+      test: ["CMD", "npx", "tsx", "scripts/healthcheck-siem-alerts.ts"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
-      start_period: 30s
+      start_period: 45s
     networks:
       - dccheck_net
 
