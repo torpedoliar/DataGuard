@@ -222,3 +222,52 @@ describe("evaluateBaseline", () => {
     expect(evaluateBaseline(disabledRule, events, { now, baselineBySource: new Map([[200, baseline]]) })).toEqual([]);
   });
 });
+
+describe("eventMatchesRule", () => {
+  const rule: SiemRuleDefinition = { ...baseRule, conditions: {} };
+
+  it("returns true for empty conditions", () => {
+    expect(eventMatchesRule(rule, event({}))).toBe(true);
+  });
+
+  it("suppressions override field matches", () => {
+    const r: SiemRuleDefinition = {
+      ...rule,
+      conditions: {
+        fieldMatches: [{ field: "dstPort", op: "eq", value: "22" }],
+        suppressions: [{ field: "srcIp", value: "10.0.0.5" }],
+      },
+    };
+    // matches field but suppressed
+    expect(eventMatchesRule(r, event({ dstPort: 22, srcIp: "10.0.0.5" }))).toBe(false);
+    // matches field, not suppressed
+    expect(eventMatchesRule(r, event({ dstPort: 22, srcIp: "10.0.0.6" }))).toBe(true);
+  });
+
+  it("evaluates eq, neq, regex operators", () => {
+    const r: SiemRuleDefinition = {
+      ...rule,
+      conditions: {
+        fieldMatches: [
+          { field: "dstPort", op: "eq", value: "80" },
+          { field: "username", op: "neq", value: "admin" },
+          { field: "program", op: "regex", value: "^sshd?" },
+        ],
+      },
+    };
+    
+    // valid
+    expect(eventMatchesRule(r, event({ dstPort: 80, username: "user1", program: "sshd" }))).toBe(true);
+    expect(eventMatchesRule(r, event({ dstPort: 80, username: "user1", program: "ssh" }))).toBe(true);
+
+    // invalid dstPort
+    expect(eventMatchesRule(r, event({ dstPort: 443, username: "user1", program: "sshd" }))).toBe(false);
+    
+    // invalid username (neq admin)
+    expect(eventMatchesRule(r, event({ dstPort: 80, username: "admin", program: "sshd" }))).toBe(false);
+    
+    // invalid regex
+    expect(eventMatchesRule(r, event({ dstPort: 80, username: "user1", program: "bash" }))).toBe(false);
+  });
+});
+

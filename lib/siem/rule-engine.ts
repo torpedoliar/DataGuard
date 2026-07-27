@@ -1,9 +1,22 @@
 import type { SiemRuleType, SiemSeverity } from "./types";
 
+export type SiemRuleFieldMatch = {
+  field: string;
+  op: "eq" | "neq" | "regex";
+  value: string;
+};
+
+export type SiemRuleSuppression = {
+  field: string;
+  value: string;
+};
+
 export type SiemRuleConditions = {
   normalizedTypes?: string[];
   outcomes?: string[];
   tags?: string[];
+  fieldMatches?: SiemRuleFieldMatch[];
+  suppressions?: SiemRuleSuppression[];
 };
 
 export type SiemRuleDefinition = {
@@ -89,15 +102,9 @@ function conditions(rule: SiemRuleDefinition): SiemRuleConditions {
     normalizedTypes: stringArray(rule.conditions.normalizedTypes),
     outcomes: stringArray(rule.conditions.outcomes),
     tags: stringArray(rule.conditions.tags),
+    fieldMatches: (Array.isArray(rule.conditions.fieldMatches) ? rule.conditions.fieldMatches : []) as SiemRuleFieldMatch[],
+    suppressions: (Array.isArray(rule.conditions.suppressions) ? rule.conditions.suppressions : []) as SiemRuleSuppression[],
   };
-}
-
-export function eventMatchesRule(rule: SiemRuleDefinition, event: SiemRuleEvent) {
-  const parsed = conditions(rule);
-  if (parsed.normalizedTypes?.length && (!event.normalizedType || !parsed.normalizedTypes.includes(event.normalizedType))) return false;
-  if (parsed.outcomes?.length && (!event.outcome || !parsed.outcomes.includes(event.outcome))) return false;
-  if (parsed.tags?.length && !parsed.tags.every((tag) => event.tags.includes(tag))) return false;
-  return true;
 }
 
 function groupValue(event: SiemRuleEvent, key: string) {
@@ -113,6 +120,45 @@ function groupValue(event: SiemRuleEvent, key: string) {
   if (key === "program") return event.program;
   if (key === "protocol") return event.protocol;
   return null;
+}
+
+export function eventMatchesRule(rule: SiemRuleDefinition, event: SiemRuleEvent) {
+  const parsed = conditions(rule);
+
+  if (parsed.suppressions?.length) {
+    for (const supp of parsed.suppressions) {
+      const val = groupValue(event, supp.field);
+      if (val !== null && val !== undefined && String(val) === supp.value) {
+        return false;
+      }
+    }
+  }
+
+  if (parsed.normalizedTypes?.length && (!event.normalizedType || !parsed.normalizedTypes.includes(event.normalizedType))) return false;
+  if (parsed.outcomes?.length && (!event.outcome || !parsed.outcomes.includes(event.outcome))) return false;
+  if (parsed.tags?.length && !parsed.tags.every((tag) => event.tags.includes(tag))) return false;
+
+  if (parsed.fieldMatches?.length) {
+    for (const fm of parsed.fieldMatches) {
+      const val = groupValue(event, fm.field);
+      const strVal = val !== null && val !== undefined ? String(val) : "";
+      
+      if (fm.op === "eq") {
+        if (strVal !== fm.value) return false;
+      } else if (fm.op === "neq") {
+        if (strVal === fm.value) return false;
+      } else if (fm.op === "regex") {
+        try {
+          const re = new RegExp(fm.value, "i");
+          if (!re.test(strVal)) return false;
+        } catch {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
 }
 
 export function buildCorrelationKey(rule: SiemRuleDefinition, event: SiemRuleEvent) {

@@ -22,7 +22,7 @@ export const syslogVendorEnum = pgEnum("syslog_vendor", ["generic", "mikrotik", 
 export const syslogTrustLevelEnum = pgEnum("syslog_trust_level", ["unknown", "trusted", "untrusted"]);
 export const siemRuleTypeEnum = pgEnum("siem_rule_type", ["single_event", "threshold", "sequence", "absence", "baseline_anomaly"]);
 export const siemFindingStatusEnum = pgEnum("siem_finding_status", ["Open", "Acknowledged", "Resolved"]);
-export const siemAlertChannelEnum = pgEnum("siem_alert_channel", ["telegram"]);
+export const siemAlertChannelEnum = pgEnum("siem_alert_channel", ["telegram", "webhook", "email"]);
 export const siemAlertStatusEnum = pgEnum("siem_alert_status", ["pending", "sent", "failed"]);
 export const siemAiJobStatusEnum = pgEnum("siem_ai_job_status", ["pending", "running", "completed", "failed"]);
 
@@ -54,6 +54,30 @@ export const siteTelegramChatIds = pgTable("site_telegram_chat_ids", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   siteIdIdx: index("site_telegram_chat_ids_site_id_idx").on(table.siteId),
+}));
+
+export const siteWebhookUrls = pgTable("site_webhook_urls", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "cascade" }).notNull(),
+  url: text("url").notNull(),
+  label: text("label").notNull(),
+  severityFilter: text("severity_filter"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  siteIdIdx: index("site_webhook_urls_site_id_idx").on(table.siteId),
+}));
+
+export const siteEmailAddresses = pgTable("site_email_addresses", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "cascade" }).notNull(),
+  email: text("email").notNull(),
+  label: text("label").notNull(),
+  severityFilter: text("severity_filter"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  siteIdIdx: index("site_email_addresses_site_id_idx").on(table.siteId),
 }));
 
 // ==================== USERS ====================
@@ -608,6 +632,7 @@ export const siemAlerts = pgTable("siem_alerts", {
   message: text("message").notNull(),
   sentAt: timestamp("sent_at"),
   error: text("error"),
+  retryCount: integer("retry_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   findingIdx: index("siem_alerts_finding_idx").on(table.findingId),

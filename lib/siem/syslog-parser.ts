@@ -18,15 +18,20 @@ export function decodePriority(priority: number) {
   return { facility: Math.floor(priority / 8), severity: priority % 8 };
 }
 
-const rfc5424Pattern = /^<(\d{1,3})>1\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s?(.*)$/;
+const rfc5424Pattern = /^<(\d{1,3})>1\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(-|(?:\[.*?\])+)\s?(.*)$/;
 const rfc3164Pattern = /^<(\d{1,3})>([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(\S+)\s+([^:]+):\s?(.*)$/;
 const rfc3164ShortPattern = /^<(\d{1,3})>([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(.*)$/;
 const awplusPattern = /^<(\d{1,3})>\s*(\d{4})\s+([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}:\d{2}:\d{2})\s+(\S+)\s+([A-Za-z0-9._-]+?)(?:\[(\d+)\])?:\s?(.*)$/;
 
 function parseRfc3164Date(value: string) {
-  const year = new Date().getFullYear();
-  const date = new Date(`${value} ${year}`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const now = new Date();
+  const year = now.getFullYear();
+  const date = new Date(`${value} ${year} UTC`);
+  if (Number.isNaN(date.getTime())) return null;
+  if (date.getTime() > now.getTime() + 7 * 24 * 60 * 60 * 1000) {
+    date.setUTCFullYear(year - 1);
+  }
+  return date;
 }
 
 function parseAwplusDate(year: string, month: string, day: string, time: string) {

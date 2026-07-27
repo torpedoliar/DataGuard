@@ -55,11 +55,11 @@ function asEvent(row: typeof syslogEvents.$inferSelect): SiemRuleEvent {
   };
 }
 
-function findingValues(candidate: SiemFindingCandidate, rule: SiemRuleDefinition) {
+function findingValues(candidate: SiemFindingCandidate, rule: SiemRuleDefinition, sourceSiteIdMap: Map<number, number | null>) {
   const text = buildFindingText({ candidate, rule });
 
   return {
-    siteId: candidate.siteId,
+    siteId: candidate.siteId ?? (candidate.sourceId ? (sourceSiteIdMap.get(candidate.sourceId) ?? null) : null),
     deviceId: candidate.deviceId,
     sourceId: candidate.sourceId,
     ruleId: candidate.ruleId,
@@ -131,9 +131,13 @@ export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
   const lookbackSeconds = options.lookbackSeconds ?? 900;
   const limit = options.limit ?? 500;
 
-  const [ruleRows] = await Promise.all([db.select().from(siemRules).where(eq(siemRules.enabled, true))]);
+  const [ruleRows, sourceRows] = await Promise.all([
+    db.select().from(siemRules).where(eq(siemRules.enabled, true)),
+    db.select({ id: syslogSources.id, siteId: syslogSources.siteId }).from(syslogSources)
+  ]);
   const rules = ruleRows.map(asRule);
   const ruleById = new Map(rules.map((rule) => [rule.id, rule]));
+  const sourceSiteIdMap = new Map(sourceRows.map((s) => [s.id, s.siteId]));
 
   const absenceWindowMax = rules
     .filter((rule) => rule.ruleType === "absence" && rule.groupBy.includes("sourceId"))
@@ -179,7 +183,7 @@ export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
       }).where(eq(siemFindings.id, existing.id));
       updated++;
     } else {
-      const inserted = await db.insert(siemFindings).values(findingValues(candidate, rule)).returning({
+      const inserted = await db.insert(siemFindings).values(findingValues(candidate, rule, sourceSiteIdMap)).returning({
         id: siemFindings.id,
         severity: siemFindings.severity,
         status: siemFindings.status,

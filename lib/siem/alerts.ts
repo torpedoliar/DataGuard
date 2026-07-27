@@ -1,10 +1,11 @@
 import { db } from "../../db";
-import { siemAlerts, siemFindings, siemSettings, siteTelegramChatIds } from "../../db/schema";
+import { siemAlerts, siemFindings, siemSettings, siteTelegramChatIds, siteWebhookUrls, siteEmailAddresses } from "../../db/schema";
 import { sendTelegramAlert } from "../telegram";
 import { and, eq, ne } from "drizzle-orm";
 import { formatWibForAlert } from "../ui/datetime";
 import { redactSensitiveText } from "./redaction";
 import type { SiemSeverity } from "./types";
+import nodemailer from "nodemailer";
 
 const severityRank: Record<SiemSeverity, number> = { Low: 1, Medium: 2, High: 3, Critical: 4 };
 
@@ -26,32 +27,20 @@ function alertMessage(input: { findingId: number; title: string; severity: SiemS
   ].join("\n"));
 }
 
-export type SiteTelegramRecipient = {
-  chatId: string;
+export type SiteAlertRecipient = {
+  recipient: string;
   severityFilter: string | null;
-  label?: string | null;
 };
 
-/**
- * Resolve the list of telegram recipients for a site.
- *
- * - Reads from `site_telegram_chat_ids` first (multi-recipient).
- * - Falls back to the legacy `sites.telegram_chat_id` only when the multi-recipient
- *   table is empty for the site (preserves existing N1 behaviour for sites that
- *   have not yet been migrated).
- * - Filters out disabled rows and rows whose `severity_filter` does not include
- *   the supplied severity. A null/empty filter matches any severity.
- */
 export async function resolveSiteTelegramRecipients(
   siteId: number,
   severity: SiemSeverity,
   legacyChatId: string | null | undefined,
-): Promise<SiteTelegramRecipient[]> {
+): Promise<SiteAlertRecipient[]> {
   const rows = await db
     .select({
       chatId: siteTelegramChatIds.chatId,
       severityFilter: siteTelegramChatIds.severityFilter,
-      label: siteTelegramChatIds.label,
       enabled: siteTelegramChatIds.enabled,
     })
     .from(siteTelegramChatIds)
@@ -60,27 +49,38 @@ export async function resolveSiteTelegramRecipients(
   if (rows.length === 0) {
     const legacy = legacyChatId?.trim();
     if (!legacy) return [];
-    return [{ chatId: legacy, severityFilter: null }];
+    return [{ recipient: legacy, severityFilter: null }];
   }
 
   return rows
     .filter((row) => row.enabled)
     .filter((row) => {
       if (!row.severityFilter) return true;
-      const allowed = row.severityFilter
-        .split(/[,\s]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const allowed = row.severityFilter.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
       return allowed.includes(severity);
     })
-    .map((row) => ({
-      chatId: row.chatId,
-      severityFilter: row.severityFilter,
-      label: row.label,
-    }));
+    .map((row) => ({ recipient: row.chatId, severityFilter: row.severityFilter }));
 }
 
-export async function queueSiemTelegramAlerts() {
+export async function resolveSiteWebhookRecipients(siteId: number, severity: SiemSeverity): Promise<SiteAlertRecipient[]> {
+  const rows = await db.select({ url: siteWebhookUrls.url, severityFilter: siteWebhookUrls.severityFilter, enabled: siteWebhookUrls.enabled })
+    .from(siteWebhookUrls).where(eq(siteWebhookUrls.siteId, siteId));
+  return rows.filter((r) => r.enabled).filter((r) => {
+    if (!r.severityFilter) return true;
+    return r.severityFilter.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean).includes(severity);
+  }).map(r => ({ recipient: r.url, severityFilter: r.severityFilter }));
+}
+
+export async function resolveSiteEmailRecipients(siteId: number, severity: SiemSeverity): Promise<SiteAlertRecipient[]> {
+  const rows = await db.select({ email: siteEmailAddresses.email, severityFilter: siteEmailAddresses.severityFilter, enabled: siteEmailAddresses.enabled })
+    .from(siteEmailAddresses).where(eq(siteEmailAddresses.siteId, siteId));
+  return rows.filter((r) => r.enabled).filter((r) => {
+    if (!r.severityFilter) return true;
+    return r.severityFilter.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean).includes(severity);
+  }).map(r => ({ recipient: r.email, severityFilter: r.severityFilter }));
+}
+
+export async function queueSiemAlerts() {
   const settings = await db.select().from(siemSettings).limit(1);
   const minSeverity = (settings[0]?.alertMinSeverity ?? "High") as SiemSeverity;
 
@@ -102,21 +102,24 @@ export async function queueSiemTelegramAlerts() {
     try {
       if (!finding.rule?.alertEnabled) continue;
       if (!isAtLeastSeverity(finding.severity as SiemSeverity, minSeverity)) continue;
-      if (finding.alerts.some((alert) => alert.channel === "telegram")) continue;
+      
       if (!finding.site) continue;
+      const siteId = finding.site.id;
 
-      const recipients = await resolveSiteTelegramRecipients(
-        finding.site.id,
-        finding.severity as SiemSeverity,
-        finding.site.telegramChatId,
-      );
-      if (recipients.length === 0) continue;
+      const severity = finding.severity as SiemSeverity;
+      const [tRecs, wRecs, eRecs] = await Promise.all([
+        resolveSiteTelegramRecipients(siteId, severity, finding.site.telegramChatId),
+        resolveSiteWebhookRecipients(siteId, severity),
+        resolveSiteEmailRecipients(siteId, severity),
+      ]);
+
+      if (tRecs.length === 0 && wRecs.length === 0 && eRecs.length === 0) continue;
 
       const message = alertMessage({
         findingId: finding.id,
         title: finding.title,
-        severity: finding.severity as SiemSeverity,
-        siteName: finding.site.name,
+        severity,
+        siteName: finding.site?.name ?? "Unknown",
         deviceName: finding.device?.name ?? null,
         sourceIp: finding.source?.sourceIp ?? null,
         summary: finding.humanAnalysis ?? finding.summary,
@@ -124,56 +127,86 @@ export async function queueSiemTelegramAlerts() {
         lastSeenAt: finding.lastSeenAt,
       });
 
-      for (const recipient of recipients) {
-        await db.insert(siemAlerts).values({
-          findingId: finding.id,
-          channel: "telegram",
-          recipient: recipient.chatId,
-          status: "pending",
-          message,
-        });
-        queued++;
-      }
+      const queueForChannel = async (channel: "telegram" | "webhook" | "email", recipients: SiteAlertRecipient[]) => {
+        for (const { recipient } of recipients) {
+          if (finding.alerts.some((a) => a.channel === channel && a.recipient === recipient)) continue;
+          await db.insert(siemAlerts).values({
+            findingId: finding.id,
+            channel,
+            recipient,
+            status: "pending",
+            message,
+          });
+          queued++;
+        }
+      };
+
+      await queueForChannel("telegram", tRecs);
+      await queueForChannel("webhook", wRecs);
+      await queueForChannel("email", eRecs);
     } catch (error) {
       console.error(`SIEM alert queue failed for finding ${finding.id}, skipping`, error);
       skipped++;
     }
   }
 
-  if (skipped > 0) {
-    console.warn(`SIEM alert queue skipped ${skipped} findings due to errors`);
-  }
-
   return { queued };
 }
 
-export async function sendPendingSiemTelegramAlerts() {
-  const alerts = await db.select({
-    id: siemAlerts.id,
-    recipient: siemAlerts.recipient,
-    message: siemAlerts.message,
-  }).from(siemAlerts)
-    .where(and(eq(siemAlerts.channel, "telegram"), eq(siemAlerts.status, "pending")))
+export async function sendPendingSiemAlerts() {
+  const alerts = await db.select().from(siemAlerts)
+    .where(eq(siemAlerts.status, "pending"))
     .limit(25);
 
   let sent = 0;
   let failed = 0;
+  
+  // Create transporter once if needed
+  let transporter: nodemailer.Transporter | null = null;
+  if (alerts.some(a => a.channel === "email")) {
+    transporter = nodemailer.createTransport(process.env.SMTP_URL || "smtp://localhost:1025");
+  }
+
   for (const alert of alerts) {
+    let success = false;
+    let errorMsg = "";
+    
     try {
-      const result = await sendTelegramAlert(alert.recipient, alert.message);
-      if (result.success) {
-        await db.update(siemAlerts).set({ status: "sent", sentAt: new Date(), error: null }).where(eq(siemAlerts.id, alert.id));
-        sent++;
-      } else {
-        await db.update(siemAlerts).set({ status: "failed", error: result.message }).where(eq(siemAlerts.id, alert.id));
-        failed++;
+      if (alert.channel === "telegram" && alert.recipient) {
+        const result = await sendTelegramAlert(alert.recipient, alert.message);
+        success = result.success;
+        errorMsg = result.message || "Unknown error";
+      } else if (alert.channel === "webhook" && alert.recipient) {
+        const res = await fetch(alert.recipient, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: alert.message })
+        });
+        success = res.ok;
+        if (!success) errorMsg = `HTTP ${res.status} ${res.statusText}`;
+      } else if (alert.channel === "email" && alert.recipient && transporter) {
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || "siem@dc-check.local",
+          to: alert.recipient,
+          subject: `SIEM Alert: Finding #${alert.findingId}`,
+          text: alert.message,
+        });
+        success = true;
       }
-    } catch (error) {
-      console.error(`SIEM alert send failed for alert ${alert.id}, marking failed`, error);
-      try {
-        await db.update(siemAlerts).set({ status: "failed", error: "Internal error" }).where(eq(siemAlerts.id, alert.id));
-      } catch (dbError) {
-        console.error(`Failed to mark alert ${alert.id} as failed`, dbError);
+    } catch (error: any) {
+      success = false;
+      errorMsg = error?.message || "Exception occurred";
+    }
+
+    if (success) {
+      await db.update(siemAlerts).set({ status: "sent", sentAt: new Date(), error: null }).where(eq(siemAlerts.id, alert.id));
+      sent++;
+    } else {
+      const currentRetries = alert.retryCount ?? 0;
+      if (currentRetries < 3) {
+        await db.update(siemAlerts).set({ retryCount: currentRetries + 1, error: errorMsg }).where(eq(siemAlerts.id, alert.id));
+      } else {
+        await db.update(siemAlerts).set({ status: "failed", error: errorMsg }).where(eq(siemAlerts.id, alert.id));
       }
       failed++;
     }
@@ -183,7 +216,7 @@ export async function sendPendingSiemTelegramAlerts() {
 }
 
 export async function runSiemAlertWorkerOnce() {
-  const queue = await queueSiemTelegramAlerts();
-  const send = await sendPendingSiemTelegramAlerts();
+  const queue = await queueSiemAlerts();
+  const send = await sendPendingSiemAlerts();
   return { ...queue, ...send };
 }

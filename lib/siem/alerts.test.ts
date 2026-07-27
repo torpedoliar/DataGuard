@@ -31,8 +31,8 @@ vi.mock("./redaction", () => ({
 import { db } from "../../db";
 import { sendTelegramAlert } from "../telegram";
 import {
-  queueSiemTelegramAlerts,
-  sendPendingSiemTelegramAlerts,
+  queueSiemAlerts,
+  sendPendingSiemAlerts,
   resolveSiteTelegramRecipients,
 } from "./alerts";
 import { siemAlerts, siemFindings, siemSettings, siteTelegramChatIds } from "../../db/schema";
@@ -107,12 +107,14 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-describe("queueSiemTelegramAlerts", () => {
+describe("queueSiemAlerts", () => {
   it("only inserts channel='telegram' rows when alert is eligible", async () => {
     mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([makeFinding()]);
     // Recipient resolver: 1 chat, all severities
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
 
     const insertedValues: unknown[] = [];
     mockedDb.insert.mockImplementation(() => ({
@@ -122,7 +124,7 @@ describe("queueSiemTelegramAlerts", () => {
       },
     }));
 
-    const result = await queueSiemTelegramAlerts();
+    const result = await queueSiemAlerts();
 
     expect(result.queued).toBe(1);
     expect(insertedValues).toHaveLength(1);
@@ -132,8 +134,11 @@ describe("queueSiemTelegramAlerts", () => {
   it("does not insert when a telegram alert already exists on the finding", async () => {
     mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
-      makeFinding({ alerts: [{ channel: "telegram" }] }),
+      makeFinding({ alerts: [{ channel: "telegram", recipient: "123" } as any] }),
     ]);
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
 
     const insertedValues: unknown[] = [];
     mockedDb.insert.mockImplementation(() => ({
@@ -143,7 +148,7 @@ describe("queueSiemTelegramAlerts", () => {
       },
     }));
 
-    const result = await queueSiemTelegramAlerts();
+    const result = await queueSiemAlerts();
     expect(result.queued).toBe(0);
     expect(insertedValues).toHaveLength(0);
   });
@@ -160,7 +165,7 @@ describe("queueSiemTelegramAlerts", () => {
       },
     }));
 
-    const result = await queueSiemTelegramAlerts();
+    const result = await queueSiemAlerts();
     expect(result.queued).toBe(0);
     expect(insertedValues).toHaveLength(0);
   });
@@ -169,11 +174,14 @@ describe("queueSiemTelegramAlerts", () => {
     mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([makeFinding({ severity: "Critical" })]);
     // Two enabled chats, no severity filter → both receive
-    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([
-      { chatId: "ops-1", severityFilter: null, enabled: true },
-      { chatId: "sec-1", severityFilter: null, enabled: true },
-    ]));
-
+    mockedDb.select.mockReturnValueOnce(
+      makeSelectFromWhere([
+        { chatId: "100", severityFilter: null, enabled: true },
+        { chatId: "200", severityFilter: null, enabled: true },
+      ]),
+    );
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
     const insertedValues: unknown[] = [];
     mockedDb.insert.mockImplementation(() => ({
       values: (v: unknown) => {
@@ -182,12 +190,12 @@ describe("queueSiemTelegramAlerts", () => {
       },
     }));
 
-    const result = await queueSiemTelegramAlerts();
+    const result = await queueSiemAlerts();
 
     expect(result.queued).toBe(2);
     expect(insertedValues).toHaveLength(2);
     const recipients = insertedValues.map((v) => (v as { recipient: string }).recipient).sort();
-    expect(recipients).toEqual(["ops-1", "sec-1"]);
+    expect(recipients).toEqual(["100", "200"]);
     for (const v of insertedValues) {
       expect(v).toMatchObject({ channel: "telegram", status: "pending", findingId: 1 });
     }
@@ -202,6 +210,8 @@ describe("queueSiemTelegramAlerts", () => {
       { chatId: "ops-hc", severityFilter: "High,Critical", enabled: true },
       { chatId: "mgmt-lm", severityFilter: "Low,Medium", enabled: true },
     ]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
 
     const insertedValues: unknown[] = [];
     mockedDb.insert.mockImplementation(() => ({
@@ -211,7 +221,7 @@ describe("queueSiemTelegramAlerts", () => {
       },
     }));
 
-    const result = await queueSiemTelegramAlerts();
+    const result = await queueSiemAlerts();
 
     expect(result.queued).toBe(1);
     expect(insertedValues).toHaveLength(1);
@@ -225,6 +235,8 @@ describe("queueSiemTelegramAlerts", () => {
     ]);
     // No rows in multi-recipient table
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
 
     const insertedValues: unknown[] = [];
     mockedDb.insert.mockImplementation(() => ({
@@ -234,7 +246,7 @@ describe("queueSiemTelegramAlerts", () => {
       },
     }));
 
-    const result = await queueSiemTelegramAlerts();
+    const result = await queueSiemAlerts();
     expect(result.queued).toBe(1);
     expect(insertedValues[0]).toMatchObject({ recipient: "legacy-99" });
   });
@@ -250,25 +262,27 @@ describe("resolveSiteTelegramRecipients", () => {
   it("returns legacy chat id when multi-recipient table is empty", async () => {
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
     const out = await resolveSiteTelegramRecipients(10, "High", "legacy-1");
-    expect(out).toEqual([{ chatId: "legacy-1", severityFilter: null }]);
+    expect(out).toEqual([{ recipient: "legacy-1", severityFilter: null }]);
   });
 
   it("drops disabled rows and rows whose filter does not include severity", async () => {
-    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([
-      { chatId: "a", severityFilter: "High,Critical", enabled: true },
-      { chatId: "b", severityFilter: "Low,Medium", enabled: true },
-      { chatId: "c", severityFilter: null, enabled: false },
-    ]));
+    mockedDb.select.mockReturnValueOnce(
+      makeSelectFromWhere([
+        { chatId: "a", severityFilter: "High,Critical", enabled: true },
+        { chatId: "b", severityFilter: "Low,Medium", enabled: true },
+        { chatId: "c", severityFilter: null, enabled: false },
+      ]),
+    );
     const out = await resolveSiteTelegramRecipients(10, "Critical", "ignored");
-    expect(out.map((r) => r.chatId).sort()).toEqual(["a"]);
+    expect(out.map((r) => r.recipient).sort()).toEqual(["a"]);
   });
 });
 
-describe("sendPendingSiemTelegramAlerts", () => {
-  it("queries by channel='telegram' and status='pending' then dispatches via sendTelegramAlert", async () => {
+describe("sendPendingSiemAlerts", () => {
+  it("queries by status='pending' then dispatches via channel sender", async () => {
     const rows = [
-      { id: 1, recipient: "100", message: "m1" },
-      { id: 2, recipient: "200", message: "m2" },
+      { id: 1, channel: "telegram", recipient: "100", message: "m1" },
+      { id: 2, channel: "telegram", recipient: "200", message: "m2" },
     ];
     const chain = makeSelectFromWhereLimitChain(rows);
     mockedDb.select.mockReturnValueOnce(chain.select());
@@ -278,7 +292,7 @@ describe("sendPendingSiemTelegramAlerts", () => {
     const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
     mockedDb.update.mockReturnValue({ set: updateSet });
 
-    const result = await sendPendingSiemTelegramAlerts();
+    const result = await sendPendingSiemAlerts();
 
     expect(mockedSend).toHaveBeenCalledTimes(2);
     expect(mockedSend).toHaveBeenNthCalledWith(1, "100", "m1");
@@ -289,8 +303,8 @@ describe("sendPendingSiemTelegramAlerts", () => {
     expect(result).toEqual({ sent: 2, failed: 0 });
   });
 
-  it("marks alerts failed (and does not retry) when sendTelegramAlert returns success=false", async () => {
-    const rows = [{ id: 7, recipient: "x", message: "m" }];
+  it("increments retryCount when send returns success=false", async () => {
+    const rows = [{ id: 7, channel: "telegram", recipient: "x", message: "m", retryCount: 0 }];
     const chain = makeSelectFromWhereLimitChain(rows);
     mockedDb.select.mockReturnValueOnce(chain.select());
     mockedSend.mockResolvedValue({ success: false, message: "boom" });
@@ -298,11 +312,11 @@ describe("sendPendingSiemTelegramAlerts", () => {
     const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
     mockedDb.update.mockReturnValue({ set: updateSet });
 
-    const result = await sendPendingSiemTelegramAlerts();
+    const result = await sendPendingSiemAlerts();
 
     expect(mockedSend).toHaveBeenCalledTimes(1);
     expect(updateSet).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "failed", error: "boom" }),
+      expect.objectContaining({ retryCount: 1, error: "boom" }),
     );
     expect(result).toEqual({ sent: 0, failed: 1 });
   });
