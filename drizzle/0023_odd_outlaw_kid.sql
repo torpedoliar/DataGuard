@@ -1,8 +1,6 @@
 ALTER TYPE "public"."siem_alert_channel" ADD VALUE 'webhook';--> statement-breakpoint
 ALTER TYPE "public"."siem_alert_channel" ADD VALUE 'email';--> statement-breakpoint
-ALTER TYPE "public"."syslog_vendor" ADD VALUE 'paloalto';--> statement-breakpoint
-ALTER TYPE "public"."syslog_vendor" ADD VALUE 'juniper';--> statement-breakpoint
-ALTER TYPE "public"."syslog_vendor" ADD VALUE 'checkpoint';--> statement-breakpoint
+
 CREATE TABLE "site_email_addresses" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"site_id" integer NOT NULL,
