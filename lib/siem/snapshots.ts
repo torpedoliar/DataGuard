@@ -3,6 +3,7 @@ import {
   siemAlerts,
   siemDashboardSnapshots,
   siemFindings,
+  sites,
   syslogEvents,
   syslogEventsRaw,
   syslogSources,
@@ -35,11 +36,34 @@ export type SiemSnapshot = SiemCounters & {
  * Take a snapshot of the current SIEM state and insert it into
  * `siem_dashboard_snapshots`.
  *
- * The dashboard action calls this on the lazy path so that even deployments
- * without the snapshot worker will start accumulating history. The
- * `scripts/siem-snapshot-worker.ts` worker also calls it on a 1h interval.
+ * Per-site: when `siteId` is given, captures one row for that site. When
+ * omitted, loops every active site and captures a row per site (headless
+ * worker path). The dashboard action passes its active site; the worker omits
+ * it so all sites accumulate history.
  */
-export async function captureSiemSnapshot(): Promise<{ capturedAt: Date; counters: SiemCounters }> {
+export async function captureSiemSnapshot(siteId?: number): Promise<{ capturedAt: Date; counters: SiemCounters }> {
+  const targets = siteId ? [siteId] : (await db.select({ id: sites.id }).from(sites).where(eq(sites.isActive, true))).map((s) => s.id);
+  // ponytail: no sites yet → single empty snapshot keeps the dashboard's lazy
+  // path working on a fresh deploy. Add per-site rows once a site exists.
+  if (targets.length === 0) targets.push(0 as number);
+
+  let lastCapturedAt = new Date();
+  let lastCounters: SiemCounters = { raw24h: 0, parsed24h: 0, openFindings: 0, criticalFindings: 0, unmappedSources: 0, pendingAlerts: 0, failedAlerts: 0 };
+
+  for (const targetSiteId of targets) {
+    const counters = await captureSiteCounters(targetSiteId);
+    const [inserted] = await db
+      .insert(siemDashboardSnapshots)
+      .values({ ...counters, siteId: targetSiteId || null })
+      .returning({ id: siemDashboardSnapshots.id, capturedAt: siemDashboardSnapshots.capturedAt });
+    lastCapturedAt = inserted?.capturedAt ?? new Date();
+    lastCounters = counters;
+  }
+
+  return { capturedAt: lastCapturedAt, counters: lastCounters };
+}
+
+async function captureSiteCounters(siteId: number): Promise<SiemCounters> {
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const [
@@ -54,36 +78,36 @@ export async function captureSiemSnapshot(): Promise<{ capturedAt: Date; counter
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(syslogEventsRaw)
-      .where(gte(syslogEventsRaw.receivedAt, since24h)),
+      .where(and(eq(syslogEventsRaw.siteId, siteId), gte(syslogEventsRaw.receivedAt, since24h))),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(syslogEvents)
-      .where(gte(syslogEvents.receivedAt, since24h)),
+      .where(and(eq(syslogEvents.siteId, siteId), gte(syslogEvents.receivedAt, since24h))),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(siemFindings)
-      .where(ne(siemFindings.status, "Resolved")),
+      .where(and(eq(siemFindings.siteId, siteId), ne(siemFindings.status, "Resolved"))),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(siemFindings)
-      .where(
-        and(eq(siemFindings.severity, "Critical"), ne(siemFindings.status, "Resolved")),
-      ),
+      .where(and(eq(siemFindings.siteId, siteId), eq(siemFindings.severity, "Critical"), ne(siemFindings.status, "Resolved"))),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(syslogSources)
-      .where(isNull(syslogSources.deviceId)),
+      .where(and(eq(syslogSources.siteId, siteId), isNull(syslogSources.deviceId))),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(siemAlerts)
-      .where(eq(siemAlerts.status, "pending")),
+      .innerJoin(siemFindings, eq(siemAlerts.findingId, siemFindings.id))
+      .where(and(eq(siemFindings.siteId, siteId), eq(siemAlerts.status, "pending"))),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(siemAlerts)
-      .where(eq(siemAlerts.status, "failed")),
+      .innerJoin(siemFindings, eq(siemAlerts.findingId, siemFindings.id))
+      .where(and(eq(siemFindings.siteId, siteId), eq(siemAlerts.status, "failed"))),
   ]);
 
-  const counters: SiemCounters = {
+  return {
     raw24h: Number(raw24h[0]?.count ?? 0),
     parsed24h: Number(parsed24h[0]?.count ?? 0),
     openFindings: Number(openFindings[0]?.count ?? 0),
@@ -92,30 +116,20 @@ export async function captureSiemSnapshot(): Promise<{ capturedAt: Date; counter
     pendingAlerts: Number(pendingAlerts[0]?.count ?? 0),
     failedAlerts: Number(failedAlerts[0]?.count ?? 0),
   };
-
-  const [inserted] = await db
-    .insert(siemDashboardSnapshots)
-    .values(counters)
-    .returning({ id: siemDashboardSnapshots.id, capturedAt: siemDashboardSnapshots.capturedAt });
-
-  return {
-    capturedAt: inserted?.capturedAt ?? new Date(),
-    counters,
-  };
 }
 
 /**
- * Return historical snapshots captured at or after `sinceIso`.
+ * Return historical snapshots captured at or after `sinceIso`, scoped to a site.
  *
  * Ordered ascending by `capturedAt` so callers can render left-to-right
  * charts without an extra sort.
  */
-export async function getSiemSnapshots(sinceIso: string): Promise<SiemSnapshot[]> {
+export async function getSiemSnapshots(sinceIso: string, siteId?: number): Promise<SiemSnapshot[]> {
   const since = new Date(sinceIso);
   const rows = await db
     .select()
     .from(siemDashboardSnapshots)
-    .where(gte(siemDashboardSnapshots.capturedAt, since))
+    .where(and(gte(siemDashboardSnapshots.capturedAt, since), siteId ? eq(siemDashboardSnapshots.siteId, siteId) : sql`true`))
     .orderBy(siemDashboardSnapshots.capturedAt);
 
   return rows.map((row) => ({

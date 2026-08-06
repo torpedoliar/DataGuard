@@ -14,12 +14,12 @@ const TIMESERIES_WINDOWS = {
 
 type TimeseriesWindow = keyof typeof TIMESERIES_WINDOWS;
 
-async function loadTimeseries(): Promise<Record<TimeseriesWindow, SiemSnapshot[]>> {
+async function loadTimeseries(siteId: number): Promise<Record<TimeseriesWindow, SiemSnapshot[]>> {
   // Load the largest window once and bucket the rows in-process. Snapshots are
   // small (one integer row per hour), so the 30d set fits comfortably in memory
   // and avoids three separate DB round-trips.
   const since30d = new Date(Date.now() - TIMESERIES_WINDOWS["30d"]).toISOString();
-  const all = await getSiemSnapshots(since30d);
+  const all = await getSiemSnapshots(since30d, siteId);
 
   const now = Date.now();
   const out: Record<TimeseriesWindow, SiemSnapshot[]> = {
@@ -43,7 +43,7 @@ export async function getSiemDashboardStats() {
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const [raw24h, parsed24h, openFindings, criticalFindings, unmappedSources, pendingAlerts, failedAlerts] = await Promise.all([
-    db.select({ count: sql<number>`count(*)::int` }).from(syslogEventsRaw).where(gte(syslogEventsRaw.receivedAt, since24h)),
+    db.select({ count: sql<number>`count(*)::int` }).from(syslogEventsRaw).where(and(eq(syslogEventsRaw.siteId, auth.activeSiteId), gte(syslogEventsRaw.receivedAt, since24h))),
     db.select({ count: sql<number>`count(*)::int` }).from(syslogEvents).where(and(eq(syslogEvents.siteId, auth.activeSiteId), gte(syslogEvents.receivedAt, since24h))),
     db.select({ count: sql<number>`count(*)::int` }).from(siemFindings).where(and(eq(siemFindings.siteId, auth.activeSiteId), ne(siemFindings.status, "Resolved"))),
     db.select({ count: sql<number>`count(*)::int` }).from(siemFindings).where(and(eq(siemFindings.siteId, auth.activeSiteId), eq(siemFindings.severity, "Critical"), ne(siemFindings.status, "Resolved"))),
@@ -62,11 +62,11 @@ export async function getSiemDashboardStats() {
   // History: try to load the snapshots that the worker has been collecting.
   // If the table is empty (fresh deploy with no worker yet), take a single
   // lazy snapshot so the dashboard shows at least one data point.
-  let timeseries = await loadTimeseries();
+  let timeseries = await loadTimeseries(auth.activeSiteId);
   if (timeseries["30d"].length === 0) {
     try {
-      await captureSiemSnapshot();
-      timeseries = await loadTimeseries();
+      await captureSiemSnapshot(auth.activeSiteId);
+      timeseries = await loadTimeseries(auth.activeSiteId);
     } catch (error) {
       // Capture failure should never break the dashboard. Charts just stay empty.
       console.error("Lazy SIEM snapshot capture failed", error);

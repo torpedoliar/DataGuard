@@ -24,6 +24,15 @@ function makeSelectFromWhere(rows: unknown[]) {
   return { select, from, where };
 }
 
+// select(<args?>).from(table).innerJoin(table, on).where(<pred>) → rows
+function makeSelectInnerJoinWhere(rows: unknown[]) {
+  const where = vi.fn().mockResolvedValue(rows);
+  const innerJoin = vi.fn().mockReturnValue({ where });
+  const from = vi.fn().mockReturnValue({ innerJoin });
+  const select = vi.fn().mockReturnValue({ from });
+  return { select, from, innerJoin, where };
+}
+
 // select(<args?>).from(table).where(<pred>).orderBy(<args>) → rows
 function makeSelectFromWhereOrderBy(rows: unknown[]) {
   const orderBy = vi.fn().mockResolvedValue(rows);
@@ -51,16 +60,16 @@ afterEach(() => {
 
 describe("captureSiemSnapshot", () => {
   it("reads the seven counters and persists a snapshot row, returning the captured values", async () => {
-    // 7 counter selects in captureSiemSnapshot. Each call to db.select({count}) must
-    // return an object that has .from(...).where(...) → rows; we pass the full chain
-    // object (which exposes a `.select` mock too) as the return value of db.select.
+    // 7 counter selects in captureSiteCounters. raw24h/parsed24h/openFindings/
+    // criticalFindings/unmappedSources use .from().where(); pendingAlerts/
+    // failedAlerts use .from().innerJoin().where().
     const c1 = makeSelectFromWhere([{ count: 100 }]); // raw24h
     const c2 = makeSelectFromWhere([{ count: 80 }]);  // parsed24h
     const c3 = makeSelectFromWhere([{ count: 5 }]);   // openFindings
     const c4 = makeSelectFromWhere([{ count: 2 }]);   // criticalFindings
     const c5 = makeSelectFromWhere([{ count: 1 }]);   // unmappedSources
-    const c6 = makeSelectFromWhere([{ count: 3 }]);   // pendingAlerts
-    const c7 = makeSelectFromWhere([{ count: 4 }]);   // failedAlerts
+    const c6 = makeSelectInnerJoinWhere([{ count: 3 }]); // pendingAlerts
+    const c7 = makeSelectInnerJoinWhere([{ count: 4 }]); // failedAlerts
     mockedDb.select
       .mockReturnValueOnce(c1)
       .mockReturnValueOnce(c2)
@@ -74,7 +83,7 @@ describe("captureSiemSnapshot", () => {
     const ins = makeInsertReturning([{ id: 42, capturedAt }]);
     mockedDb.insert.mockReturnValueOnce(ins.insert());
 
-    const result = await captureSiemSnapshot();
+    const result = await captureSiemSnapshot(7);
 
     expect(result.counters).toEqual({
       raw24h: 100,
@@ -86,7 +95,7 @@ describe("captureSiemSnapshot", () => {
       failedAlerts: 4,
     });
     expect(result.capturedAt).toEqual(capturedAt);
-    // The insert was performed exactly once with the counter values.
+    // The insert was performed exactly once with the counter values + siteId.
     expect(mockedDb.insert).toHaveBeenCalledTimes(1);
     expect(ins.values).toHaveBeenCalledWith({
       raw24h: 100,
@@ -96,18 +105,28 @@ describe("captureSiemSnapshot", () => {
       unmappedSources: 1,
       pendingAlerts: 3,
       failedAlerts: 4,
+      siteId: 7,
     });
     expect(ins.returning).toHaveBeenCalled();
   });
 
   it("coerces null/undefined count rows to zero", async () => {
     const chain = makeSelectFromWhere([]);
-    mockedDb.select.mockReturnValue(chain);
+    // 5 .from().where() then 2 .innerJoin().where() chains all share the empty chain.
+    const joinChain = makeSelectInnerJoinWhere([]);
+    mockedDb.select
+      .mockReturnValueOnce(chain) // raw24h
+      .mockReturnValueOnce(chain) // parsed24h
+      .mockReturnValueOnce(chain) // openFindings
+      .mockReturnValueOnce(chain) // criticalFindings
+      .mockReturnValueOnce(chain) // unmappedSources
+      .mockReturnValueOnce(joinChain) // pendingAlerts
+      .mockReturnValueOnce(joinChain); // failedAlerts
     const capturedAt = new Date("2026-06-15T11:00:00.000Z");
     const ins = makeInsertReturning([{ id: 1, capturedAt }]);
     mockedDb.insert.mockReturnValueOnce(ins.insert());
 
-    const result = await captureSiemSnapshot();
+    const result = await captureSiemSnapshot(7);
     expect(result.counters).toEqual({
       raw24h: 0,
       parsed24h: 0,
@@ -148,7 +167,7 @@ describe("getSiemSnapshots", () => {
     const chain = makeSelectFromWhereOrderBy([row1, row2]);
     mockedDb.select.mockReturnValueOnce(chain);
 
-    const out = await getSiemSnapshots("2026-06-15T00:00:00.000Z");
+    const out = await getSiemSnapshots("2026-06-15T00:00:00.000Z", 7);
 
     expect(chain.where).toHaveBeenCalled();
     const predArg = chain.where.mock.calls[0][0];
@@ -174,7 +193,7 @@ describe("getSiemSnapshots", () => {
   it("returns an empty array when no snapshots match the since filter", async () => {
     const chain = makeSelectFromWhereOrderBy([]);
     mockedDb.select.mockReturnValueOnce(chain);
-    const out = await getSiemSnapshots("2030-01-01T00:00:00.000Z");
+    const out = await getSiemSnapshots("2030-01-01T00:00:00.000Z", 7);
     expect(out).toEqual([]);
   });
 });
