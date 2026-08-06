@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import fs from "node:fs";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
-import { brands, categories, devices, locations, siemSettings, sites, syslogEvents, syslogEventsRaw, syslogSources } from "../db/schema";
+import { brands, categories, devices, locations, sites, syslogEvents, syslogEventsRaw, syslogSources } from "../db/schema";
 import { processRawSyslogEvent } from "../lib/siem/process-raw-event";
 import { buildAssetMetadata, matchSyslogSource, type DeviceCandidate, type SourceCandidate } from "../lib/siem/source-enrichment";
 import type { SiemVendor } from "../lib/siem/types";
@@ -60,7 +60,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 async function loadContext() {
-  const [sourceRows, deviceRows, siteRows, settingsRows] = await Promise.all([
+  const [sourceRows, deviceRows, siteRows] = await Promise.all([
     db.select().from(syslogSources),
     db.select({
       id: devices.id,
@@ -76,14 +76,12 @@ async function loadContext() {
       zone: devices.zone,
     }).from(devices).leftJoin(categories, eq(devices.categoryId, categories.id)).leftJoin(brands, eq(devices.brandId, brands.id)).leftJoin(locations, eq(devices.locationId, locations.id)),
     db.select().from(sites),
-    db.select().from(siemSettings).limit(1),
   ]);
 
   return {
     sources: sourceRows as SourceCandidate[],
     devices: deviceRows as DeviceCandidate[],
     sites: siteRows,
-    settings: settingsRows[0] ?? null,
   };
 }
 
@@ -99,49 +97,6 @@ async function getContext() {
 type RawRow = typeof syslogEventsRaw.$inferSelect;
 type EventInsert = typeof syslogEvents.$inferInsert;
 
-// Auto-create syslog sources for unknown IPs before the main pass so later rows
-// in the same batch (same IP) match the freshly created source. Dedupes by IP.
-async function ensureUnknownSources(rows: RawRow[], context: ParserContext) {
-  if (!context.settings?.unknownSourceEnabled) return;
-
-  const known = new Set(context.sources.map((source) => source.sourceIp));
-  const pending = new Map<string, { hostname: string | null; siteId: number; receivedAt: Date }>();
-
-  for (const raw of rows) {
-    if (known.has(raw.sourceIp) || pending.has(raw.sourceIp)) continue;
-    const initial = processRawSyslogEvent({ rawMessage: raw.rawMessage, vendor: "generic" });
-    const match = matchSyslogSource({ sourceIp: raw.sourceIp, hostname: initial.hostname, sources: context.sources, devices: context.devices });
-    if (match.matchType !== "unknown") continue;
-    const siteId = match.siteId ?? context.settings?.defaultSiemSiteId ?? null;
-    if (!siteId) continue;
-    pending.set(raw.sourceIp, { hostname: initial.hostname, siteId, receivedAt: raw.receivedAt });
-  }
-
-  for (const [sourceIp, info] of pending) {
-    const [created] = await db.insert(syslogSources).values({
-      siteId: info.siteId,
-      sourceIp,
-      hostname: info.hostname,
-      displayName: info.hostname ?? sourceIp,
-      vendor: "generic",
-      parserProfile: "generic",
-      lastSeenAt: info.receivedAt,
-      eventCount: 0,
-    }).returning();
-    if (created) {
-      context.sources.push({
-        id: created.id,
-        siteId: created.siteId,
-        deviceId: created.deviceId,
-        sourceIp: created.sourceIp,
-        hostname: created.hostname,
-        vendor: created.vendor,
-        parserProfile: created.parserProfile,
-      });
-    }
-  }
-}
-
 async function runOnce() {
   const rows = await db.select().from(syslogEventsRaw)
     .where(eq(syslogEventsRaw.ingestStatus, "received"))
@@ -150,20 +105,37 @@ async function runOnce() {
   if (rows.length === 0) return 0;
 
   const context = await getContext();
-  await ensureUnknownSources(rows, context);
 
   const eventValues: EventInsert[] = [];
-  const parsedIds: number[] = [];
-  const failedIds: number[] = [];
+  // Raw ids grouped by site so each status flip can set one siteId per update.
+  const parsedBySite = new Map<number | null, number[]>();
+  const failedBySite = new Map<number | null, number[]>();
+  const droppedIds: number[] = [];
   const sourceAgg = new Map<number, { count: number; lastSeenAt: Date }>();
+
+  const pushSite = (map: Map<number | null, number[]>, siteId: number | null, id: number) => {
+    const arr = map.get(siteId);
+    if (arr) arr.push(id);
+    else map.set(siteId, [id]);
+  };
 
   for (const raw of rows) {
     const initial = processRawSyslogEvent({ rawMessage: raw.rawMessage, vendor: "generic" });
     const match = matchSyslogSource({ sourceIp: raw.sourceIp, hostname: initial.hostname, sources: context.sources, devices: context.devices });
-    const siteId = match.siteId ?? context.settings?.defaultSiemSiteId ?? null;
+    // Strict per-site: a matched source/device carries its own siteId (NOT NULL).
+    // Unknown sources (no match) have no site → drop, never guess.
+    const siteId = match.siteId;
+    const sourceId = match.sourceId;
+
+    // Unknown source: drop the raw event. No auto-create — sources must be
+    // mapped explicitly per-site by an admin.
+    if (match.matchType === "unknown" || !siteId) {
+      droppedIds.push(raw.id);
+      continue;
+    }
+
     const device = context.devices.find((candidate) => candidate.id === match.deviceId) ?? null;
     const site = context.sites.find((candidate) => candidate.id === siteId) ?? null;
-    const sourceId = match.sourceId;
 
     const processed = processRawSyslogEvent({ rawMessage: raw.rawMessage, vendor: match.vendor as SiemVendor });
     const metadata = { ...processed.metadata, enrichment: buildAssetMetadata({ site, device }), matchType: match.matchType };
@@ -201,9 +173,9 @@ async function runOnce() {
         tags: processed.tags,
         metadata,
       });
-      parsedIds.push(raw.id);
+      pushSite(parsedBySite, siteId, raw.id);
     } else {
-      failedIds.push(raw.id);
+      pushSite(failedBySite, siteId, raw.id);
     }
 
     if (sourceId) {
@@ -219,18 +191,28 @@ async function runOnce() {
 
   // Atomic: insert parsed events and flip raw status together. If this transaction
   // rolls back (crash/restart mid-batch), rows stay "received" and are reprocessed
-  // without producing duplicate syslog_events.
+  // without producing duplicate syslog_events. Stamp raw siteId on every path so
+  // raw events carry the same tenancy as their parsed event (or null for dropped
+  // unknown sources).
   await db.transaction(async (tx) => {
     for (const part of chunk(eventValues, insertChunkSize)) {
       await tx.insert(syslogEvents).values(part);
     }
-    for (const ids of chunk(parsedIds, 1000)) {
-      await tx.update(syslogEventsRaw).set({ ingestStatus: "parsed", parseError: null })
-        .where(and(inArray(syslogEventsRaw.id, ids), eq(syslogEventsRaw.ingestStatus, "received")));
+    for (const [siteId, ids] of parsedBySite) {
+      for (const part of chunk(ids, 1000)) {
+        await tx.update(syslogEventsRaw).set({ ingestStatus: "parsed", siteId, parseError: null })
+          .where(and(inArray(syslogEventsRaw.id, part), eq(syslogEventsRaw.ingestStatus, "received")));
+      }
     }
-    for (const ids of chunk(failedIds, 1000)) {
-      await tx.update(syslogEventsRaw).set({ ingestStatus: "parse_failed", parseError: "Unsupported syslog format" })
-        .where(and(inArray(syslogEventsRaw.id, ids), eq(syslogEventsRaw.ingestStatus, "received")));
+    for (const [siteId, ids] of failedBySite) {
+      for (const part of chunk(ids, 1000)) {
+        await tx.update(syslogEventsRaw).set({ ingestStatus: "parse_failed", siteId, parseError: "Unsupported syslog format" })
+          .where(and(inArray(syslogEventsRaw.id, part), eq(syslogEventsRaw.ingestStatus, "received")));
+      }
+    }
+    for (const part of chunk(droppedIds, 1000)) {
+      await tx.update(syslogEventsRaw).set({ ingestStatus: "dropped", siteId: null, parseError: "No matching syslog source for this site" })
+        .where(and(inArray(syslogEventsRaw.id, part), eq(syslogEventsRaw.ingestStatus, "received")));
     }
     for (const [sourceId, agg] of sourceAgg) {
       await tx.update(syslogSources).set({ lastSeenAt: agg.lastSeenAt, eventCount: sql`${syslogSources.eventCount} + ${agg.count}`, updatedAt: new Date() })
