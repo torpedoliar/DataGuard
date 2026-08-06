@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { devices, sites, syslogEvents, syslogSources } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
-import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -51,7 +51,7 @@ export async function getSiemSources() {
       .from(syslogSources)
       .leftJoin(sites, eq(syslogSources.siteId, sites.id))
       .leftJoin(devices, eq(syslogSources.deviceId, devices.id))
-      .where(or(eq(syslogSources.siteId, auth.activeSiteId), isNull(syslogSources.siteId)))
+      .where(eq(syslogSources.siteId, auth.activeSiteId))
       .orderBy(desc(syslogSources.lastSeenAt), desc(syslogSources.createdAt)),
     db.select({
       id: devices.id,
@@ -86,7 +86,7 @@ export async function updateSiemSource(prevState: unknown, formData: FormData) {
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const source = await db.query.syslogSources.findFirst({
-    where: and(eq(syslogSources.id, parsed.data.id), or(eq(syslogSources.siteId, auth.activeSiteId), isNull(syslogSources.siteId))),
+    where: and(eq(syslogSources.id, parsed.data.id), eq(syslogSources.siteId, auth.activeSiteId)),
   });
   if (!source) return { message: "Syslog source not found for active site." };
 
@@ -98,7 +98,6 @@ export async function updateSiemSource(prevState: unknown, formData: FormData) {
   }
 
   await db.update(syslogSources).set({
-    siteId: auth.activeSiteId,
     deviceId: parsed.data.deviceId ?? null,
     displayName: parsed.data.displayName,
     hostname: parsed.data.hostname ?? null,
@@ -129,7 +128,7 @@ export async function deleteSiemSource(prevState: unknown, formData: FormData) {
   const id = parsed.data.id;
 
   const existing = await db.query.syslogSources.findFirst({
-    where: and(eq(syslogSources.id, id), or(eq(syslogSources.siteId, auth.activeSiteId), isNull(syslogSources.siteId))),
+    where: and(eq(syslogSources.id, id), eq(syslogSources.siteId, auth.activeSiteId)),
   });
   if (!existing) return { message: "Syslog source not found for active site." };
 
@@ -137,11 +136,11 @@ export async function deleteSiemSource(prevState: unknown, formData: FormData) {
   const eventCountRows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(syslogEvents)
-    .where(eq(syslogEvents.sourceId, id));
+    .where(and(eq(syslogEvents.sourceId, id), eq(syslogEvents.siteId, auth.activeSiteId)));
   const detachedCount = eventCountRows[0]?.count ?? 0;
 
   // Detach events (set sourceId = null) but don't delete them — audit trail.
-  await db.update(syslogEvents).set({ sourceId: null }).where(eq(syslogEvents.sourceId, id));
+  await db.update(syslogEvents).set({ sourceId: null }).where(and(eq(syslogEvents.sourceId, id), eq(syslogEvents.siteId, auth.activeSiteId)));
   await db.delete(syslogSources).where(eq(syslogSources.id, id));
 
   revalidatePath("/admin/siem/sources");
