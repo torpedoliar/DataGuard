@@ -43,9 +43,11 @@ export type SiemSnapshot = SiemCounters & {
  */
 export async function captureSiemSnapshot(siteId?: number): Promise<{ capturedAt: Date; counters: SiemCounters }> {
   const targets = siteId ? [siteId] : (await db.select({ id: sites.id }).from(sites).where(eq(sites.isActive, true))).map((s) => s.id);
-  // ponytail: no sites yet → single empty snapshot keeps the dashboard's lazy
-  // path working on a fresh deploy. Add per-site rows once a site exists.
-  if (targets.length === 0) targets.push(0 as number);
+  // ponytail: no sites yet → no snapshot row. The dashboard's lazy path still
+  // returns zero counters without history; add per-site rows once a site exists.
+  if (targets.length === 0) {
+    return { capturedAt: new Date(), counters: { raw24h: 0, parsed24h: 0, openFindings: 0, criticalFindings: 0, unmappedSources: 0, pendingAlerts: 0, failedAlerts: 0 } };
+  }
 
   let lastCapturedAt = new Date();
   let lastCounters: SiemCounters = { raw24h: 0, parsed24h: 0, openFindings: 0, criticalFindings: 0, unmappedSources: 0, pendingAlerts: 0, failedAlerts: 0 };
@@ -54,7 +56,7 @@ export async function captureSiemSnapshot(siteId?: number): Promise<{ capturedAt
     const counters = await captureSiteCounters(targetSiteId);
     const [inserted] = await db
       .insert(siemDashboardSnapshots)
-      .values({ ...counters, siteId: targetSiteId || null })
+      .values({ ...counters, siteId: targetSiteId })
       .returning({ id: siemDashboardSnapshots.id, capturedAt: siemDashboardSnapshots.capturedAt });
     lastCapturedAt = inserted?.capturedAt ?? new Date();
     lastCounters = counters;

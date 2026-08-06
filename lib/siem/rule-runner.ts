@@ -59,7 +59,9 @@ function findingValues(candidate: SiemFindingCandidate, rule: SiemRuleDefinition
   const text = buildFindingText({ candidate, rule });
 
   return {
-    siteId: candidate.siteId,
+    // Caller (runSiemRulesForSite) guards candidate.siteId before calling;
+    // findings.siteId is NOT NULL and candidates come from site-scoped events.
+    siteId: candidate.siteId!,
     deviceId: candidate.deviceId,
     sourceId: candidate.sourceId,
     ruleId: candidate.ruleId,
@@ -189,6 +191,10 @@ async function runSiemRulesForSite(siteId: number, options: { now: Date; lookbac
   for (const candidate of candidates) {
     const rule = ruleById.get(candidate.ruleId);
     if (!rule) continue;
+    // Events are scoped eq(syslogEvents.siteId, siteId) above, so every
+    // candidate's siteId is this site's id. The null check narrows the
+    // candidate type (siteId: number | null) for the NOT NULL insert.
+    if (!candidate.siteId) continue;
     const text = buildFindingText({ candidate, rule });
     const existing = await db.query.siemFindings.findFirst({
       where: and(eq(siemFindings.siteId, siteId), eq(siemFindings.ruleId, candidate.ruleId), eq(siemFindings.correlationKey, candidate.correlationKey)),

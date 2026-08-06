@@ -482,7 +482,7 @@ export const auditLogs = pgTable("audit_logs", {
 // ==================== SIEM ====================
 export const syslogSources = pgTable("syslog_sources", {
   id: serial("id").primaryKey(),
-  siteId: integer("site_id").references(() => sites.id),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
   deviceId: integer("device_id").references(() => devices.id),
   sourceIp: text("source_ip").notNull(),
   hostname: text("hostname"),
@@ -500,7 +500,7 @@ export const syslogSources = pgTable("syslog_sources", {
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   siteSourceIpIdx: index("syslog_sources_site_source_ip_idx").on(table.siteId, table.sourceIp),
-  sourceIpIdx: index("syslog_sources_source_ip_idx").on(table.sourceIp),
+  sourceIpUnique: uniqueIndex("syslog_sources_source_ip_unique").on(table.sourceIp),
   hostnameIdx: index("syslog_sources_hostname_idx").on(table.hostname),
   deviceIdIdx: index("syslog_sources_device_id_idx").on(table.deviceId),
   enabledIdx: index("syslog_sources_enabled_idx").on(table.enabled),
@@ -516,6 +516,12 @@ export const syslogEventsRaw = pgTable("syslog_events_raw", {
   rawSize: integer("raw_size").notNull(),
   ingestStatus: syslogIngestStatusEnum("ingest_status").notNull().default("received"),
   parseError: text("parse_error"),
+  // ponytail: nullable at insert — the receiver writes raw rows before any
+  // source/site match (it only knows sourceIp). The parser worker stamps
+  // siteId when it parses (or leaves it null for dropped rows). Per-site raw
+  // deletes filter eq(siteId) so unparsed null-site rows are skipped and
+  // cleaned by the global orphan-raw path. NOT NULL would force a per-event
+  // source lookup on the syslog hot path; upgrade when receiver does the match.
   siteId: integer("site_id").references(() => sites.id),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
@@ -539,7 +545,7 @@ export const syslogEvents = pgTable("syslog_events", {
   program: text("program"),
   processId: text("process_id"),
   message: text("message").notNull(),
-  siteId: integer("site_id").references(() => sites.id),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
   deviceId: integer("device_id").references(() => devices.id),
   sourceId: integer("source_id").references(() => syslogSources.id),
   vendor: syslogVendorEnum("vendor"),
@@ -570,7 +576,7 @@ export const syslogEvents = pgTable("syslog_events", {
 
 export const siemRules = pgTable("siem_rules", {
   id: serial("id").primaryKey(),
-  key: text("key").notNull().unique(),
+  key: text("key").notNull(),
   name: text("name").notNull(),
   description: text("description").notNull(),
   enabled: boolean("enabled").notNull().default(true),
@@ -583,10 +589,12 @@ export const siemRules = pgTable("siem_rules", {
   windowSeconds: integer("window_seconds"),
   cooldownSeconds: integer("cooldown_seconds").notNull().default(300),
   alertEnabled: boolean("alert_enabled").notNull().default(false),
-  siteId: integer("site_id").references(() => sites.id),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
+  siteKeyUnique: uniqueIndex("siem_rules_site_key_unique").on(table.siteId, table.key),
+  siteEnabledIdx: index("siem_rules_site_enabled_idx").on(table.siteId, table.enabled),
   enabledIdx: index("siem_rules_enabled_idx").on(table.enabled),
   categoryIdx: index("siem_rules_category_idx").on(table.category),
   severityIdx: index("siem_rules_severity_idx").on(table.severity),
@@ -594,7 +602,7 @@ export const siemRules = pgTable("siem_rules", {
 
 export const siemFindings = pgTable("siem_findings", {
   id: serial("id").primaryKey(),
-  siteId: integer("site_id").references(() => sites.id),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
   deviceId: integer("device_id").references(() => devices.id),
   sourceId: integer("source_id").references(() => syslogSources.id),
   ruleId: integer("rule_id").references(() => siemRules.id),
@@ -623,7 +631,7 @@ export const siemFindings = pgTable("siem_findings", {
   statusSeverityLastSeenIdx: index("siem_findings_status_severity_last_seen_idx").on(table.status, table.severity, table.lastSeenAt),
   siteStatusSeverityIdx: index("siem_findings_site_status_severity_idx").on(table.siteId, table.status, table.severity),
   deviceStatusIdx: index("siem_findings_device_status_idx").on(table.deviceId, table.status),
-  ruleCorrelationUnique: uniqueIndex("siem_findings_rule_correlation_unique").on(table.ruleId, table.correlationKey),
+  siteRuleCorrelationUnique: uniqueIndex("siem_findings_site_rule_correlation_unique").on(table.siteId, table.ruleId, table.correlationKey),
 }));
 
 export const siemAlerts = pgTable("siem_alerts", {
@@ -658,8 +666,7 @@ export const siemAiJobs = pgTable("siem_ai_jobs", {
 
 export const siemSettings = pgTable("siem_settings", {
   id: serial("id").primaryKey(),
-  defaultSiemSiteId: integer("default_siem_site_id").references(() => sites.id),
-  siteId: integer("site_id").references(() => sites.id),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
   udpPort: integer("udp_port").notNull().default(514),
   tcpPort: integer("tcp_port"),
   tlsPort: integer("tls_port"),
@@ -674,7 +681,6 @@ export const siemSettings = pgTable("siem_settings", {
   findingRetentionDays: integer("finding_retention_days").notNull().default(365),
   alertRetentionDays: integer("alert_retention_days").notNull().default(365),
   alertMinSeverity: incidentSeverityEnum("alert_min_severity").notNull().default("High"),
-  unknownSourceEnabled: boolean("unknown_source_enabled").notNull().default(true),
   quarantineEnabled: boolean("quarantine_enabled").notNull().default(true),
   quarantineRetentionDays: integer("quarantine_retention_days").notNull().default(365),
   aiEnabled: boolean("ai_enabled").notNull().default(false),
@@ -686,7 +692,9 @@ export const siemSettings = pgTable("siem_settings", {
   aiRegenerateCooldownSec: integer("ai_regenerate_cooldown_sec").notNull().default(3600),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  siteUnique: uniqueIndex("siem_settings_site_unique").on(table.siteId),
+}));
 
 export const siemEventsQuarantine = pgTable("siem_events_quarantine", {
   id: serial("id").primaryKey(),
@@ -698,12 +706,13 @@ export const siemEventsQuarantine = pgTable("siem_events_quarantine", {
   message: text("message").notNull(),
   severity: integer("severity"),
   rawEventId: integer("raw_event_id"),
-  siteId: integer("site_id").references(() => sites.id),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
   quarantinedAt: timestamp("quarantined_at").defaultNow(),
   quarantinedReason: text("quarantined_reason"),
 }, (table) => ({
   receivedAtIdx: index("siem_events_quarantine_received_at_idx").on(table.receivedAt),
   quarantinedAtIdx: index("siem_events_quarantine_quarantined_at_idx").on(table.quarantinedAt),
+  siteQuarantinedIdx: index("siem_events_quarantine_site_quarantined_idx").on(table.siteId, table.quarantinedAt),
 }));
 
 // ==================== SIEM DASHBOARD SNAPSHOTS (N24) ====================
@@ -712,7 +721,7 @@ export const siemEventsQuarantine = pgTable("siem_events_quarantine", {
 // getSiemDashboardStats to build 24h/7d/30d time-series for the charts.
 export const siemDashboardSnapshots = pgTable("siem_dashboard_snapshots", {
   id: serial("id").primaryKey(),
-  siteId: integer("site_id").references(() => sites.id),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
   capturedAt: timestamp("captured_at").defaultNow().notNull(),
   raw24h: integer("raw_24h").notNull().default(0),
   parsed24h: integer("parsed_24h").notNull().default(0),
@@ -723,6 +732,7 @@ export const siemDashboardSnapshots = pgTable("siem_dashboard_snapshots", {
   failedAlerts: integer("failed_alerts").notNull().default(0),
 }, (table) => ({
   capturedAtIdx: index("siem_dashboard_snapshots_captured_at_idx").on(table.capturedAt),
+  siteCapturedIdx: index("siem_dashboard_snapshots_site_captured_idx").on(table.siteId, table.capturedAt),
 }));
 
 export const siemEvidenceEvents = pgTable("siem_evidence_events", {
@@ -857,10 +867,6 @@ export const siemAlertsRelations = relations(siemAlerts, ({ one }) => ({
 }));
 
 export const siemSettingsRelations = relations(siemSettings, ({ one }) => ({
-  defaultSite: one(sites, {
-    fields: [siemSettings.defaultSiemSiteId],
-    references: [sites.id],
-  }),
   site: one(sites, {
     fields: [siemSettings.siteId],
     references: [sites.id],
