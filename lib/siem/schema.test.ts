@@ -3,6 +3,8 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import {
   siemAlerts,
+  siemEventsQuarantine,
+  siemDashboardSnapshots,
   siemFindings,
   siemRules,
   siemSettings,
@@ -50,6 +52,7 @@ describe("SIEM schema", () => {
       "rawSize",
       "ingestStatus",
       "parseError",
+      "siteId",
       "createdAt",
     ]);
     expect(columnKeys(syslogEvents)).toEqual([
@@ -130,12 +133,20 @@ describe("SIEM schema", () => {
       "message",
       "sentAt",
       "error",
+      "retryCount",
       "createdAt",
     ]);
-    expect(columnKeys(siemSettings)).not.toContain("siteId");
-    expect(columnKeys(siemSettings)).toContain("defaultSiemSiteId");
+    // Per-site: siem_settings is keyed by siteId (one row per site), no global
+    // default_siem_site_id, no unknown_source_enabled auto-create.
+    expect(columnKeys(siemSettings)).toContain("siteId");
+    expect(columnKeys(siemSettings)).not.toContain("defaultSiemSiteId");
+    expect(columnKeys(siemSettings)).not.toContain("unknownSourceEnabled");
     expect(columnKeys(siemSettings)).toContain("aiMaxSampleEvents");
     expect(columnKeys(siemSettings)).toContain("aiMaxRawLength");
+    // Every SIEM table carries siteId for per-site isolation.
+    expect(columnKeys(siemRules)).toContain("siteId");
+    expect(columnKeys(siemEventsQuarantine)).toContain("siteId");
+    expect(columnKeys(siemDashboardSnapshots)).toContain("siteId");
   });
 
   it("uses Phase 01 index names", () => {
@@ -144,16 +155,18 @@ describe("SIEM schema", () => {
       "syslog_sources_enabled_idx",
       "syslog_sources_hostname_idx",
       "syslog_sources_site_source_ip_idx",
-      "syslog_sources_source_ip_idx",
+      "syslog_sources_source_ip_unique",
     ]);
     expect(indexNames(siemRules)).toEqual([
       "siem_rules_category_idx",
       "siem_rules_enabled_idx",
       "siem_rules_severity_idx",
+      "siem_rules_site_enabled_idx",
+      "siem_rules_site_key_unique",
     ]);
     expect(indexNames(siemFindings)).toEqual([
       "siem_findings_device_status_idx",
-      "siem_findings_rule_correlation_unique",
+      "siem_findings_site_rule_correlation_unique",
       "siem_findings_site_status_severity_idx",
       "siem_findings_status_severity_last_seen_idx",
     ]);
