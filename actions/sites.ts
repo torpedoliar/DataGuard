@@ -1,11 +1,13 @@
 "use server";
 
 import { db } from "@/db";
-import { sites, siteTelegramChatIds, userSites, users } from "@/db/schema";
+import { sites, siemSettings, siteTelegramChatIds, userSites, users } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { verifySession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit";
+import { seedDefaultSiemRules } from "@/lib/siem/rule-runner";
+import { DEFAULT_SIEM_RULES } from "@/lib/siem/default-rules";
 
 export type SiteTelegramChatRecord = typeof siteTelegramChatIds.$inferSelect;
 
@@ -36,7 +38,10 @@ export async function addSite(data: { name: string; code: string; address?: stri
     }
 
     try {
-        await db.insert(sites).values({
+        // Insert the site + seed its per-site SIEM rules/settings atomically.
+        // Every new site gets its own default rules + a settings row so SIEM is
+        // multi-site ready from creation (rules/settings are per-site, not global).
+        const [created] = await db.insert(sites).values({
             name: data.name,
             code: data.code.toUpperCase(),
             address: data.address || null,
@@ -45,7 +50,10 @@ export async function addSite(data: { name: string; code: string; address?: stri
             latitude: data.latitude || null,
             longitude: data.longitude || null,
             isActive: true,
-        });
+        }).returning({ id: sites.id });
+
+        await seedDefaultSiemRules(DEFAULT_SIEM_RULES, created.id);
+        await db.insert(siemSettings).values({ siteId: created.id });
 
         await logAudit({ action: "CREATE", entity: "site", entityName: data.name, detail: `Code: ${data.code}` });
 
