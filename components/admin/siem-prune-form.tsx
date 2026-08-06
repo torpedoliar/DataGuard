@@ -25,7 +25,7 @@ export default function SiemPruneForm() {
     async (_prev: PruneEventsResult, formData: FormData) => {
       const cutoffDate = String(formData.get("cutoffDate") ?? "");
       const rawEventsOnly = String(formData.get("rawEventsOnly") ?? "false") === "true";
-      return pruneEventsBefore(cutoffDate, { rawEventsOnly, siteScoped: true });
+      return pruneEventsBefore(cutoffDate, { rawEventsOnly });
     },
     initialState,
   );

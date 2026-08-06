@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { devices, siemEventsQuarantine, sites, syslogEvents, syslogEventsRaw, syslogSources } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
-import { requireActiveSiteAdminAction, requireSuperadminAction } from "@/lib/action-auth";
+import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { inspectRawLogInjection } from "@/lib/siem/injection-inspector";
 import { and, desc, eq, gte, ilike, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
 
@@ -62,9 +62,7 @@ export async function getSiemEventExplorerData(filters: SiemEventFilters) {
     )!);
   }
 
-  const sourceRows = await db.select({ sourceIp: syslogSources.sourceIp }).from(syslogSources).where(eq(syslogSources.siteId, auth.activeSiteId));
-  const sourceIps = [...new Set(sourceRows.map((source) => source.sourceIp))];
-  const rawConditions: SQL[] = sourceIps.length > 0 ? [inArray(syslogEventsRaw.sourceIp, sourceIps)] : [sql`false`];
+  const rawConditions: SQL[] = [eq(syslogEventsRaw.siteId, auth.activeSiteId)];
   if (filters.status) rawConditions.push(eq(syslogEventsRaw.ingestStatus, filters.status));
   if (filters.sourceIp) rawConditions.push(eq(syslogEventsRaw.sourceIp, filters.sourceIp));
   if (startDate) rawConditions.push(gte(syslogEventsRaw.receivedAt, startDate));
@@ -167,7 +165,7 @@ export async function getQuarantinedEventsCount(): Promise<{ ok: boolean; count?
   const rows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(siemEventsQuarantine)
-    .where(lt(siemEventsQuarantine.quarantinedAt, cutoff));
+    .where(and(eq(siemEventsQuarantine.siteId, auth.activeSiteId), lt(siemEventsQuarantine.quarantinedAt, cutoff)));
   return { ok: true, count: rows[0]?.count ?? 0 };
 }
 
@@ -181,21 +179,20 @@ export type PruneEventsResult = {
 
 /**
  * Manually delete parsed syslog events (and optionally orphan raw events) received
- * before `cutoffDate`. Superadmin only. Batched delete with 10k row chunks so a
- * large purge can never hold a long-running lock. Logs the action to the audit
- * trail with the cutoff and the per-table counts.
+ * before `cutoffDate`. Active-site admin only — the delete is strictly scoped to
+ * the caller's active site (superadmin must select a site first). Batched delete
+ * with 10k row chunks so a large purge can never hold a long-running lock. Logs
+ * the action to the audit trail with the cutoff and the per-table counts.
  *
  * Options:
  * - `rawEventsOnly`  : also delete orphan raw events older than the cutoff
  *                      (rows that no parsed event references). Default: false.
- * - `siteScoped`     : limit the parsed-events delete to the caller's active site.
- *                      Default: true.
  */
 export async function pruneEventsBefore(
   cutoffDate: string,
-  options: { rawEventsOnly?: boolean; siteScoped?: boolean } = {},
+  options: { rawEventsOnly?: boolean } = {},
 ): Promise<PruneEventsResult> {
-  const auth = await requireSuperadminAction();
+  const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { ok: false, message: auth.message };
 
   const date = new Date(cutoffDate);
@@ -204,16 +201,13 @@ export async function pruneEventsBefore(
   }
 
   const batchSize = 10_000;
-  const { rawEventsOnly = false, siteScoped = true } = options;
+  const { rawEventsOnly = false } = options;
 
-  // ----- Phase 1: delete parsed syslog_events in batches -----
+  // ----- Phase 1: delete parsed syslog_events in batches (strict site scope) -----
   let deletedEvents = 0;
   let done = false;
   while (!done) {
-    const conditions: SQL[] = [lt(syslogEvents.receivedAt, date)];
-    if (siteScoped && auth.activeSiteId) {
-      conditions.push(eq(syslogEvents.siteId, auth.activeSiteId));
-    }
+    const conditions: SQL[] = [eq(syslogEvents.siteId, auth.activeSiteId), lt(syslogEvents.receivedAt, date)];
     const victims = await db
       .select({ id: syslogEvents.id })
       .from(syslogEvents)
@@ -233,13 +227,14 @@ export async function pruneEventsBefore(
     }
   }
 
-  // ----- Phase 2: optionally delete orphan raw events -----
+  // ----- Phase 2: optionally delete orphan raw events (same site only) -----
   let deletedRaw = 0;
   if (rawEventsOnly) {
     const rawDeleted = await db
       .delete(syslogEventsRaw)
       .where(
         and(
+          eq(syslogEventsRaw.siteId, auth.activeSiteId),
           lt(syslogEventsRaw.receivedAt, date),
           sql`not exists (select 1 from ${syslogEvents} where ${syslogEvents.rawEventId} = ${syslogEventsRaw.id})`,
         ),
@@ -251,7 +246,7 @@ export async function pruneEventsBefore(
   await logAudit({
     action: "DELETE",
     entity: "syslog_event",
-    detail: `Manual prune cutoff=${cutoffDate} deletedEvents=${deletedEvents} deletedRawOrphans=${deletedRaw} rawEventsOnly=${rawEventsOnly} siteScoped=${siteScoped}`,
+    detail: `Manual prune site=${auth.activeSiteId} cutoff=${cutoffDate} deletedEvents=${deletedEvents} deletedRawOrphans=${deletedRaw} rawEventsOnly=${rawEventsOnly}`,
   });
 
   return { ok: true, deletedEvents, deletedRaw, cutoffDate };

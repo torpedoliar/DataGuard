@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock action-auth to control superadmin guard.
-const requireSuperadminMock = vi.fn();
+// Mock action-auth to control the active-site admin guard used by pruneEventsBefore.
+const requireActiveSiteAdminMock = vi.fn();
 vi.mock("@/lib/action-auth", () => ({
-  requireSuperadminAction: (..._args: unknown[]) => requireSuperadminMock(),
+  requireActiveSiteAdminAction: (..._args: unknown[]) => requireActiveSiteAdminMock(),
 }));
 
 const logAuditMock = vi.fn();
@@ -45,10 +45,10 @@ import { pruneEventsBefore } from "./siem-events";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  requireSuperadminMock.mockResolvedValue({
+  requireActiveSiteAdminMock.mockResolvedValue({
     ok: true,
     session: { userId: 1, username: "root", role: "superadmin" } as never,
-    activeSiteId: 0,
+    activeSiteId: 1,
   });
 });
 

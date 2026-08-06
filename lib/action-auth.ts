@@ -5,26 +5,36 @@ import { hasAdminAccess } from "@/lib/site-access";
 
 type Session = NonNullable<Awaited<ReturnType<typeof verifySession>>>;
 
-type GuardSuccess = {
-  ok: true;
-  session: Session;
-  activeSiteId: number;
-};
-
 type GuardFailure = {
   ok: false;
   message: string;
 };
 
-export type ActionGuardResult = GuardSuccess | GuardFailure;
+// Active-site guards reject when no site is selected, so activeSiteId is always
+// a concrete number on success.
+export type SiteGuardSuccess = {
+  ok: true;
+  session: Session;
+  activeSiteId: number;
+};
 
-export async function requireSuperadminAction(): Promise<ActionGuardResult> {
+// Superadmin-only guards do not require an active site, so activeSiteId may be null.
+export type SuperadminGuardSuccess = {
+  ok: true;
+  session: Session;
+  activeSiteId: number | null;
+};
+
+export type ActionGuardResult = SiteGuardSuccess | GuardFailure;
+export type SuperadminActionGuardResult = SuperadminGuardSuccess | GuardFailure;
+
+export async function requireSuperadminAction(): Promise<SuperadminActionGuardResult> {
   const session = await verifySession();
   if (!session || session.role !== "superadmin") {
     return { ok: false, message: "Unauthorized. Superadmin access required." };
   }
 
-  return { ok: true, session, activeSiteId: session.activeSiteId ?? 0 };
+  return { ok: true, session, activeSiteId: session.activeSiteId ?? null };
 }
 
 export async function requireActiveSiteAction(): Promise<ActionGuardResult> {
