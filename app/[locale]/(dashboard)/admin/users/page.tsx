@@ -14,7 +14,7 @@ export default async function UsersPage() {
     const sites = await getSites();
 
     return (
-        <div className="px-4 py-6 sm:px-0">
+        <div className="px-4 py-6 lg:px-6">
             <div className="mb-6">
                 <div className="flex items-center justify-between">
                     <div>

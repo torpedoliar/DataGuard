@@ -72,12 +72,12 @@ export default async function AuditGridPage({
         </div>
       </header>
 
-      <DraggableScroll className="relative flex-1 overflow-auto">
+      <DraggableScroll className="relative flex-1 overflow-auto px-4 lg:px-6">
         <div className="inline-block min-w-full align-middle">
           <table className="min-w-full border-collapse text-left text-sm">
             <thead className="bg-ops-surface text-[11px] font-semibold uppercase tracking-[0.08em] text-ops-muted">
               <tr>
-                <th className="sticky left-0 top-0 z-50 min-w-[300px] border-b border-r border-ops-border bg-ops-surface py-3 pl-5 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)]">
+                <th className="sticky left-0 top-0 z-40 min-w-[300px] border-b border-r border-ops-border bg-ops-surface py-3 pl-5 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)]">
                   Device Name
                 </th>
                 {dates.map((date) => {
@@ -88,7 +88,7 @@ export default async function AuditGridPage({
                     <th
                       key={date}
                       className={clsx(
-                        "sticky top-0 z-40 min-w-[104px] border-b border-r border-ops-border px-3 py-3 text-center",
+                        "sticky top-0 z-30 min-w-[104px] border-b border-r border-ops-border px-3 py-3 text-center",
                         isToday ? "border-t-2 border-t-ops-accent bg-ops-accent/10" : "bg-ops-surface",
                       )}
                     >
@@ -118,7 +118,7 @@ export default async function AuditGridPage({
                     <tr className="bg-ops-surface">
                       <td
                         colSpan={dates.length + 1}
-                        className="sticky left-0 z-30 border-b border-r border-ops-border bg-ops-surface py-2 pl-5 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)]"
+                        className="sticky left-0 z-20 border-b border-r border-ops-border bg-ops-surface py-2 pl-5 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)]"
                       >
                         <div className="flex items-center gap-2">
                           <span className="size-2.5 rounded-full" style={{ backgroundColor: color }} />
@@ -132,7 +132,7 @@ export default async function AuditGridPage({
 
                     {devices.map((device) => (
                       <tr key={device.id} className="group transition-colors hover:bg-ops-surface">
-                        <td className="sticky left-0 z-20 whitespace-nowrap border-r border-ops-border bg-ops-bg py-2.5 pl-8 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)] group-hover:bg-ops-surface">
+                        <td className="sticky left-0 z-10 whitespace-nowrap border-r border-ops-border bg-ops-bg py-2.5 pl-8 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)] group-hover:bg-ops-surface">
                           <div className="flex flex-col">
                             <span className="text-sm font-semibold text-ops-text">{device.name}</span>
                             <span className="font-mono text-[11px] text-ops-muted">{device.locationName || "-"}</span>
@@ -205,7 +205,7 @@ function GridStatusPill({ check }: { check: DailyCheck }) {
     >
       <span className="max-w-[54px] truncate text-[10px] font-semibold text-slate-300">{check.username}</span>
       {icon}
-      <div className="pointer-events-none absolute -top-8 left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-md border border-ops-border bg-ops-surface-raised px-2.5 py-1 text-[10px] text-ops-text opacity-0 transition-opacity group-hover/tooltip:opacity-100">
+      <div className="pointer-events-none absolute -top-8 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-md border border-ops-border bg-ops-surface-raised px-2.5 py-1 text-[10px] text-ops-text opacity-0 transition-opacity group-hover/tooltip:opacity-100">
         {check.shift} | {check.time}
       </div>
     </div>

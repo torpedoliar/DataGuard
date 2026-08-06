@@ -51,7 +51,7 @@ export default async function NetworkDocumentationPage({
     const otherDevices = allDevices.filter(d => d.id !== deviceId);
 
     return (
-        <div className="px-4 py-6 sm:px-0">
+        <div className="px-4 py-6 lg:px-6">
             <div className="mb-6">
                 <Link
                     href="/admin"
