@@ -516,11 +516,13 @@ export const syslogEventsRaw = pgTable("syslog_events_raw", {
   rawSize: integer("raw_size").notNull(),
   ingestStatus: syslogIngestStatusEnum("ingest_status").notNull().default("received"),
   parseError: text("parse_error"),
+  siteId: integer("site_id").references(() => sites.id),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   receivedAtIdx: index("syslog_events_raw_received_at_idx").on(table.receivedAt),
   sourceReceivedIdx: index("syslog_events_raw_source_received_idx").on(table.sourceIp, table.receivedAt),
   statusReceivedIdx: index("syslog_events_raw_status_received_idx").on(table.ingestStatus, table.receivedAt),
+  siteReceivedIdx: index("syslog_events_raw_site_received_idx").on(table.siteId, table.receivedAt),
 }));
 
 export const syslogEvents = pgTable("syslog_events", {
@@ -581,6 +583,7 @@ export const siemRules = pgTable("siem_rules", {
   windowSeconds: integer("window_seconds"),
   cooldownSeconds: integer("cooldown_seconds").notNull().default(300),
   alertEnabled: boolean("alert_enabled").notNull().default(false),
+  siteId: integer("site_id").references(() => sites.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -656,6 +659,7 @@ export const siemAiJobs = pgTable("siem_ai_jobs", {
 export const siemSettings = pgTable("siem_settings", {
   id: serial("id").primaryKey(),
   defaultSiemSiteId: integer("default_siem_site_id").references(() => sites.id),
+  siteId: integer("site_id").references(() => sites.id),
   udpPort: integer("udp_port").notNull().default(514),
   tcpPort: integer("tcp_port"),
   tlsPort: integer("tls_port"),
@@ -694,6 +698,7 @@ export const siemEventsQuarantine = pgTable("siem_events_quarantine", {
   message: text("message").notNull(),
   severity: integer("severity"),
   rawEventId: integer("raw_event_id"),
+  siteId: integer("site_id").references(() => sites.id),
   quarantinedAt: timestamp("quarantined_at").defaultNow(),
   quarantinedReason: text("quarantined_reason"),
 }, (table) => ({
@@ -707,6 +712,7 @@ export const siemEventsQuarantine = pgTable("siem_events_quarantine", {
 // getSiemDashboardStats to build 24h/7d/30d time-series for the charts.
 export const siemDashboardSnapshots = pgTable("siem_dashboard_snapshots", {
   id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id),
   capturedAt: timestamp("captured_at").defaultNow().notNull(),
   raw24h: integer("raw_24h").notNull().default(0),
   parsed24h: integer("parsed_24h").notNull().default(0),
@@ -771,7 +777,11 @@ export const syslogSourcesRelations = relations(syslogSources, ({ one, many }) =
   findings: many(siemFindings),
 }));
 
-export const syslogEventsRawRelations = relations(syslogEventsRaw, ({ many }) => ({
+export const syslogEventsRawRelations = relations(syslogEventsRaw, ({ one, many }) => ({
+  site: one(sites, {
+    fields: [syslogEventsRaw.siteId],
+    references: [sites.id],
+  }),
   events: many(syslogEvents),
 }));
 
@@ -794,7 +804,11 @@ export const syslogEventsRelations = relations(syslogEvents, ({ one }) => ({
   }),
 }));
 
-export const siemRulesRelations = relations(siemRules, ({ many }) => ({
+export const siemRulesRelations = relations(siemRules, ({ one, many }) => ({
+  site: one(sites, {
+    fields: [siemRules.siteId],
+    references: [sites.id],
+  }),
   findings: many(siemFindings),
 }));
 
@@ -846,6 +860,11 @@ export const siemSettingsRelations = relations(siemSettings, ({ one }) => ({
   defaultSite: one(sites, {
     fields: [siemSettings.defaultSiemSiteId],
     references: [sites.id],
+  }),
+  site: one(sites, {
+    fields: [siemSettings.siteId],
+    references: [sites.id],
+    relationName: "siemSettingsSite",
   }),
 }));
 
