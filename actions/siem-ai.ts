@@ -16,7 +16,7 @@ export async function testSiemAiConnection(prevState: unknown, formData: FormDat
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { ok: false, message: auth.message };
 
-  const [settings] = await db.select().from(siemSettings).limit(1);
+  const [settings] = await db.select().from(siemSettings).where(eq(siemSettings.siteId, auth.activeSiteId)).limit(1);
 
   // Prefer values typed into the form so admins can test before saving.
   // Fall back to the saved API key when the password field is left blank.
@@ -78,7 +78,7 @@ export async function generateSiemAiAnalysis(prevState: unknown, formData: FormD
   });
   if (!finding) return { message: "SIEM finding not found." };
 
-  const [settings] = await db.select().from(siemSettings).limit(1);
+  const [settings] = await db.select().from(siemSettings).where(eq(siemSettings.siteId, auth.activeSiteId)).limit(1);
   if (!settings?.aiEnabled) return { message: "SIEM AI analysis is disabled." };
 
   // N18: per-finding regeneration cooldown (default 1h, configurable via

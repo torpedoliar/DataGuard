@@ -81,9 +81,9 @@ export async function resolveSiteEmailRecipients(siteId: number, severity: SiemS
 }
 
 export async function queueSiemAlerts() {
-  const settings = await db.select().from(siemSettings).limit(1);
-  const minSeverity = (settings[0]?.alertMinSeverity ?? "High") as SiemSeverity;
-
+  // Findings are processed across all sites (headless worker); each finding's
+  // alert-min-severity is read from its own site's siem_settings, not a global
+  // singleton.
   const rows = await db.query.siemFindings.findMany({
     where: ne(siemFindings.status, "Resolved"),
     with: {
@@ -101,10 +101,13 @@ export async function queueSiemAlerts() {
   for (const finding of rows) {
     try {
       if (!finding.rule?.alertEnabled) continue;
-      if (!isAtLeastSeverity(finding.severity as SiemSeverity, minSeverity)) continue;
-      
+
       if (!finding.site) continue;
       const siteId = finding.site.id;
+
+      const [settings] = await db.select().from(siemSettings).where(eq(siemSettings.siteId, siteId)).limit(1);
+      const minSeverity = (settings?.alertMinSeverity ?? "High") as SiemSeverity;
+      if (!isAtLeastSeverity(finding.severity as SiemSeverity, minSeverity)) continue;
 
       const severity = finding.severity as SiemSeverity;
       const [tRecs, wRecs, eRecs] = await Promise.all([

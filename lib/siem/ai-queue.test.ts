@@ -42,20 +42,22 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-// Chain: select().from(siemSettings).limit(1) → rows
+// Chain: select().from(siemSettings).where(pred).limit(1) → rows
 function makeSettingsChain(rows: unknown[]) {
   const limit = vi.fn().mockResolvedValue(rows);
-  const from = vi.fn().mockReturnValue({ limit });
+  const where = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where });
   const select = vi.fn().mockReturnValue({ from });
-  return { select, from, limit };
+  return { select, from, where, limit };
 }
 
-function makeFinding(overrides: Partial<{ id: number; aiGeneratedAt: Date | null; severity: "Low" | "Medium" | "High" | "Critical"; status: string }> = {}) {
+function makeFinding(overrides: Partial<{ id: number; aiGeneratedAt: Date | null; severity: "Low" | "Medium" | "High" | "Critical"; status: string; siteId: number | null }> = {}) {
   return {
     id: 1,
     aiGeneratedAt: null,
     severity: "High" as const,
     status: "Open",
+    siteId: 10,
     ...overrides,
   };
 }

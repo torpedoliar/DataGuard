@@ -1,6 +1,6 @@
 import { db } from "../../db";
-import { siemFindings, siemRules, syslogEvents, syslogSources } from "../../db/schema";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { siemFindings, siemRules, sites, syslogEvents, syslogSources } from "../../db/schema";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { queueSiemAiAnalysis } from "./ai-queue";
 import { buildFindingText } from "./human-analysis";
 import { evaluateSiemRules, type SiemFindingCandidate, type SiemRuleDefinition, type SiemRuleEvent, type SiemSourceBaseline } from "./rule-engine";
@@ -55,11 +55,11 @@ function asEvent(row: typeof syslogEvents.$inferSelect): SiemRuleEvent {
   };
 }
 
-function findingValues(candidate: SiemFindingCandidate, rule: SiemRuleDefinition, sourceSiteIdMap: Map<number, number | null>) {
+function findingValues(candidate: SiemFindingCandidate, rule: SiemRuleDefinition) {
   const text = buildFindingText({ candidate, rule });
 
   return {
-    siteId: candidate.siteId ?? (candidate.sourceId ? (sourceSiteIdMap.get(candidate.sourceId) ?? null) : null),
+    siteId: candidate.siteId,
     deviceId: candidate.deviceId,
     sourceId: candidate.sourceId,
     ruleId: candidate.ruleId,
@@ -78,7 +78,7 @@ function findingValues(candidate: SiemFindingCandidate, rule: SiemRuleDefinition
   };
 }
 
-async function buildAbsenceMap(rules: SiemRuleDefinition[]): Promise<Map<number, number[]>> {
+async function buildAbsenceMap(rules: SiemRuleDefinition[], siteId: number): Promise<Map<number, number[]>> {
   const absenceRules = rules.filter((rule) => rule.ruleType === "absence" && rule.groupBy.includes("sourceId"));
   const map = new Map<number, number[]>();
   if (absenceRules.length === 0) return map;
@@ -86,7 +86,7 @@ async function buildAbsenceMap(rules: SiemRuleDefinition[]): Promise<Map<number,
   const sourceRows = await db
     .select({ id: syslogSources.id })
     .from(syslogSources)
-    .where(eq(syslogSources.enabled, true));
+    .where(and(eq(syslogSources.siteId, siteId), eq(syslogSources.enabled, true)));
 
   const allSourceIds = sourceRows.map((row) => row.id);
   for (const rule of absenceRules) map.set(rule.id, allSourceIds);
@@ -97,6 +97,7 @@ async function buildBaselineMap(
   rules: SiemRuleDefinition[],
   eventRows: (typeof syslogEvents.$inferSelect)[],
   now: Date,
+  siteId: number,
 ): Promise<Map<number, SiemSourceBaseline>> {
   const baselineRules = rules.filter((rule) => rule.ruleType === "baseline_anomaly" && rule.groupBy.includes("sourceId"));
   const map = new Map<number, SiemSourceBaseline>();
@@ -110,7 +111,7 @@ async function buildBaselineMap(
   const historyRows = await db
     .select({ sourceId: syslogEvents.sourceId })
     .from(syslogEvents)
-    .where(and(gte(syslogEvents.receivedAt, sevenDaysAgo)));
+    .where(and(eq(syslogEvents.siteId, siteId), gte(syslogEvents.receivedAt, sevenDaysAgo)));
 
   const counts = new Map<number, number>();
   for (const row of historyRows) {
@@ -131,13 +132,35 @@ export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
   const lookbackSeconds = options.lookbackSeconds ?? 900;
   const limit = options.limit ?? 500;
 
-  const [ruleRows, sourceRows] = await Promise.all([
-    db.select().from(siemRules).where(eq(siemRules.enabled, true)),
-    db.select({ id: syslogSources.id, siteId: syslogSources.siteId }).from(syslogSources)
-  ]);
+  // Per-site loop: rules, events, absence/baseline maps, and findings are all
+  // scoped to one site at a time so correlation never crosses site boundaries
+  // and each site's headless worker iteration stays bounded.
+  const siteRows = await db.select({ id: sites.id }).from(sites).where(eq(sites.isActive, true));
+
+  let evaluatedRules = 0;
+  let evaluatedEvents = 0;
+  let candidatesCount = 0;
+  let created = 0;
+  let updated = 0;
+
+  for (const site of siteRows) {
+    const result = await runSiemRulesForSite(site.id, { now, lookbackSeconds, limit });
+    evaluatedRules += result.evaluatedRules;
+    evaluatedEvents += result.evaluatedEvents;
+    candidatesCount += result.candidates;
+    created += result.created;
+    updated += result.updated;
+  }
+
+  return { evaluatedRules, evaluatedEvents, candidates: candidatesCount, created, updated };
+}
+
+async function runSiemRulesForSite(siteId: number, options: { now: Date; lookbackSeconds: number; limit: number }) {
+  const { now, lookbackSeconds, limit } = options;
+
+  const ruleRows = await db.select().from(siemRules).where(and(eq(siemRules.siteId, siteId), eq(siemRules.enabled, true)));
   const rules = ruleRows.map(asRule);
   const ruleById = new Map(rules.map((rule) => [rule.id, rule]));
-  const sourceSiteIdMap = new Map(sourceRows.map((s) => [s.id, s.siteId]));
 
   const absenceWindowMax = rules
     .filter((rule) => rule.ruleType === "absence" && rule.groupBy.includes("sourceId"))
@@ -151,13 +174,13 @@ export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
   const eventRows = await db
     .select()
     .from(syslogEvents)
-    .where(gte(syslogEvents.receivedAt, since))
+    .where(and(eq(syslogEvents.siteId, siteId), gte(syslogEvents.receivedAt, since)))
     .orderBy(desc(syslogEvents.receivedAt))
     .limit(limit);
 
   const [absenceMap, baselineMap] = await Promise.all([
-    buildAbsenceMap(rules),
-    buildBaselineMap(rules, eventRows, now),
+    buildAbsenceMap(rules, siteId),
+    buildBaselineMap(rules, eventRows, now, siteId),
   ]);
   const candidates = evaluateSiemRules({ rules, events: eventRows.map(asEvent), options: { now, absence: absenceMap, baseline: baselineMap } });
   let created = 0;
@@ -168,7 +191,7 @@ export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
     if (!rule) continue;
     const text = buildFindingText({ candidate, rule });
     const existing = await db.query.siemFindings.findFirst({
-      where: and(eq(siemFindings.ruleId, candidate.ruleId), eq(siemFindings.correlationKey, candidate.correlationKey)),
+      where: and(eq(siemFindings.siteId, siteId), eq(siemFindings.ruleId, candidate.ruleId), eq(siemFindings.correlationKey, candidate.correlationKey)),
     });
 
     if (existing) {
@@ -183,11 +206,12 @@ export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
       }).where(eq(siemFindings.id, existing.id));
       updated++;
     } else {
-      const inserted = await db.insert(siemFindings).values(findingValues(candidate, rule, sourceSiteIdMap)).returning({
+      const inserted = await db.insert(siemFindings).values(findingValues(candidate, rule)).returning({
         id: siemFindings.id,
         severity: siemFindings.severity,
         status: siemFindings.status,
         aiGeneratedAt: siemFindings.aiGeneratedAt,
+        siteId: siemFindings.siteId,
       });
       created++;
       // Fire-and-forget enqueue for the auto-AI path. Failures must not block
@@ -202,6 +226,7 @@ export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
           aiGeneratedAt: newRow.aiGeneratedAt,
           severity: newRow.severity,
           status: newRow.status,
+          siteId: newRow.siteId,
         });
       }
     }
@@ -226,40 +251,39 @@ export const RESEED_CONFLICT_UPDATE_KEYS = [
   "cooldownSeconds",
 ] as const;
 
-export async function seedDefaultSiemRules(rules: SeedSiemRule[]) {
-  for (const rule of rules) {
-    await db.insert(siemRules).values({
-      key: rule.key,
-      name: rule.name,
-      description: rule.description,
-      enabled: rule.enabled,
-      severity: rule.severity,
-      category: rule.category,
-      ruleType: rule.ruleType,
-      conditions: rule.conditions,
-      groupBy: rule.groupBy,
-      threshold: rule.threshold,
-      windowSeconds: rule.windowSeconds,
-      cooldownSeconds: rule.cooldownSeconds,
-      alertEnabled: rule.alertEnabled ?? false,
-    }).onConflictDoUpdate({
-      target: siemRules.key,
-      // Refresh metadata from code, but preserve user-set enabled/alertEnabled.
-      set: {
-        name: sql`excluded.name`,
-        description: sql`excluded.description`,
-        severity: sql`excluded.severity`,
-        category: sql`excluded.category`,
-        ruleType: sql`excluded.rule_type`,
-        conditions: sql`excluded.conditions`,
-        groupBy: sql`excluded.group_by`,
-        threshold: sql`excluded.threshold`,
-        windowSeconds: sql`excluded.window_seconds`,
-        cooldownSeconds: sql`excluded.cooldown_seconds`,
-        updatedAt: new Date(),
-      },
-    });
+export async function seedDefaultSiemRules(rules: SeedSiemRule[], siteId: number) {
+  // ponytail: guarded insert via NOT EXISTS anti-join instead of onConflict.
+  // The unique constraint on (site_id, key) lands in migration 1b; during 1a
+  // the global key-unique constraint is still live, so onConflict targeting
+  // [siteId, key] would error and targeting key would collide across sites.
+  // The anti-join only inserts rules the site doesn't already own, which is
+  // exactly the seed semantics. Metadata refresh for existing rules is dropped
+  // (rule worker reseed now only backfills missing rules); upgrade path: a
+  // dedicated reseed-on-version command once the per-site unique exists.
+  const existing = await db.select({ key: siemRules.key }).from(siemRules).where(eq(siemRules.siteId, siteId));
+  const existingKeys = new Set(existing.map((row) => row.key));
+  const toInsert = rules.filter((rule) => !existingKeys.has(rule.key));
+
+  if (toInsert.length > 0) {
+    await db.insert(siemRules).values(
+      toInsert.map((rule) => ({
+        siteId,
+        key: rule.key,
+        name: rule.name,
+        description: rule.description,
+        enabled: rule.enabled,
+        severity: rule.severity,
+        category: rule.category,
+        ruleType: rule.ruleType,
+        conditions: rule.conditions,
+        groupBy: rule.groupBy,
+        threshold: rule.threshold,
+        windowSeconds: rule.windowSeconds,
+        cooldownSeconds: rule.cooldownSeconds,
+        alertEnabled: rule.alertEnabled ?? false,
+      })),
+    );
   }
 
-  return { seeded: rules.length };
+  return { seeded: toInsert.length };
 }

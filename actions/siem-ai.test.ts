@@ -23,7 +23,8 @@ const selectMock = vi.fn();
 const findFirstMock = vi.fn();
 const defaultSelectChain = () => {
   const limit = vi.fn().mockResolvedValue([{ aiEnabled: false }]);
-  const from = vi.fn().mockReturnValue({ limit });
+  const where = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where });
   return { from };
 };
 vi.mock("@/db", () => ({
@@ -47,7 +48,8 @@ import { generateSiemAiAnalysis } from "./siem-ai";
 
 function makeSelectChain(rows: unknown[]) {
   const limit = vi.fn().mockResolvedValue(rows);
-  const from = vi.fn().mockReturnValue({ limit });
+  const where = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where });
   return { from };
 }
 

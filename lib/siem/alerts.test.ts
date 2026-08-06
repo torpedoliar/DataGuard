@@ -83,12 +83,13 @@ function makeSelectFromWhereLimitChain(rows: unknown[]) {
   return { select, from, where, limit };
 }
 
-// Chain: select().from(siemSettings).limit(1) → rows
+// Chain: select().from(siemSettings).where(pred).limit(1) → rows
 function makeSettingsChain(rows: unknown[]) {
   const limit = vi.fn().mockResolvedValue(rows);
-  const from = vi.fn().mockReturnValue({ limit });
+  const where = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where });
   const select = vi.fn().mockReturnValue({ from });
-  return { select, from, limit };
+  return { select, from, where, limit };
 }
 
 // Chain for site_telegram_chat_ids: select({...}).from(siteTelegramChatIds).where(pred) → rows
@@ -109,8 +110,8 @@ afterEach(() => {
 
 describe("queueSiemAlerts", () => {
   it("only inserts channel='telegram' rows when alert is eligible", async () => {
-    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([makeFinding()]);
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     // Recipient resolver: 1 chat, all severities
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
@@ -132,10 +133,10 @@ describe("queueSiemAlerts", () => {
   });
 
   it("does not insert when a telegram alert already exists on the finding", async () => {
-    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
       makeFinding({ alerts: [{ channel: "telegram", recipient: "123" } as any] }),
     ]);
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
@@ -154,8 +155,8 @@ describe("queueSiemAlerts", () => {
   });
 
   it("does not insert when severity is below the configured alertMinSeverity", async () => {
-    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "Critical" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([makeFinding({ severity: "High" })]);
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "Critical" }]));
 
     const insertedValues: unknown[] = [];
     mockedDb.insert.mockImplementation(() => ({
@@ -171,8 +172,8 @@ describe("queueSiemAlerts", () => {
   });
 
   it("inserts one alert per recipient when site has multiple enabled chat rows (multi-recipient)", async () => {
-    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([makeFinding({ severity: "Critical" })]);
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     // Two enabled chats, no severity filter → both receive
     mockedDb.select.mockReturnValueOnce(
       makeSelectFromWhere([
@@ -202,8 +203,8 @@ describe("queueSiemAlerts", () => {
   });
 
   it("filters recipients by severity_filter (one matches, one does not)", async () => {
-    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([makeFinding({ severity: "Critical" })]);
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     // Chat A: filter "High,Critical" → matches Critical
     // Chat B: filter "Low,Medium"    → does not match Critical
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([
@@ -229,10 +230,10 @@ describe("queueSiemAlerts", () => {
   });
 
   it("falls back to legacy sites.telegramChatId when site_telegram_chat_ids is empty", async () => {
-    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
       makeFinding({ site: { id: 10, name: "DC-JKT", telegramChatId: "legacy-99" } }),
     ]);
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     // No rows in multi-recipient table
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));

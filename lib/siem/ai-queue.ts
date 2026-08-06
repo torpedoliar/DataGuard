@@ -14,12 +14,14 @@ export type QueueSiemAiFindingInput = {
   aiGeneratedAt: Date | null;
   severity: string;
   status: string;
+  siteId: number | null;
 };
 
 /**
  * If AI is enabled and the finding is High/Critical with no recent analysis
  * (within the 1h cooldown), insert a row into `siem_ai_jobs`. Returns true
- * when a job was enqueued, false otherwise.
+ * when a job was enqueued, false otherwise. Settings are scoped to the
+ * finding's site.
  */
 export async function queueSiemAiAnalysis(finding: QueueSiemAiFindingInput): Promise<boolean> {
   if (!HIGH_SEVERITIES.has(finding.severity)) return false;
@@ -27,7 +29,7 @@ export async function queueSiemAiAnalysis(finding: QueueSiemAiFindingInput): Pro
     return false;
   }
 
-  const [settings] = await db.select().from(siemSettings).limit(1);
+  const [settings] = await db.select().from(siemSettings).where(finding.siteId ? eq(siemSettings.siteId, finding.siteId) : sql`true`).limit(1);
   if (!settings?.aiEnabled) return false;
 
   await db.insert(siemAiJobs).values({
@@ -56,7 +58,13 @@ export async function generateSiemAiAnalysisForFinding(
   findingId: number,
   options: { maxSampleEvents: number; maxRawLength: number },
 ): Promise<SiemAiGenerationResult> {
-  const [settings] = await db.select().from(siemSettings).limit(1);
+  const finding = await db.query.siemFindings.findFirst({
+    where: eq(siemFindings.id, findingId),
+    with: { rule: true, source: true, device: true, site: true },
+  });
+  if (!finding) return { ok: false, error: "Finding not found" };
+
+  const [settings] = await db.select().from(siemSettings).where(finding.siteId ? eq(siemSettings.siteId, finding.siteId) : sql`true`).limit(1);
   if (!settings?.aiEnabled) return { ok: false, error: "AI disabled" };
 
   const endpointUrl = normalizeOpenAiCompatibleEndpoint(process.env.SIEM_AI_ENDPOINT_URL || settings.aiEndpointUrl || "");
@@ -65,12 +73,6 @@ export async function generateSiemAiAnalysisForFinding(
   const apiKey = process.env.SIEM_AI_API_KEY || storedApiKey;
   const model = (process.env.SIEM_AI_DEFAULT_MODEL || settings.aiDefaultModel || "").trim();
   if (!endpointUrl || !model) return { ok: false, error: "Endpoint/model not configured" };
-
-  const finding = await db.query.siemFindings.findFirst({
-    where: eq(siemFindings.id, findingId),
-    with: { rule: true, source: true, device: true },
-  });
-  if (!finding) return { ok: false, error: "Finding not found" };
 
   const eventRows = await getFindingEvidence(
     { id: finding.id, evidenceArchived: finding.evidenceArchived, sampleEventIds: finding.sampleEventIds },
@@ -145,6 +147,7 @@ export async function runSiemAiWorkerOnce(): Promise<SiemAiWorkerResult> {
     aiGeneratedAt: siemFindings.aiGeneratedAt,
     severity: siemFindings.severity,
     title: siemFindings.title,
+    siteId: siemFindings.siteId,
   }).from(siemFindings).where(eq(siemFindings.id, job.finding_id));
   if (!finding) {
     await db.update(siemAiJobs).set({ status: "failed", lastError: "Finding not found", completedAt: new Date() }).where(eq(siemAiJobs.id, job.id));
@@ -159,7 +162,7 @@ export async function runSiemAiWorkerOnce(): Promise<SiemAiWorkerResult> {
   // Mark running and pull the live settings to drive sample/raw sizes.
   await db.update(siemAiJobs).set({ status: "running", startedAt: new Date(), attempts: job.attempts + 1 }).where(eq(siemAiJobs.id, job.id));
 
-  const [settings] = await db.select().from(siemSettings).limit(1);
+  const [settings] = await db.select().from(siemSettings).where(finding.siteId ? eq(siemSettings.siteId, finding.siteId) : sql`true`).limit(1);
   if (!settings) {
     await db.update(siemAiJobs).set({ status: "failed", lastError: "Settings missing", completedAt: new Date() }).where(eq(siemAiJobs.id, job.id));
     result.failed += 1;
