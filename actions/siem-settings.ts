@@ -1,13 +1,14 @@
 "use server";
 
 import { db } from "@/db";
-import { siemRules, siemSettings, sites } from "@/db/schema";
+import { siemRules, siemSettings } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
 import { encryptString } from "@/lib/crypto";
+import { DEFAULT_SIEM_RULES } from "@/lib/siem/default-rules";
 import { parseSiemRulesFormData } from "@/lib/siem/rule-settings-form";
 import { siemSeverities } from "@/lib/siem/types";
-import { asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -24,10 +25,6 @@ const aiSettingsSchema = z.object({
 });
 
 const ingestSettingsSchema = z.object({
-  defaultSiemSiteId: z
-    .union([z.coerce.number().int().positive(), z.literal("")])
-    .transform((value) => (value === "" ? null : value)),
-  unknownSourceEnabled: z.coerce.boolean(),
   alertMinSeverity: z.enum(siemSeverities),
   rawRetentionDays: z.coerce.number().int().min(1).max(3650).optional(),
   eventRetentionDays: z.coerce.number().int().min(1).max(3650).optional(),
@@ -49,7 +46,7 @@ export async function getSiemAiSettings() {
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { message: auth.message };
 
-  const [settings] = await db.select().from(siemSettings).limit(1);
+  const [settings] = await db.select().from(siemSettings).where(eq(siemSettings.siteId, auth.activeSiteId)).limit(1);
   return {
     aiEnabled: settings?.aiEnabled ?? false,
     aiEndpointUrl: settings?.aiEndpointUrl ?? "",
@@ -78,7 +75,7 @@ export async function updateSiemAiSettings(prevState: unknown, formData: FormDat
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
-  const [existing] = await db.select({ id: siemSettings.id, aiApiKey: siemSettings.aiApiKey }).from(siemSettings).limit(1);
+  const [existing] = await db.select({ id: siemSettings.id, aiApiKey: siemSettings.aiApiKey }).from(siemSettings).where(eq(siemSettings.siteId, auth.activeSiteId)).limit(1);
   const values: Partial<typeof siemSettings.$inferInsert> = {
     aiEnabled: parsed.data.aiEnabled,
     aiEndpointUrl: parsed.data.aiEndpointUrl.trim(),
@@ -91,7 +88,7 @@ export async function updateSiemAiSettings(prevState: unknown, formData: FormDat
   if (parsed.data.aiApiKey?.trim()) values.aiApiKey = encryptString(parsed.data.aiApiKey.trim());
 
   if (existing) await db.update(siemSettings).set(values).where(eq(siemSettings.id, existing.id));
-  else await db.insert(siemSettings).values({ ...values, aiApiKey: values.aiApiKey ?? null });
+  else await db.insert(siemSettings).values({ ...values, siteId: auth.activeSiteId, aiApiKey: values.aiApiKey ?? null });
 
   await logAudit({ action: "UPDATE", entity: "settings", entityName: "SIEM AI", detail: "SIEM AI settings updated" });
   revalidatePath("/admin/settings");
@@ -102,16 +99,9 @@ export async function getSiemIngestSettings() {
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { message: auth.message };
 
-  const [settings] = await db.select().from(siemSettings).limit(1);
-  const siteRows = await db
-    .select({ id: sites.id, name: sites.name, code: sites.code })
-    .from(sites)
-    .where(eq(sites.isActive, true))
-    .orderBy(asc(sites.name));
+  const [settings] = await db.select().from(siemSettings).where(eq(siemSettings.siteId, auth.activeSiteId)).limit(1);
 
   return {
-    defaultSiemSiteId: settings?.defaultSiemSiteId ?? null,
-    unknownSourceEnabled: settings?.unknownSourceEnabled ?? true,
     alertMinSeverity: (settings?.alertMinSeverity ?? "High") as (typeof siemSeverities)[number],
     rawRetentionDays: settings?.rawRetentionDays ?? 90,
     eventRetentionDays: settings?.eventRetentionDays ?? 180,
@@ -121,7 +111,6 @@ export async function getSiemIngestSettings() {
     tlsPort: settings?.tlsPort ?? null,
     tlsCertPath: settings?.tlsCertPath ?? "",
     tlsKeyPath: settings?.tlsKeyPath ?? "",
-    sites: siteRows,
   };
 }
 
@@ -131,8 +120,6 @@ export async function updateSiemIngestSettings(prevState: unknown, formData: For
   if (!auth.ok) return { message: auth.message };
 
   const parsed = ingestSettingsSchema.safeParse({
-    defaultSiemSiteId: formData.get("defaultSiemSiteId") ?? "",
-    unknownSourceEnabled: formData.get("unknownSourceEnabled") === "true",
     alertMinSeverity: formData.get("alertMinSeverity"),
     rawRetentionDays: formData.get("rawRetentionDays") || undefined,
     eventRetentionDays: formData.get("eventRetentionDays") || undefined,
@@ -145,10 +132,8 @@ export async function updateSiemIngestSettings(prevState: unknown, formData: For
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
-  const [existing] = await db.select({ id: siemSettings.id }).from(siemSettings).limit(1);
+  const [existing] = await db.select({ id: siemSettings.id }).from(siemSettings).where(eq(siemSettings.siteId, auth.activeSiteId)).limit(1);
   const values: Partial<typeof siemSettings.$inferInsert> = {
-    defaultSiemSiteId: parsed.data.defaultSiemSiteId,
-    unknownSourceEnabled: parsed.data.unknownSourceEnabled,
     alertMinSeverity: parsed.data.alertMinSeverity,
     rawRetentionDays: parsed.data.rawRetentionDays ?? undefined,
     eventRetentionDays: parsed.data.eventRetentionDays ?? undefined,
@@ -162,7 +147,7 @@ export async function updateSiemIngestSettings(prevState: unknown, formData: For
   };
 
   if (existing) await db.update(siemSettings).set(values).where(eq(siemSettings.id, existing.id));
-  else await db.insert(siemSettings).values(values);
+  else await db.insert(siemSettings).values({ ...values, siteId: auth.activeSiteId });
 
   await logAudit({ action: "UPDATE", entity: "settings", entityName: "SIEM Ingest", detail: "SIEM ingest settings updated" });
   revalidatePath("/admin/settings");
@@ -175,7 +160,7 @@ export async function getSiemRules() {
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { message: auth.message };
 
-  const rules = await db
+  let rules = await db
     .select({
       id: siemRules.id,
       key: siemRules.key,
@@ -186,7 +171,44 @@ export async function getSiemRules() {
       enabled: siemRules.enabled,
       alertEnabled: siemRules.alertEnabled,
     })
-    .from(siemRules);
+    .from(siemRules)
+    .where(eq(siemRules.siteId, auth.activeSiteId));
+
+  // ponytail: lazy seed default rules for a site that has none yet. Guaranteed
+  // empty set (scoped by siteId), so plain insert — no onConflict needed here.
+  if (rules.length === 0) {
+    await db.insert(siemRules).values(
+      DEFAULT_SIEM_RULES.map((rule) => ({
+        siteId: auth.activeSiteId,
+        key: rule.key,
+        name: rule.name,
+        description: rule.description,
+        enabled: rule.enabled,
+        severity: rule.severity,
+        category: rule.category,
+        ruleType: rule.ruleType,
+        conditions: rule.conditions,
+        groupBy: rule.groupBy,
+        threshold: rule.threshold,
+        windowSeconds: rule.windowSeconds,
+        cooldownSeconds: rule.cooldownSeconds,
+        alertEnabled: rule.alertEnabled,
+      })),
+    );
+    rules = await db
+      .select({
+        id: siemRules.id,
+        key: siemRules.key,
+        name: siemRules.name,
+        description: siemRules.description,
+        category: siemRules.category,
+        severity: siemRules.severity,
+        enabled: siemRules.enabled,
+        alertEnabled: siemRules.alertEnabled,
+      })
+      .from(siemRules)
+      .where(eq(siemRules.siteId, auth.activeSiteId));
+  }
 
   rules.sort((a, b) =>
     a.category === b.category
@@ -194,7 +216,7 @@ export async function getSiemRules() {
       : a.category.localeCompare(b.category),
   );
 
-  const [settings] = await db.select({ alertMinSeverity: siemSettings.alertMinSeverity }).from(siemSettings).limit(1);
+  const [settings] = await db.select({ alertMinSeverity: siemSettings.alertMinSeverity }).from(siemSettings).where(eq(siemSettings.siteId, auth.activeSiteId)).limit(1);
 
   return {
     rules,
@@ -219,14 +241,14 @@ export async function updateSiemRules(prevState: unknown, formData: FormData) {
       await tx
         .update(siemRules)
         .set({ enabled: rule.enabled, alertEnabled: rule.alertEnabled, updatedAt: new Date() })
-        .where(eq(siemRules.id, rule.id));
+        .where(and(eq(siemRules.id, rule.id), eq(siemRules.siteId, auth.activeSiteId)));
     }
 
-    const [existing] = await tx.select({ id: siemSettings.id }).from(siemSettings).limit(1);
+    const [existing] = await tx.select({ id: siemSettings.id }).from(siemSettings).where(eq(siemSettings.siteId, auth.activeSiteId)).limit(1);
     if (existing) {
       await tx.update(siemSettings).set({ alertMinSeverity: parsed.alertMinSeverity, updatedAt: new Date() }).where(eq(siemSettings.id, existing.id));
     } else {
-      await tx.insert(siemSettings).values({ alertMinSeverity: parsed.alertMinSeverity });
+      await tx.insert(siemSettings).values({ siteId: auth.activeSiteId, alertMinSeverity: parsed.alertMinSeverity });
     }
   });
 
@@ -281,7 +303,7 @@ export async function updateSiemRuleDetail(prevState: unknown, formData: FormDat
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
-  const existing = await db.query.siemRules.findFirst({ where: eq(siemRules.id, parsed.data.id) });
+  const existing = await db.query.siemRules.findFirst({ where: and(eq(siemRules.id, parsed.data.id), eq(siemRules.siteId, auth.activeSiteId)) });
   if (!existing) return { message: "SIEM rule not found." };
 
   // Parse the conditions JSON (or empty object when blank) so we can persist a
@@ -313,7 +335,7 @@ export async function updateSiemRuleDetail(prevState: unknown, formData: FormDat
       conditions: conditionsValue,
       updatedAt: new Date(),
     })
-    .where(eq(siemRules.id, parsed.data.id));
+    .where(and(eq(siemRules.id, parsed.data.id), eq(siemRules.siteId, auth.activeSiteId)));
 
   revalidatePath("/admin/siem/rules");
   await logAudit({
