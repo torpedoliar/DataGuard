@@ -8,10 +8,14 @@
 -- NOT registered in meta/_journal.json — the drizzle migrator does not manage it.
 
 -- ==================== DROP old global single-tenant constraints ====================
--- siem_rules.key was globally unique; now uniqueness is (site_id, key).
-DROP INDEX IF EXISTS "siem_rules_key_unique";--> statement-breakpoint
+-- siem_rules.key was globally unique (a UNIQUE CONSTRAINT from the .unique() col
+-- attribute, NOT a uniqueIndex) — must DROP CONSTRAINT, not DROP INDEX. Postgres
+-- rejects DROP INDEX on the backing index of a constraint (error 2BP01).
+-- Now uniqueness is (site_id, key) via uniqueIndex below.
+ALTER TABLE "siem_rules" DROP CONSTRAINT IF EXISTS "siem_rules_key_unique";--> statement-breakpoint
 -- siem_findings correlation was globally unique on (rule_id, correlation_key);
--- now (site_id, rule_id, correlation_key) so findings never collide across sites.
+-- this one IS a uniqueIndex, so DROP INDEX is correct.
+-- Now (site_id, rule_id, correlation_key) so findings never collide across sites.
 DROP INDEX IF EXISTS "siem_findings_rule_correlation_unique";--> statement-breakpoint
 
 -- ==================== DROP dead columns ====================
