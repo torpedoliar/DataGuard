@@ -261,14 +261,21 @@ export async function getAssignableIncidentUsers() {
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return [];
 
-  return await db.select({
-    id: users.id,
-    username: users.username,
-  })
-    .from(users)
-    .innerJoin(userSites, eq(userSites.userId, users.id))
-    .where(and(eq(userSites.siteId, auth.activeSiteId), eq(users.isActive, true)))
-    .orderBy(asc(users.username));
+  // Site members (admin/staff via userSites) plus global superadmins, who have no
+  // per-site row. Distinct-merge the two sets in JS to avoid duplicate rows.
+  const [siteMembers, superadmins] = await Promise.all([
+    db.select({ id: users.id, username: users.username })
+      .from(users)
+      .innerJoin(userSites, eq(userSites.userId, users.id))
+      .where(and(eq(userSites.siteId, auth.activeSiteId), eq(users.isActive, true))),
+    db.select({ id: users.id, username: users.username })
+      .from(users)
+      .where(and(eq(users.role, "superadmin"), eq(users.isActive, true))),
+  ]);
+
+  const byId = new Map<number, { id: number; username: string }>();
+  for (const u of [...siteMembers, ...superadmins]) byId.set(u.id, u);
+  return [...byId.values()].sort((a, b) => a.username.localeCompare(b.username));
 }
 
 export async function createIncidentsForChecklistItems(input: {
@@ -353,16 +360,17 @@ export async function assignIncident(prevState: unknown, formData: FormData) {
   if (!existing) return { message: "Incident not found." };
 
   if (assignedToId) {
-    const assignee = await db.select({ id: users.id })
+    // Assignee must be an active site member OR a global superadmin (who has no
+    // per-site row).
+    const assignee = await db.select({ id: users.id, role: users.role, siteId: userSites.siteId })
       .from(users)
-      .innerJoin(userSites, eq(userSites.userId, users.id))
-      .where(and(
-        eq(users.id, assignedToId),
-        eq(users.isActive, true),
-        eq(userSites.siteId, auth.activeSiteId),
-      ))
+      .leftJoin(userSites, and(eq(userSites.userId, users.id), eq(userSites.siteId, auth.activeSiteId)))
+      .where(and(eq(users.id, assignedToId), eq(users.isActive, true)))
       .limit(1);
-    if (!assignee[0]) return { message: "Assignee is not active in this site." };
+    if (!assignee[0]) return { message: "Assignee is not an active user." };
+    if (assignee[0].role !== "superadmin" && assignee[0].siteId === null) {
+      return { message: "Assignee is not active in this site." };
+    }
   }
 
   await db.update(incidents).set({
