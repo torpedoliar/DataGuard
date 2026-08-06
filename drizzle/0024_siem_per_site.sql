@@ -4,19 +4,41 @@
 -- Fallback site = min(id) of active sites, never a hardcoded id. If no sites exist
 -- (fresh deploy), the backfill is a no-op and columns stay nullable.
 
-ALTER TABLE "syslog_events_raw" ADD COLUMN "site_id" integer;--> statement-breakpoint
-ALTER TABLE "siem_rules" ADD COLUMN "site_id" integer;--> statement-breakpoint
-ALTER TABLE "siem_settings" ADD COLUMN "site_id" integer;--> statement-breakpoint
-ALTER TABLE "siem_events_quarantine" ADD COLUMN "site_id" integer;--> statement-breakpoint
-ALTER TABLE "siem_dashboard_snapshots" ADD COLUMN "site_id" integer;--> statement-breakpoint
+ALTER TABLE "syslog_events_raw" ADD COLUMN IF NOT EXISTS "site_id" integer;--> statement-breakpoint
+ALTER TABLE "siem_rules" ADD COLUMN IF NOT EXISTS "site_id" integer;--> statement-breakpoint
+ALTER TABLE "siem_settings" ADD COLUMN IF NOT EXISTS "site_id" integer;--> statement-breakpoint
+ALTER TABLE "siem_events_quarantine" ADD COLUMN IF NOT EXISTS "site_id" integer;--> statement-breakpoint
+ALTER TABLE "siem_dashboard_snapshots" ADD COLUMN IF NOT EXISTS "site_id" integer;--> statement-breakpoint
 
-ALTER TABLE "syslog_events_raw" ADD CONSTRAINT "syslog_events_raw_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "siem_rules" ADD CONSTRAINT "siem_rules_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "siem_settings" ADD CONSTRAINT "siem_settings_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "siem_events_quarantine" ADD CONSTRAINT "siem_events_quarantine_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "siem_dashboard_snapshots" ADD CONSTRAINT "siem_dashboard_snapshots_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+-- FK constraints: PostgreSQL ADD CONSTRAINT lacks IF NOT EXISTS, so guard with a DO block.
+-- Idempotent so re-running (e.g. operator already applied via psql) does not fail.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'syslog_events_raw_site_id_sites_id_fk') THEN
+    ALTER TABLE "syslog_events_raw" ADD CONSTRAINT "syslog_events_raw_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;
+  END IF;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'siem_rules_site_id_sites_id_fk') THEN
+    ALTER TABLE "siem_rules" ADD CONSTRAINT "siem_rules_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;
+  END IF;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'siem_settings_site_id_sites_id_fk') THEN
+    ALTER TABLE "siem_settings" ADD CONSTRAINT "siem_settings_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;
+  END IF;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'siem_events_quarantine_site_id_sites_id_fk') THEN
+    ALTER TABLE "siem_events_quarantine" ADD CONSTRAINT "siem_events_quarantine_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;
+  END IF;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'siem_dashboard_snapshots_site_id_sites_id_fk') THEN
+    ALTER TABLE "siem_dashboard_snapshots" ADD CONSTRAINT "siem_dashboard_snapshots_site_id_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."sites"("id") ON DELETE no action ON UPDATE no action;
+  END IF;
+END $$;--> statement-breakpoint
 
-CREATE INDEX "syslog_events_raw_site_received_idx" ON "syslog_events_raw" USING btree ("site_id","received_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "syslog_events_raw_site_received_idx" ON "syslog_events_raw" USING btree ("site_id","received_at");--> statement-breakpoint
 
 -- Backfill. All statements idempotent (WHERE ... IS NULL). Fallback subquery repeats;
 -- Postgres evaluates it per row but sites is tiny.
