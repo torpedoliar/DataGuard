@@ -171,6 +171,7 @@ describe("runSiemRetentionCleanup — quarantine", () => {
     mockedDb.execute.mockResolvedValueOnce({
       rows: [
         {
+          site_id: 1,
           raw_retention_days: 90,
           event_retention_days: 180,
           finding_retention_days: 365,
@@ -298,6 +299,7 @@ describe("runSiemRetentionCleanup — quarantine", () => {
     mockedDb.execute.mockResolvedValueOnce({
       rows: [
         {
+          site_id: 1,
           raw_retention_days: 90,
           event_retention_days: 180,
           finding_retention_days: 365,
@@ -361,6 +363,7 @@ describe("runSiemRetentionCleanup — quarantine", () => {
     mockedDb.execute.mockResolvedValueOnce({
       rows: [
         {
+          site_id: 1,
           raw_retention_days: 90,
           event_retention_days: 180,
           finding_retention_days: 365,
@@ -396,6 +399,7 @@ describe("runSiemRetentionCleanup — quarantine", () => {
     mockedDb.execute.mockResolvedValueOnce({
       rows: [
         {
+          site_id: 1,
           raw_retention_days: 90,
           event_retention_days: 180,
           finding_retention_days: 365,
@@ -430,6 +434,7 @@ describe("runSiemRetentionCleanup — quarantine", () => {
 describe("runSiemRetentionCleanup — evidence archive atomicity (N29)", () => {
   function defaultSettings() {
     return {
+      site_id: 1,
       raw_retention_days: 90,
       event_retention_days: 180,
       finding_retention_days: 365,

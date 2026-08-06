@@ -134,7 +134,11 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
   const now = options.now ?? new Date();
   const batchSize = Math.max(1, Math.min(Math.floor(options.batchSize ?? 1000), 10000));
 
-  const [settings] = await db.execute<{
+  // Per-site settings: every site owns its own siem_settings row. Load all of
+  // them and loop per-site cutoffs below. (pre-multi-site this was a global
+  // `LIMIT 1` singleton.)
+  const settingsRows = await db.execute<{
+    site_id: number | null;
     raw_retention_days: number | null;
     event_retention_days: number | null;
     finding_retention_days: number | null;
@@ -142,10 +146,11 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
     quarantine_enabled: boolean | null;
     quarantine_retention_days: number | null;
   }>(sql`
-    SELECT raw_retention_days, event_retention_days, finding_retention_days, alert_retention_days,
+    SELECT site_id, raw_retention_days, event_retention_days, finding_retention_days, alert_retention_days,
            quarantine_enabled, quarantine_retention_days
-    FROM siem_settings LIMIT 1
+    FROM siem_settings
   `).then((res) => (res.rows ?? res) as Array<{
+    site_id: number | null;
     raw_retention_days: number | null;
     event_retention_days: number | null;
     finding_retention_days: number | null;
@@ -154,22 +159,24 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
     quarantine_retention_days: number | null;
   }>);
 
-  const globalEventDays = normalizeRetentionDays(settings?.event_retention_days, DEFAULT_SIEM_RETENTION_DAYS.events);
-  const globalRawDays = normalizeRetentionDays(settings?.raw_retention_days, DEFAULT_SIEM_RETENTION_DAYS.raw);
-  const globalFindingDays = normalizeRetentionDays(settings?.finding_retention_days, DEFAULT_SIEM_RETENTION_DAYS.findings);
-  const globalAlertDays = normalizeRetentionDays(settings?.alert_retention_days, DEFAULT_SIEM_RETENTION_DAYS.alerts);
-  const quarantineEnabled = settings?.quarantine_enabled !== false;
-  const quarantineRetentionDays = normalizeRetentionDays(settings?.quarantine_retention_days, 365);
-
-  const eventCutoff = cutoff(now, globalEventDays);
-  const rawCutoff = cutoff(now, globalRawDays);
-  const findingCutoff = cutoff(now, globalFindingDays);
-  const alertCutoff = cutoff(now, globalAlertDays);
-
-  // Load source overrides (only the column needed for the lenient cutoff + per-source delete).
+  // Sources carry siteId for per-site scoping + the global partition cutoff.
   const sources = await db
-    .select({ id: syslogSources.id, eventRetentionDays: syslogSources.eventRetentionDays })
+    .select({ id: syslogSources.id, siteId: syslogSources.siteId, eventRetentionDays: syslogSources.eventRetentionDays })
     .from(syslogSources);
+
+  // Partitions are global by time, so the drop cutoff is the MOST LENIENT event
+  // retention across ALL sites' settings + every source override. Any data older
+  // than this is expired for every site, so the partition is safe to drop.
+  const globalMaxEventDays = settingsRows.reduce(
+    (max, s) => Math.max(max, normalizeRetentionDays(s.event_retention_days, DEFAULT_SIEM_RETENTION_DAYS.events)),
+    DEFAULT_SIEM_RETENTION_DAYS.events,
+  );
+  const globalMaxRawDays = settingsRows.reduce(
+    (max, s) => Math.max(max, normalizeRetentionDays(s.raw_retention_days, DEFAULT_SIEM_RETENTION_DAYS.raw)),
+    DEFAULT_SIEM_RETENTION_DAYS.raw,
+  );
+  const lenientCutoff = mostLenientEventCutoff(sources, globalMaxEventDays, now);
+  const lenientRawCutoff = new Date(Math.min(cutoff(now, globalMaxRawDays).getTime(), lenientCutoff.getTime()));
 
   // ----- PHASE A: archive finding evidence before any deletion -----
   // Archive non-Resolved findings that still reference events but are not yet archived.
@@ -198,151 +205,170 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
   });
 
   // ----- PHASE B: partition maintenance (create upcoming, drop fully-expired) -----
+  // Partitions are global by time, not per-site. Drop cutoff is the most-lenient
+  // event retention across ALL sites/sources (computed above), so a partition is
+  // only dropped once it's expired for every site.
   const partitionsCreated = await ensurePartitions(now);
-  const lenientCutoff = mostLenientEventCutoff(sources, globalEventDays, now);
   let partitionsDropped = 0;
   partitionsDropped += await dropExpiredPartitions("syslog_events", lenientCutoff, now);
-  // raw partitions follow the raw cutoff but never drop newer than the event lenient cutoff,
-  // so referenced raws joined to live events are never lost.
-  const lenientRawCutoff = new Date(Math.min(rawCutoff.getTime(), lenientCutoff.getTime()));
   partitionsDropped += await dropExpiredPartitions("syslog_events_raw", lenientRawCutoff, now);
 
-  // ----- PHASE C: precise per-source delete inside still-live partitions -----
+  // ----- PHASE C/D: per-site cutoffs + precise deletes inside still-live partitions -----
+  // Each site has its own retention days, so cutoffs differ per site. Loop the
+  // settings rows; scope every delete by eq(siteId). Sites with no settings row
+  // get DEFAULT_SIEM_RETENTION_DAYS via the fallback path below.
   let eventsDeleted = 0;
-  for (const source of sources) {
-    const sourceDays = resolveSourceCutoffDays(source.eventRetentionDays, globalEventDays);
-    // Sources at/above the global default are fully handled by partition drops.
-    if (sourceDays >= globalEventDays) continue;
-    const sourceCutoff = cutoff(now, sourceDays);
-    // Loop batched deletes until drained.
-    // Skip events that belong to an unresolved-but-already-archived finding? Not needed:
-    // evidence is self-contained, so deleting the hot event is safe post-archive.
-    // We still avoid deleting events newer than the source cutoff.
+  let eventsQuarantined = 0;
+  let quarantineRetentionDeleted = 0;
+  let rawEventsDeleted = 0;
+  let findingsDeleted = 0;
+  let alertsDeleted = 0;
+
+  for (const settings of settingsRows) {
+    const siteId = settings.site_id;
+    // ponytail: skip rows missing siteId (pre-migration orphans). After 1b the
+    // column is NOT NULL so this branch is dead; keep it so 1a cleanup is safe.
+    if (!siteId) continue;
+
+    const siteEventDays = normalizeRetentionDays(settings.event_retention_days, DEFAULT_SIEM_RETENTION_DAYS.events);
+    const siteRawDays = normalizeRetentionDays(settings.raw_retention_days, DEFAULT_SIEM_RETENTION_DAYS.raw);
+    const siteFindingDays = normalizeRetentionDays(settings.finding_retention_days, DEFAULT_SIEM_RETENTION_DAYS.findings);
+    const siteAlertDays = normalizeRetentionDays(settings.alert_retention_days, DEFAULT_SIEM_RETENTION_DAYS.alerts);
+    const quarantineEnabled = settings.quarantine_enabled !== false;
+    const quarantineRetentionDays = normalizeRetentionDays(settings.quarantine_retention_days, 365);
+
+    const eventCutoff = cutoff(now, siteEventDays);
+    const rawCutoff = cutoff(now, siteRawDays);
+    const findingCutoff = cutoff(now, siteFindingDays);
+    const alertCutoff = cutoff(now, siteAlertDays);
+
+    // Per-source deletes: only this site's sources, only overrides shorter than
+    // the site default (longer ones are handled by partition drops).
+    for (const source of sources) {
+      if (source.siteId !== siteId) continue;
+      const sourceDays = resolveSourceCutoffDays(source.eventRetentionDays, siteEventDays);
+      if (sourceDays >= siteEventDays) continue;
+      const sourceCutoff = cutoff(now, sourceDays);
+      let done = false;
+      while (!done) {
+        const victims = await db
+          .select({ id: syslogEvents.id })
+          .from(syslogEvents)
+          .where(and(eq(syslogEvents.sourceId, source.id), eq(syslogEvents.siteId, siteId), lt(syslogEvents.receivedAt, sourceCutoff)))
+          .limit(batchSize);
+        if (victims.length === 0) {
+          done = true;
+        } else {
+          const ids = victims.map((row) => row.id);
+          const deleted = await db.delete(syslogEvents).where(inArray(syslogEvents.id, ids)).returning({ id: syslogEvents.id });
+          eventsDeleted += deleted.length;
+          if (victims.length < batchSize) done = true;
+        }
+      }
+    }
+
+    // Orphan events (sourceId IS NULL) past this site's cutoff → quarantine + delete.
     let done = false;
     while (!done) {
       const victims = await db
-        .select({ id: syslogEvents.id })
+        .select({
+          id: syslogEvents.id,
+          rawEventId: syslogEvents.rawEventId,
+          eventTime: syslogEvents.eventTime,
+          receivedAt: syslogEvents.receivedAt,
+          sourceIp: syslogEvents.sourceIp,
+          hostname: syslogEvents.hostname,
+          severity: syslogEvents.severity,
+          message: syslogEvents.message,
+        })
         .from(syslogEvents)
-        .where(and(eq(syslogEvents.sourceId, source.id), lt(syslogEvents.receivedAt, sourceCutoff)))
+        .where(and(eq(syslogEvents.siteId, siteId), sql`${syslogEvents.sourceId} is null`, lt(syslogEvents.receivedAt, eventCutoff)))
         .limit(batchSize);
       if (victims.length === 0) {
         done = true;
       } else {
         const ids = victims.map((row) => row.id);
-        const deleted = await db.delete(syslogEvents).where(inArray(syslogEvents.id, ids)).returning({ id: syslogEvents.id });
-        eventsDeleted += deleted.length;
+        if (quarantineEnabled) {
+          await db.transaction(async (tx) => {
+            await tx.insert(siemEventsQuarantine).values(
+              victims.map((row) => ({
+                originalEventId: row.id,
+                rawEventId: row.rawEventId,
+                eventTime: row.eventTime,
+                receivedAt: row.receivedAt,
+                sourceIp: row.sourceIp,
+                hostname: row.hostname,
+                severity: row.severity,
+                message: row.message,
+                siteId,
+                quarantinedAt: new Date(),
+                quarantinedReason: "sourceId null past retention cutoff",
+              })),
+            );
+            await tx.delete(syslogEvents).where(inArray(syslogEvents.id, ids));
+          });
+          eventsQuarantined += victims.length;
+        } else {
+          const deleted = await db.delete(syslogEvents).where(inArray(syslogEvents.id, ids)).returning({ id: syslogEvents.id });
+          eventsDeleted += deleted.length;
+        }
         if (victims.length < batchSize) done = true;
       }
     }
-  }
 
-  // Global event handling for events with NO source mapping (sourceId IS NULL) past global cutoff,
-  // covering rows inside still-live partitions. When quarantine is enabled, INSERT into
-  // siem_events_quarantine first, then DELETE from syslog_events. Otherwise, just delete.
-  let eventsQuarantined = 0;
-  let done = false;
-  while (!done) {
-    const victims = await db
-      .select({
-        id: syslogEvents.id,
-        rawEventId: syslogEvents.rawEventId,
-        eventTime: syslogEvents.eventTime,
-        receivedAt: syslogEvents.receivedAt,
-        sourceIp: syslogEvents.sourceIp,
-        hostname: syslogEvents.hostname,
-        severity: syslogEvents.severity,
-        message: syslogEvents.message,
-      })
-      .from(syslogEvents)
-      .where(and(sql`${syslogEvents.sourceId} is null`, lt(syslogEvents.receivedAt, eventCutoff)))
-      .limit(batchSize);
-    if (victims.length === 0) {
-      done = true;
-    } else {
-      const ids = victims.map((row) => row.id);
-      if (quarantineEnabled) {
-        // Atomic: insert quarantine rows + delete source rows. Use a transaction
-        // so an interrupted cleanup can never end up with quarantine rows but
-        // no corresponding originals lost (or vice versa).
-        await db.transaction(async (tx) => {
-          await tx.insert(siemEventsQuarantine).values(
-            victims.map((row) => ({
-              originalEventId: row.id,
-              rawEventId: row.rawEventId,
-              eventTime: row.eventTime,
-              receivedAt: row.receivedAt,
-              sourceIp: row.sourceIp,
-              hostname: row.hostname,
-              severity: row.severity,
-              message: row.message,
-              quarantinedAt: new Date(),
-              quarantinedReason: "sourceId null past retention cutoff",
-            })),
-          );
-          await tx.delete(syslogEvents).where(inArray(syslogEvents.id, ids));
-        });
-        eventsQuarantined += victims.length;
+    // Quarantine retention: drop this site's rows past its quarantine window.
+    const quarantineCutoff = cutoff(now, quarantineRetentionDays);
+    let qDone = false;
+    while (!qDone) {
+      const victims = await db
+        .select({ id: siemEventsQuarantine.id })
+        .from(siemEventsQuarantine)
+        .where(and(eq(siemEventsQuarantine.siteId, siteId), lt(siemEventsQuarantine.quarantinedAt, quarantineCutoff)))
+        .limit(batchSize);
+      if (victims.length === 0) {
+        qDone = true;
       } else {
-        const deleted = await db.delete(syslogEvents).where(inArray(syslogEvents.id, ids)).returning({ id: syslogEvents.id });
-        eventsDeleted += deleted.length;
+        const ids = victims.map((row) => row.id);
+        const deleted = await db.delete(siemEventsQuarantine).where(inArray(siemEventsQuarantine.id, ids)).returning({ id: siemEventsQuarantine.id });
+        quarantineRetentionDeleted += deleted.length;
+        if (victims.length < batchSize) qDone = true;
       }
-      if (victims.length < batchSize) done = true;
     }
-  }
 
-  // Quarantine retention: drop rows past quarantine retention.
-  const quarantineCutoff = cutoff(now, quarantineRetentionDays);
-  let quarantineRetentionDeleted = 0;
-  let qDone = false;
-  while (!qDone) {
-    const victims = await db
-      .select({ id: siemEventsQuarantine.id })
-      .from(siemEventsQuarantine)
-      .where(lt(siemEventsQuarantine.quarantinedAt, quarantineCutoff))
-      .limit(batchSize);
-    if (victims.length === 0) {
-      qDone = true;
-    } else {
-      const ids = victims.map((row) => row.id);
-      const deleted = await db.delete(siemEventsQuarantine).where(inArray(siemEventsQuarantine.id, ids)).returning({ id: siemEventsQuarantine.id });
-      quarantineRetentionDeleted += deleted.length;
-      if (victims.length < batchSize) qDone = true;
-    }
-  }
+    // Orphan raw events for this site (no surviving event) older than the site raw cutoff.
+    const deletedRawEvents = await db.delete(syslogEventsRaw)
+      .where(and(
+        eq(syslogEventsRaw.siteId, siteId),
+        lt(syslogEventsRaw.receivedAt, rawCutoff),
+        sql`not exists (select 1 from ${syslogEvents} where ${syslogEvents.rawEventId} = ${syslogEventsRaw.id})`,
+      ))
+      .returning({ id: syslogEventsRaw.id });
+    rawEventsDeleted += deletedRawEvents.length;
 
-  // Orphan raw events (no surviving event) older than the raw cutoff, inside live partitions.
-  const deletedRawEvents = await db.delete(syslogEventsRaw)
-    .where(and(
-      lt(syslogEventsRaw.receivedAt, rawCutoff),
-      sql`not exists (select 1 from ${syslogEvents} where ${syslogEvents.rawEventId} = ${syslogEventsRaw.id})`,
-    ))
-    .returning({ id: syslogEventsRaw.id });
-
-  // ----- Findings & alerts own expiry (never driven by the log stream) -----
-  const oldAlerts = await db.delete(siemAlerts)
-    .where(lt(siemAlerts.createdAt, alertCutoff))
-    .returning({ id: siemAlerts.id });
-
-  const staleFindings = await db
-    .select({ id: siemFindings.id })
-    .from(siemFindings)
-    .where(and(eq(siemFindings.status, "Resolved"), lt(siemFindings.lastSeenAt, findingCutoff)))
-    .limit(batchSize);
-  const staleFindingIds = staleFindings.map((finding) => finding.id);
-
-  let findingAlertsDeleted = 0;
-  let findingsDeleted = 0;
-  if (staleFindingIds.length > 0) {
-    // Evidence rows FK to findings with no cascade; delete them first.
-    await db.delete(siemEvidenceEvents).where(inArray(siemEvidenceEvents.findingId, staleFindingIds));
-    const alertsForFindings = await db.delete(siemAlerts)
-      .where(inArray(siemAlerts.findingId, staleFindingIds))
+    // Findings & alerts own expiry (never driven by the log stream), scoped by site.
+    // siem_alerts has no siteId column; scope via the finding's site through a subquery.
+    const oldAlerts = await db.delete(siemAlerts)
+      .where(sql`siem_alerts.finding_id IN (SELECT id FROM siem_findings WHERE site_id = ${siteId}) AND created_at < ${alertCutoff}`)
       .returning({ id: siemAlerts.id });
-    const deletedFindings = await db.delete(siemFindings)
-      .where(inArray(siemFindings.id, staleFindingIds))
-      .returning({ id: siemFindings.id });
-    findingAlertsDeleted = alertsForFindings.length;
-    findingsDeleted = deletedFindings.length;
+    alertsDeleted += oldAlerts.length;
+
+    const staleFindings = await db
+      .select({ id: siemFindings.id })
+      .from(siemFindings)
+      .where(and(eq(siemFindings.siteId, siteId), eq(siemFindings.status, "Resolved"), lt(siemFindings.lastSeenAt, findingCutoff)))
+      .limit(batchSize);
+    const staleFindingIds = staleFindings.map((finding) => finding.id);
+    if (staleFindingIds.length > 0) {
+      await db.delete(siemEvidenceEvents).where(inArray(siemEvidenceEvents.findingId, staleFindingIds));
+      const alertsForFindings = await db.delete(siemAlerts)
+        .where(inArray(siemAlerts.findingId, staleFindingIds))
+        .returning({ id: siemAlerts.id });
+      const deletedFindings = await db.delete(siemFindings)
+        .where(inArray(siemFindings.id, staleFindingIds))
+        .returning({ id: siemFindings.id });
+      alertsDeleted += alertsForFindings.length;
+      findingsDeleted += deletedFindings.length;
+    }
   }
 
   // Capture a dashboard snapshot. This is best-effort and runs after the
@@ -355,12 +381,12 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
   }
 
   return {
-    rawEventsDeleted: deletedRawEvents.length,
+    rawEventsDeleted,
     eventsDeleted,
     eventsQuarantined,
     quarantineRetentionDeleted,
     findingsDeleted,
-    alertsDeleted: oldAlerts.length + findingAlertsDeleted,
+    alertsDeleted,
     evidenceArchivedFindings,
     partitionsCreated,
     partitionsDropped,
