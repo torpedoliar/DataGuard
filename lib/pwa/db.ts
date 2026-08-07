@@ -1,21 +1,33 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
+// ponytail: photo stored as File (structured-clone friendly in IDB), reconstructed to
+// FormData on replay. No base64 round-trip (memory waste). Upgrade: extract to dedicated
+// photo store only if IDB quota becomes a real problem.
+export interface QueuedAuditItem {
+  deviceId: string;
+  status: 'OK' | 'Warning' | 'Error';
+  remarks: string;
+  photoFile?: File;
+}
+
+export interface QueuedAudit {
+  localId?: number;
+  clientCreatedAt: string;
+  siteId: string;
+  userId: string;
+  checkDate: string;
+  checkTime: string;
+  shift: 'Pagi' | 'Siang' | 'Malam';
+  items: QueuedAuditItem[];
+  status: 'pending' | 'syncing' | 'failed';
+  attempts: number;
+  lastError?: string;
+}
+
 interface DataGuardDB extends DBSchema {
   auditQueue: {
     key: number;
-    value: {
-      localId?: number;
-      clientCreatedAt: string;
-      siteId: string;
-      userId: string;
-      checkDate: string;
-      checkTime: string;
-      shift: string;
-      items: Array<{ deviceId: string; status: string; remarks: string; photoBlob?: Blob }>;
-      status: 'pending' | 'syncing' | 'failed';
-      attempts: number;
-      lastError?: string;
-    };
+    value: QueuedAudit;
     indexes: { 'by-status': string };
   };
   readCache: {
