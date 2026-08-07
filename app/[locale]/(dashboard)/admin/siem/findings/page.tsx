@@ -9,6 +9,8 @@ import { verifySession } from "@/lib/session";
 import { incidentSeverities } from "@/lib/incidents";
 import { Filter, ShieldAlert, ShieldCheck } from "lucide-react";
 import { redirect } from "next/navigation";
+import { OfflineBanner } from "@/components/mobile/offline-banner";
+import { BottomNav } from "@/components/mobile/bottom-nav";
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -37,8 +39,10 @@ export default async function SiemFindingsPage({
   const data = await getSiemFindings(filters);
 
   return (
-    <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
-      <PageHeader
+    <>
+      <OfflineBanner />
+      <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6 pb-20">
+        <PageHeader
         eyebrow="SIEM / Findings"
         title="SIEM Findings"
         description="Rule-engine findings generated from parsed syslog events. Incident creation remains blocked until source maps to a device."
@@ -83,5 +87,7 @@ export default async function SiemFindingsPage({
         <SiemFindingTable findings={data.findings} />
       )}
     </main>
+    <BottomNav />
+    </>
   );
 }

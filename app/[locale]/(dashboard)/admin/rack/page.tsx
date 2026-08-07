@@ -4,6 +4,8 @@ import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Server, PieChart, MapPin } from "lucide-react";
+import { OfflineBanner } from "@/components/mobile/offline-banner";
+import { BottomNav } from "@/components/mobile/bottom-nav";
 
 export default async function RackPage() {
     const session = await verifySession();
@@ -15,7 +17,9 @@ export default async function RackPage() {
     const categories = await getCategories();
 
     return (
-        <div className="px-4 py-6 lg:px-6">
+        <>
+        <OfflineBanner />
+        <main className="px-4 py-6 lg:px-6 pb-20">
             <div className="mb-6">
                 <div className="flex items-center justify-between">
                     <div>
@@ -83,7 +87,11 @@ export default async function RackPage() {
             )}
 
             {/* Rack Layout Visualization */}
-            <RackLayout racks={racks} categories={categories} />
-        </div>
+            <div className="max-md:pointer-events-none overflow-x-auto">
+                <RackLayout racks={racks} categories={categories} />
+            </div>
+        </main>
+        <BottomNav />
+        </>
     );
 }

@@ -20,6 +20,8 @@ import {
   QrCode,
   ShieldAlert,
 } from "lucide-react";
+import { OfflineBanner } from "@/components/mobile/offline-banner";
+import { BottomNav } from "@/components/mobile/bottom-nav";
 
 export default async function ChecklistPage() {
   const session = await verifySession();
@@ -32,7 +34,9 @@ export default async function ChecklistPage() {
   const incidentPressure = stats.incidentStats.critical + stats.incidentStats.overdue;
 
   return (
-    <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-6 py-6" suppressHydrationWarning>
+    <>
+      <OfflineBanner />
+      <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-6 py-6 pb-20" suppressHydrationWarning>
       {/* Top header */}
       <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
@@ -276,6 +280,8 @@ export default async function ChecklistPage() {
         </div>
       </section>
     </main>
+    <BottomNav />
+    </>
   );
 }
 

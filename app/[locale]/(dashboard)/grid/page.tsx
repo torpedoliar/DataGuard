@@ -7,6 +7,8 @@ import { verifySession } from "@/lib/session";
 import { AlertTriangle, CheckCircle2, Circle, Grid3X3, XCircle } from "lucide-react";
 import { redirect } from "next/navigation";
 import clsx from "clsx";
+import { OfflineBanner } from "@/components/mobile/offline-banner";
+import { BottomNav } from "@/components/mobile/bottom-nav";
 
 export default async function AuditGridPage({
   searchParams,
@@ -54,8 +56,10 @@ export default async function AuditGridPage({
   }, {} as Record<string, { color: string; devices: typeof gridData }>);
 
   return (
-    <main className="flex h-[calc(100vh-56px)] w-full flex-col overflow-hidden bg-ops-bg">
-      <header className="flex-none border-b border-ops-border bg-ops-surface px-4 py-4 lg:px-6">
+    <>
+      <OfflineBanner />
+      <main className="flex h-[calc(100vh-56px)] w-full flex-col overflow-x-auto overflow-y-hidden bg-ops-bg pb-20">
+        <header className="flex-none border-b border-ops-border bg-ops-surface px-4 py-4 lg:px-6">
         <div className="mx-auto max-w-[1600px]">
           <PageHeader
             eyebrow="Operate / Audit Grid"
@@ -174,6 +178,8 @@ export default async function AuditGridPage({
         </div>
       </DraggableScroll>
     </main>
+    <BottomNav />
+    </>
   );
 }
 
