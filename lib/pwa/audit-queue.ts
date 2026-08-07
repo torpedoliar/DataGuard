@@ -2,7 +2,8 @@ import { getDb } from './db';
 
 // In complete implementation this will import `submitChecklist` server action.
 // For now, it is a shell to queue and retrieve items.
-export async function enqueue(payload: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function enqueue(payload: Record<string, any>) {
   const db = await getDb();
   return db.add('auditQueue', {
     ...payload,
@@ -17,6 +18,7 @@ export async function getQueue() {
   return db.getAll('auditQueue');
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export async function replay(submitAction: Function) {
   const db = await getDb();
   const tx = db.transaction('auditQueue', 'readwrite');
@@ -29,6 +31,7 @@ export async function replay(submitAction: Function) {
     try {
       await submitAction(item);
       await db.delete('auditQueue', item.localId!);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       item.attempts += 1;
       item.status = item.attempts >= 5 ? 'failed' : 'pending';
