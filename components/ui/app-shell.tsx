@@ -205,10 +205,10 @@ export default function AppShell({
               <button
                 type="button"
                 onClick={() => setMobileOpen(true)}
-                className="flex size-9 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-ops-muted lg:hidden"
+                className="flex size-11 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-ops-muted lg:hidden"
                 aria-label="Open navigation"
               >
-                <Menu className="size-4" />
+                <Menu className="size-5" />
               </button>
 
               <div className="hidden min-w-0 items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-1.5 text-sm text-ops-muted md:flex">

@@ -58,7 +58,7 @@ function DroppableSlot({ u, rackName, isOccupied, gridRow }: { u: number; rackNa
 }
 
 // Draggable Device Component
-function DraggableDevice({ device, categoryName, gridRow, isMuted }: { device: RackDevice & { isMuted?: boolean }; categoryName: string | null; gridRow: number; isMuted?: boolean }) {
+function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: { device: RackDevice & { isMuted?: boolean }; categoryName: string | null; gridRow: number; isMuted?: boolean; onSelect?: (device: RackDevice) => void }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `device-${device.id}`,
         data: {
@@ -94,6 +94,7 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted }: { device: R
             id={`device-${device.id}`}
             className={`relative group cursor-grab active:cursor-grabbing h-full`}
             style={style}
+            onClick={() => onSelect?.(device)}
             {...listeners}
             {...attributes}
         >
@@ -296,6 +297,7 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                         categoryName={device.categoryName}
                         gridRow={topRow}
                         isMuted={isMuted}
+                        onSelect={setSelectedDevice}
                     />
                 );
             }

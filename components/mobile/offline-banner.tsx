@@ -4,17 +4,31 @@ import { AlertTriangle, X } from 'lucide-react';
 import { useState } from 'react';
 
 export function OfflineBanner() {
+  // null = unknown on SSR/first paint; resolved client-side in the hook.
+  // Avoids hydration mismatch + flash of banner on devices that are online.
   const isOnline = useOnlineStatus();
   const [dismissed, setDismissed] = useState(false);
-  
-  if (isOnline || dismissed) return null;
+
+  if (isOnline === null || isOnline || dismissed) return null;
+
   return (
-    <div className="sticky top-0 z-50 flex items-center justify-between bg-ops-surface-raised p-2 text-ops-warning border-b border-ops-border">
-      <div className="flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4" />
-        <span className="text-sm">Offline — network disconnected</span>
+    <div
+      role="status"
+      aria-live="polite"
+      className="sticky top-0 z-50 flex items-center justify-between gap-2 border-b border-ops-border bg-ops-surface-raised p-2 text-ops-warning"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <AlertTriangle className="size-4 shrink-0" />
+        <span className="truncate text-sm">Offline — network disconnected</span>
       </div>
-      <button onClick={() => setDismissed(true)}><X className="h-4 w-4" /></button>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        aria-label="Dismiss offline banner"
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-ops-muted hover:bg-ops-surface hover:text-ops-text active:scale-95"
+      >
+        <X className="size-4" />
+      </button>
     </div>
   );
 }

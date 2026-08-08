@@ -13,8 +13,6 @@ import type { ReactNode } from "react";
 import type { UiTone } from "@/lib/ui/status";
 import {
   Activity,
-  AlertTriangle,
-  CheckCircle2,
   ClipboardCheck,
   Grid3X3,
   QrCode,
@@ -235,7 +233,8 @@ export default async function ChecklistPage() {
               No open incidents.
             </div>
           ) : (
-            <table className="w-full border-collapse">
+            <div className="-mx-1 overflow-x-auto">
+            <table className="w-full min-w-[520px] border-collapse">
               <thead>
                 <tr className="border-b border-ops-border/40 text-left text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">
                   <th className="pb-3 font-medium">Title</th>
@@ -266,12 +265,13 @@ export default async function ChecklistPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </section>
 
       {/* Quick actions */}
-      <section className="sticky bottom-6 z-20 mt-2">
+      <section className="sticky bottom-20 z-20 mt-2 md:bottom-6">
         <div className="flex flex-wrap gap-3 rounded-2xl border border-ops-border/40 bg-ops-surface p-3 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
           <QuickAction href="/audit/new" icon={<ClipboardCheck className="size-5" />} title="Start New Audit" />
           <QuickAction href="/audit/scan" icon={<QrCode className="size-5" />} title="Scan QR Code" />

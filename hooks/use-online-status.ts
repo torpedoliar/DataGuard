@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-export function useOnlineStatus() {
-  const [isOnline, setIsOnline] = useState(true);
+
+// null on server + first paint so consumers can render nothing until the
+// real value is known client-side (prevents hydration mismatch + banner flash).
+export function useOnlineStatus(): boolean | null {
+  const [isOnline, setIsOnline] = useState<boolean | null>(null);
   useEffect(() => {
-    if (typeof navigator !== 'undefined') {
-      setIsOnline(navigator.onLine);
-    }
+    setIsOnline(navigator.onLine);
     const online = () => setIsOnline(true);
     const offline = () => setIsOnline(false);
     window.addEventListener('online', online);

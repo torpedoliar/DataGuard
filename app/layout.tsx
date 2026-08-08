@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NextIntlClientProvider } from "next-intl";
@@ -16,6 +16,14 @@ const geistMono = Geist_Mono({
 });
 
 import { getSettings } from "@/actions/settings";
+
+// viewportFit cover enables env(safe-area-inset-*) on iOS so the fixed
+// bottom nav clears the home indicator and the top bar clears the notch.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSettings();
