@@ -49,7 +49,16 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
 
     const uHeight = device.uHeight || 1;
     const colorHex = device.categoryColor || "#64748b";
-    const isSmall = uHeight <= 1;
+
+    // Proportional sizing: 1U = compact, 2U+ = spacious
+    const isTiny = uHeight === 1;
+    const iconSize = isTiny ? "h-3.5 w-3.5" : "h-5 w-5";
+    const textNameSize = isTiny ? "text-[10px]" : "text-xs";
+    const textBrandSize = isTiny ? "text-[9px]" : "text-[10px]";
+    const logoSize = isTiny ? "h-2" : "h-2.5";
+    const padX = isTiny ? "px-1.5" : "px-2";
+    const padY = isTiny ? "py-0.5" : "py-1";
+    const auditIconSize = isTiny ? "h-3 w-3" : "h-3.5 w-3.5";
 
     const style = transform ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
@@ -74,11 +83,11 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
             {...attributes}
         >
             {/* Drag handle strip — left edge, always visible */}
-            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-sm bg-white/15 group-hover/dnd:bg-white/30 transition-colors z-10" />
+            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-sm bg-white/15 hover:bg-white/30 transition-colors z-10 cursor-grab active:cursor-grabbing" />
 
             {/* Server blade — colored card with depth */}
             <div
-                className="h-full rounded-sm overflow-hidden border border-white/[0.06] rack-blade-dark group/dnd"
+                className="h-full rounded-sm overflow-hidden border border-white/[0.06] rack-blade-dark"
                 style={{
                     background: colorHex,
                     boxShadow: `inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.4)`,
@@ -87,37 +96,57 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
                 {/* Top highlight line */}
                 <div className="h-[1px] bg-white/20" />
 
-                <div className={`flex items-center gap-1.5 ${isSmall ? 'px-1.5 py-0.5 pl-2.5' : 'px-2 py-1 pl-3'}`}>
+                <div className={`flex items-center gap-1.5 ${padX} ${padY}`}>
+                    {/* Category icon — scales with U height */}
                     <div className="shrink-0 text-white/70">
-                        {renderCategoryIcon(categoryName, isSmall ? "h-4 w-4" : "h-5 w-5")}
+                        {renderCategoryIcon(categoryName, iconSize)}
                     </div>
+
+                    {/* Name + Brand */}
                     <div className="min-w-0 flex-1">
-                        <div className={`font-semibold text-white truncate leading-tight ${isSmall ? 'text-[10px]' : 'text-[11px]'}`}>
+                        <div className={`font-semibold text-white truncate leading-tight ${textNameSize}`}>
                             {device.name}
                         </div>
                         {device.brandName && (
-                            <div className={`flex items-center gap-1 text-white/60 truncate leading-tight ${isSmall ? 'text-[8px]' : 'text-[9px]'}`}>
+                            <div className={`flex items-center gap-1 text-white/60 truncate leading-tight ${textBrandSize}`}>
                                 {device.brandLogo && (
                                     /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img src={device.brandLogo} alt={device.brandName} className="h-2.5 w-auto object-contain rounded-[2px] shrink-0" />
+                                    <img src={device.brandLogo} alt={device.brandName} className={`${logoSize} w-auto object-contain rounded-[1px] shrink-0`} />
                                 )}
-                                {!device.brandLogo && <span className="text-white/35 shrink-0">◆</span>}
+                                {!device.brandLogo && (
+                                    <span className="text-white/30 shrink-0">◆</span>
+                                )}
                                 <span className="truncate">{device.brandName}</span>
                             </div>
                         )}
                     </div>
+
+                    {/* Audit status + U height badge */}
                     <div className="shrink-0 flex items-center gap-1">
                         {device.status === "Error" && (
-                            <div className="flex items-center gap-0.5 text-[8px] font-bold text-red-200 bg-red-950/70 px-1 py-0.3 rounded">
-                                <XCircle className="h-3 w-3" />
+                            <div className="flex items-center gap-0.5 text-[9px] font-bold text-red-200 bg-red-950/80 px-1.5 py-0.5 rounded">
+                                <XCircle className={auditIconSize} />
+                                <span className="hidden xl:inline">Error</span>
                             </div>
                         )}
                         {device.status === "Warning" && (
-                            <div className="flex items-center gap-0.5 text-[8px] font-bold text-amber-200 bg-amber-950/70 px-1 py-0.3 rounded">
-                                <AlertTriangle className="h-3 w-3" />
+                            <div className="flex items-center gap-0.5 text-[9px] font-bold text-amber-200 bg-amber-950/80 px-1.5 py-0.5 rounded">
+                                <AlertTriangle className={auditIconSize} />
+                                <span className="hidden xl:inline">Warning</span>
                             </div>
                         )}
                         <span className="text-[8px] font-mono text-white/50 bg-black/20 px-1 rounded">{uHeight}U</span>
+                        {/* Drag handle dots — always visible on device blade */}
+                        <div className="shrink-0 flex items-center gap-0.5 opacity-50">
+                            <svg width="8" height="10" viewBox="0 0 8 10" fill="white" className="shrink-0">
+                                <circle cx="2" cy="2" r="1" />
+                                <circle cx="6" cy="2" r="1" />
+                                <circle cx="2" cy="5" r="1" />
+                                <circle cx="6" cy="5" r="1" />
+                                <circle cx="2" cy="8" r="1" />
+                                <circle cx="6" cy="8" r="1" />
+                            </svg>
+                        </div>
                     </div>
                 </div>
             </div>
