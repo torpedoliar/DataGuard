@@ -55,10 +55,8 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
         zIndex: isDragging ? 999 : 10,
         opacity: isDragging ? 0.4 : (isMuted ? 0.12 : 1),
-        gridColumn: "2",
         gridRow: `${gridRow} / span ${uHeight}`,
     } : {
-        gridColumn: "2",
         gridRow: `${gridRow} / span ${uHeight}`,
         opacity: isMuted ? 0.12 : 1,
         transition: "opacity 0.2s ease",
@@ -69,7 +67,7 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
         <div
             ref={setNodeRef}
             id={`device-${device.id}`}
-            className="relative group cursor-grab active:cursor-grabbing"
+            className="relative group cursor-grab active:cursor-grabbing w-full"
             style={style}
             onClick={() => onSelect?.(device)}
             {...listeners}
@@ -453,68 +451,35 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                                                 </div>
                                             </div>
 
-                                            {/* ── Rack Body — 3D dark chassis ── */}
-                                            <div
-                                                className="px-2 py-1.5"
-                                                style={{
-                                                    background: "linear-gradient(180deg, #0b1120 0%, #111827 50%, #0f172a 100%)",
-                                                    borderTop: "1px solid #1e293b",
-                                                    borderBottom: "1px solid #1e293b",
-                                                    minHeight: "140px",
-                                                    boxShadow: "inset 0 4px 12px rgba(0,0,0,0.4), inset 0 -4px 12px rgba(0,0,0,0.2)",
-                                                }}
-                                            >
-                                                {/* Rack frame with left rail */}
+                                            {/* ── Rack Body — 3D chassis ── */}
+                                            <div className="px-2 py-1.5 rack-chassis">
                                                 <div className="flex h-full">
-                                                    <div
-                                                        className="w-2 shrink-0 rounded-sm"
-                                                        style={{
-                                                            background: "linear-gradient(180deg, #1a2332 0%, #0f1a28 100%)",
-                                                            borderRight: "1px solid #1e293b",
-                                                            boxShadow: "inset 2px 0 4px rgba(0,0,0,0.3)",
-                                                        }}
-                                                    />
+                                                    <div className="rack-rail rack-rail-left" />
 
-                                                    {/* Device grid */}
-                                                    <div
-                                                        className="flex-1 grid gap-px"
-                                                        style={{
-                                                            gridTemplateColumns: "1fr",
-                                                            gridAutoRows: "26px",
-                                                        }}
-                                                    >
-                                                        {/* U labels every 10U */}
+                                                    <div className="flex-1 grid gap-0 rack-device-grid">
+                                                        {/* U labels — every U line + big number every 10U */}
                                                         {Array.from({ length: totalU }, (_, i) => {
                                                             const u = totalU - i;
                                                             const row = i + 1;
+                                                            const isMark = u % 10 === 0;
                                                             return (
                                                                 <div
-                                                                    key={`label-${rack.name}-${u}`}
-                                                                    className="text-[8px] font-mono text-slate-600 text-right pr-1 select-none flex items-center justify-end"
+                                                                    key={`u-row-${u}`}
+                                                                    className="relative flex items-center pr-1.5 text-right"
                                                                     style={{ gridRow: row }}
                                                                 >
-                                                                    {u % 10 === 0 ? (
-                                                                        <span className="text-[8px] font-bold text-slate-500">{u}</span>
+                                                                    {isMark ? (
+                                                                        <span className="text-[10px] font-bold text-rack-label opacity-75">{u}</span>
                                                                     ) : (
-                                                                        <span className="w-1.5 border-t border-slate-800/60" />
+                                                                        <div className="absolute right-0 w-1.5 border-t border-rack-line" />
                                                                     )}
                                                                 </div>
                                                             );
                                                         })}
-
-                                                        {/* Rendered devices and slots */}
                                                         {renderRackSlots(rack)}
                                                     </div>
 
-                                                    {/* Right rail */}
-                                                    <div
-                                                        className="w-2 shrink-0 rounded-sm"
-                                                        style={{
-                                                            background: "linear-gradient(180deg, #1a2332 0%, #0f1a28 100%)",
-                                                            borderLeft: "1px solid #1e293b",
-                                                            boxShadow: "inset -2px 0 4px rgba(0,0,0,0.3)",
-                                                        }}
-                                                    />
+                                                    <div className="rack-rail rack-rail-right" />
                                                 </div>
                                             </div>
 
