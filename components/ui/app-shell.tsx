@@ -35,6 +35,7 @@ import clsx from "clsx";
 import { logout, switchSite } from "@/actions/auth";
 import { getAppNavigation, type NavItem } from "@/lib/ui/navigation";
 import ActionButton from "@/components/ui/action-button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 type SiteInfo = { id: number; name: string; code: string };
 
@@ -227,6 +228,8 @@ export default function AppShell({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <ThemeToggle />
+
               <ActionButton href="/audit/new" size="sm" icon={<ClipboardCheck className="size-4" />}>
                 <span className="hidden sm:inline">New Audit</span>
               </ActionButton>
