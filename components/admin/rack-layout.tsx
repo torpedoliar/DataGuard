@@ -67,15 +67,18 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
         <div
             ref={setNodeRef}
             id={`device-${device.id}`}
-            className="relative cursor-grab active:cursor-grabbing w-full group/dnd"
+            className="relative w-full"
             style={style}
             onClick={() => onSelect?.(device)}
             {...listeners}
             {...attributes}
         >
+            {/* Drag handle strip — left edge, always visible */}
+            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-sm bg-white/15 group-hover/dnd:bg-white/30 transition-colors z-10" />
+
             {/* Server blade — colored card with depth */}
             <div
-                className="h-full rounded-sm overflow-hidden border border-white/[0.06] rack-blade-dark"
+                className="h-full rounded-sm overflow-hidden border border-white/[0.06] rack-blade-dark group/dnd"
                 style={{
                     background: colorHex,
                     boxShadow: `inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.4)`,
@@ -84,9 +87,9 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
                 {/* Top highlight line */}
                 <div className="h-[1px] bg-white/20" />
 
-                <div className={`flex items-center gap-1.5 ${isSmall ? 'px-1.5 py-0.5' : 'px-2 py-1'}`}>
+                <div className={`flex items-center gap-1.5 ${isSmall ? 'px-1.5 py-0.5 pl-2.5' : 'px-2 py-1 pl-3'}`}>
                     <div className="shrink-0 text-white/70">
-                        {renderCategoryIcon(categoryName, isSmall ? "h-4 w-4" : (uHeight >= 3 ? "h-5 w-5" : "h-5 w-5"))}
+                        {renderCategoryIcon(categoryName, isSmall ? "h-4 w-4" : "h-5 w-5")}
                     </div>
                     <div className="min-w-0 flex-1">
                         <div className={`font-semibold text-white truncate leading-tight ${isSmall ? 'text-[10px]' : 'text-[11px]'}`}>
@@ -116,16 +119,6 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
                         )}
                         <span className="text-[8px] font-mono text-white/50 bg-black/20 px-1 rounded">{uHeight}U</span>
                     </div>
-                    <div className="shrink-0 flex items-center gap-0.5 opacity-40 group-hover/dnd:opacity-70 transition-opacity">
-                        <svg width="8" height="10" viewBox="0 0 8 10" fill="white" className="shrink-0">
-                            <circle cx="2" cy="2" r="1" />
-                            <circle cx="6" cy="2" r="1" />
-                            <circle cx="2" cy="5" r="1" />
-                            <circle cx="6" cy="5" r="1" />
-                            <circle cx="2" cy="8" r="1" />
-                            <circle cx="6" cy="8" r="1" />
-                        </svg>
-                    </div>
                 </div>
             </div>
         </div>
@@ -149,7 +142,7 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
     useEffect(() => { setIsClient(true); }, []);
 
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
     );
 
     const handleDragEnd = async (event: DragEndEvent) => {
