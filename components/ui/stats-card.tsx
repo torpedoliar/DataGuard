@@ -3,14 +3,14 @@ import clsx from "clsx";
 import type { UiTone } from "@/lib/ui/status";
 
 const iconToneClasses: Record<UiTone, string> = {
-  neutral: "bg-slate-500/12 text-slate-300",
-  success: "bg-emerald-400/12 text-emerald-200",
-  warning: "bg-amber-400/12 text-amber-200",
-  orange: "bg-orange-400/12 text-orange-200",
-  danger: "bg-red-400/12 text-red-200",
-  info: "bg-blue-400/12 text-blue-200",
+  neutral: "bg-slate-400/15 text-slate-500 dark:bg-slate-500/12 dark:text-slate-300",
+  success: "bg-emerald-500/15 text-emerald-500 dark:bg-emerald-400/12 dark:text-emerald-200",
+  warning: "bg-amber-500/15 text-amber-500 dark:bg-amber-400/12 dark:text-amber-200",
+  orange: "bg-orange-500/15 text-orange-500 dark:bg-orange-400/12 dark:text-orange-200",
+  danger: "bg-red-500/15 text-red-500 dark:bg-red-400/12 dark:text-red-200",
+  info: "bg-blue-500/15 text-blue-500 dark:bg-blue-400/12 dark:text-blue-200",
   accent: "bg-ops-accent/12 text-ops-accent",
-  purple: "bg-purple-400/12 text-purple-200",
+  purple: "bg-purple-500/15 text-purple-500 dark:bg-purple-400/12 dark:text-purple-200",
 };
 
 export default function StatsCard({

@@ -148,10 +148,10 @@ export default function AppShell({
                     "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
                     site.id === activeSite.id
                       ? "bg-ops-accent/12 text-ops-accent"
-                      : "text-slate-300 hover:bg-ops-surface hover:text-white",
+                      : "text-slate-600 hover:bg-ops-surface hover:text-ops-text dark:text-slate-400 dark:hover:text-white",
                   )}
                 >
-                  <span className={clsx("size-1.5 rounded-full", site.id === activeSite.id ? "bg-ops-accent" : "bg-slate-600")} />
+                  <span className={clsx("size-1.5 rounded-full", site.id === activeSite.id ? "bg-ops-accent" : "bg-slate-400 dark:bg-slate-600")} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{site.name}</span>
                     <span className="block font-mono text-[10px] text-ops-muted">{site.code}</span>
@@ -200,7 +200,7 @@ export default function AppShell({
       )}
 
       <div className="min-h-screen lg:pl-[17rem]">
-        <header className="sticky top-0 z-30 border-b border-ops-border bg-ops-bg/94 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 border-b border-ops-border bg-ops-bg/94 backdrop-blur-sm">
           <div className="flex h-14 items-center justify-between gap-3 px-4 lg:px-6">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
@@ -269,7 +269,7 @@ export default function AppShell({
                       <Link
                         href="/profile"
                         onClick={() => setUserOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-ops-surface hover:text-white"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-ops-surface hover:text-ops-text dark:text-slate-300 dark:hover:text-white"
                       >
                         <User className="size-4" />
                         Profile Settings
@@ -280,7 +280,7 @@ export default function AppShell({
                           setUserOpen(false);
                           logout();
                         }}
-                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-300 hover:bg-red-500/10"
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-500/10 dark:text-red-400"
                       >
                         <LogOut className="size-4" />
                         Log Out
@@ -293,7 +293,7 @@ export default function AppShell({
           </div>
         </header>
 
-        <div className="min-h-[calc(100vh-56px)]">{children}</div>
+        <main id="main-content" className="min-h-[calc(100vh-56px)]">{children}</main>
       </div>
     </div>
   );

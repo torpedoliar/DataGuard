@@ -20,9 +20,9 @@ export type IconButtonProps = {
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label" | "children">;
 
 const variantClasses: Record<NonNullable<IconButtonProps["variant"]>, string> = {
-  primary: "border-transparent bg-ops-accent text-slate-950 hover:bg-[#77e3ca]",
-  secondary: "border-ops-border bg-ops-surface-raised text-ops-text hover:border-ops-accent/50 hover:text-white",
-  danger: "border-red-500/30 bg-red-500/12 text-red-200 hover:bg-red-500/20",
+  primary: "border-transparent bg-ops-accent text-slate-950 hover:bg-[#0a7a6f] dark:hover:bg-[#2dd4bf]/30",
+  secondary: "border-ops-border bg-ops-surface-raised text-ops-text hover:border-ops-accent/50 hover:text-ops-text dark:hover:text-white",
+  danger: "border-red-500/30 bg-red-500/12 text-red-600 dark:text-red-200 hover:bg-red-500/20",
   ghost: "border-transparent bg-transparent text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
 };
 

@@ -6,28 +6,23 @@
 @theme {
   --color-primary: #0d9488;
   --color-primary-light: #14b8a6;
-  --color-background: #f1f5f9;
-  --color-background-light: #f1f5f9;
-  --color-background-dark: #f1f5f9;
-  --color-surface: #ffffff;
-  --color-card: #ffffff;
-  --color-card-dark: #ffffff;
-  --color-surface-dark: #ffffff;
-  --color-surface-darker: #f1f5f9;
-  --color-border: #e2e8f0;
-  --color-border-dark: #e2e8f0;
-  --color-foreground: #0f172a;
-  --color-muted: #64748b;
-
   --color-success: #16a34a;
   --color-warning: #d97706;
   --color-error: #dc2626;
 
-  --color-ops-bg: #f1f5f9;
+  /* legacy alias — kept for global CSS selectors */
+  --color-background: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-card: #ffffff;
+  --color-border: #e2e8f0;
+  --color-foreground: #0f172a;
+  --color-muted: #64748b;
+
+  --color-ops-bg: #e2e8f0;
   --color-ops-surface: #ffffff;
-  --color-ops-surface-raised: #f8fafc;
-  --color-ops-border: #e2e8f0;
-  --color-ops-muted: #64748b;
+  --color-ops-surface-raised: #f1f5f9;
+  --color-ops-border: #cbd5e1;
+  --color-ops-muted: #475569;
   --color-ops-text: #0f172a;
   --color-ops-accent: #0d9488;
   --color-ops-info: #2563eb;
@@ -44,16 +39,12 @@
 .dark {
   --color-primary: #5eead4;
   --color-primary-light: #8bf5e3;
+
+  /* legacy dark overrides — kept for global CSS selectors */
   --color-background: #0b1120;
-  --color-background-light: #0b1120;
-  --color-background-dark: #0b1120;
   --color-surface: #111827;
   --color-card: #111827;
-  --color-card-dark: #111827;
-  --color-surface-dark: #111827;
-  --color-surface-darker: #0b1120;
   --color-border: #1e293b;
-  --color-border-dark: #1e293b;
   --color-foreground: #f8fafc;
   --color-muted: #94a3b8;
 
@@ -88,8 +79,8 @@ html.dark {
 
 body {
   font-family: var(--font-body), system-ui, sans-serif;
-  background-color: var(--color-background);
-  color: var(--color-foreground);
+  background-color: var(--color-ops-bg);
+  color: var(--color-ops-text);
 }
 
 /* ===== FORM ELEMENTS ===== */
@@ -109,7 +100,8 @@ textarea::placeholder {
 input:focus,
 select:focus,
 textarea:focus {
-  outline: none;
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
+  outline-offset: 2px;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
@@ -157,28 +149,36 @@ th {
   'opsz' 24;
 }
 
-/* ===== SCROLLBAR ===== */
-::-webkit-scrollbar {
+  /* ===== SCROLLBAR (webkit + Firefox) ===== */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+  }
+  ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
-}
-::-webkit-scrollbar-track {
-    background: var(--color-background);
-}
-::-webkit-scrollbar-thumb {
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
     background: var(--color-border);
     border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
+  }
+  ::-webkit-scrollbar-thumb:hover {
     background: var(--color-muted);
-}
+  }
+  /* Prevent layout shift when scrollbar appears */
+  body {
+    scrollbar-gutter: stable;
+  }
 
 /* ===== GLOW CARD UTILITY ===== */
 .glow-card {
   background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: 16px;
-  transition: all 0.3s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .glow-card:hover {
   border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
@@ -225,3 +225,20 @@ th {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 16%, transparent);
 }
+
+/* ===== LIGHT MODE FIXES: route pages using legacy Tailwind utilities ===== */
+/* These override hardcoded slates so they stay visible on the ops-bg */
+html:not(.dark) .text-white { color: var(--color-foreground); }
+html:not(.dark) .text-slate-300 { color: var(--color-muted); }
+html:not(.dark) .text-slate-400 { color: var(--color-muted); }
+html:not(.dark) .text-slate-500 { color: var(--color-muted); }
+html:not(.dark) .text-slate-600 { color: #334155; }
+html:not(.dark) .text-slate-700 { color: #1e293b; }
+html:not(.dark) .text-slate-800 { color: #0f172a; }
+html:not(.dark) .text-slate-900 { color: #020617; }
+html:not(.dark) .bg-slate-100 { background-color: var(--color-ops-surface-raised); }
+html:not(.dark) .bg-slate-200 { background-color: var(--color-ops-surface); border-color: var(--color-border); }
+html:not(.dark) .bg-surface { background-color: var(--color-surface); }
+html:not(.dark) .border-slate-100 { border-color: var(--color-ops-border); }
+html:not(.dark) .border-slate-200 { border-color: var(--color-ops-border); }
+html:not(.dark) .border-slate-300 { border-color: var(--color-ops-border); }

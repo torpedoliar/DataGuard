@@ -61,11 +61,11 @@ export default async function RootLayout({
             __html: `try{var t=localStorage.getItem('theme');var d=t?t==='dark':!window.matchMedia||window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d)}catch(e){document.documentElement.classList.toggle('dark',!0)}`,
           }}
         />
-        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>
       <body className="font-sans antialiased bg-background text-foreground min-h-screen flex flex-col">
+        <a href="#main-content" className="sr-only focus:absolute focus:z-50 focus:rounded-bl-lg focus:border-2 focus:border-ops-accent focus:bg-ops-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ops-accent">Skip to content</a>
         <NextIntlClientProvider locale={validLocale} messages={messages}>
           {children}
         </NextIntlClientProvider>

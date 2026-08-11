@@ -66,7 +66,7 @@ export default function Pagination({
     if (totalPages <= 1) return null;
 
     return (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-200 dark:border-slate-700">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-300 dark:border-slate-600">
             {/* Info */}
             <div className="text-sm text-slate-600 dark:text-slate-400">
                 Showing <span className="font-medium">{startItem}</span> to{" "}
@@ -79,15 +79,14 @@ export default function Pagination({
                 <button
                     onClick={() => handlePageChange(1)}
                     disabled={currentPage === 1}
-                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title="First page"
+                    className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:border-slate-600 dark:hover:bg-slate-700"
                 >
                     <ChevronsLeft className="h-4 w-4" />
                 </button>
                 <button
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:border-slate-600 dark:hover:bg-slate-700"
                     title="Previous page"
                 >
                     <ChevronLeft className="h-4 w-4" />
@@ -103,7 +102,7 @@ export default function Pagination({
                                 className={`min-w-[40px] h-10 rounded-lg border text-sm font-medium transition-colors ${
                                     page === currentPage
                                         ? "bg-blue-600 border-blue-600 text-white"
-                                        : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                        : "border-slate-300 hover:bg-slate-100 text-slate-700 dark:border-slate-600 dark:hover:bg-slate-700 dark:text-slate-300"
                                 }`}
                             >
                                 {page}
@@ -122,7 +121,7 @@ export default function Pagination({
                 <button
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:border-slate-600 dark:hover:bg-slate-700"
                     title="Next page"
                 >
                     <ChevronRight className="h-4 w-4" />
@@ -130,7 +129,7 @@ export default function Pagination({
                 <button
                     onClick={() => handlePageChange(totalPages)}
                     disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:border-slate-600 dark:hover:bg-slate-700"
                     title="Last page"
                 >
                     <ChevronsRight className="h-4 w-4" />

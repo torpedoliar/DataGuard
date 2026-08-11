@@ -58,8 +58,8 @@ export default async function AboutPage() {
                         </div>
                     )}
                 </div>
-                <h1 className="text-4xl font-bold text-white mb-2">{appSettings.appName}</h1>
-                <p className="text-slate-400 text-lg mb-4">Data Center Monitoring &amp; Audit System</p>
+                <h1 className="text-4xl font-bold text-ops-text dark:text-white mb-2">{appSettings.appName}</h1>
+                <p className="text-ops-muted text-lg mb-4">Data Center Monitoring &amp; Audit System</p>
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm">
                     <Star className="h-3.5 w-3.5" />
                     Version {versionData.version} — Released {versionData.releaseDate}
@@ -68,45 +68,45 @@ export default async function AboutPage() {
 
 
             {/* Credits Card */}
-            <div className="bg-gradient-to-br from-surface to-surface-darker border border-border/50 rounded-2xl p-8 mb-8 relative overflow-hidden">
+            <div className="bg-gradient-to-br from-ops-surface to-ops-bg border border-ops-border rounded-2xl p-8 mb-8 relative overflow-hidden dark:from-surface dark:to-surface-darker dark:border-border/50">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 pointer-events-none" />
 
                 <div className="relative">
-                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-ops-text mb-6 flex items-center gap-2 dark:text-white">
                         <Heart className="h-5 w-5 text-red-400" />
                         Credits
                     </h2>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {/* Created By */}
-                        <div className="bg-surface rounded-xl p-5 border border-border">
-                            <p className="text-xs text-muted uppercase tracking-wider mb-1">Created by</p>
-                            <p className="text-white font-semibold text-lg">Team Operational Support</p>
-                            <p className="text-blue-400 font-medium">SJA</p>
-                            <p className="text-slate-400 text-sm mt-2">
+                        <div className="bg-ops-surface rounded-xl p-5 border border-ops-border dark:bg-surface dark:border-border">
+                            <p className="text-xs text-muted uppercase tracking-wider mb-1 dark:text-slate-400">Created by</p>
+                            <p className="text-ops-text font-semibold text-lg dark:text-white">Team Operational Support</p>
+                            <p className="text-blue-600 font-medium dark:text-blue-400">SJA</p>
+                            <p className="text-ops-muted text-sm mt-2 dark:text-slate-400">
                                 Tim yang berdedikasi membangun dan memelihara infrastruktur data center yang handal dan terdokumentasi dengan baik.
                             </p>
                         </div>
 
                         {/* Licensed By */}
-                        <div className="bg-surface rounded-xl p-5 border border-border">
-                            <p className="text-xs text-muted uppercase tracking-wider mb-1">Licensed by</p>
-                            <p className="text-white font-semibold text-lg flex items-center gap-2">
+                        <div className="bg-ops-surface rounded-xl p-5 border border-ops-border dark:bg-surface dark:border-border">
+                            <p className="text-xs text-muted uppercase tracking-wider mb-1 dark:text-slate-400">Licensed by</p>
+                            <p className="text-ops-text font-semibold text-lg flex items-center gap-2 dark:text-white">
                                 <Github className="h-5 w-5" />
                                 Torpedoliar
                             </p>
-                            <p className="text-slate-400 text-sm mt-2 mb-3">
+                            <p className="text-ops-muted text-sm mt-2 mb-3 dark:text-slate-400">
                                 Dikembangkan dan dirilis secara open-source untuk komunitas pengelola data center Indonesia.
                             </p>
                             <Link
                                 href="https://github.com/torpedoliar"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm transition-colors"
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ops-border hover:bg-ops-surface-raised text-ops-text text-sm transition-colors dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white"
                             >
                                 <Github className="h-3.5 w-3.5" />
                                 github.com/torpedoliar
-                                <ExternalLink className="h-3 w-3 text-slate-400" />
+                                <ExternalLink className="h-3 w-3 text-ops-muted dark:text-slate-400" />
                             </Link>
                         </div>
                     </div>
@@ -121,7 +121,7 @@ export default async function AboutPage() {
                 </h2>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <div className="flex-1">
-                        <p className="text-slate-300 text-sm mb-1">Source code tersedia publik di GitHub:</p>
+                        <p className="text-ops-muted text-sm mb-1 dark:text-slate-300">Source code tersedia publik di GitHub:</p>
                         <a
                             href={versionData.repository}
                             target="_blank"
@@ -135,7 +135,7 @@ export default async function AboutPage() {
                         href={versionData.repository}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+                        className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm font-medium transition-colors"
                     >
                         <Github className="h-4 w-4" />
                         Lihat di GitHub
