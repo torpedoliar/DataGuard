@@ -14,6 +14,8 @@
 - **Fonts:** `JetBrains Mono` for all IDs/resource names/timestamps/status codes; `Space Grotesk` for technical titles; `Inter` for body. Load via `next/font/google` (layout) + `--font-mono` token.
 - **Keep `UiTone`** (`@/lib/ui/status`) as the single status type; new LED components consume it.
 - **Both themes** (light `.dark` off / dark `.dark` on) must resolve correctly for every new token/component.
+- **Accessibility:** visible focus ring (2-4px) on all interactive elements; `prefers-reduced-motion` respected (no pulse/transition for users who request reduced motion); color is never the only status indicator (LED lamp always pairs with label/glyph); touch targets ≥44px on mobile for scan/rack/CTA.
+- **Motion:** animated only 1-2 key elements per view; LED pulse reserved for genuinely live/danger states, not decorative.
 - **Tailwind v4** — tokens are CSS vars in `@theme`; reference as `bg-surface`, `text-ops-accent`, etc.
 - **Existing `dark:` classes and `ops-*` token names stay valid** — only values/helpers change.
 - `next build` must stay green after every commit.
@@ -88,6 +90,26 @@ code, kbd, samp, .font-mono {
 }
 ```
 
+- [ ] **Step 4b: Add accessibility + reduced-motion base rules**
+
+```css
+/* globals.css base */
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+```
+
 - [ ] **Step 5: Verify build**
 
 Run: `npx next build`
@@ -127,7 +149,7 @@ it("maps success tone to ok LED", () => {
 
 it("renders pulse class when pulse=true", () => {
   const { container } = render(<LedChip tone="danger" pulse>SI-2031</LedChip>);
-  expect(container.querySelector(".animate-pulse")).not.toBeNull();
+  expect(container.querySelector(".motion-safe\\:animate-pulse")).not.toBeNull();
 });
 ```
 
@@ -143,7 +165,7 @@ export function LedDot({ tone = "neutral", pulse = false, className }: { tone?: 
   return (
     <span
       aria-hidden
-      className={clsx("inline-block rounded-full", pulse && "animate-pulse", dotClasses[tone], className)}
+      className={clsx("inline-block rounded-full", pulse && "motion-safe:animate-pulse", dotClasses[tone], className)}
       style={{ width: "0.5em", height: "0.5em" }}
     />
   );
@@ -414,7 +436,7 @@ import StatusStripe from "./status-stripe";
 {tone && <StatusStripe tone={tone} className="absolute top-0 left-0 right-0 rounded-none" />}
 ```
 
-- [ ] **Step 2: Pulse active/danger LEDs** — in incident table + SIEM dashboard, use `LedChip tone="danger" pulse` for open/critical incidents, `LedDot pulse` for live alerts.
+- [ ] **Step 2: Pulse active/danger LEDs** — in incident table + SIEM dashboard, use `LedChip tone="danger" pulse` for open/critical incidents, `LedDot pulse` for live alerts. **Use `motion-safe:animate-pulse`** (Tailwind variant) so users with reduced-motion get a static lamp — the `prefers-reduced-motion` base from Task 1 also covers this, but `motion-safe:` keeps the pulse class itself inert for those users. Limit pulse to live/danger only (1-2 per view max, per Global Constraints).
 
 - [ ] **Step 3: Verify build + tests**
 
@@ -442,7 +464,14 @@ git commit -m "feat(ui): LED pulse + status stripes on dashboard and incidents"
 
 - [ ] **Step 1: Font application sweep** — ensure IDs/timestamps across visible surfaces use `font-mono` (add `font-mono` class where a technical value shows but isn't yet mono). Focus: login, select-site, page headers, dashboard, report.
 
-- [ ] **Step 2: Manual light/dark check** — run `npx next dev`, toggle theme, verify every new token resolves in both modes (blueprint grid, LED colors, mono font).
+- [ ] **Step 2: Manual dual-theme check** — run `npx next dev`, toggle theme, verify in **both** light and dark:
+  - blueprint grid, LED colors, mono font resolve correctly
+  - body text contrast ≥4.5:1 (light: dark text on light bg; dark: light text on `#0D1117`)
+  - borders/dividers visible in both modes (not disappearing in one)
+  - modal scrim isolates foreground (not washed out)
+  - LED status readable with color + glyph together
+  - focus ring visible on tab through
+  - `prefers-reduced-motion` enabled → LED pulse stops, transitions snap
 
 - [ ] **Step 3: Full test + build**
 
@@ -472,3 +501,10 @@ git commit -m "feat(ui): Data Center Blueprint — final integration"
 **Placeholder scan:** No TBD/TODO. All code blocks concrete. Task 4 Step 1/3 reference "find status renderings" — acceptable as it's a locate-then-swap mechanical step; the exact `UiTone` mapping is defined in Task 2.
 
 **Type consistency:** `LedChip`/`LedDot`/`StatusStripe`/`RailStepper` names and signatures consistent across all tasks. `UiTone` reused throughout. `--font-mono`/`--font-display`/`--color-blueprint-grid`/`--color-led-*` tokens defined in Task 1, consumed later. ✓
+
+**UX best-practice coverage (ui-ux-pro-max):**
+- Accessibility: focus rings + reduced-motion base (Task 1 Step 4b); touch targets in Global Constraints; color+glyph not color-only (LED pairs label). ✓
+- Motion: `motion-safe:animate-pulse` (Task 2/7), 1-2 animated elements/view max (Global Constraints). ✓
+- Typography: mono for data + display for titles (Task 1), tabular-nums. ✓
+- Color: semantic tokens, dark+light parity verified (Task 8 Step 2), no raw hex in components (swept in prior theme work). ✓
+- Data-dense: LED chips + summary bar in reports (Task 4), tabular figures. ✓
