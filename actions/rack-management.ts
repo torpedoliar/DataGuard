@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "../db";
-import { racks, locations } from "../db/schema";
+import { racks, locations, devices } from "../db/schema";
 import { and, eq, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -133,12 +133,26 @@ export async function updateRack(prevState: unknown, formData: FormData) {
     }
 
     try {
+        const current = await db.query.racks.findFirst({
+            where: and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)),
+        });
+        if (!current) return { message: "Rack tidak ditemukan di site aktif." };
+
         await db.update(racks).set({
             name: parsed.data.name,
             zone: parsed.data.zone,
             totalU: parsed.data.totalU,
             locationId: parsed.data.locationId,
         }).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
+
+        // Cascade rename to devices referencing this rack by name
+        if (parsed.data.name && parsed.data.name !== current.name) {
+            await db.update(devices).set({ rackName: parsed.data.name })
+                .where(and(
+                    eq(devices.siteId, auth.activeSiteId),
+                    eq(devices.rackName, current.name),
+                ));
+        }
 
         revalidatePath("/admin/rack-manage");
         revalidatePath("/admin/rack");
