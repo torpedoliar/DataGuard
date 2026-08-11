@@ -295,3 +295,17 @@ html:not(.dark) .rack-line {
 html:not(.dark) .rack-label {
     color: var(--color-muted);
 }
+.rack-label-dark {
+    color: #94a3b8;
+}
+html:not(.dark) .rack-label-dark {
+    color: #475569;
+}
+.rack-blade-dark {
+    filter: brightness(1.15);
+}
+html:not(.dark) .rack-blade-dark {
+    filter: none;
+}
+
+/* ===== END RACK LAYOUT ===== */

@@ -54,11 +54,11 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
     const style = transform ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
         zIndex: isDragging ? 999 : 10,
-        opacity: isDragging ? 0.4 : (isMuted ? 0.12 : 1),
+        opacity: isDragging ? 0.4 : (isMuted ? 0.15 : 1),
         gridRow: `${gridRow} / span ${uHeight}`,
     } : {
         gridRow: `${gridRow} / span ${uHeight}`,
-        opacity: isMuted ? 0.12 : 1,
+        opacity: isMuted ? 0.15 : 1,
         transition: "opacity 0.2s ease",
         zIndex: 10,
     };
@@ -67,7 +67,7 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
         <div
             ref={setNodeRef}
             id={`device-${device.id}`}
-            className="relative group cursor-grab active:cursor-grabbing w-full"
+            className="relative cursor-grab active:cursor-grabbing w-full group/dnd"
             style={style}
             onClick={() => onSelect?.(device)}
             {...listeners}
@@ -75,7 +75,7 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
         >
             {/* Server blade — colored card with depth */}
             <div
-                className="h-full rounded-sm overflow-hidden border border-white/[0.06]"
+                className="h-full rounded-sm overflow-hidden border border-white/[0.06] rack-blade-dark"
                 style={{
                     background: colorHex,
                     boxShadow: `inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.4)`,
@@ -86,7 +86,7 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
 
                 <div className={`flex items-center gap-1.5 ${isSmall ? 'px-1.5 py-0.5' : 'px-2 py-1'}`}>
                     <div className="shrink-0 text-white/70">
-                        {renderCategoryIcon(categoryName, isSmall ? "h-3 w-3" : "h-3.5 w-3.5")}
+                        {renderCategoryIcon(categoryName, isSmall ? "h-4 w-4" : (uHeight >= 3 ? "h-5 w-5" : "h-5 w-5"))}
                     </div>
                     <div className="min-w-0 flex-1">
                         <div className={`font-semibold text-white truncate leading-tight ${isSmall ? 'text-[10px]' : 'text-[11px]'}`}>
@@ -96,8 +96,9 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
                             <div className={`flex items-center gap-1 text-white/60 truncate leading-tight ${isSmall ? 'text-[8px]' : 'text-[9px]'}`}>
                                 {device.brandLogo && (
                                     /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img src={device.brandLogo} alt={device.brandName} className="h-2 w-auto object-contain rounded-[1px]" />
+                                    <img src={device.brandLogo} alt={device.brandName} className="h-2.5 w-auto object-contain rounded-[2px] shrink-0" />
                                 )}
+                                {!device.brandLogo && <span className="text-white/35 shrink-0">◆</span>}
                                 <span className="truncate">{device.brandName}</span>
                             </div>
                         )}
@@ -105,30 +106,27 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
                     <div className="shrink-0 flex items-center gap-1">
                         {device.status === "Error" && (
                             <div className="flex items-center gap-0.5 text-[8px] font-bold text-red-200 bg-red-950/70 px-1 py-0.3 rounded">
-                                <XCircle className="h-2.5 w-2.5" />
+                                <XCircle className="h-3 w-3" />
                             </div>
                         )}
                         {device.status === "Warning" && (
                             <div className="flex items-center gap-0.5 text-[8px] font-bold text-amber-200 bg-amber-950/70 px-1 py-0.3 rounded">
-                                <AlertTriangle className="h-2.5 w-2.5" />
+                                <AlertTriangle className="h-3 w-3" />
                             </div>
                         )}
                         <span className="text-[8px] font-mono text-white/50 bg-black/20 px-1 rounded">{uHeight}U</span>
                     </div>
-                    <div className="shrink-0 opacity-0 group-hover:opacity-60 transition-opacity">
-                        <svg width="10" height="12" viewBox="0 0 10 12" fill="white" className="shrink-0">
+                    <div className="shrink-0 flex items-center gap-0.5 opacity-40 group-hover/dnd:opacity-70 transition-opacity">
+                        <svg width="8" height="10" viewBox="0 0 8 10" fill="white" className="shrink-0">
                             <circle cx="2" cy="2" r="1" />
-                            <circle cx="8" cy="2" r="1" />
-                            <circle cx="2" cy="6" r="1" />
-                            <circle cx="8" cy="6" r="1" />
-                            <circle cx="2" cy="10" r="1" />
-                            <circle cx="8" cy="10" r="1" />
+                            <circle cx="6" cy="2" r="1" />
+                            <circle cx="2" cy="5" r="1" />
+                            <circle cx="6" cy="5" r="1" />
+                            <circle cx="2" cy="8" r="1" />
+                            <circle cx="6" cy="8" r="1" />
                         </svg>
                     </div>
                 </div>
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none bg-black/50 rounded-sm">
-                <span className="text-[9px] font-medium text-white">Drag to move</span>
             </div>
         </div>
     );
