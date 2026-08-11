@@ -291,7 +291,7 @@ export default function DeviceTable({
                         <span className="flex size-6 items-center justify-center rounded-md bg-blue-400/12 text-blue-200">
                           <PackageOpen className="size-3.5" />
                         </span>
-                        <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-300">{rackName}</span>
+                        <span className="text-xs font-bold uppercase tracking-[0.08em] text-muted">{rackName}</span>
                         <span className="text-[11px] text-ops-muted">({rackDevices.length} devices)</span>
                       </div>
                     </td>
@@ -312,12 +312,12 @@ export default function DeviceTable({
                         </td>
                         <td className="px-5 py-3">
                           {device.assetCode ? (
-                            <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-slate-300">{device.assetCode}</span>
+                            <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">{device.assetCode}</span>
                           ) : (
                             <span className="text-ops-muted">-</span>
                           )}
                         </td>
-                        <td className="px-5 py-3 text-slate-300">
+                        <td className="px-5 py-3 text-muted">
                           {device.brandLogo ? (
                             <div className="flex items-center gap-2">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -335,7 +335,7 @@ export default function DeviceTable({
                         <td className="px-5 py-3 text-ops-muted">
                           {device.rackName ? (
                             <div className="flex items-center gap-2">
-                              <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-slate-300">
+                              <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">
                                 U{device.rackPosition}
                               </span>
                               {showTakeout && (
@@ -358,7 +358,7 @@ export default function DeviceTable({
                         </td>
                         <td className="px-5 py-3">
                           {device.ipAddress ? (
-                            <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-slate-300">{device.ipAddress}</span>
+                            <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">{device.ipAddress}</span>
                           ) : (
                             <span className="text-ops-muted">-</span>
                           )}
@@ -500,7 +500,7 @@ function RemoteLink({ href, icon, label }: { href: string; icon: ReactNode; labe
       href={href}
       target={href.startsWith("http") ? "_blank" : undefined}
       rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-      className="flex flex-col items-center justify-center gap-2 rounded-md border border-ops-border bg-ops-bg p-4 text-slate-300 transition-colors hover:border-ops-accent/50 hover:text-[#b7f5e4]"
+      className="flex flex-col items-center justify-center gap-2 rounded-md border border-ops-border bg-ops-bg p-4 text-muted transition-colors hover:border-ops-accent/50 hover:text-ops-accent"
     >
       {icon}
       <span className="text-[11px] font-bold uppercase tracking-[0.08em]">{label}</span>

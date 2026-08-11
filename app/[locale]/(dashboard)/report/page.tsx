@@ -266,7 +266,7 @@ export default async function ReportPage({
                     <td className="px-4 py-3 text-right">
                       <Link
                         href={`/report/edit/${item.entryId}`}
-                        className="inline-flex size-8 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-[#b7f5e4] transition-colors hover:border-ops-accent/50"
+                        className="inline-flex size-8 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-ops-accent transition-colors hover:border-ops-accent/50"
                         title="Edit report entry"
                       >
                         <Pencil className="size-4" />

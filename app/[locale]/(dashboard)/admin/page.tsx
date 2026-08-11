@@ -44,7 +44,7 @@ function ShortcutGroup({ title, items }: { title: string; items: Shortcut[] }) {
             className="rounded-md border border-ops-border bg-ops-surface p-3 transition-colors hover:border-ops-accent/45 hover:bg-ops-surface-raised"
           >
             <div className="flex items-center gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-ops-accent/12 text-[#b7f5e4]">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">
                 {item.icon}
               </div>
               <div className="min-w-0">

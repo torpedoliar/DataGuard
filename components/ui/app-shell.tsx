@@ -146,7 +146,7 @@ export default function AppShell({
                   className={clsx(
                     "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
                     site.id === activeSite.id
-                      ? "bg-ops-accent/12 text-[#b7f5e4]"
+                      ? "bg-ops-accent/12 text-ops-accent"
                       : "text-slate-300 hover:bg-ops-surface hover:text-white",
                   )}
                 >
@@ -314,7 +314,7 @@ function NavLink({
       className={clsx(
         "flex items-center gap-2.5 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors",
         active
-          ? "border border-ops-accent/30 bg-ops-accent/12 text-[#b7f5e4]"
+          ? "border border-ops-accent/30 bg-ops-accent/12 text-ops-accent"
           : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
       )}
     >

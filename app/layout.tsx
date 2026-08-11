@@ -54,13 +54,18 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={validLocale} className="dark">
+    <html lang={validLocale} suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('theme');var d=t?t==='dark':!window.matchMedia||window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d)}catch(e){document.documentElement.classList.toggle('dark',!0)}`,
+          }}
+        />
         <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-sans antialiased bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+      <body className="font-sans antialiased bg-background text-foreground min-h-screen flex flex-col">
         <NextIntlClientProvider locale={validLocale} messages={messages}>
           {children}
         </NextIntlClientProvider>

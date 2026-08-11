@@ -89,7 +89,7 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-normal font-display">{appName}</h1>
-              <p className="text-sm text-ops-muted">Welcome, <span className="font-semibold text-[#b7f5e4]">{username}</span></p>
+              <p className="text-sm text-ops-muted">Welcome, <span className="font-semibold text-ops-accent">{username}</span></p>
             </div>
           </div>
           <p className="max-w-2xl text-sm text-ops-muted">Select the active data center from the operations map.</p>
@@ -160,11 +160,11 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
                       active
                         ? "scale-125 bg-ops-accent"
                         : isPreset
-                          ? "scale-110 bg-[#b7f5e4]"
-                          : "bg-[#b7f5e4]",
+                          ? "scale-110 bg-ops-accent"
+                          : "bg-ops-accent",
                     )}
                   />
-                  <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded bg-ops-bg/90 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-[0.08em] text-[#b7f5e4]">
+                  <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded bg-ops-bg/90 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-[0.08em] text-ops-accent">
                     {site.code}
                   </span>
                 </button>
@@ -202,7 +202,7 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
               <span className="size-2 rounded-full bg-ops-accent" />
               <span className="text-sm font-bold text-ops-text">{hoveredSite.name}</span>
             </div>
-            <div className="mb-1 font-mono text-[10px] text-[#b7f5e4]">{hoveredSite.code}</div>
+            <div className="mb-1 font-mono text-[10px] text-ops-accent">{hoveredSite.code}</div>
             {hoveredSite.address && <p className="text-[11px] leading-tight text-ops-muted">{hoveredSite.address}</p>}
           </div>
         </div>
@@ -211,11 +211,11 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
       {isTransitioning && selectedSite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ops-bg/88 backdrop-blur-sm">
           <div className="text-center">
-            <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-md border border-ops-accent/40 bg-ops-accent/12 text-[#b7f5e4]">
+            <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-md border border-ops-accent/40 bg-ops-accent/12 text-ops-accent">
               <Server className="size-7" />
             </div>
             <h2 className="text-xl font-bold text-ops-text">Entering {selectedSite.name}</h2>
-            <p className="mt-1 font-mono text-sm text-[#b7f5e4]">{selectedSite.code}</p>
+            <p className="mt-1 font-mono text-sm text-ops-accent">{selectedSite.code}</p>
           </div>
         </div>
       )}

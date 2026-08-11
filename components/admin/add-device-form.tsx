@@ -189,7 +189,7 @@ export default function AddDeviceForm({
                   ))}
                 </select>
                 {racks.length === 0 && (
-                  <a href="/admin/rack-manage" className="mt-1 inline-flex text-xs font-semibold text-[#b7f5e4] hover:text-ops-accent">
+                  <a href="/admin/rack-manage" className="mt-1 inline-flex text-xs font-semibold text-ops-accent hover:text-ops-accent">
                     Manage racks first
                   </a>
                 )}
@@ -282,7 +282,7 @@ export default function AddDeviceForm({
                   event.target.value = "";
                 }
               }}
-              className="block w-full text-sm text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ops-text"
+              className="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ops-text"
             />
           </label>
 

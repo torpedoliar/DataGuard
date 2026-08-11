@@ -169,7 +169,7 @@ export default function SiteManagementPage() {
                         <Building2 className="h-7 w-7 text-primary" />
                         Site Management
                     </h1>
-                    <p className="text-sm text-slate-500 mt-1">Kelola data center / lokasi site dan user yang ditugaskan.</p>
+                    <p className="text-sm text-muted mt-1">Kelola data center / lokasi site dan user yang ditugaskan.</p>
                 </div>
                 <button onClick={startAdd} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition font-medium text-sm">
                     <Plus className="h-4 w-4" /> Tambah Site
@@ -181,48 +181,48 @@ export default function SiteManagementPage() {
 
             {/* Add / Edit Form */}
             {(showAddForm || editSite) && (
-                <div className="mb-6 bg-white dark:bg-card-dark rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+                <div className="mb-6 bg-white dark:bg-card-dark rounded-xl shadow-sm border border-slate-200 dark:border-border p-6">
                     <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white">
                         {editSite ? "Edit Site" : "Tambah Site Baru"}
                     </h3>
                     <div className="grid gap-4 md:grid-cols-2">
                         <div>
                             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Nama Site *</label>
-                            <input value={formName} onChange={e => setFormName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Data Center Jakarta" />
+                            <input value={formName} onChange={e => setFormName(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-surface dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Data Center Jakarta" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Kode Site *</label>
-                            <input value={formCode} onChange={e => setFormCode(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm uppercase" placeholder="DC-JKT" />
+                            <input value={formCode} onChange={e => setFormCode(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-surface dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm uppercase" placeholder="DC-JKT" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Alamat</label>
-                            <input value={formAddress} onChange={e => setFormAddress(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Jl. Sudirman No.1" />
+                            <input value={formAddress} onChange={e => setFormAddress(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-surface dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Jl. Sudirman No.1" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Deskripsi</label>
-                            <input value={formDescription} onChange={e => setFormDescription(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Main production DC" />
+                            <input value={formDescription} onChange={e => setFormDescription(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-surface dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Main production DC" />
                         </div>
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Telegram Chat ID (Optional)</label>
-                            <input value={formTelegramChatId} onChange={e => setFormTelegramChatId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="-100123456789" />
-                            <p className="text-xs text-slate-500 mt-1">If set, critical audit alerts (Error/Warning) will be sent to this group or user.</p>
+                            <input value={formTelegramChatId} onChange={e => setFormTelegramChatId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-surface dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="-100123456789" />
+                            <p className="text-xs text-muted mt-1">If set, critical audit alerts (Error/Warning) will be sent to this group or user.</p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Latitude (Peta)</label>
-                            <input value={formLatitude} onChange={e => setFormLatitude(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="-6.2088" />
-                            <p className="text-xs text-slate-500 mt-1">Gunakan format desimal, contoh: -6.2088</p>
+                            <input value={formLatitude} onChange={e => setFormLatitude(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-surface dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="-6.2088" />
+                            <p className="text-xs text-muted mt-1">Gunakan format desimal, contoh: -6.2088</p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Longitude (Peta)</label>
-                            <input value={formLongitude} onChange={e => setFormLongitude(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="106.8456" />
-                            <p className="text-xs text-slate-500 mt-1">Gunakan format desimal, contoh: 106.8456</p>
+                            <input value={formLongitude} onChange={e => setFormLongitude(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-surface dark:text-white focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="106.8456" />
+                            <p className="text-xs text-muted mt-1">Gunakan format desimal, contoh: 106.8456</p>
                         </div>
                     </div>
                     <div className="mt-4 flex gap-3">
                         <button onClick={editSite ? handleUpdate : handleAdd} disabled={isPending} className="bg-primary text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium disabled:opacity-50">
                             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editSite ? "Simpan" : "Tambah"}
                         </button>
-                        <button onClick={() => { setShowAddForm(false); setEditSite(null); }} className="px-5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-sm">
+                        <button onClick={() => { setShowAddForm(false); setEditSite(null); }} className="px-5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-surface transition text-sm">
                             Batal
                         </button>
                     </div>
@@ -232,34 +232,34 @@ export default function SiteManagementPage() {
             {/* Sites Table */}
             <div className="glow-card overflow-hidden">
                 {/* Toolbar */}
-                <div className="p-4 border-b border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="p-4 border-b border-border/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                         <div className="relative w-full sm:w-64">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[16px] text-slate-500">search</span>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[16px] text-muted">search</span>
                             <input
                                 value={siteSearch}
                                 onChange={e => setSiteSearch(e.target.value)}
                                 placeholder="Search sites..."
-                                className="w-full h-9 pl-9 pr-8 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                className="w-full h-9 pl-9 pr-8 rounded-lg bg-surface border border-border text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                             />
                             {siteSearch && (
-                                <button onClick={() => setSiteSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                                <button onClick={() => setSiteSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-white">
                                     <X className="h-3.5 w-3.5" />
                                 </button>
                             )}
                         </div>
-                        <select value={siteStatusFilter} onChange={e => setSiteStatusFilter(e.target.value)} className="h-9 px-3 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white outline-none focus:ring-1 focus:ring-blue-500">
+                        <select value={siteStatusFilter} onChange={e => setSiteStatusFilter(e.target.value)} className="h-9 px-3 rounded-lg bg-surface border border-border text-sm text-white outline-none focus:ring-1 focus:ring-blue-500">
                             <option value="All">All Status</option>
                             <option value="Active">Active</option>
                             <option value="Inactive">Inactive</option>
                         </select>
                     </div>
-                    <span className="text-xs text-slate-500 font-medium shrink-0">{filteredSites.length} of {sites.length} Sites</span>
+                    <span className="text-xs text-muted font-medium shrink-0">{filteredSites.length} of {sites.length} Sites</span>
                 </div>
 
                 <table className="w-full text-sm">
                     <thead>
-                        <tr className="bg-[#0d1526] text-[11px] uppercase tracking-wider text-slate-500">
+                        <tr className="bg-surface/60 text-[11px] uppercase tracking-wider text-muted">
                             <th className="text-left px-5 py-3 cursor-pointer select-none" onClick={() => setSiteSortDir(d => d === "asc" ? "desc" : "asc")}>
                                 <span className="inline-flex items-center gap-1.5">
                                     Nama
@@ -277,7 +277,7 @@ export default function SiteManagementPage() {
                             <tr>
                                 <td colSpan={5} className="text-center py-12">
                                     <div className="flex flex-col items-center gap-4">
-                                        <div className="text-slate-500 dark:text-slate-400">
+                                        <div className="text-muted dark:text-slate-400">
                                             Belum ada site terdaftar. Anda bisa klik &quot;Tambah Site&quot; di atas, atau mengaktifkan mode Multi-Site dengan memigrasi data lama Anda.
                                         </div>
                                         <button onClick={handleMigrate} disabled={isPending} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-2.5 rounded-lg hover:bg-amber-600 transition font-medium text-sm shadow-lg shadow-amber-500/20 disabled:opacity-50">
@@ -289,10 +289,10 @@ export default function SiteManagementPage() {
                             </tr>
                         )}
                         {filteredSites.map(site => (
-                            <tr key={site.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                            <tr key={site.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-surface/30 transition">
                                 <td className="px-6 py-4 font-medium text-slate-800 dark:text-white">{site.name}</td>
                                 <td className="px-6 py-4"><span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-mono font-bold">{site.code}</span></td>
-                                <td className="px-6 py-4 text-slate-500 dark:text-slate-400 hidden md:table-cell">{site.address || "-"}</td>
+                                <td className="px-6 py-4 text-muted dark:text-slate-400 hidden md:table-cell">{site.address || "-"}</td>
                                 <td className="px-6 py-4 text-center">
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${site.isActive ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300" : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"}`}>
                                         {site.isActive ? "Aktif" : "Nonaktif"}
@@ -324,15 +324,15 @@ export default function SiteManagementPage() {
             {manageSite && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setManageSite(null)}>
                     <div className="bg-white dark:bg-card-dark rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                        <div className="p-6 border-b border-slate-200 dark:border-border flex items-center justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                     <Users className="h-5 w-5 text-violet-500" />
                                     User di {manageSite.name}
                                 </h3>
-                                <p className="text-sm text-slate-500 mt-0.5">Atur siapa yang bisa mengakses site ini.</p>
+                                <p className="text-sm text-muted mt-0.5">Atur siapa yang bisa mengakses site ini.</p>
                             </div>
-                            <button onClick={() => setManageSite(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition">
+                            <button onClick={() => setManageSite(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-surface rounded-lg transition">
                                 <X className="h-5 w-5 text-slate-400" />
                             </button>
                         </div>
@@ -345,7 +345,7 @@ export default function SiteManagementPage() {
                             ) : (
                                 <div className="space-y-2">
                                     {siteUsers.map(u => (
-                                        <div key={u.assignmentId} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                        <div key={u.assignmentId} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-surface/50 rounded-lg">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-600 flex items-center justify-center text-xs font-bold text-white">
                                                     {u.username.substring(0, 2).toUpperCase()}
@@ -359,7 +359,7 @@ export default function SiteManagementPage() {
                                                 <select
                                                     value={u.roleInSite}
                                                     onChange={e => handleRoleChange(u.assignmentId, e.target.value as "admin" | "staff")}
-                                                    className="text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                                    className="text-xs px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-surface text-slate-700 dark:text-slate-300"
                                                 >
                                                     <option value="staff">Staff</option>
                                                     <option value="admin">Admin</option>
@@ -408,15 +408,15 @@ export default function SiteManagementPage() {
             {telegramSite && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setTelegramSite(null)}>
                     <div className="bg-white dark:bg-card-dark rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                        <div className="p-6 border-b border-slate-200 dark:border-border flex items-center justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                     <Send className="h-5 w-5 text-blue-500" />
                                     Telegram Recipients &mdash; {telegramSite.name}
                                 </h3>
-                                <p className="text-sm text-slate-500 mt-0.5">Kelola multi-recipient telegram untuk site ini.</p>
+                                <p className="text-sm text-muted mt-0.5">Kelola multi-recipient telegram untuk site ini.</p>
                             </div>
-                            <button onClick={() => setTelegramSite(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition">
+                            <button onClick={() => setTelegramSite(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-surface rounded-lg transition">
                                 <X className="h-5 w-5 text-slate-400" />
                             </button>
                         </div>

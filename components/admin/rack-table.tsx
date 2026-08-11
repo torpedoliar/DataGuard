@@ -65,7 +65,7 @@ export default function RackTable({ racks, onEdit }: RackTableProps) {
               <tr key={rack.id} className="transition-colors hover:bg-ops-surface">
                 <td className="whitespace-nowrap px-5 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex size-9 items-center justify-center rounded-md bg-ops-accent/12 text-[#b7f5e4]">
+                    <div className="flex size-9 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">
                       <Server className="size-4" />
                     </div>
                     <span className="text-sm font-semibold text-ops-text">{rack.name}</span>

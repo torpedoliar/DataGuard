@@ -68,7 +68,7 @@ export default async function AboutPage() {
 
 
             {/* Credits Card */}
-            <div className="bg-gradient-to-br from-[#111827] to-[#0f172a] border border-slate-700/50 rounded-2xl p-8 mb-8 relative overflow-hidden">
+            <div className="bg-gradient-to-br from-surface to-surface-darker border border-border/50 rounded-2xl p-8 mb-8 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 pointer-events-none" />
 
                 <div className="relative">
@@ -79,8 +79,8 @@ export default async function AboutPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {/* Created By */}
-                        <div className="bg-slate-800/40 rounded-xl p-5 border border-slate-700/40">
-                            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Created by</p>
+                        <div className="bg-surface rounded-xl p-5 border border-border">
+                            <p className="text-xs text-muted uppercase tracking-wider mb-1">Created by</p>
                             <p className="text-white font-semibold text-lg">Team Operational Support</p>
                             <p className="text-blue-400 font-medium">SJA</p>
                             <p className="text-slate-400 text-sm mt-2">
@@ -89,8 +89,8 @@ export default async function AboutPage() {
                         </div>
 
                         {/* Licensed By */}
-                        <div className="bg-slate-800/40 rounded-xl p-5 border border-slate-700/40">
-                            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Licensed by</p>
+                        <div className="bg-surface rounded-xl p-5 border border-border">
+                            <p className="text-xs text-muted uppercase tracking-wider mb-1">Licensed by</p>
                             <p className="text-white font-semibold text-lg flex items-center gap-2">
                                 <Github className="h-5 w-5" />
                                 Torpedoliar
@@ -114,7 +114,7 @@ export default async function AboutPage() {
             </div>
 
             {/* Repository */}
-            <div className="bg-[#111827] border border-slate-800/70 rounded-xl p-6 mb-8">
+            <div className="bg-surface border border-border rounded-xl p-6 mb-8">
                 <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <Code2 className="h-5 w-5 text-blue-400" />
                     Repository
@@ -145,14 +145,14 @@ export default async function AboutPage() {
             </div>
 
             {/* Features */}
-            <div className="bg-[#111827] border border-slate-800/70 rounded-xl p-6 mb-8">
+            <div className="bg-surface border border-border rounded-xl p-6 mb-8">
                 <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <Star className="h-5 w-5 text-amber-400" />
                     Fitur Utama
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {features.map((f, i) => (
-                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
+                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-surface border border-border">
                             <div className="p-2 rounded-lg bg-blue-500/15 text-blue-400 shrink-0">
                                 {f.icon}
                             </div>
@@ -166,7 +166,7 @@ export default async function AboutPage() {
             </div>
 
             {/* Changelog */}
-            <div className="bg-[#111827] border border-slate-800/70 rounded-xl p-6">
+            <div className="bg-surface border border-border rounded-xl p-6">
                 <h2 className="text-lg font-bold text-white mb-4">
                     Changelog v{versionData.version}
                 </h2>
@@ -179,7 +179,7 @@ export default async function AboutPage() {
                     ))}
                 </ul>
 
-                <div className="mt-6 pt-4 border-t border-slate-800/70 text-center text-xs text-slate-600">
+                <div className="mt-6 pt-4 border-t border-border text-center text-xs text-slate-600">
                     Dibuat dengan <span className="text-red-500">♥</span> oleh Team Operational Support SJA · Licensed by Torpedoliar
                 </div>
             </div>

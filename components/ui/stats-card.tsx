@@ -9,7 +9,7 @@ const iconToneClasses: Record<UiTone, string> = {
   orange: "bg-orange-400/12 text-orange-200",
   danger: "bg-red-400/12 text-red-200",
   info: "bg-blue-400/12 text-blue-200",
-  accent: "bg-ops-accent/12 text-[#b7f5e4]",
+  accent: "bg-ops-accent/12 text-ops-accent",
   purple: "bg-purple-400/12 text-purple-200",
 };
 

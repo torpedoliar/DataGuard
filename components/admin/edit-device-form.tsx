@@ -102,7 +102,7 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
       <div className="my-8 flex max-h-[calc(100vh-4rem)] w-full max-w-3xl flex-col overflow-hidden rounded-md border border-ops-border bg-ops-bg shadow-2xl">
         <div className="flex items-center justify-between border-b border-ops-border bg-ops-surface px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md bg-ops-accent/12 text-[#b7f5e4]">
+            <div className="flex size-9 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">
               <Server className="size-5" />
             </div>
             <div>
@@ -289,7 +289,7 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                       event.target.value = "";
                     }
                   }}
-                  className="block w-full text-sm text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ops-text"
+                  className="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ops-text"
                 />
                 <p className="mt-1 text-xs text-ops-muted">Uploading a new photo will replace the current one.</p>
               </div>

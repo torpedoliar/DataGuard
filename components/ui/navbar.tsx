@@ -6,6 +6,7 @@ import { logout, switchSite } from "@/actions/auth";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 type SiteInfo = { id: number; name: string; code: string };
 
@@ -42,12 +43,12 @@ export default function Navbar({
 
     const navLinkClass = (path: string) =>
         `text-sm font-medium transition-colors px-1 py-0.5 ${isActive(path)
-            ? "text-blue-400"
-            : "text-slate-400 hover:text-white"
+            ? "text-blue-500 dark:text-blue-500 dark:text-blue-400"
+            : "text-muted hover:text-foreground"
         }`;
 
     return (
-        <header className="sticky top-0 z-50 w-full border-b border-slate-800/80 bg-[#0b1120]/95 backdrop-blur-xl" suppressHydrationWarning>
+        <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur-xl" suppressHydrationWarning>
             <div className="mx-auto max-w-[1600px] flex items-center justify-between h-14 px-5">
                 {/* Left: Logo + Site + Nav */}
                 <div className="flex items-center gap-6">
@@ -56,11 +57,11 @@ export default function Navbar({
                         {appSettings.logoPath ? (
                             <img src={appSettings.logoPath} alt="App Logo" className="h-7 w-auto object-contain" />
                         ) : (
-                            <div className="size-7 flex items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
+                            <div className="size-7 flex items-center justify-center rounded-lg bg-blue-500/20 text-blue-500 dark:text-blue-400">
                                 <span className="material-symbols-outlined text-lg">shield</span>
                             </div>
                         )}
-                        <span className="text-lg font-bold tracking-tight text-white font-display">{appSettings.appName}</span>
+                        <span className="text-lg font-bold tracking-tight text-foreground font-display">{appSettings.appName}</span>
                     </Link>
 
                     {/* Site Switcher */}
@@ -69,21 +70,21 @@ export default function Navbar({
                             <button
                                 onClick={() => setShowSiteSwitcher(!showSiteSwitcher)}
                                 disabled={isPending}
-                                className="flex items-center gap-2 h-8 px-3 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-xs font-medium hover:border-slate-600 hover:text-white transition-all"
+                                className="flex items-center gap-2 h-8 px-3 rounded-full bg-surface border border-border text-foreground/80 text-xs font-medium hover:border-border hover:text-foreground transition-all"
                             >
-                                <span className="material-symbols-outlined text-[14px] text-blue-400">location_on</span>
+                                <span className="material-symbols-outlined text-[14px] text-blue-500 dark:text-blue-400">location_on</span>
                                 <span className="max-w-[130px] truncate">{activeSite.name}</span>
                                 {userSites.length > 1 && (
-                                    <span className="material-symbols-outlined text-[14px] text-slate-500">expand_more</span>
+                                    <span className="material-symbols-outlined text-[14px] text-muted">expand_more</span>
                                 )}
                             </button>
 
                             {showSiteSwitcher && userSites.length > 1 && (
                                 <>
                                     <div className="fixed inset-0 z-40" onClick={() => setShowSiteSwitcher(false)} />
-                                    <div className="absolute top-full left-0 mt-2 w-56 bg-[#111827] rounded-xl shadow-2xl border border-slate-700 z-50 overflow-hidden">
-                                        <div className="p-2.5 border-b border-slate-700/50">
-                                            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold px-1">Switch Site</p>
+                                    <div className="absolute top-full left-0 mt-2 w-56 bg-surface rounded-xl shadow-2xl border border-border z-50 overflow-hidden">
+                                        <div className="p-2.5 border-b border-border/50">
+                                            <p className="text-[10px] uppercase tracking-wider text-muted font-semibold px-1">Switch Site</p>
                                         </div>
                                         <div className="py-1 max-h-60 overflow-y-auto">
                                             {userSites.map(site => (
@@ -92,14 +93,14 @@ export default function Navbar({
                                                     onClick={() => handleSwitchSite(site.id)}
                                                     disabled={isPending || site.id === activeSite.id}
                                                     className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2.5 transition-colors ${site.id === activeSite.id
-                                                        ? "bg-blue-500/10 text-blue-400 font-medium"
-                                                        : "text-slate-300 hover:bg-slate-800"
+                                                        ? "bg-blue-500/10 text-blue-500 dark:text-blue-400 font-medium"
+                                                        : "text-foreground/80 hover:bg-surface"
                                                         }`}
                                                 >
-                                                    <span className={`size-1.5 rounded-full ${site.id === activeSite.id ? "bg-blue-400" : "bg-slate-600"}`} />
+                                                    <span className={`size-1.5 rounded-full ${site.id === activeSite.id ? "bg-blue-500 dark:bg-blue-400" : "bg-muted"}`} />
                                                     <div>
                                                         <div>{site.name}</div>
-                                                        <div className="text-[10px] text-slate-500 font-mono">{site.code}</div>
+                                                        <div className="text-[10px] text-muted font-mono">{site.code}</div>
                                                     </div>
                                                 </button>
                                             ))}
@@ -124,7 +125,7 @@ export default function Navbar({
                             <div className="relative">
                                 <button
                                     onClick={() => setShowAdminMenu(!showAdminMenu)}
-                                    className={`text-sm font-medium transition-colors flex items-center gap-1 ${isActive("/admin") ? "text-blue-400" : "text-slate-400 hover:text-white"}`}
+                                    className={`text-sm font-medium transition-colors flex items-center gap-1 ${isActive("/admin") ? "text-blue-500 dark:text-blue-400" : "text-foreground/80 hover:text-foreground"}`}
                                 >
                                     Admin
                                     <span className="material-symbols-outlined text-[16px]">expand_more</span>
@@ -132,7 +133,7 @@ export default function Navbar({
                                 {showAdminMenu && (
                                     <>
                                         <div className="fixed inset-0 z-40" onClick={() => setShowAdminMenu(false)} />
-                                        <div className="absolute top-full left-0 mt-2 w-52 bg-[#111827] rounded-xl shadow-2xl border border-slate-700 z-50 overflow-hidden py-1.5">
+                                        <div className="absolute top-full left-0 mt-2 w-52 bg-surface rounded-xl shadow-2xl border border-border z-50 overflow-hidden py-1.5">
                                             {[
                                                 { href: "/admin", icon: "dns", label: "Devices" },
                                                 { href: "/admin/brands", icon: "local_offer", label: "Brands" },
@@ -147,7 +148,7 @@ export default function Navbar({
                                                     key={item.href}
                                                     href={item.href}
                                                     onClick={() => setShowAdminMenu(false)}
-                                                    className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive(item.href) ? "text-blue-400 bg-blue-500/5" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+                                                    className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive(item.href) ? "text-blue-500 dark:text-blue-400 bg-blue-500/5" : "text-foreground/80 hover:bg-surface hover:text-foreground"}`}
                                                 >
                                                     <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
                                                     {item.label}
@@ -155,11 +156,11 @@ export default function Navbar({
                                             ))}
                                             {user.role === "superadmin" && (
                                                 <>
-                                                    <div className="border-t border-slate-700/50 my-1" />
+                                                    <div className="border-t border-border/50 my-1" />
                                                     <Link
                                                         href="/admin/users"
                                                         onClick={() => setShowAdminMenu(false)}
-                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/users") ? "text-blue-400 bg-blue-500/5" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/users") ? "text-blue-500 dark:text-blue-400 bg-blue-500/5" : "text-foreground/80 hover:bg-surface hover:text-foreground"}`}
                                                     >
                                                         <span className="material-symbols-outlined text-[16px]">group</span>
                                                         Users
@@ -167,7 +168,7 @@ export default function Navbar({
                                                     <Link
                                                         href="/admin/sites"
                                                         onClick={() => setShowAdminMenu(false)}
-                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/sites") ? "text-blue-400 bg-blue-500/5" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/sites") ? "text-blue-500 dark:text-blue-400 bg-blue-500/5" : "text-foreground/80 hover:bg-surface hover:text-foreground"}`}
                                                     >
                                                         <span className="material-symbols-outlined text-[16px]">domain</span>
                                                         Site Management
@@ -175,7 +176,7 @@ export default function Navbar({
                                                     <Link
                                                         href="/admin/settings"
                                                         onClick={() => setShowAdminMenu(false)}
-                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/settings") ? "text-blue-400 bg-blue-500/5" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/settings") ? "text-blue-500 dark:text-blue-400 bg-blue-500/5" : "text-foreground/80 hover:bg-surface hover:text-foreground"}`}
                                                     >
                                                         <span className="material-symbols-outlined text-[16px]">settings</span>
                                                         Global Settings
@@ -183,7 +184,7 @@ export default function Navbar({
                                                     <Link
                                                         href="/admin/update"
                                                         onClick={() => setShowAdminMenu(false)}
-                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/update") ? "text-blue-400 bg-blue-500/5" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
+                                                        className={`flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${isActive("/admin/update") ? "text-blue-500 dark:text-blue-400 bg-blue-500/5" : "text-foreground/80 hover:bg-surface hover:text-foreground"}`}
                                                     >
                                                         <span className="material-symbols-outlined text-[16px]">system_update_alt</span>
                                                         System Update
@@ -200,11 +201,13 @@ export default function Navbar({
 
                 {/* Right: Search + Actions */}
                 <div className="flex items-center gap-4">
+                    {/* Theme Toggle */}
+                    <ThemeToggle />
                     {/* Search */}
                     <div className="hidden lg:flex items-center relative">
-                        <span className="material-symbols-outlined absolute left-3 text-slate-500 text-[18px]">search</span>
+                        <span className="material-symbols-outlined absolute left-3 text-muted text-[18px]">search</span>
                         <input
-                            className="h-9 w-56 rounded-full bg-slate-800/80 border border-slate-700 pl-9 pr-4 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
+                            className="h-9 w-56 rounded-full bg-surface/80 border border-border pl-9 pr-4 text-sm text-foreground placeholder:text-muted focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
                             placeholder="Search by ID..."
                             type="text"
                         />
@@ -223,7 +226,7 @@ export default function Navbar({
                     <div className="relative">
                         <button
                             onClick={() => setShowUserMenu(!showUserMenu)}
-                            className="relative size-9 flex items-center justify-center rounded-full overflow-hidden border-2 border-slate-700 hover:border-blue-500 transition-colors shrink-0"
+                            className="relative size-9 flex items-center justify-center rounded-full overflow-hidden border-2 border-border hover:border-blue-500 transition-colors shrink-0"
                             title={user.username}
                         >
                             {user.photoPath ? (
@@ -239,15 +242,15 @@ export default function Navbar({
                         {showUserMenu && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-                                <div className="absolute top-full right-0 mt-2 w-48 bg-[#111827] rounded-xl shadow-2xl border border-slate-700 z-50 overflow-hidden py-1.5">
-                                    <div className="px-4 py-2 border-b border-slate-700/50 mb-1">
-                                        <p className="text-sm font-medium text-white truncate">{user.username}</p>
-                                        <p className="text-xs text-slate-400 capitalize">{user.role}</p>
+                                <div className="absolute top-full right-0 mt-2 w-48 bg-surface rounded-xl shadow-2xl border border-border z-50 overflow-hidden py-1.5">
+                                    <div className="px-4 py-2 border-b border-border/50 mb-1">
+                                        <p className="text-sm font-medium text-foreground truncate">{user.username}</p>
+                                        <p className="text-xs text-muted capitalize">{user.role}</p>
                                     </div>
                                     <Link
                                         href="/profile"
                                         onClick={() => setShowUserMenu(false)}
-                                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-foreground/80 hover:bg-surface hover:text-foreground transition-colors"
                                     >
                                         <span className="material-symbols-outlined text-[18px]">person</span>
                                         Profile Settings

@@ -33,7 +33,7 @@ export default function IncidentDetail({
           title={incident.title}
           description={incident.description || "No description provided."}
           actions={
-            <Link href="/admin/incidents" className="text-sm font-semibold text-[#b7f5e4] hover:text-ops-accent">
+            <Link href="/admin/incidents" className="text-sm font-semibold text-ops-accent hover:text-ops-accent">
               Back to incidents
             </Link>
           }
@@ -83,7 +83,7 @@ export default function IncidentDetail({
                   <p className="mt-1 text-xs text-slate-400">{update.previousStatus} to {update.newStatus}</p>
                 )}
                 {update.photoPath && (
-                  <a href={update.photoPath} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-sm font-semibold text-[#b7f5e4] hover:text-ops-accent">
+                  <a href={update.photoPath} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-sm font-semibold text-ops-accent hover:text-ops-accent">
                     View evidence
                   </a>
                 )}

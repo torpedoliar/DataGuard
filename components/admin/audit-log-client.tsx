@@ -131,7 +131,7 @@ export default function AuditLogClient({
             </div>
 
             {/* Filters */}
-            <div className="bg-[#111827] border border-slate-800/70 rounded-xl p-4 mb-6 flex flex-col sm:flex-row gap-3">
+            <div className="bg-surface border border-border rounded-xl p-4 mb-6 flex flex-col sm:flex-row gap-3">
                 <form onSubmit={handleSearch} className="flex flex-1 gap-2">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
@@ -183,10 +183,10 @@ export default function AuditLogClient({
             </div>
 
             {/* Table */}
-            <div className="bg-[#111827] border border-slate-800/70 rounded-xl overflow-hidden">
+            <div className="bg-surface border border-border rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                        <thead className="bg-[#0d1526] text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-800/70">
+                        <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted border-b border-border">
                             <tr>
                                 <th className="px-4 py-3 text-left">Waktu</th>
                                 <th className="px-4 py-3 text-left">User</th>
@@ -224,14 +224,14 @@ export default function AuditLogClient({
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
-                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${ACTION_COLORS[log.action] ?? "bg-slate-700 text-slate-300 border-slate-600"}`}>
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${ACTION_COLORS[log.action] ?? "bg-slate-700 text-muted border-slate-600"}`}>
                                                 {ACTION_ICONS[log.action] ?? <Activity className="h-3 w-3" />}
                                                 {log.action}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
                                             {log.entity && (
-                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-700/50 text-slate-300 text-[10px] border border-slate-700">
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-700/50 text-muted text-[10px] border border-slate-700">
                                                     <Tag className="h-2.5 w-2.5" />
                                                     {ENTITY_LABELS[log.entity] ?? log.entity}
                                                 </span>

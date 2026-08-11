@@ -69,7 +69,7 @@ export default function IncidentTable({ incidents }: { incidents: IncidentRow[] 
                   <div className="mt-1 text-xs font-medium text-red-300">Recurring issue</div>
                 )}
               </td>
-              <td className="px-4 py-3 text-slate-300">{incident.deviceName}</td>
+              <td className="px-4 py-3 text-muted">{incident.deviceName}</td>
               <td className="px-4 py-3">
                 <StatusBadge tone={getIncidentSeverityTone(incident.severity)} dot>
                   {incident.severity}
@@ -87,7 +87,7 @@ export default function IncidentTable({ incidents }: { incidents: IncidentRow[] 
               <td className="px-4 py-3 text-right">
                 <Link
                   href={`/admin/incidents/${incident.id}`}
-                  className="inline-flex h-8 items-center justify-center rounded-md border border-ops-border bg-ops-surface px-3 text-xs font-semibold text-[#b7f5e4] transition-colors hover:border-ops-accent/50"
+                  className="inline-flex h-8 items-center justify-center rounded-md border border-ops-border bg-ops-surface px-3 text-xs font-semibold text-ops-accent transition-colors hover:border-ops-accent/50"
                 >
                   Open
                 </Link>

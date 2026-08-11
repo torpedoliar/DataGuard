@@ -90,7 +90,7 @@ export default function SystemUpdatePage() {
                 <button
                     onClick={checkForUpdates}
                     disabled={isChecking}
-                    className="flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-800 px-4 text-sm font-semibold text-white border border-slate-700 hover:bg-slate-700 transition-all disabled:opacity-50"
+                    className="flex h-10 items-center justify-center gap-2 rounded-lg bg-surface px-4 text-sm font-semibold text-white border border-border hover:bg-slate-700 transition-all disabled:opacity-50"
                 >
                     <RefreshCw className={`w-4 h-4 ${isChecking ? "animate-spin" : ""}`} />
                     Check for Updates
@@ -105,7 +105,7 @@ export default function SystemUpdatePage() {
             )}
 
             {/* Current Version Card */}
-            <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6">
+            <div className="bg-surface border border-border/50 rounded-2xl p-6">
                 <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                     <GitBranch className="w-5 h-5 text-blue-400" />
                     Versi Saat Ini
@@ -114,24 +114,24 @@ export default function SystemUpdatePage() {
                 {currentVersion ? (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
-                            <p className="text-sm text-slate-500 mb-1">Versi Rilis</p>
+                            <p className="text-sm text-muted mb-1">Versi Rilis</p>
                             <p className="text-3xl font-bold text-blue-400">v{currentVersion.version}</p>
                         </div>
                         <div>
-                            <p className="text-sm text-slate-500 mb-1">Tanggal Rilis</p>
+                            <p className="text-sm text-muted mb-1">Tanggal Rilis</p>
                             <p className="font-medium text-slate-300">{currentVersion.releaseDate}</p>
                         </div>
                         <div>
-                            <p className="text-sm text-slate-500 mb-1">Sumber Branch</p>
+                            <p className="text-sm text-muted mb-1">Sumber Branch</p>
                             <p className="font-medium text-slate-300">{currentVersion.branch || "main"}</p>
                         </div>
                     </div>
                 ) : (
-                    <p className="text-slate-500">Tidak dapat membaca informasi versi lokal.</p>
+                    <p className="text-muted">Tidak dapat membaca informasi versi lokal.</p>
                 )}
 
                 {currentVersion?.changelog && currentVersion.changelog.length > 0 && (
-                    <div className="mt-6 pt-6 border-t border-slate-700/50">
+                    <div className="mt-6 pt-6 border-t border-border/50">
                         <p className="text-sm font-medium text-slate-400 mb-3">Changelog Sistem:</p>
                         <ul className="list-disc list-inside text-sm text-slate-300 space-y-1.5 ml-1">
                             {currentVersion.changelog.map((item, i) => (
@@ -166,18 +166,18 @@ export default function SystemUpdatePage() {
                                 </div>
                             )}
 
-                            <div className="mt-6 p-5 bg-[#0b1120]/60 border border-emerald-500/20 rounded-xl">
+                            <div className="mt-6 p-5 bg-background/60 border border-emerald-500/20 rounded-xl">
                                 <p className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
                                     <span className="material-symbols-outlined text-[18px]">terminal</span>
                                     Untuk memperbarui sistem, masuk ke server Anda dan jalankan skrip berikut:
                                 </p>
                                 <div className="space-y-2 font-mono text-sm">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-slate-500 w-24">OS Windows</span>
+                                        <span className="text-muted w-24">OS Windows</span>
                                         <code className="text-amber-400 bg-black/40 px-2 py-1 rounded">.\update.ps1</code>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-slate-500 w-24">OS Linux</span>
+                                        <span className="text-muted w-24">OS Linux</span>
                                         <code className="text-emerald-400 bg-black/40 px-2 py-1 rounded">./update.sh</code>
                                     </div>
                                 </div>
@@ -189,7 +189,7 @@ export default function SystemUpdatePage() {
 
             {/* No Update Card */}
             {!updateAvailable && latestVersion && !isChecking && (
-                <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6">
+                <div className="bg-surface border border-border/50 rounded-2xl p-6">
                     <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                             <CheckCircle className="w-6 h-6 text-blue-400" />
@@ -205,7 +205,7 @@ export default function SystemUpdatePage() {
             )}
 
             {/* Instructions */}
-            <div className="bg-slate-800/20 border border-slate-700/30 rounded-2xl p-6">
+            <div className="bg-surface/50 border border-border/30 rounded-2xl p-6">
                 <h2 className="text-lg font-semibold text-white mb-4">Cara Kerja Pembaruan OTA (Over-The-Air)</h2>
                 <div className="space-y-3 text-sm text-slate-400">
                     <p>

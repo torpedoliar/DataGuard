@@ -76,7 +76,7 @@ export default function QRScannerClient() {
             <h2 className="text-base font-bold text-ops-text">Camera Feed</h2>
             <p className="mt-1 text-sm text-ops-muted">Center the QR marker inside the scanner frame.</p>
           </div>
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-ops-accent/12 text-[#b7f5e4]">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">
             <ScanLine className="size-5" />
           </div>
         </div>

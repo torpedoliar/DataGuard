@@ -97,7 +97,7 @@ export default async function AuditGridPage({
                       )}
                     >
                       <div className="flex flex-col gap-0.5">
-                        <span className={clsx("text-[10px]", isToday ? "text-[#b7f5e4]" : "text-ops-muted")}>
+                        <span className={clsx("text-[10px]", isToday ? "text-ops-accent" : "text-ops-muted")}>
                           {dayName}
                         </span>
                         <span className="font-mono text-slate-300">{dateMonth}</span>

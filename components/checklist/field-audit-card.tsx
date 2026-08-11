@@ -61,7 +61,7 @@ export default function FieldAuditCard({ device, isHighlighted = false }: FieldA
       <div className="grid gap-4 xl:grid-cols-[minmax(220px,0.8fr)_minmax(360px,1fr)_minmax(280px,1fr)]">
         <div className="min-w-0">
           <div className="flex items-start gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-ops-accent/12 text-[#b7f5e4]">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">
               <Server className="size-5" />
             </div>
             <div className="min-w-0">
