@@ -40,7 +40,7 @@ export default function AddBrandForm() {
     };
 
     return (
-        <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6 sticky top-24">
+        <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6 sticky top-24">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Create New Brand</h3>
 
             <form action={action} className="space-y-4">

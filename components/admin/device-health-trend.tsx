@@ -67,7 +67,7 @@ export default function DeviceHealthTrend({ deviceId, days = 30 }: { deviceId: n
     const uptimeRatio = totalChecks > 0 ? ((okCount / totalChecks) * 100).toFixed(1) : "0.0";
 
     return (
-        <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-700 p-5 mt-6 shadow-sm">
+        <div className="bg-white dark:bg-surface rounded-xl border border-slate-200 dark:border-slate-700 p-5 mt-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">

@@ -34,7 +34,7 @@ function DroppableSlot({ u, rackName, gridRow }: { u: number; rackName: string; 
             ref={setNodeRef}
             id={`slot-${rackName}-${u}`}
             className={`transition-all ${isOver ? "bg-white/[0.08]" : ""}`}
-            style={{ gridRow }}
+            style={{ gridRow, gridColumn: 1 }}
             data-rack-name={rackName}
             data-position={u}
         />
@@ -65,8 +65,10 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
         zIndex: isDragging ? 999 : 10,
         opacity: isDragging ? 0.4 : (isMuted ? 0.15 : 1),
         gridRow: `${gridRow} / span ${uHeight}`,
+        gridColumn: 1,
     } : {
         gridRow: `${gridRow} / span ${uHeight}`,
+        gridColumn: 1,
         opacity: isMuted ? 0.15 : 1,
         transition: "opacity 0.2s ease",
         zIndex: 10,
@@ -486,7 +488,7 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                                                                 <div
                                                                     key={`u-row-${u}`}
                                                                     className="relative flex items-center pr-1.5 text-right"
-                                                                    style={{ gridRow: row }}
+                                                                    style={{ gridRow: row, gridColumn: 1 }}
                                                                 >
                                                                     {isMark ? (
                                                                         <span className="text-[10px] font-bold text-rack-label opacity-75">{u}</span>

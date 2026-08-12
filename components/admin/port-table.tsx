@@ -51,7 +51,7 @@ export default function PortTable({
     };
 
     return (
-        <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                     <thead className="bg-slate-50 dark:bg-slate-800">
@@ -64,7 +64,7 @@ export default function PortTable({
                             <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white dark:bg-card-dark divide-y divide-slate-200 dark:divide-slate-700">
+                    <tbody className="bg-white dark:bg-surface divide-y divide-slate-200 dark:divide-slate-700">
                         {ports.length === 0 ? (
                             <tr>
                                 <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-500 dark:text-slate-400">

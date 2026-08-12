@@ -30,7 +30,7 @@ export default function EditCategoryModal({ category, onClose, editAction }: Edi
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-card-dark rounded-lg shadow-xl w-full max-w-md overflow-hidden relative">
+            <div className="bg-white dark:bg-surface rounded-lg shadow-xl w-full max-w-md overflow-hidden relative">
                 <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Edit Category</h3>
                     <button

@@ -67,9 +67,9 @@ export default function DeleteDeviceModal({
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-card-dark rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-surface rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-card-dark z-10">
+                <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-surface z-10">
                     <div className="flex items-center gap-2">
                         <div className="size-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
                             <AlertTriangle className="h-5 w-5" />

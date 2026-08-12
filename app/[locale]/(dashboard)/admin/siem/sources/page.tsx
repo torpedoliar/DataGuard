@@ -40,7 +40,7 @@ export default async function SiemSourcesPage() {
           description="Unknown syslog sources appear here after packets arrive and unknown-source handling is enabled. Add a source mapping once an unknown source is detected."
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-card-dark">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-surface">
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
             <div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Known Syslog Sources</h3>

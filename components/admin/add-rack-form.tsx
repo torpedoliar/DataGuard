@@ -21,7 +21,7 @@ export default function AddRackForm({ locations }: { locations: Location[] }) {
     }, [state?.success, router]);
 
     return (
-        <div className="bg-white dark:bg-card-dark p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
+        <div className="bg-white dark:bg-surface p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
             <div className="flex items-center gap-2 mb-4">
                 <Server className="h-5 w-5 text-primary" />
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Add New Rack</h3>

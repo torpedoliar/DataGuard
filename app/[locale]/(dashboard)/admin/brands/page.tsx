@@ -40,7 +40,7 @@ export default async function BrandsPage() {
                     <AddBrandForm />
                 </div>
                 <div className="lg:col-span-2">
-                    <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Brand List</h3>
                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 py-1 px-3 rounded-full text-xs font-medium">

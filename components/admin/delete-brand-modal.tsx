@@ -48,7 +48,7 @@ export default function DeleteBrandModal({ brandId, brandName, onClose, onSucces
             onClose={onClose}
             title="Delete Brand"
             description={`Are you sure you want to delete "${brandName}"?`}
-            panelClassName="w-full max-w-md overflow-hidden rounded-xl border border-ops-border bg-white shadow-2xl dark:bg-card-dark"
+            panelClassName="w-full max-w-md overflow-hidden rounded-xl border border-ops-border bg-white shadow-2xl dark:bg-surface"
             backdropClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         >
             <div className="flex items-center gap-4 mb-6">

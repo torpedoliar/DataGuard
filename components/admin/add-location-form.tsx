@@ -18,7 +18,7 @@ export default function AddLocationForm() {
     }, [state?.success, router]);
 
     return (
-        <div className="bg-white dark:bg-card-dark p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+        <div className="bg-white dark:bg-surface p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2 mb-4">
                 <MapPin className="h-5 w-5 text-primary" />
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Add New Location</h3>

@@ -72,7 +72,7 @@ export default function RackManagePage() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
                     <div className="flex items-center gap-3">
                         <div className="size-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
                             <Server className="h-5 w-5" />
@@ -83,7 +83,7 @@ export default function RackManagePage() {
                         </div>
                     </div>
                 </div>
-                <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
                     <div className="flex items-center gap-3">
                         <div className="size-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
                             <span className="material-symbols-outlined text-lg">grid_view</span>
@@ -96,7 +96,7 @@ export default function RackManagePage() {
                         </div>
                     </div>
                 </div>
-                <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
                     <div className="flex items-center gap-3">
                         <div className="size-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-500">
                             <span className="material-symbols-outlined text-lg">category</span>

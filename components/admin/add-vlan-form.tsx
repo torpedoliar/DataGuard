@@ -51,7 +51,7 @@ export default function AddVlanForm() {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
             <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white flex items-center gap-2">
                 <Plus className="h-5 w-5 text-primary" />
                 Add New VLAN

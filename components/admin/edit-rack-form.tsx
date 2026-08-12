@@ -38,7 +38,7 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-card-dark rounded-lg shadow-xl max-w-2xl w-full">
+            <div className="bg-white dark:bg-surface rounded-lg shadow-xl max-w-2xl w-full">
                 <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-2">
                         <Server className="h-5 w-5 text-primary" />

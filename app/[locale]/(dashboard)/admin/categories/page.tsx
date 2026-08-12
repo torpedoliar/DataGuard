@@ -43,7 +43,7 @@ export default async function CategoriesPage() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
                     <div className="flex items-center gap-3">
                         <div className="size-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
                             <Tag className="h-5 w-5" />

@@ -181,7 +181,7 @@ export default function SiteManagementPage() {
 
             {/* Add / Edit Form */}
             {(showAddForm || editSite) && (
-                <div className="mb-6 bg-white dark:bg-card-dark rounded-xl shadow-sm border border-slate-200 dark:border-border p-6">
+                <div className="mb-6 bg-white dark:bg-surface rounded-xl shadow-sm border border-slate-200 dark:border-border p-6">
                     <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white">
                         {editSite ? "Edit Site" : "Tambah Site Baru"}
                     </h3>
@@ -323,7 +323,7 @@ export default function SiteManagementPage() {
             {/* User Assignment Modal */}
             {manageSite && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setManageSite(null)}>
-                    <div className="bg-white dark:bg-card-dark rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white dark:bg-surface rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <div className="p-6 border-b border-slate-200 dark:border-border flex items-center justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -407,7 +407,7 @@ export default function SiteManagementPage() {
             {/* Telegram Recipients Modal (N23) */}
             {telegramSite && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setTelegramSite(null)}>
-                    <div className="bg-white dark:bg-card-dark rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white dark:bg-surface rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <div className="p-6 border-b border-slate-200 dark:border-border flex items-center justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">

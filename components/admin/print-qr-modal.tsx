@@ -101,7 +101,7 @@ export default function PrintQRModal({ deviceId, deviceName, onClose }: PrintQRM
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
-            <div className="bg-white dark:bg-card-dark rounded-lg shadow-xl max-w-sm w-full relative">
+            <div className="bg-white dark:bg-surface rounded-lg shadow-xl max-w-sm w-full relative">
                 <button
                     onClick={onClose}
                     className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
@@ -127,7 +127,7 @@ export default function PrintQRModal({ deviceId, deviceName, onClose }: PrintQRM
                             <p className="text-red-500 text-sm text-center">{error}</p>
                         ) : qrData ? (
                             <div className="text-center w-full">
-                                <div className="bg-white p-3 rounded-xl border-2 border-slate-200 shadow-sm mx-auto mb-4 inline-block">
+                                <div className="bg-white p-3 rounded-xl border-2 border-slate-200 dark:border-slate-600 shadow-sm mx-auto mb-4 inline-block">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src={qrData.url} alt={`QR Code for ${deviceName}`} className="w-48 h-48" />
                                 </div>

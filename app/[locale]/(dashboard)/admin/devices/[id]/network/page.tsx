@@ -94,23 +94,23 @@ export default async function NetworkDocumentationPage({
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Total Ports Defined</p>
                     <p className="text-2xl font-bold text-slate-900 dark:text-white">{ports.length}</p>
                 </div>
-                <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Active Links</p>
                     <p className="text-2xl font-bold text-success">
                         {ports.filter(p => p.status === 'Active').length}
                     </p>
                 </div>
-                <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Access Ports</p>
                     <p className="text-2xl font-bold text-slate-900 dark:text-white">
                         {ports.filter(p => p.portMode === 'Access').length}
                     </p>
                 </div>
-                <div className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <div className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4">
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Trunk Links</p>
                     <p className="text-2xl font-bold text-slate-900 dark:text-white">
                         {ports.filter(p => p.portMode === 'Trunk').length}

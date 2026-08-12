@@ -217,7 +217,7 @@ export default function AddPortForm({
     const busy = isPending || isTemplateDownloading || isImporting;
 
     return (
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
             <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                     <Plus className="h-5 w-5 text-teal-500" />

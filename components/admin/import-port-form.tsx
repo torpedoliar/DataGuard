@@ -30,7 +30,7 @@ export default function ImportPortForm({ deviceId }: { deviceId: number }) {
   };
 
   return (
-    <div className="mt-8 bg-white dark:bg-card-dark rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+    <div className="mt-8 bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
       <div className="flex items-center gap-2 mb-4">
         <FileSpreadsheet className="h-5 w-5 text-teal-500" />
         <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
