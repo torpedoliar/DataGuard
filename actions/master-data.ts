@@ -2,8 +2,8 @@
 "use server";
 
 import { db } from "../db";
-import { devices, categories, checklistItems, brands, locations } from "../db/schema";
-import { and, eq } from "drizzle-orm";
+import { devices, categories, checklistItems, brands, locations, racks } from "../db/schema";
+import { and, eq, or, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
@@ -126,6 +126,7 @@ export async function deleteCategory(id: number) {
 export async function getDevices() {
     const session = await verifySession();
     const siteFilter = session?.activeSiteId ? eq(devices.siteId, session.activeSiteId) : undefined;
+    const rackFilter = or(eq(racks.isAuditable, true), isNull(racks.id));
 
     return await db
         .select({
@@ -152,7 +153,8 @@ export async function getDevices() {
         .leftJoin(categories, eq(devices.categoryId, categories.id))
         .leftJoin(brands, eq(devices.brandId, brands.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
-        .where(siteFilter);
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+        .where(siteFilter ? and(siteFilter, rackFilter) : rackFilter);
 }
 
 export async function addDevice(prevState: unknown, formData: FormData) {

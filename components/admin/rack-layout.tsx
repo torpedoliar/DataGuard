@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { RackData, RackDevice } from "@/actions/rack-layout";
 import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor, useDraggable, useDroppable } from "@dnd-kit/core";
-import { Server, Network, Zap, Wind, XCircle, AlertTriangle, Search, Filter, X, MapPin } from "lucide-react";
+import { Server, Network, Zap, Wind, XCircle, Search, Filter, X, MapPin } from "lucide-react";
 
 interface RackLayoutProps {
     racks: RackData[];
@@ -125,16 +125,10 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
 
                     {/* Audit status + U height badge */}
                     <div className="shrink-0 flex items-center gap-1">
-                        {device.status === "Error" && (
+                        {device.status === "NOT OK" && (
                             <div className="flex items-center gap-0.5 text-[9px] font-bold text-red-200 bg-red-950/80 px-1.5 py-0.5 rounded">
                                 <XCircle className={auditIconSize} />
-                                <span className="hidden xl:inline">Error</span>
-                            </div>
-                        )}
-                        {device.status === "Warning" && (
-                            <div className="flex items-center gap-0.5 text-[9px] font-bold text-amber-200 bg-amber-950/80 px-1.5 py-0.5 rounded">
-                                <AlertTriangle className={auditIconSize} />
-                                <span className="hidden xl:inline">Warning</span>
+                                <span className="hidden xl:inline">NOT OK</span>
                             </div>
                         )}
                         <span className="text-[8px] font-mono text-white/50 bg-black/20 px-1 rounded">{uHeight}U</span>
@@ -336,8 +330,7 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                             className="h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent min-w-[110px]">
                             <option value="">All Status</option>
                             <option value="OK">OK</option>
-                            <option value="Warning">Warning</option>
-                            <option value="Error">Error</option>
+                            <option value="NOT OK">NOT OK</option>
                             <option value="Pending">Pending</option>
                         </select>
                         {hasFilters && (
@@ -394,8 +387,7 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
                                 <div>
                                     <label className="text-xs text-ops-muted">Status</label>
                                     <p className={`font-medium ${
-                                        selectedDevice.status === 'Error' ? 'text-ops-danger' :
-                                        selectedDevice.status === 'Warning' ? 'text-ops-warning' :
+                                        selectedDevice.status === 'NOT OK' ? 'text-ops-danger' :
                                         selectedDevice.status === 'OK' ? 'text-ops-success' : 'text-ops-muted'
                                     }`}>
                                         {selectedDevice.status || "Pending"}

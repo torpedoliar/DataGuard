@@ -2,8 +2,8 @@
 "use server";
 
 import { db } from "@/db";
-import { checklistEntries, devices, checklistItems, categories, users, locations } from "@/db/schema";
-import { sql, eq, and, gte, lte } from "drizzle-orm";
+import { checklistEntries, devices, checklistItems, categories, users, locations, racks } from "@/db/schema";
+import { sql, eq, and, gte, lte, or, isNull } from "drizzle-orm";
 import { verifySession } from "@/lib/session";
 
 export type DailyCheck = {
@@ -58,7 +58,11 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
         .from(devices)
         .leftJoin(categories, eq(devices.categoryId, categories.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
-        .where(siteId ? eq(devices.siteId, siteId) : undefined)
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+        .where(and(
+            siteId ? eq(devices.siteId, siteId) : undefined,
+            or(eq(racks.isAuditable, true), isNull(racks.id)),
+        ))
         .orderBy(categories.name, devices.name);
 
     // Get checklist items for this range with user details

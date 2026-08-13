@@ -4,8 +4,7 @@ import { getChecklistStatusTone, getIncidentSeverityTone, getIncidentStatusTone 
 describe("status tone helpers", () => {
   it("maps checklist statuses to stable tones", () => {
     expect(getChecklistStatusTone("OK")).toBe("success");
-    expect(getChecklistStatusTone("Warning")).toBe("warning");
-    expect(getChecklistStatusTone("Error")).toBe("danger");
+    expect(getChecklistStatusTone("NOT OK")).toBe("danger");
     expect(getChecklistStatusTone("Unknown")).toBe("neutral");
   });
 

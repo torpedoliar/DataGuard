@@ -12,6 +12,7 @@ type Rack = {
     totalU: number | null;
     locationId: number | null;
     locationName: string | null;
+    isAuditable?: boolean | null;
 };
 
 type Location = {
@@ -114,6 +115,16 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
                                 ))}
                             </select>
                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-4">
+                        <input
+                            type="checkbox"
+                            name="isAuditable"
+                            defaultChecked={rack.isAuditable ?? true}
+                            value="on"
+                        />
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Include in audit</label>
                     </div>
 
                     {state?.errors && (

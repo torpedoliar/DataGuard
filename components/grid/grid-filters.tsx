@@ -68,8 +68,7 @@ export default function GridFilters() {
       >
         <option value="All">All Statuses</option>
         <option value="OK">OK (Healthy)</option>
-        <option value="Warning">Warning</option>
-        <option value="Error">Critical (Error)</option>
+        <option value="NOT OK">NOT OK</option>
       </select>
 
       <div className="flex items-center overflow-hidden rounded-md border border-ops-border bg-ops-bg">

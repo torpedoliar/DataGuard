@@ -1,4 +1,4 @@
-export type ChecklistStatus = "OK" | "Warning" | "Error";
+export type ChecklistStatus = "OK" | "NOT OK";
 export type IncidentSeverity = "Low" | "Medium" | "High" | "Critical";
 export type IncidentStatus = "Open" | "In Progress" | "Resolved" | "Verified";
 export type ResolutionCategory =
@@ -38,8 +38,7 @@ export const resolutionActions: ResolutionAction[] = [
 ];
 
 export function getDefaultIncidentSeverity(status: ChecklistStatus): IncidentSeverity | null {
-  if (status === "Warning") return "Medium";
-  if (status === "Error") return "High";
+  if (status === "NOT OK") return "Medium";
   return null;
 }
 

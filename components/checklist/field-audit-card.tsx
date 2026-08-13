@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useImperativeHandle, forwardRef, type ComponentType } from "react";
-import { AlertTriangle, CheckCircle, MapPin, Server, Upload, XCircle } from "lucide-react";
+import { CheckCircle, MapPin, Server, Upload, XCircle } from "lucide-react";
 import clsx from "clsx";
 
-type AuditStatus = "OK" | "Warning" | "Error";
+type AuditStatus = "OK" | "NOT OK";
 
 type FieldAuditCardProps = {
   device: {
@@ -33,16 +33,9 @@ const statusOptions: {
     selectedClass: "border-emerald-400/60 bg-emerald-400/12 text-emerald-100 ring-1 ring-emerald-400/40",
   },
   {
-    value: "Warning",
-    label: "Warning",
+    value: "NOT OK",
+    label: "NOT OK",
     helper: "Needs attention",
-    icon: AlertTriangle,
-    selectedClass: "border-amber-400/60 bg-amber-400/12 text-amber-100 ring-1 ring-amber-400/40",
-  },
-  {
-    value: "Error",
-    label: "Error",
-    helper: "Escalate",
     icon: XCircle,
     selectedClass: "border-red-400/60 bg-red-400/12 text-red-100 ring-1 ring-red-400/40",
   },
@@ -55,7 +48,7 @@ const FieldAuditCard = forwardRef<HTMLDivElement, FieldAuditCardProps>(
       (prefillStatus as AuditStatus) || "OK"
     );
     const [remarks, setRemarks] = useState(prefillRemarks ?? "");
-    const needsEvidence = status === "Warning" || status === "Error";
+    const needsEvidence = status === "NOT OK";
 
     // Sync to parent whenever status or remarks changes
     useEffect(() => {
@@ -88,7 +81,7 @@ const FieldAuditCard = forwardRef<HTMLDivElement, FieldAuditCardProps>(
             </div>
           </div>
 
-          <fieldset className="grid grid-cols-3 gap-2">
+          <fieldset className="grid grid-cols-2 gap-2">
             <legend className="sr-only">Status for {device.name}</legend>
             {statusOptions.map((option) => {
               const Icon = option.icon;

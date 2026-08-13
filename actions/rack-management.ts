@@ -15,6 +15,7 @@ const rackSchema = z.object({
     zone: z.string().optional(),
     totalU: z.coerce.number().min(1).max(60).default(42),
     locationId: z.coerce.number().optional(),
+    isAuditable: z.coerce.boolean().optional(),
 });
 
 // Get all racks (filtered by active site)
@@ -30,6 +31,7 @@ export async function getRacks() {
         locationId: racks.locationId,
         locationName: locations.name,
         createdAt: racks.createdAt,
+        isAuditable: racks.isAuditable,
     })
         .from(racks)
         .leftJoin(locations, eq(racks.locationId, locations.id))
@@ -103,6 +105,7 @@ export async function addRack(prevState: unknown, formData: FormData) {
             zone: parsed.data.zone || null,
             totalU: parsed.data.totalU || 42,
             locationId: parsed.data.locationId || null,
+            isAuditable: parsed.data.isAuditable ?? true,
         });
 
         revalidatePath("/admin/rack-manage");
@@ -143,6 +146,7 @@ export async function updateRack(prevState: unknown, formData: FormData) {
             zone: parsed.data.zone,
             totalU: parsed.data.totalU,
             locationId: parsed.data.locationId,
+            isAuditable: parsed.data.isAuditable,
         }).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
 
         // Cascade rename to devices referencing this rack by name
@@ -181,4 +185,23 @@ export async function deleteRack(id: number) {
     } catch (error) {
         return { message: "Gagal menghapus rak ini karena mungkin masih berisi perangkat server aktif." };
     }
+}
+
+// Toggle rack's audit eligibility
+export async function toggleRackAudit(id: number) {
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { message: auth.message };
+
+    const rack = await db.query.racks.findFirst({
+        where: and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)),
+    });
+    if (!rack) return { message: "Rack tidak ditemukan di site aktif." };
+
+    await db.update(racks).set({ isAuditable: !rack.isAuditable })
+        .where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
+
+    revalidatePath("/admin/rack-manage");
+    revalidatePath("/admin/rack");
+    await logAudit({ action: "UPDATE", entity: "rack", entityId: id, entityName: rack.name, detail: `Audit: ${rack.isAuditable ? 'off' : 'on'}` });
+    return { success: true };
 }

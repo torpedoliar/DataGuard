@@ -176,6 +176,20 @@
       "when": 1785142429700,
       "tag": "0025_siem_per_site_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785240000000,
+      "tag": "0026_simplify_audit_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1785240001000,
+      "tag": "0027_rack_audit_flag",
+      "breakpoints": true
     }
   ]
 }

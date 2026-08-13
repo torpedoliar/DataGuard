@@ -17,6 +17,7 @@ type Rack = {
     totalU: number | null;
     locationId: number | null;
     locationName: string | null;
+    isAuditable?: boolean | null;
 };
 
 type Location = {

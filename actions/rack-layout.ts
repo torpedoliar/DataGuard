@@ -19,7 +19,7 @@ export interface RackDevice {
     rackPosition: number | null;
     uHeight: number | null;
     zone: string | null;
-    status?: "OK" | "Warning" | "Error" | "Pending";
+    status?: "OK" | "NOT OK" | "Pending";
 }
 
 export interface RackData {
@@ -63,7 +63,7 @@ export async function getRackLayout() {
 
     // Get latest checklist status for these devices
     const deviceIds = allDevices.map(d => d.id);
-    const latestStatuses: Record<number, "OK" | "Warning" | "Error" | "Pending"> = {};
+    const latestStatuses: Record<number, "OK" | "NOT OK" | "Pending"> = {};
 
     if (deviceIds.length > 0) {
         // Fetch all checks for these devices to find the latest one per device
@@ -80,7 +80,7 @@ export async function getRackLayout() {
 
         for (const check of checks) {
             if (!latestStatuses[check.deviceId]) {
-                latestStatuses[check.deviceId] = check.status as "OK" | "Warning" | "Error";
+                latestStatuses[check.deviceId] = check.status as "OK" | "NOT OK";
             }
         }
     }

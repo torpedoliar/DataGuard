@@ -6,7 +6,7 @@ import { AnyPgColumn } from "drizzle-orm/pg-core";
 export const roleEnum = pgEnum("role", ["superadmin", "admin", "staff"]);
 export const roleInSiteEnum = pgEnum("role_in_site", ["admin", "staff"]);
 export const shiftEnum = pgEnum("shift", ["Pagi", "Siang", "Malam"]);
-export const statusEnum = pgEnum("status", ["OK", "Warning", "Error"]);
+export const statusEnum = pgEnum("status", ["OK", "NOT OK"]);
 export const portModeEnum = pgEnum("port_mode", ["Access", "Trunk", "Routed", "LACP"]);
 export const portStatusEnum = pgEnum("port_status", ["Active", "Inactive", "Down"]);
 export const speedEnum = pgEnum("speed", ["10/100M", "1G", "10G", "25G", "40G", "100G", "Auto"]);
@@ -134,6 +134,7 @@ export const racks = pgTable("racks", {
   totalU: integer("total_u").default(42),
   location: text("location"),
   locationId: integer("location_id").references(() => locations.id),
+  isAuditable: boolean("is_auditable").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

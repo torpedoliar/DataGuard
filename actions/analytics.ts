@@ -7,7 +7,7 @@ import { verifySession } from "@/lib/session";
 
 export type DailyHealth = {
     date: string;
-    status: "OK" | "Warning" | "Error" | "Unchecked";
+    status: "OK" | "NOT OK" | "Unchecked";
 };
 
 export async function getDeviceHealthHistory(deviceId: number, days: number = 30): Promise<DailyHealth[]> {
@@ -40,12 +40,12 @@ export async function getDeviceHealthHistory(deviceId: number, days: number = 30
 
     // 3. Process into a daily map.
     // If multiple checks happen in a day, take the worst status (Error > Warning > OK)
-    const statusPriority = { "Error": 3, "Warning": 2, "OK": 1 };
+    const statusPriority = { "NOT OK": 2, "OK": 1 };
 
-    const dailyMap: Record<string, "OK" | "Warning" | "Error"> = {};
+    const dailyMap: Record<string, "OK" | "NOT OK"> = {};
     for (const row of records) {
         const currentDate = row.date;
-        const currentStatus = row.status as "OK" | "Warning" | "Error";
+        const currentStatus = row.status as "OK" | "NOT OK";
 
         if (!dailyMap[currentDate]) {
             dailyMap[currentDate] = currentStatus;

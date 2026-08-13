@@ -4,7 +4,7 @@ import GridFilters from "@/components/grid/grid-filters";
 import PageHeader from "@/components/ui/page-header";
 import DraggableScroll from "@/components/ui/draggable-scroll";
 import { verifySession } from "@/lib/session";
-import { AlertTriangle, CheckCircle2, Circle, Grid3X3, XCircle } from "lucide-react";
+import { CheckCircle2, Circle, Grid3X3, XCircle } from "lucide-react";
 import { redirect } from "next/navigation";
 import clsx from "clsx";
 import { OfflineBanner } from "@/components/mobile/offline-banner";
@@ -69,8 +69,7 @@ export default async function AuditGridPage({
           />
           <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-ops-muted">
             <LegendItem icon={<CheckCircle2 className="size-4 text-emerald-300" />} label="OK" />
-            <LegendItem icon={<AlertTriangle className="size-4 text-amber-300" />} label="Warning" />
-            <LegendItem icon={<XCircle className="size-4 text-red-300" />} label="Error" />
+            <LegendItem icon={<XCircle className="size-4 text-red-300" />} label="NOT OK" />
             <LegendItem icon={<Circle className="size-4 text-slate-600" />} label="No check" />
           </div>
         </div>
@@ -195,17 +194,14 @@ function LegendItem({ icon, label }: { icon: ReactNode; label: string }) {
 function GridStatusPill({ check }: { check: DailyCheck }) {
   const icon = check.status === "OK"
     ? <CheckCircle2 className="size-3.5 text-emerald-300" />
-    : check.status === "Warning"
-      ? <AlertTriangle className="size-3.5 text-amber-300" />
-      : <XCircle className="size-3.5 text-red-300" />;
+    : <XCircle className="size-3.5 text-red-300" />;
 
   return (
     <div
       className={clsx(
         "group/tooltip relative flex items-center gap-1 rounded-full border px-2 py-0.5",
         check.status === "OK" && "border-emerald-400/25 bg-emerald-400/10",
-        check.status === "Warning" && "border-amber-400/25 bg-amber-400/10",
-        check.status === "Error" && "border-red-400/25 bg-red-400/10",
+        check.status === "NOT OK" && "border-red-400/25 bg-red-400/10",
       )}
       title={`${check.shift} Shift @ ${check.time}`}
     >

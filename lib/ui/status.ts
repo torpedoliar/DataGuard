@@ -10,8 +10,7 @@ export type UiTone =
 
 export function getChecklistStatusTone(status: string | null | undefined): UiTone {
   if (status === "OK") return "success";
-  if (status === "Warning") return "warning";
-  if (status === "Error") return "danger";
+  if (status === "NOT OK") return "danger";
   return "neutral";
 }
 

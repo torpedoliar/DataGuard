@@ -294,7 +294,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                     <div>
                         <h2 className="text-sm font-semibold text-white">Telegram Alert</h2>
                         <p className="mt-1 text-xs text-slate-400">
-                            Template ini dipakai saat perangkat berstatus Warning atau Error.
+                            Template ini dipakai saat perangkat berstatus NOT OK.
                         </p>
                     </div>
                     <span className={`inline-flex h-7 w-fit items-center gap-2 rounded-full border px-3 text-xs font-medium ${initialData.telegramBotConfigured

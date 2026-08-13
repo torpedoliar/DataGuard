@@ -69,18 +69,18 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
 
         // 3. Process each device item
         const deviceIds = formData.getAll("deviceId");
-        const alertItems: { checklistItemId: number; deviceId: number; status: "Warning" | "Error"; remarks: string }[] = [];
+        const alertItems: { checklistItemId: number; deviceId: number; status: "NOT OK"; remarks: string }[] = [];
         const incidentItems: {
             checklistItemId: number;
             deviceId: number;
-            status: "Warning" | "Error";
+            status: "NOT OK";
             remarks: string;
             photoPath: string | null;
         }[] = [];
 
         for (const idStr of deviceIds) {
             const deviceId = parseInt(idStr as string);
-            const status = formData.get(`status-${deviceId}`) as "OK" | "Warning" | "Error";
+            const status = formData.get(`status-${deviceId}`) as "OK" | "NOT OK";
             const remarks = formData.get(`remarks-${deviceId}`) as string;
             const photoFile = formData.get(`photo-${deviceId}`) as File;
 
@@ -98,7 +98,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 photoPath = `/uploads/${fileName}`;
             }
 
-            const normalizedStatus = (status || "OK") as "OK" | "Warning" | "Error";
+            const normalizedStatus = (status || "OK") as "OK" | "NOT OK";
             const [item] = await db.insert(checklistItems).values({
                 entryId: entry.id,
                 deviceId,
@@ -107,7 +107,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 photoPath,
             }).returning();
 
-            if (normalizedStatus === "Warning" || normalizedStatus === "Error") {
+            if (normalizedStatus === "NOT OK") {
                 alertItems.push({ checklistItemId: item.id, deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided" });
                 incidentItems.push({
                     checklistItemId: item.id,
@@ -146,11 +146,9 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                     auth.activeSiteId,
                     // Map the worst item severity to a single severity bucket
                     // for filter purposes. Critical > High > Medium > Low.
-                    alertItems.some((a) => a.status === "Error")
-                        ? "Critical"
-                        : alertItems.some((a) => a.status === "Warning")
-                            ? "Medium"
-                            : "Low",
+                    alertItems.some((a) => a.status === "NOT OK")
+                        ? "Medium"
+                        : "Low",
                     site?.telegramChatId,
                 );
 
@@ -284,7 +282,7 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
         // Re-insert items
         for (const idStr of deviceIds) {
             const deviceId = parseInt(idStr as string);
-            const status = formData.get(`status-${deviceId}`) as "OK" | "Warning" | "Error";
+            const status = formData.get(`status-${deviceId}`) as "OK" | "NOT OK";
             const remarks = formData.get(`remarks-${deviceId}`) as string;
             const photoFile = formData.get(`photo-${deviceId}`) as File;
             const existingPhotoPath = formData.get(`existingPhoto-${deviceId}`) as string;
@@ -328,7 +326,7 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
             await db.insert(checklistItems).values({
                 entryId,
                 deviceId,
-                status: (status || "OK") as "OK" | "Warning" | "Error",
+                status: (status || "OK") as "OK" | "NOT OK",
                 remarks: remarks || "",
                 photoPath,
             });
@@ -425,8 +423,7 @@ export async function getRecentChecklists(limit: number = 50) {
         userName: users.username,
         itemCount: sql<number>`COUNT(${checklistItems.id})`,
         okCount: sql<number>`SUM(CASE WHEN ${checklistItems.status} = 'OK' THEN 1 ELSE 0 END)`,
-        warningCount: sql<number>`SUM(CASE WHEN ${checklistItems.status} = 'Warning' THEN 1 ELSE 0 END)`,
-        errorCount: sql<number>`SUM(CASE WHEN ${checklistItems.status} = 'Error' THEN 1 ELSE 0 END)`,
+        notOkCount: sql<number>`SUM(CASE WHEN ${checklistItems.status} = 'NOT OK' THEN 1 ELSE 0 END)`,
     })
         .from(checklistEntries)
         .leftJoin(users, eq(checklistEntries.userId, users.id))

@@ -10,8 +10,7 @@ import {
 describe("incident domain rules", () => {
   it("maps checklist statuses to default incident severity", () => {
     expect(getDefaultIncidentSeverity("OK")).toBeNull();
-    expect(getDefaultIncidentSeverity("Warning")).toBe("Medium");
-    expect(getDefaultIncidentSeverity("Error")).toBe("High");
+    expect(getDefaultIncidentSeverity("NOT OK")).toBe("Medium");
   });
 
   it("calculates SLA due dates by severity", () => {

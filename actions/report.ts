@@ -2,8 +2,8 @@
 "use server";
 
 import { db } from "../db";
-import { checklistEntries, checklistItems, devices, incidents, locations } from "../db/schema";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { checklistEntries, checklistItems, devices, incidents, locations, racks } from "../db/schema";
+import { eq, and, desc, sql, gte, lte, or, isNull } from "drizzle-orm";
 import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
 import type { IncidentStatus } from "@/lib/incidents";
@@ -115,7 +115,8 @@ export async function getReportData(
         gte(checklistEntries.checkDate, startDate),
         lte(checklistEntries.checkDate, endDate),
         siteId ? eq(checklistEntries.siteId, siteId) : undefined,
-        incidentStatus ? eq(incidents.status, incidentStatus) : undefined
+        incidentStatus ? eq(incidents.status, incidentStatus) : undefined,
+        or(eq(racks.isAuditable, true), isNull(racks.id)),
     );
 
     // Get total count
@@ -124,6 +125,7 @@ export async function getReportData(
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
         .leftJoin(incidents, eq(incidents.checklistItemId, checklistItems.id))
         .where(whereClause)
         .then(res => res[0]?.count || 0);
@@ -155,6 +157,7 @@ export async function getReportData(
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
         .leftJoin(incidents, eq(incidents.checklistItemId, checklistItems.id))
         .where(whereClause)
         .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime))
@@ -191,13 +194,15 @@ export async function getRawExportData(startDate: string, endDate: string, incid
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
         .leftJoin(incidents, eq(incidents.checklistItemId, checklistItems.id))
         .where(
             and(
                 gte(checklistEntries.checkDate, startDate),
                 lte(checklistEntries.checkDate, endDate),
                 siteId ? eq(checklistEntries.siteId, siteId) : undefined,
-                incidentStatus ? eq(incidents.status, incidentStatus) : undefined
+                incidentStatus ? eq(incidents.status, incidentStatus) : undefined,
+                or(eq(racks.isAuditable, true), isNull(racks.id)),
             )
         )
         .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime));

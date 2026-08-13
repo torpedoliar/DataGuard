@@ -37,8 +37,7 @@ export default function DeviceHealthTrend({ deviceId, days = 30 }: { deviceId: n
     const getStatusColor = (status: DailyHealth["status"]) => {
         switch (status) {
             case "OK": return "bg-green-500";
-            case "Warning": return "bg-yellow-400";
-            case "Error": return "bg-red-500";
+            case "NOT OK": return "bg-red-500";
             case "Unchecked": return "bg-slate-200 dark:bg-slate-700";
         }
     };
@@ -46,24 +45,21 @@ export default function DeviceHealthTrend({ deviceId, days = 30 }: { deviceId: n
     const getStatusText = (status: DailyHealth["status"]) => {
         switch (status) {
             case "OK": return "Healthy";
-            case "Warning": return "Warnings";
-            case "Error": return "Critical Issues";
+            case "NOT OK": return "Not OK";
             case "Unchecked": return "No Data";
         }
     };
 
     // Calculate summary statistics
     let okCount = 0;
-    let warnCount = 0;
-    let errCount = 0;
+    let notOkCount = 0;
 
     for (const h of history) {
         if (h.status === "OK") okCount++;
-        if (h.status === "Warning") warnCount++;
-        if (h.status === "Error") errCount++;
+        if (h.status === "NOT OK") notOkCount++;
     }
 
-    const totalChecks = okCount + warnCount + errCount;
+    const totalChecks = okCount + notOkCount;
     const uptimeRatio = totalChecks > 0 ? ((okCount / totalChecks) * 100).toFixed(1) : "0.0";
 
     return (
@@ -103,10 +99,7 @@ export default function DeviceHealthTrend({ deviceId, days = 30 }: { deviceId: n
                     <div className="w-2.5 h-2.5 rounded-sm bg-green-500"></div> OK ({okCount})
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-yellow-400"></div> Warning ({warnCount})
-                </div>
-                <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-red-500"></div> Error ({errCount})
+                    <div className="w-2.5 h-2.5 rounded-sm bg-red-500"></div> NOT OK ({notOkCount})
                 </div>
                 <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-sm bg-slate-200 dark:bg-slate-700"></div> Unchecked

@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { checklistEntries, devices, checklistItems, categories, users, incidents } from "@/db/schema";
-import { sql, eq, and, desc, ne, gte } from "drizzle-orm";
+import { checklistEntries, devices, checklistItems, categories, users, incidents, racks } from "@/db/schema";
+import { sql, eq, and, desc, ne, gte, or, isNull } from "drizzle-orm";
 import { verifySession } from "@/lib/session";
 
 function toDateString(d: Date) {
@@ -19,7 +19,11 @@ export async function getDashboardStats() {
 
     // 1. Overall Completion
     const totalDevices = await db.select({ count: sql<number>`count(*)` }).from(devices)
-        .where(siteId ? eq(devices.siteId, siteId) : undefined)
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+        .where(and(
+            siteId ? eq(devices.siteId, siteId) : undefined,
+            or(eq(racks.isAuditable, true), isNull(racks.id)),
+        ))
         .then(res => Number(res[0].count));
 
     // Count devices checked today
@@ -43,9 +47,11 @@ export async function getDashboardStats() {
     for (const cat of allCategories) {
         const catDevices = await db.select({ count: sql<number>`count(*)` })
             .from(devices)
+            .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
             .where(and(
                 eq(devices.categoryId, cat.id),
-                siteId ? eq(devices.siteId, siteId) : undefined
+                siteId ? eq(devices.siteId, siteId) : undefined,
+                or(eq(racks.isAuditable, true), isNull(racks.id)),
             ))
             .then(res => Number(res[0].count));
 
@@ -53,10 +59,12 @@ export async function getDashboardStats() {
             .from(checklistItems)
             .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
             .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
+            .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
             .where(and(
                 eq(checklistEntries.checkDate, today),
                 eq(devices.categoryId, cat.id),
-                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+                siteId ? eq(checklistEntries.siteId, siteId) : undefined,
+                or(eq(racks.isAuditable, true), isNull(racks.id)),
             ))
             .then(res => Number(res[0].count));
 

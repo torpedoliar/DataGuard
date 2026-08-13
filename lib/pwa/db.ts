@@ -5,7 +5,7 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 // photo store only if IDB quota becomes a real problem.
 export interface QueuedAuditItem {
   deviceId: string;
-  status: 'OK' | 'Warning' | 'Error';
+  status: 'OK' | 'NOT OK';
   remarks: string;
   photoFile?: File;
 }

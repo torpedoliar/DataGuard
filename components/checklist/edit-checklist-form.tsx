@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useEffect } from "react";
 import { updateChecklist } from "@/actions/checklist";
-import { Loader2, Upload, AlertTriangle, CheckCircle, XCircle, X, Trash2 } from "lucide-react";
+import { Loader2, Upload, CheckCircle, XCircle, X, Trash2 } from "lucide-react";
 import clsx from "clsx";
 
 type Category = { id: number; name: string };
@@ -10,7 +10,7 @@ type Device = { id: number; name: string; locationName: string | null; categoryI
 type ChecklistItem = {
     id: number;
     deviceId: number;
-    status: "OK" | "Warning" | "Error";
+    status: "OK" | "NOT OK";
     remarks: string | null;
     photoPath: string | null;
     device: Device;
@@ -207,7 +207,7 @@ function DeviceRow({
     device: Device;
     existingItem?: ChecklistItem;
 }) {
-    const [status, setStatus] = useState<"OK" | "Warning" | "Error">(
+    const [status, setStatus] = useState<"OK" | "NOT OK">(
         existingItem?.status || "OK"
     );
     const [deletePhoto, setDeletePhoto] = useState(false);
@@ -246,38 +246,20 @@ function DeviceRow({
 
                     <label className={clsx(
                         "flex-1 cursor-pointer border rounded-md p-2 flex flex-col items-center gap-1 transition-all",
-                        status === "Warning"
-                            ? "bg-yellow-50 dark:bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-400 ring-1 ring-yellow-500"
-                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
-                    )}>
-                        <input
-                            type="radio"
-                            name={`status-${device.id}`}
-                            value="Warning"
-                            className="sr-only"
-                            checked={status === "Warning"}
-                            onChange={() => setStatus("Warning")}
-                        />
-                        <AlertTriangle className="h-5 w-5" />
-                        <span className="text-xs font-medium">Warning</span>
-                    </label>
-
-                    <label className={clsx(
-                        "flex-1 cursor-pointer border rounded-md p-2 flex flex-col items-center gap-1 transition-all",
-                        status === "Error"
+                        status === "NOT OK"
                             ? "bg-red-50 dark:bg-red-500/10 border-red-500 text-red-700 dark:text-red-400 ring-1 ring-red-500"
                             : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
                     )}>
                         <input
                             type="radio"
                             name={`status-${device.id}`}
-                            value="Error"
+                            value="NOT OK"
                             className="sr-only"
-                            checked={status === "Error"}
-                            onChange={() => setStatus("Error")}
+                            checked={status === "NOT OK"}
+                            onChange={() => setStatus("NOT OK")}
                         />
                         <XCircle className="h-5 w-5" />
-                        <span className="text-xs font-medium">Error</span>
+                        <span className="text-xs font-medium">NOT OK</span>
                     </label>
                 </div>
 
@@ -320,7 +302,7 @@ function DeviceRow({
                     )}
 
                     {/* Upload New Photo */}
-                    {(status === "Warning" || status === "Error" || existingItem?.photoPath) && (
+                    {(status === "NOT OK" || existingItem?.photoPath) && (
                         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                             <Upload className="h-4 w-4" />
                             <input

@@ -42,7 +42,7 @@ describe('audit-queue', () => {
 
   it('replay re-queues on failure and caps at 5 attempts -> failed', async () => {
     const submitAction = vi.fn().mockResolvedValue({ message: 'Session expired' });
-    await enqueue({ ...basePayload, items: [{ deviceId: '7', status: 'Error', remarks: 'bad' }] });
+    await enqueue({ ...basePayload, items: [{ deviceId: '7', status: 'NOT OK', remarks: 'bad' }] });
 
     // 4 retries: stays pending, attempts climbs
     for (let i = 0; i < 4; i++) await replay(submitAction);
@@ -65,7 +65,7 @@ describe('audit-queue', () => {
   it('replay reconstructs File from stored photo', async () => {
     const photo = new File(['bytes'], 'evidence.jpg', { type: 'image/jpeg' });
     const submitAction = vi.fn().mockResolvedValue({ success: true });
-    await enqueue({ ...basePayload, items: [{ deviceId: '9', status: 'Warning', remarks: 'heat', photoFile: photo }] });
+    await enqueue({ ...basePayload, items: [{ deviceId: '9', status: 'NOT OK', remarks: 'heat', photoFile: photo }] });
     await replay(submitAction);
 
     const fd = submitAction.mock.calls[0][1] as FormData;

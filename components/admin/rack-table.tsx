@@ -22,6 +22,7 @@ type Rack = {
   locationId: number | null;
   locationName: string | null;
   deviceCount?: number;
+  isAuditable?: boolean | null;
 };
 
 interface RackTableProps {
@@ -54,12 +55,13 @@ export default function RackTable({ racks, onEdit }: RackTableProps) {
             <th className="px-5 py-3 text-left">Zone</th>
             <th className="px-5 py-3 text-left">Capacity</th>
             <th className="px-5 py-3 text-left">Location</th>
+            <th className="px-5 py-3 text-left">Audit</th>
             <th className="px-5 py-3 text-right">Actions</th>
           </tr>
         </DataTableHead>
         <DataTableBody>
           {racks.length === 0 ? (
-            <DataTableEmpty colSpan={5} title="No racks defined" description="Add a rack above to start placing devices." />
+            <DataTableEmpty colSpan={6} title="No racks defined" description="Add a rack above to start placing devices." />
           ) : (
             racks.map((rack) => (
               <tr key={rack.id} className="transition-colors hover:bg-ops-surface">
@@ -76,6 +78,13 @@ export default function RackTable({ racks, onEdit }: RackTableProps) {
                   <StatusBadge tone="info">{rack.totalU || 42}U</StatusBadge>
                 </td>
                 <td className="whitespace-nowrap px-5 py-3 text-ops-muted">{rack.locationName || "-"}</td>
+                <td className="whitespace-nowrap px-5 py-3">
+                  {rack.isAuditable ? (
+                    <StatusBadge tone="success">On Audit</StatusBadge>
+                  ) : (
+                    <StatusBadge tone="neutral">Skipped</StatusBadge>
+                  )}
+                </td>
                 <td className="whitespace-nowrap px-5 py-3 text-right">
                   <div className="inline-flex items-center gap-1">
                     <ActionButton type="button" variant="ghost" size="icon" onClick={() => onEdit(rack)} title="Edit rack">
