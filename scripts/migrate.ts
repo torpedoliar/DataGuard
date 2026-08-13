@@ -10,7 +10,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import path from 'path';
 import dotenv from 'dotenv';
 import { buildDatabaseUrl, redactDatabaseUrl } from '../lib/database-url';
@@ -48,6 +48,20 @@ const baselineTables = [
     'vlans',
 ];
 
+/**
+ * The `__drizzle_migrations.id` column is SERIAL but rows are sometimes
+ * inserted with explicit ids (baseline seeding), which desyncs the sequence.
+ * Realign it to max(id) so drizzle's `insert into ... ("hash","created_at")`
+ * (which omits the id) can't collide with an existing row.
+ */
+async function fixMigrationSequence(client: PoolClient, schema: string, table: string) {
+    await client.query(
+        `SELECT setval(pg_get_serial_sequence($1, 'id'), COALESCE(MAX(id), 1))
+         FROM "${schema}"."${table}"`,
+        [`${schema}.${table}`],
+    );
+}
+
 async function baselineExistingSchema() {
     const journalPath = path.join(migrationsFolder, 'meta/_journal.json');
     const migrationPath = path.join(migrationsFolder, `${baselineTag}.sql`);
@@ -75,6 +89,7 @@ async function baselineExistingSchema() {
                  LIMIT 1`,
             );
             if (Number(latestMigration.rows[0]?.created_at ?? 0) >= baselineEntry.when) {
+                await fixMigrationSequence(client, migrationsSchema, migrationsTable);
                 return;
             }
         }
@@ -117,6 +132,14 @@ async function main() {
 
     try {
         await baselineExistingSchema();
+
+        const seqClient = await pool.connect();
+        try {
+            await fixMigrationSequence(seqClient, migrationsSchema, migrationsTable);
+        } finally {
+            seqClient.release();
+        }
+
         await migrate(db, { migrationsFolder, migrationsSchema, migrationsTable });
 
         const end = Date.now();
