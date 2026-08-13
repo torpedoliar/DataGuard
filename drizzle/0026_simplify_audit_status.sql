@@ -1,15 +1,16 @@
 -- Simplify audit status: OK / Warning / Error -> OK / NOT OK
 -- Merge both failure states into a single "NOT OK" value.
--- Pattern: UPDATE rows first (can't cast Warning/Error into a type that no
--- longer holds them), then convert column to text, drop old enum, recreate,
--- cast back. Mirrors 0009_siem_alert_channel_telegram_only.sql.
+-- ORDER MATTERS: convert the column to text FIRST, because `UPDATE ... SET
+-- status = 'NOT OK'` is rejected while the column is still the old enum
+-- (OK/Warning/Error has no 'NOT OK' member). After the text conversion the
+-- values are mergeable, then the type can be reconstructed around them.
 
--- 1. Merge existing failure values
+-- 1. Convert column to text (drops enum type dependency)
+ALTER TABLE "checklist_items" ALTER COLUMN "status" SET DATA TYPE text;--> statement-breakpoint
+
+-- 2. Merge existing failure values
 UPDATE "checklist_items" SET "status" = 'NOT OK' WHERE "status" = 'Warning';
 UPDATE "checklist_items" SET "status" = 'NOT OK' WHERE "status" = 'Error';--> statement-breakpoint
-
--- 2. Convert column to text (drops enum type dependency)
-ALTER TABLE "checklist_items" ALTER COLUMN "status" SET DATA TYPE text;--> statement-breakpoint
 
 -- 3. Drop old enum
 DROP TYPE "public"."status";--> statement-breakpoint
