@@ -20,6 +20,7 @@ import {
   type ResolutionCategory,
 } from "@/lib/incidents";
 import { hasAdminAccess } from "@/lib/site-access";
+import { resolveNotificationBaseUrl } from "@/lib/notification-url";
 import { sendTelegramAlert } from "@/lib/telegram";
 import { saveUploadFile } from "@/lib/upload";
 import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
@@ -132,10 +133,14 @@ async function notifyCriticalIncidents(siteId: number, criticalIncidents: Incide
   const recipients = await resolveIncidentRecipients(siteId, "Critical", site.telegramChatId);
   if (recipients.length === 0) return;
 
+  const baseUrl = await resolveNotificationBaseUrl();
   const message = [
     "*Critical Incident Opened*",
     `Site: ${site.name}`,
-    ...criticalIncidents.map((incident) => `#${incident.id} ${incident.title}`),
+    ...criticalIncidents.map(
+      (incident) =>
+        `[#${incident.id} ${incident.title}](${baseUrl}/admin/incidents/${incident.id})`,
+    ),
   ].join("\n");
 
   for (const recipient of recipients) {
@@ -151,7 +156,8 @@ async function notifyResolvedWaitingVerification(siteId: number, incidentId: num
   const recipients = await resolveIncidentRecipients(siteId, "Low", site.telegramChatId);
   if (recipients.length === 0) return;
 
-  const message = `*Incident Resolved*\nSite: ${site.name}\n#${incidentId} ${title}\nWaiting for admin verification.`;
+  const baseUrl = await resolveNotificationBaseUrl();
+  const message = `*Incident Resolved*\nSite: ${site.name}\n[#${incidentId} ${title}](${baseUrl}/admin/incidents/${incidentId})\nWaiting for admin verification.`;
   for (const recipient of recipients) {
     await sendTelegramAlert(recipient.chatId, message);
   }

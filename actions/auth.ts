@@ -4,8 +4,10 @@
 import { db } from "../db";
 import { users, userSites, sites } from "../db/schema";
 import { eq, and } from "drizzle-orm";
+import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { createSession, deleteSession } from "../lib/session";
+import { rememberNotificationBaseUrl } from "../lib/notification-url";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { updateUserLastLogin } from "./users";
@@ -155,6 +157,17 @@ export async function login(prevState: unknown, formData: FormData) {
     }
 
     await createSession(user.id, user.username, role, activeSiteId, activeSiteName);
+
+    // Remember the host the operator reached the app on, so Telegram alert
+    // links use the domain when accessed via domain and the IP when via IP.
+    const host = (await headers()).get("host");
+    if (host) {
+      try {
+        await rememberNotificationBaseUrl(host);
+      } catch {
+        // Non-fatal — links fall back to request host.
+      }
+    }
 
     // Update last login time (non-blocking)
     updateUserLastLogin(user.id).catch(console.error);

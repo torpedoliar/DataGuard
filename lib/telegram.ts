@@ -4,6 +4,7 @@ import { globalSettings } from "../db/schema";
 export const DEFAULT_TELEGRAM_ALERT_TEMPLATE = [
     "*Data Center Audit Alert*",
     "Site: {siteName} ({siteCode})",
+    "Open: {incidentLink}",
     "Auditor: {checker}",
     "Shift: {shift}",
     "Time: {checkDate} {checkTime}",
@@ -39,6 +40,7 @@ export const TELEGRAM_ALERT_TEMPLATE_FIELDS = [
     "deviceDescription",
     "deviceRemarks",
     "incidentId",
+    "incidentLink",
 ] as const;
 
 export type TelegramAlertTemplateField = typeof TELEGRAM_ALERT_TEMPLATE_FIELDS[number];

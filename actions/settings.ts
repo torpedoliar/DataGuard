@@ -13,6 +13,7 @@ import {
     renderTelegramTemplate,
     sendTelegramAlert,
 } from "../lib/telegram";
+import { resolveNotificationBaseUrl } from "../lib/notification-url";
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
@@ -295,6 +296,7 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
         deviceDescription: sampleDevice?.description,
         deviceRemarks: "Test Telegram dari halaman pengaturan",
         incidentId: "TEST",
+        incidentLink: `[Open incident #TEST](${await resolveNotificationBaseUrl()}/admin/incidents/1)`,
     });
 
     const result = await sendTelegramAlert(chatId, message, botToken);

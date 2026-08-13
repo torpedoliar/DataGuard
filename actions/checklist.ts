@@ -6,6 +6,7 @@ import { checklistEntries, checklistItems, users, sites, devices, siteTelegramCh
 import { createIncidentsForChecklistItems } from "@/actions/incidents";
 import { getTelegramAlertTemplate } from "@/actions/settings";
 import { renderTelegramTemplate, sendTelegramAlert } from "@/lib/telegram";
+import { resolveNotificationBaseUrl } from "@/lib/notification-url";
 import { verifySession } from "../lib/session";
 import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
@@ -161,6 +162,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                     const incidentByChecklistItemId = new Map(
                         createdIncidents.map((incident) => [incident.checklistItemId, incident]),
                     );
+                    const baseUrl = await resolveNotificationBaseUrl();
 
                     const messages = alertItems.map((alert) => {
                         const dev = devicesInfo.find(d => d.id === alert.deviceId);
@@ -186,6 +188,9 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                             deviceDescription: dev?.description,
                             deviceRemarks: alert.remarks,
                             incidentId: incident?.id ? `#${incident.id}` : "-",
+                            incidentLink: incident?.id
+                                ? `[Open incident #${incident.id}](${baseUrl}/admin/incidents/${incident.id})`
+                                : "-",
                         });
                     });
                     const message = messages.join("\n\n---\n\n");

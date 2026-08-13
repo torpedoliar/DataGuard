@@ -1,6 +1,7 @@
 import { db } from "../../db";
 import { siemAlerts, siemFindings, siemSettings, siteTelegramChatIds, siteWebhookUrls, siteEmailAddresses } from "../../db/schema";
 import { sendTelegramAlert } from "../telegram";
+import { resolveNotificationBaseUrl } from "../notification-url";
 import { and, eq, ne } from "drizzle-orm";
 import { formatWibForAlert } from "../ui/datetime";
 import { redactSensitiveText } from "./redaction";
@@ -13,7 +14,7 @@ function isAtLeastSeverity(value: SiemSeverity, minimum: SiemSeverity) {
   return severityRank[value] >= severityRank[minimum];
 }
 
-function alertMessage(input: { findingId: number; title: string; severity: SiemSeverity; siteName: string | null; deviceName: string | null; sourceIp: string | null; summary: string; recommendedAction: string | null; lastSeenAt: Date }) {
+function alertMessage(input: { findingId: number; title: string; severity: SiemSeverity; siteName: string | null; deviceName: string | null; sourceIp: string | null; summary: string; recommendedAction: string | null; lastSeenAt: Date; baseUrl: string }) {
   return redactSensitiveText([
     "*SIEM Finding*",
     `Severity: ${input.severity}`,
@@ -22,6 +23,7 @@ function alertMessage(input: { findingId: number; title: string; severity: SiemS
     `Device: ${input.deviceName ?? "Unmapped"}`,
     `Source: ${input.sourceIp ?? "-"}`,
     `Finding: #${input.findingId} ${input.title}`,
+    `Open: [Open in SIEM](${input.baseUrl}/admin/siem/findings?severity=High)`,
     `Summary: ${input.summary}`,
     `Action: ${input.recommendedAction ?? "Review finding in SIEM dashboard."}`,
   ].join("\n"));
@@ -128,6 +130,7 @@ export async function queueSiemAlerts() {
         summary: finding.humanAnalysis ?? finding.summary,
         recommendedAction: finding.recommendedAction,
         lastSeenAt: finding.lastSeenAt,
+        baseUrl: await resolveNotificationBaseUrl(),
       });
 
       const queueForChannel = async (channel: "telegram" | "webhook" | "email", recipients: SiteAlertRecipient[]) => {

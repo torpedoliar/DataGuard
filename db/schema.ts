@@ -502,6 +502,7 @@ export const globalSettings = pgTable("global_settings", {
   faviconPath: text("favicon_path"),
   telegramBotToken: text("telegram_bot_token"),
   telegramAlertTemplate: text("telegram_alert_template"),
+  notificationBaseUrl: text("notification_base_url"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
