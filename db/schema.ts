@@ -145,10 +145,22 @@ export const brands = pgTable("brands", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ==================== DEVICE GROUPS ====================
+export const deviceGroups = pgTable("device_groups", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#3b82f6"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ==================== DEVICES (PER SITE) ====================
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
-  siteId: integer("site_id").references(() => sites.id),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
   categoryId: integer("category_id").references(() => categories.id).notNull(),
   name: text("name").notNull(),
   assetCode: text("asset_code"),
@@ -163,7 +175,37 @@ export const devices = pgTable("devices", {
   description: text("description"),
   photoPath: text("photo_path"),
   isActive: boolean("is_active").default(true),
+  responsibleGroups: text("responsible_groups").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
 });
+
+// ==================== USER RESPONSIBLE GROUPS ====================
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").unique().notNull(),
+  email: text("email").unique(),
+  role: roleEnum("role").notNull().default("staff"),
+  passwordHash: text("password_hash").notNull(),
+  photoPath: text("photo_path"),
+  isActive: boolean("is_active").default(true),
+  defaultSiteId: integer("default_site_id").references(() => sites.id),
+  lastLogin: timestamp("last_login"),
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  lockoutUntil: timestamp("lockout_until"),
+  createdAt: timestamp("created_at").defaultNow(),
+  responsibleForGroups: text("responsible_for_groups").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+});
+
+// ==================== DEVICE PICS (Binding) ====================
+export const devicePics = pgTable("device_pics", {
+  id: serial("id").primaryKey(),
+  deviceId: integer("device_id").references(() => devices.id, { onDelete: "cascade" }).notNull(),
+  groupId: integer("group_id").references(() => deviceGroups.id, { onDelete: "cascade" }).notNull(),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueIndex: uniqueIndex("device_pics_device_group_unique", { on: ["deviceId", "groupId"] }),
+}));
 
 // ==================== CHECKLIST ENTRIES (PER SITE) ====================
 export const checklistEntries = pgTable("checklist_entries", {

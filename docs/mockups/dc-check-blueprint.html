@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DC-Check — Data Center Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --font-display:"Space Grotesk","Inter",sans-serif;
+  --font-body:"Inter",sans-serif;
+}
+[data-theme="dark"]{
+  --bg:#0D1117; --surface:#161B22; --surface2:#1C2129; --elev:#222831;
+  --stroke:#30363D; --stroke2:#3D444D;
+  --text:#E6EDF3; --text2:#9BA7B4; --muted:#6E7A88;
+  --accent:#5EEAD4; --accent-ink:#0D1117; --accent-soft:rgba(94,234,212,.12);
+  --ok:#34D399; --warn:#FB8500; --danger:#EF233C; --info:#3A86FF; --neutral:#6E7A88;
+  --blueprint:rgba(148,163,184,.06);
+  --grid:rgba(148,163,184,.05);
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+  color-scheme:dark;
+}
+[data-theme="light"]{
+  --bg:#F4F6F9; --surface:#FFFFFF; --surface2:#F8FAFC; --elev:#EEF1F5;
+  --stroke:#D6DCE2; --stroke2:#C3CCD4;
+  --text:#0F1728; --text2:#445263; --muted:#75839A;
+  --accent:#0D9488; --accent-ink:#FFFFFF; --accent-soft:rgba(13,148,136,.1);
+  --ok:#16A34A; --warn:#D97706; --danger:#DC2626; --info:#2563EB; --neutral:#94A3B8;
+  --blueprint:rgba(13,23,40,.045);
+  --grid:rgba(13,23,40,.04);
+  --shadow:0 6px 18px rgba(15,23,42,.08);
+  color-scheme:light;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font-body);
+  background:var(--bg); color:var(--text);
+  font-size:13px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:var(--font-mono)}
+.display{font-family:var(--font-display)}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ============ BLUEPRINT TEXTURE ============ */
+.blueprint-bg{
+  background-image:
+    linear-gradient(var(--blueprint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--blueprint) 1px, transparent 1px);
+  background-size:28px 28px;
+}
+.etched{box-shadow:inset 0 0 0 1px var(--stroke)}
+
+/* ============ LAYOUT ============ */
+.app{display:flex;min-height:100vh}
+.sidebar{
+  width:220px;flex-shrink:0;background:var(--surface);
+  border-right:1px solid var(--stroke);
+  display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;
+}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{
+  height:56px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;border-bottom:1px solid var(--stroke);
+  background:var(--bg);position:sticky;top:0;z-index:20;
+  backdrop-filter:blur(8px);background:color-mix(in srgb,var(--bg) 88%,transparent);
+}
+.content{padding:24px;max-width:1400px;width:100%;margin:0 auto}
+
+/* ============ SIDEBAR ============ */
+.brand{display:flex;align-items:center;gap:10px;padding:18px 18px 14px;border-bottom:1px solid var(--stroke)}
+.brand-mark{
+  width:34px;height:34px;border-radius:8px;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;color:var(--accent-ink);
+  font-family:var(--font-mono);font-weight:700;font-size:15px;flex-shrink:0;
+}
+.brand-name{font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:.2px}
+.brand-sub{font-family:var(--font-mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px}
+.nav{padding:12px 10px;flex:1;overflow-y:auto}
+.nav-group{font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);padding:14px 10px 6px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;
+  color:var(--text2);cursor:pointer;font-size:12.5px;font-weight:500;
+  transition:background .15s,color .15s;margin-bottom:2px;border:1px solid transparent;
+}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent)}
+.nav-item.active .nav-ico{color:var(--accent)}
+.nav-ico{width:18px;height:18px;flex-shrink:0;filter:invert(0);opacity:.9}
+.sidebar-foot{padding:14px;border-top:1px solid var(--stroke);font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.led-status{display:flex;align-items:center;gap:8px}
+
+/* ============ LED ============ */
+.led{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block}
+.led.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.led.warn{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+.led.danger{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+.led.info{background:var(--info);box-shadow:0 0 8px var(--info)}
+.led.neutral{background:var(--neutral)}
+.led.pulse{animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
+  font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:.3px;
+  border:1px solid transparent;
+}
+.chip.ok{background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 25%,transparent)}
+.chip.warn{background:color-mix(in srgb,var(--warn) 12%,transparent);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 25%,transparent)}
+.chip.danger{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger);border-color:color-mix(in srgb,var(--danger) 25%,transparent)}
+.chip.neutral{background:color-mix(in srgb,var(--neutral) 12%,transparent);color:var(--text2);border-color:color-mix(in srgb,var(--neutral) 25%,transparent)}
+
+/* ============ TOPBAR ============ */
+.top-left{display:flex;align-items:center;gap:14px}
+.site-chip{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--stroke);border-radius:6px;font-family:var(--font-mono);font-size:11px;color:var(--text2)}
+.site-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.top-meta{display:flex;align-items:center;gap:16px;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.top-actions{display:flex;align-items:center;gap:10px}
+.icon-btn{width:34px;height:34px;border-radius:6px;border:1px solid var(--stroke);background:var(--surface);color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.cta{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:6px;background:var(--accent);color:var(--accent-ink);font-family:var(--font-display);font-weight:600;font-size:12.5px;cursor:pointer;border:none;transition:background .15s}
+.cta:hover{filter:brightness(1.08)}
+.ghost-cta{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:6px;border:1px solid var(--stroke);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;transition:all .15s}
+.ghost-cta:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ============ PAGE HEADER ============ */
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;gap:16px;flex-wrap:wrap}
+.page-title{font-family:var(--font-display);font-size:22px;font-weight:700;letter-spacing:.2px}
+.page-sub{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px}
+.page-actions{display:flex;gap:10px;align-items:center}
+
+/* ============ CARD ============ */
+.grid{display:grid;gap:16px}
+.grid.cols-4{grid-template-columns:repeat(4,1fr)}
+.grid.cols-3{grid-template-columns:repeat(3,1fr)}
+.grid.cols-2{grid-template-columns:repeat(2,1fr)}
+.card{
+  background:var(--surface);border:1px solid var(--stroke);border-radius:10px;
+  padding:18px;position:relative;overflow:hidden;
+}
+.stripe{position:absolute;top:0;left:0;right:0;height:3px}
+.stripe.ok{background:linear-gradient(90deg,var(--ok),transparent)}
+.stripe.warn{background:linear-gradient(90deg,var(--warn),transparent)}
+.stripe.danger{background:linear-gradient(90deg,var(--danger),transparent)}
+.card-label{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.stat-value{font-family:var(--font-display);font-size:30px;font-weight:700;margin-top:8px;letter-spacing:-.5px}
+.stat-value .tnum{font-size:26px}
+.stat-foot{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:6px;display:flex;align-items:center;gap:6px}
+
+/* ============ TABLE ============ */
+.table-wrap{background:var(--surface);border:1px solid var(--stroke);border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead th{
+  text-align:left;font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;
+  letter-spacing:1.2px;color:var(--muted);padding:10px 16px;border-bottom:1px solid var(--stroke);
+  background:var(--surface2);font-weight:500;
+}
+tbody td{
+  padding:11px 16px;border-bottom:1px solid var(--stroke);font-size:12.5px;color:var(--text2);
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface2)}
+td .mono{color:var(--text)}
+td.sub{color:var(--muted)}
+
+/* ============ RACK ============ */
+.rack-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.rack{
+  background:var(--surface);border:1px solid var(--stroke);border-radius:10px;padding:14px;position:relative;
+}
+.rack-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.rack-name{font-family:var(--font-display);font-weight:600;font-size:13px}
+.rack-id{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.rack-body{display:flex;gap:2px}
+.rack-u{display:flex;flex-direction:column;width:34px;flex-shrink:0;align-items:flex-end;padding-right:8px;font-family:var(--font-mono);font-size:8.5px;color:var(--muted)}
+.rack-u span{height:22px;display:flex;align-items:center}
+.rack-rails{flex:1;display:flex;gap:3px;border-left:1px solid var(--stroke);padding-left:3px}
+.rack-rail{width:2px;background:var(--accent);opacity:.35;border-radius:1px}
+.slot{
+  flex:1;border-radius:3px;border:1px dashed var(--stroke2);height:22px;margin-bottom:3px;
+  background:repeating-linear-gradient(45deg,transparent,transparent 3px,var(--blueprint) 3px,var(--blueprint) 6px);
+  transition:border-color .15s;
+}
+.slot:hover{border-color:var(--accent)}
+.slot.filled{border-style:solid;border-color:var(--stroke2);background:var(--surface2);display:flex;align-items:center;justify-content:center}
+.slot.filled .dev-led{width:7px;height:7px;border-radius:50%}
+.slot.filled .dev-led.ok{background:var(--ok)}
+.slot.filled .dev-led.warn{background:var(--warn)}
+.slot.filled .dev-led.danger{background:var(--danger)}
+.capacity{height:4px;border-radius:2px;background:var(--stroke);margin-top:12px;overflow:hidden}
+.capacity-fill{height:100%;background:var(--accent);border-radius:2px}
+.capacity-label{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between}
+
+/* ============ SCANNER ============ */
+.scan-wrap{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
+.scan-stage{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--stroke);background:#000;aspect-ratio:4/3}
+.scan-video{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,#1a2a2a 0%,#0a0f0f 70%)}
+.scan-reticle{position:absolute;inset:0;pointer-events:none}
+.scan-frame{position:absolute;inset:14%;border:2px solid var(--accent);border-radius:6px;opacity:.85;box-shadow:0 0 30px rgba(94,234,212,.15)}
+.scan-corner{position:absolute;width:22px;height:22px;border:2px solid var(--accent)}
+.scan-corner.tl{top:14%;left:14%;border-right:none;border-bottom:none;border-top-left-radius:6px}
+.scan-corner.tr{top:14%;right:14%;border-left:none;border-bottom:none;border-top-right-radius:6px}
+.scan-corner.bl{bottom:14%;left:14%;border-right:none;border-top:none;border-bottom-left-radius:6px}
+.scan-corner.br{bottom:14%;right:14%;border-left:none;border-top:none;border-bottom-right-radius:6px}
+.scan-line{position:absolute;left:14%;right:14%;height:2px;background:var(--accent);top:50%;animation:scan 2.4s ease-in-out infinite;opacity:.9;box-shadow:0 0 12px var(--accent)}
+@keyframes scan{0%,100%{top:38%}50%{top:62%}}
+.scan-tele{position:absolute;bottom:10px;left:12px;right:12px;display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--accent);opacity:.8;letter-spacing:1px}
+.scan-overlay{position:absolute;top:10px;left:12px;display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:10px;color:#fff;background:rgba(0,0,0,.5);padding:4px 10px;border-radius:4px}
+.scan-preview{display:flex;flex-direction:column;gap:14px}
+.step-rail{display:flex;align-items:center;gap:6px;padding:10px 0}
+.step{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:4px 8px;border-radius:4px;white-space:nowrap}
+.step.active{color:var(--accent);background:var(--accent-soft)}
+.step.done{color:var(--text2);text-decoration:line-through}
+.step-join{width:14px;height:1px;background:var(--stroke);flex-shrink:0}
+.device-card{background:var(--surface);border:1px solid var(--stroke);border-radius:10px;padding:18px}
+.device-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.device-id{font-family:var(--font-display);font-size:16px;font-weight:600}
+.device-loc{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px}
+.device-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.meta-box{background:var(--surface2);border:1px solid var(--stroke);border-radius:6px;padding:10px}
+.meta-label{font-family:var(--font-mono);font-size:8.5px;text-transform:uppercase;color:var(--muted);letter-spacing:1px}
+.meta-val{font-family:var(--font-mono);font-size:12px;color:var(--text);margin-top:3px}
+
+/* ============ CHECKLIST ============ */
+.checklist{display:flex;flex-direction:column;gap:8px}
+.check-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--stroke);border-radius:8px;background:var(--surface);cursor:pointer;transition:border-color .15s}
+.check-item:hover{border-color:var(--accent)}
+.check-status{width:34px;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;font-weight:700;flex-shrink:0}
+.check-status.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.check-status.warn{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn)}
+.check-status.danger{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
+.check-body{flex:1}
+.check-title{font-size:12.5px;font-weight:500;color:var(--text)}
+.check-desc{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px}
+.check-arrow{color:var(--muted)}
+
+/* ============ INCIDENT ============ */
+.incident-list{display:flex;flex-direction:column;gap:10px}
+.incident{
+  display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--surface);
+  border:1px solid var(--stroke);border-radius:10px;
+}
+.incident::before{
+  content:"";width:4px;height:20px;border-radius:2px;flex-shrink:0;
+  background:var(--neutral);
+}
+.incident.danger::before{background:var(--danger);box-shadow:0 0 6px var(--danger)}
+.incident.warn::before{background:var(--warn);box-shadow:0 0 6px var(--warn)}
+.incident.ok::before{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.inc-id{font-family:var(--font-mono);font-size:11px;color:var(--text);min-width:70px}
+.inc-body{flex:1}
+.inc-title{font-size:12.5px;font-weight:600;color:var(--text)}
+.inc-sub{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px}
+.inc-time{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-align:right}
+
+/* ============ SPARKLINE ============ */
+.spark{display:flex;align-items:flex-end;gap:3px;height:34px;margin-top:10px}
+.spark span{flex:1;border-radius:2px;background:color-mix(in srgb,var(--accent) 55%,transparent)}
+.spark span.peak{background:var(--accent)}
+
+/* ============ REPORT BAR ============ */
+.report-bar{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--stroke);border-radius:10px;margin-bottom:16px;flex-wrap:wrap}
+.report-bar .bar-label{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-right:4px}
+
+/* ============ THEME TOGGLE ============ */
+.theme-toggle{width:34px;height:34px;border-radius:6px;border:1px solid var(--stroke);background:var(--surface);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .15s}
+.theme-toggle:hover{border-color:var(--accent)}
+
+/* ============ SCREEN SWITCHER ============ */
+.screen-switch{display:flex;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--stroke);border-radius:8px}
+.screen-switch button{padding:6px 12px;border:none;background:transparent;color:var(--text2);font-family:var(--font-mono);font-size:10.5px;border-radius:5px;cursor:pointer;letter-spacing:.5px}
+.screen-switch button.active{background:var(--accent-soft);color:var(--accent)}
+.screen{display:none}
+.screen.show{display:block;animation:fadein .2s ease-out}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ============ RESPONSIVE ============ */
+@media(max-width:1100px){
+  .grid.cols-4{grid-template-columns:repeat(2,1fr)}
+  .rack-cols{grid-template-columns:1fr 1fr}
+  .scan-wrap{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  .sidebar{display:none}
+  .grid.cols-4,.grid.cols-3,.grid.cols-2,.rack-cols{grid-template-columns:1fr}
+  .content{padding:14px}
+  .top-meta .hide-mobile{display:none}
+  .page-title{font-size:18px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">DC</div>
+      <div>
+        <div class="brand-name">DC-Check</div>
+        <div class="brand-sub">Audit Console</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <div class="nav-group">Operations</div>
+      <div class="nav-item active" data-screen="dashboard"><svg class="nav-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</div>
+      <div class="nav-item" data-screen="rack"><svg class="nav-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="9" y1="6" x2="15" y2="6"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="15" y2="14"/><line x1="9" y1="18" x2="13" y2="18"/></svg>Racks</div>
+      <div class="nav-item" data-screen="scan"><svg class="nav-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V4a1 1 0 011-1h3"/><path d="M17 3h3a1 1 0 011 1v3"/><path d="M21 17v3a1 1 0 01-1 1h-3"/><path d="M7 21H4a1 1 0 01-1-1v-3"/><line x1="7" y1="12" x2="17" y2="12"/></svg>New Audit</div>
+      <div class="nav-group">Monitoring</div>
+      <div class="nav-item" data-screen="incidents"><svg class="nav-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>Incidents</div>
+      <div class="nav-item" data-screen="report"><svg class="nav-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>Reports</div>
+      <div class="nav-group">Inventory</div>
+      <div class="nav-item"><svg class="nav-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>Devices</div>
+      <div class="nav-item"><svg class="nav-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>SIEM</div>
+      <div class="nav-group">System</div>
+      <div class="nav-item"><svg class="nav-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Settings</div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="led-status"><span class="led ok pulse"></span><span>SYNC ONLINE</span></div>
+      <div style="margin-top:6px">v1.4.2 · DC-JKT</div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <header class="topbar">
+      <div class="top-left">
+        <div class="site-chip"><span class="dot"></span><span>DC-JKT — Facility 01</span></div>
+        <div class="top-meta">
+          <span class="mono hide-mobile">2026-08-11</span>
+          <span class="mono hide-mobile tnum">03:41:22 UTC+7</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div class="screen-switch">
+          <button data-screen="dashboard" class="active">Dashboard</button>
+          <button data-screen="rack">Rack</button>
+          <button data-screen="scan">Scan</button>
+          <button data-screen="incidents">Incident</button>
+          <button data-screen="report">Reports</button>
+        </div>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">◐</button>
+        <button class="cta">+ New Audit</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- ============ DASHBOARD ============ -->
+      <section class="screen show" id="screen-dashboard">
+        <div class="page-head">
+          <div>
+            <div class="page-title">Operations Overview</div>
+            <div class="page-sub">DC-JKT · Facility 01 · <span class="led ok pulse" style="vertical-align:middle"></span> ALL SYSTEMS NOMINAL</div>
+          </div>
+          <div class="page-actions"><button class="ghost-cta">Export CSV</button></div>
+        </div>
+        <div class="grid cols-4">
+          <div class="card"><div class="stripe ok"></div><div class="card-label"><span class="led ok"></span>DEVICES AUDITED</div><div class="stat-value tnum">1,284</div><div class="stat-foot">▲ 3.2% vs last cycle</div></div>
+          <div class="card"><div class="stripe warn"></div><div class="card-label"><span class="led warn"></span>WARNINGS</div><div class="stat-value tnum">37</div><div class="stat-foot">needs attention</div></div>
+          <div class="card"><div class="stripe danger"></div><div class="card-label"><span class="led danger pulse"></span>CRITICAL</div><div class="stat-value tnum">4</div><div class="stat-foot">2 in DC-JKT-01</div></div>
+          <div class="card"><div class="stripe"></div><div class="card-label"><span class="led ok"></span>UPTIME</div><div class="stat-value tnum">99.98%</div><div class="stat-foot">30-day rolling</div></div>
+        </div>
+        <div class="grid cols-3" style="margin-top:16px">
+          <div class="card">
+            <div class="card-label">RACK UTILIZATION</div>
+            <div class="spark"><span style="height:30%"></span><span style="height:45%"></span><span style="height:38%"></span><span style="height:55%"></span><span style="height:48%"></span><span style="height:62%"></span><span style="height:58%"></span><span style="height:70%"></span><span style="height:66%"></span><span style="height:78%"></span><span class="peak" style="height:82%"></span></div>
+            <div class="stat-foot">▲ 12% capacity added this month</div>
+          </div>
+          <div class="card">
+            <div class="card-label">AUDIT CYCLE</div>
+            <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+              <div><div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:4px"><span>QA-X · 3rd floor</span><span class="tnum">82%</span></div><div class="capacity"><div class="capacity-fill" style="width:82%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:4px"><span>TX-L · 2nd floor</span><span class="tnum">64%</span></div><div class="capacity"><div class="capacity-fill" style="width:64%;background:var(--warn)"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:4px"><span>BN-7 · 1st floor</span><span class="tnum">91%</span></div><div class="capacity"><div class="capacity-fill" style="width:91%"></div></div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-label">RECENT INCIDENTS</div>
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px"><span class="led danger pulse"></span><span class="mono" style="font-size:11px">SI-2031</span><span style="flex:1;font-size:11px;color:var(--text2)">PDU over-current</span><span class="mono" style="font-size:9px;color:var(--muted)">02m</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span class="led warn"></span><span class="mono" style="font-size:11px">SI-2030</span><span style="flex:1;font-size:11px;color:var(--text2)">Temp 41°C TX-L</span><span class="mono" style="font-size:9px;color:var(--muted)">18m</span></div>
+              <div style="display:flex;align-items:center;gap:8px"><span class="led ok"></span><span class="mono" style="font-size:11px">SI-2029</span><span style="flex:1;font-size:11px;color:var(--text2)">Flow restored</span><span class="mono" style="font-size:9px;color:var(--muted)">1h</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:16px">
+          <table>
+            <thead><tr><th>Device ID</th><th>Rack</th><th>Category</th><th>Last Audit</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td><span class="mono">SW-07-U12</span></td><td class="mono">R-03</td><td>Network</td><td class="mono">2026-08-11</td><td><span class="chip ok"><span class="led ok"></span>OK</span></td></tr>
+              <tr><td><span class="mono">SRV-12-U22</span></td><td class="mono">R-07</td><td>Compute</td><td class="mono">2026-08-10</td><td><span class="chip warn"><span class="led warn"></span>WARNING</span></td></tr>
+              <tr><td><span class="mono">PDU-03-U01</span></td><td class="mono">R-01</td><td>Power</td><td class="mono">2026-08-11</td><td><span class="chip danger"><span class="led danger pulse"></span>CRITICAL</span></td></tr>
+              <tr><td><span class="mono">CRAC-02-U19</span></td><td class="mono">R-05</td><td>Cooling</td><td class="mono">2026-08-09</td><td><span class="chip ok"><span class="led ok"></span>OK</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ RACK ============ -->
+      <section class="screen" id="screen-rack">
+        <div class="page-head">
+          <div>
+            <div class="page-title">Rack Layout</div>
+            <div class="page-sub"><span class="mono">42U STANDARD</span> · drag to assign · click for detail</div>
+          </div>
+          <div class="page-actions"><button class="ghost-cta">View Read-Only</button></div>
+        </div>
+        <div class="rack-cols">
+          <div class="rack blueprint-bg">
+            <div class="rack-head"><div><div class="rack-name">RA-01</div><div class="rack-id">DC-JKT · Core</div></div><span class="chip ok"><span class="led ok"></span>38/42</span></div>
+            <div class="rack-body">
+              <div class="rack-u"><span>42</span><span>41</span><span>40</span><span>39</span><span>38</span><span>37</span><span>36</span><span>35</span><span>34</span><span>33</span><span>32</span><span>31</span><span>30</span><span>29</span><span>28</span><span>27</span><span>26</span><span>25</span><span>24</span><span>23</span><span>22</span><span>21</span><span>20</span><span>19</span><span>18</span><span>17</span><span>16</span><span>15</span><span>14</span><span>13</span><span>12</span><span>11</span><span>10</span><span>9</span><span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+              <div class="rack-rails">
+                <div class="rack-rail"></div>
+                <div style="flex:1;display:flex;flex-direction:column">
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led warn"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led danger"></span></div>
+                  <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot"></div><div class="slot"></div>
+                  <div class="slot filled"><span class="dev-led warn"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                </div>
+              </div>
+            </div>
+            <div class="capacity"><div class="capacity-fill" style="width:90%"></div></div>
+            <div class="capacity-label"><span>OCCUPIED</span><span class="tnum">38U</span></div>
+          </div>
+          <div class="rack blueprint-bg">
+            <div class="rack-head"><div><div class="rack-name">RA-02</div><div class="rack-id">DC-JKT · Compute</div></div><span class="chip ok"><span class="led ok"></span>31/42</span></div>
+            <div class="rack-body">
+              <div class="rack-u"><span>42</span><span>41</span><span>40</span><span>39</span><span>38</span><span>37</span><span>36</span><span>35</span><span>34</span><span>33</span><span>32</span><span>31</span><span>30</span><span>29</span><span>28</span><span>27</span><span>26</span><span>25</span><span>24</span><span>23</span><span>22</span><span>21</span><span>20</span><span>19</span><span>18</span><span>17</span><span>16</span><span>15</span><span>14</span><span>13</span><span>12</span><span>11</span><span>10</span><span>9</span><span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+              <div class="rack-rails">
+                <div class="rack-rail"></div>
+                <div style="flex:1;display:flex;flex-direction:column">
+                  <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led warn"></span></div>
+                  <div class="slot"></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led danger"></span></div>
+                  <div class="slot"></div><div class="slot"></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                  <div class="slot filled"><span class="dev-led warn"></span></div>
+                  <div class="slot"></div><div class="slot"></div>
+                </div>
+              </div>
+            </div>
+            <div class="capacity"><div class="capacity-fill" style="width:74%"></div></div>
+            <div class="capacity-label"><span>OCCUPIED</span><span class="tnum">31U</span></div>
+          </div>
+          <div class="rack blueprint-bg">
+            <div class="rack-head"><div><div class="rack-name">RA-03</div><div class="rack-id">DC-JKT · Power</div></div><span class="chip warn"><span class="led warn"></span>29/42</span></div>
+            <div class="rack-body">
+              <div class="rack-u"><span>42</span><span>41</span><span>40</span><span>39</span><span>38</span><span>37</span><span>36</span><span>35</span><span>34</span><span>33</span><span>32</span><span>31</span><span>30</span><span>29</span><span>28</span><span>27</span><span>26</span><span>25</span><span>24</span><span>23</span><span>22</span><span>21</span><span>20</span><span>19</span><span>18</span><span>17</span><span>16</span><span>15</span><span>14</span><span>13</span><span>12</span><span>11</span><span>10</span><span>9</span><span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+              <div class="rack-rails">
+                <div class="rack-rail"></div>
+                <div style="flex:1;display:flex;flex-direction:column">
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot"></div><div class="slot"></div>
+                  <div class="slot filled"><span class="dev-led danger"></span></div>
+                  <div class="slot"></div><div class="slot"></div>
+                  <div class="slot filled"><span class="dev-led warn"></span></div>
+                  <div class="slot filled"><span class="dev-led warn"></span></div>
+                  <div class="slot filled"><span class="dev-led ok"></span></div>
+                  <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                </div>
+              </div>
+            </div>
+            <div class="capacity"><div class="capacity-fill" style="width:69%;background:var(--warn)"></div></div>
+            <div class="capacity-label"><span>OCCUPIED</span><span class="tnum">29U</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SCAN ============ -->
+      <section class="screen" id="screen-scan">
+        <div class="page-head">
+          <div>
+            <div class="page-title">New Audit</div>
+            <div class="page-sub">Point at rack device QR · <span class="mono">DC-JKT</span></div>
+          </div>
+        </div>
+        <div class="step-rail">
+          <span class="step active">Scan</span><span class="step-join"></span>
+          <span class="step">Device</span><span class="step-join"></span>
+          <span class="step">Checklist</span><span class="step-join"></span>
+          <span class="step">Submit</span>
+        </div>
+        <div class="scan-wrap">
+          <div class="scan-stage">
+            <div class="scan-video"></div>
+            <div class="scan-reticle">
+              <div class="scan-frame"></div>
+              <div class="scan-corner tl"></div><div class="scan-corner tr"></div><div class="scan-corner bl"></div><div class="scan-corner br"></div>
+              <div class="scan-line"></div>
+            </div>
+            <div class="scan-overlay"><span class="led ok pulse"></span><span>SCANNING</span></div>
+            <div class="scan-tele"><span>QR/AZ</span><span class="tnum">F/2.2 ISO 800</span><span>DC-JKT R-07</span></div>
+          </div>
+          <div class="scan-preview">
+            <div class="device-card etched">
+              <div class="device-head">
+                <div><div class="device-id">SRV-12-U22</div><div class="device-loc">R-07 · Compute · <span class="mono">DC-JKT</span></div></div>
+                <span class="chip warn"><span class="led warn"></span>WARNING</span>
+              </div>
+              <div class="device-meta">
+                <div class="meta-box"><div class="meta-label">MANAGED NODE</div><div class="meta-val">SRV-12-U22</div></div>
+                <div class="meta-box"><div class="meta-label">LAST AUDIT</div><div class="meta-val">2026-08-10</div></div>
+                <div class="meta-box"><div class="meta-label">UPTIME</div><div class="meta-val tnum">99.4%</div></div>
+                <div class="meta-box"><div class="meta-label">TEMP</div><div class="meta-val tnum">41.2°C</div></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px">
+              <button class="ghost-cta" style="flex:1;justify-content:center;padding:12px">Re-scan</button>
+              <button class="cta" style="flex:2;justify-content:center;padding:12px">Begin Checklist →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ INCIDENTS ============ -->
+      <section class="screen" id="screen-incidents">
+        <div class="page-head">
+          <div>
+            <div class="page-title">Incident Center</div>
+            <div class="page-sub"><span class="led danger pulse" style="vertical-align:middle"></span> 1 ACTIVE · 3 ACKNOWLEDGED</div>
+          </div>
+          <div class="page-actions"><button class="ghost-cta">Filter</button><button class="ghost-cta">Acknowledge All</button></div>
+        </div>
+        <div class="incident-list">
+          <div class="incident danger">
+            <span class="led danger pulse"></span>
+            <div class="inc-id">SI-2031</div>
+            <div class="inc-body"><div class="inc-title">PDU over-current — RA-01 U05</div><div class="inc-sub">POWER · DC-JKT · raised 02:14 UTC</div></div>
+            <div class="inc-time"><span class="chip danger">CRITICAL</span><br><span style="font-size:9px">02m ago</span></div>
+          </div>
+          <div class="incident warn">
+            <span class="led warn"></span>
+            <div class="inc-id">SI-2030</div>
+            <div class="inc-body"><div class="inc-title">Inlet temp 41°C — TX-L R-12</div><div class="inc-sub">COOLING · DC-JKT · raised 03:23 UTC</div></div>
+            <div class="inc-time"><span class="chip warn">WARNING</span><br><span style="font-size:9px">18m ago</span></div>
+          </div>
+          <div class="incident ok">
+            <span class="led ok"></span>
+            <div class="inc-id">SI-2029</div>
+            <div class="inc-body"><div class="inc-title">Airflow restored — BN-7</div><div class="inc-sub">COOLING · DC-JKT · resolved 02:41 UTC</div></div>
+            <div class="inc-time"><span class="chip ok">RESOLVED</span><br><span style="font-size:9px">1h ago</span></div>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:16px">
+          <table>
+            <thead><tr><th>Time</th><th>ID</th><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">02:14</td><td class="mono">SI-2031</td><td>PDU over-current</td><td>Power</td><td><span class="chip danger"><span class="led danger pulse"></span>ACTIVE</span></td></tr>
+              <tr><td class="mono">01:23</td><td class="mono">SI-2028</td><td>Patch cable pull</td><td>Network</td><td><span class="chip neutral">ACK</span></td></tr>
+              <tr><td class="mono">00:58</td><td class="mono">SI-2027</td><td>Fan speed high</td><td>Cooling</td><td><span class="chip neutral">ACK</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ REPORT ============ -->
+      <section class="screen" id="screen-report">
+        <div class="page-head">
+          <div>
+            <div class="page-title">Audit Report</div>
+            <div class="page-sub">Consolidated · <span class="mono">DC-JKT</span> · 2026-08-11</div>
+          </div>
+          <div class="page-actions"><button class="ghost-cta">Print</button><button class="cta">Export PDF</button></div>
+        </div>
+        <div class="report-bar">
+          <span class="bar-label">SUMMARY</span>
+          <span class="chip ok"><span class="led ok"></span><span class="tnum">1,243 OK</span></span>
+          <span class="chip warn"><span class="led warn"></span><span class="tnum">37 WARN</span></span>
+          <span class="chip danger"><span class="led danger"></span><span class="tnum">4 CRIT</span></span>
+          <span style="flex:1"></span>
+          <button class="ghost-cta" style="padding:6px 12px">7 days</button>
+        </div>
+        <div class="grid cols-3" style="margin-bottom:16px">
+          <div class="card"><div class="card-label">COMPLIANCE</div><div class="stat-value tnum">98.2%</div><div class="stat-foot">audit-grade coverage</div></div>
+          <div class="card"><div class="card-label">AVG AUDIT TIME</div><div class="stat-value tnum">4m 32s</div><div class="stat-foot">per device</div></div>
+          <div class="card"><div class="card-label">AUDITORS ACTIVE</div><div class="stat-value tnum">12</div><div class="stat-foot">this cycle</div></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Device ID</th><th>Rack</th><th>Category</th><th>Audited</th><th>Result</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td><span class="mono">SW-07-U12</span></td><td class="mono">R-03</td><td>Network</td><td class="mono">11 Aug 03:40</td><td><span class="chip ok"><span class="led ok"></span>OK</span></td><td class="sub">—</td></tr>
+              <tr><td><span class="mono">SRV-12-U22</span></td><td class="mono">R-07</td><td>Compute</td><td class="mono">10 Aug 22:11</td><td><span class="chip warn"><span class="led warn"></span>WARNING</span></td><td class="sub">Temp margin low</td></tr>
+              <tr><td><span class="mono">PDU-03-U01</span></td><td class="mono">R-01</td><td>Power</td><td class="mono">11 Aug 04:02</td><td><span class="chip danger"><span class="led danger"></span>CRITICAL</span></td><td class="sub">Over-current event</td></tr>
+              <tr><td><span class="mono">CRAC-02-U19</span></td><td class="mono">R-05</td><td>Cooling</td><td class="mono">09 Aug 18:30</td><td><span class="chip ok"><span class="led ok"></span>OK</span></td><td class="sub">FTE filter</td></tr>
+              <tr><td><span class="mono">UPS-01-U32</span></td><td class="mono">R-09</td><td>Power</td><td class="mono">11 Aug 02:15</td><td><span class="chip ok"><span class="led ok"></span>OK</span></td><td class="sub">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+// Theme toggle
+const root = document.documentElement;
+const themeBtn = document.getElementById('themeToggle');
+function setTheme(t){root.dataset.theme=t;themeBtn.textContent=t==='dark'?'☾':'☀';}
+setTheme(localStorage.getItem('dc-theme')||'dark');
+themeBtn.addEventListener('click',()=>{
+  const next = root.dataset.theme==='dark'?'light':'dark';
+  setTheme(next); localStorage.setItem('dc-theme',next);
+});
+
+// Screen switching
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
+  const target = document.getElementById('screen-'+name);
+  if(target) target.classList.add('show');
+  document.querySelectorAll('[data-screen]').forEach(el=>{
+    el.classList.toggle('active', el.dataset.screen===name);
+  });
+}
+document.querySelectorAll('[data-screen]').forEach(el=>{
+  el.addEventListener('click',()=>showScreen(el.dataset.screen));
+});
+</script>
+</body>
+</html>
