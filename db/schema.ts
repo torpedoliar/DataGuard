@@ -98,6 +98,7 @@ export const users = pgTable("users", {
   failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
   lockoutUntil: timestamp("lockout_until"),
   createdAt: timestamp("created_at").defaultNow(),
+  responsibleForGroups: text("responsible_for_groups").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
 });
 
 // ==================== USER-SITE ASSIGNMENT ====================
@@ -179,23 +180,6 @@ export const devices = pgTable("devices", {
   responsibleGroups: text("responsible_groups").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
 });
 
-// ==================== USER RESPONSIBLE GROUPS ====================
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").unique().notNull(),
-  email: text("email").unique(),
-  role: roleEnum("role").notNull().default("staff"),
-  passwordHash: text("password_hash").notNull(),
-  photoPath: text("photo_path"),
-  isActive: boolean("is_active").default(true),
-  defaultSiteId: integer("default_site_id").references(() => sites.id),
-  lastLogin: timestamp("last_login"),
-  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
-  lockoutUntil: timestamp("lockout_until"),
-  createdAt: timestamp("created_at").defaultNow(),
-  responsibleForGroups: text("responsible_for_groups").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
-});
-
 // ==================== DEVICE PICS (Binding) ====================
 export const devicePics = pgTable("device_pics", {
   id: serial("id").primaryKey(),
@@ -205,7 +189,7 @@ export const devicePics = pgTable("device_pics", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  uniqueIndex: uniqueIndex("device_pics_device_group_unique", { on: ["deviceId", "groupId"] }),
+  uniqueIndex: uniqueIndex("device_pics_device_group_unique").on(table.deviceId, table.groupId),
 }));
 
 // ==================== CHECKLIST ENTRIES (PER SITE) ====================
