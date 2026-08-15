@@ -10,6 +10,9 @@ import { Network, Server, ArrowLeft } from "lucide-react";
 import AddPortForm from "@/components/admin/add-port-form";
 import PortTable from "@/components/admin/port-table";
 import ImportPortForm from "@/components/admin/import-port-form";
+import DeviceFaceplate from "@/components/admin/device-faceplate";
+import FaceplateConfigForm from "@/components/admin/faceplate-config-form";
+import FaceplatePdfButton from "@/components/admin/faceplate-pdf-button";
 
 export default async function NetworkDocumentationPage({
     params,
@@ -32,6 +35,10 @@ export default async function NetworkDocumentationPage({
             ipAddress: devices.ipAddress,
             locationName: locations.name,
             brandName: brands.name,
+            faceplatePortCount: devices.faceplatePortCount,
+            faceplateUplinkCount: devices.faceplateUplinkCount,
+            faceplateRows: devices.faceplateRows,
+            faceplateNumbering: devices.faceplateNumbering,
         })
         .from(devices)
         .leftJoin(brands, eq(devices.brandId, brands.id))
@@ -49,6 +56,13 @@ export default async function NetworkDocumentationPage({
     // Pass strictly other devices for topology connections, excluding the current device.
     const allDevices = await getDevices();
     const otherDevices = allDevices.filter(d => d.id !== deviceId);
+
+    const faceplateConfig = {
+        portCount: device.faceplatePortCount,
+        uplinkCount: device.faceplateUplinkCount,
+        rows: device.faceplateRows,
+        numbering: device.faceplateNumbering,
+    };
 
     return (
         <div className="px-4 py-6 lg:px-6">
@@ -81,6 +95,14 @@ export default async function NetworkDocumentationPage({
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <FaceplatePdfButton
+                            deviceName={device.name}
+                            deviceIp={device.ipAddress}
+                            brandName={device.brandName}
+                            locationName={device.locationName}
+                            config={faceplateConfig}
+                            ports={ports}
+                        />
                         <Link
                             href={`/admin/network/vlans`}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -116,6 +138,19 @@ export default async function NetworkDocumentationPage({
                         {ports.filter(p => p.portMode === 'Trunk').length}
                     </p>
                 </div>
+            </div>
+
+            {/* Faceplate: physical port diagram generated from the port data below */}
+            <div className="mb-6 space-y-4">
+                <FaceplateConfigForm deviceId={deviceId} config={faceplateConfig} />
+                <DeviceFaceplate
+                    deviceId={deviceId}
+                    deviceName={device.name}
+                    config={faceplateConfig}
+                    ports={ports}
+                    vlans={vlans}
+                    otherDevices={otherDevices}
+                />
             </div>
 
             <AddPortForm deviceId={deviceId} vlans={vlans} otherDevices={otherDevices} />

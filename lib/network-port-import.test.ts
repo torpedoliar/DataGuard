@@ -31,6 +31,33 @@ describe("network port import parser", () => {
     ]);
   });
 
+  it("keeps an optional faceplate slot and defaults it to null", () => {
+    const withSlot = parseNetworkPortImportRows([{ "Port Name": "Gi1/0/5", "Port Index": "5" }], {
+      deviceId: 7,
+      vlanRefs,
+      existingPortNames: [],
+    });
+    const withoutSlot = parseNetworkPortImportRows([{ "Port Name": "Gi1/0/5" }], {
+      deviceId: 7,
+      vlanRefs,
+      existingPortNames: [],
+    });
+
+    expect(withSlot.errors).toEqual([]);
+    expect(withSlot.ports[0].portIndex).toBe(5);
+    expect(withoutSlot.ports[0].portIndex).toBeNull();
+  });
+
+  it("rejects a non positive faceplate slot", () => {
+    const result = parseNetworkPortImportRows([{ "Port Name": "Gi1/0/5", "Port Index": "0" }], {
+      deviceId: 7,
+      vlanRefs,
+      existingPortNames: [],
+    });
+
+    expect(result.errors).toEqual(["Row 2: Port Index must be a whole number of 1 or higher."]);
+  });
+
   it("maps blank VLAN to null", () => {
     const result = parseNetworkPortImportRows([{ "Port Name": "Eth1", "VLAN ID": "" }], {
       deviceId: 7,

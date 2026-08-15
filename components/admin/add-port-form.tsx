@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { addPort, bulkAddPorts, downloadPortImportTemplate, importPortsFromXlsx } from "@/actions/network";
 import {
     PORT_NAMING_TEMPLATES,
@@ -53,6 +54,7 @@ export default function AddPortForm({
     vlans: Vlan[];
     otherDevices: Device[];
 }) {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [isTemplateDownloading, startTemplateDownloadTransition] = useTransition();
     const [isImporting, startImportTransition] = useTransition();
@@ -63,6 +65,7 @@ export default function AddPortForm({
     const [templateSubslot, setTemplateSubslot] = useState("0");
     const [templatePort, setTemplatePort] = useState("1");
     const [portName, setPortName] = useState("");
+    const [slotIndex, setSlotIndex] = useState("");
     const [macAddress, setMacAddress] = useState("");
     const [ipAddress, setIpAddress] = useState("");
     const [portMode, setPortMode] = useState("Access");
@@ -152,10 +155,12 @@ export default function AddPortForm({
         setSuccess(null);
 
         let generatedPortNames: string[];
+        let bulkStart = 1;
         try {
             if (isBulk) {
                 const start = Number.parseInt(portStart, 10);
                 const end = Number.parseInt(portEnd, 10);
+                bulkStart = start;
                 generatedPortNames = buildPortNameRange(effectiveTemplateId, templateParams, start, end);
             } else {
                 generatedPortNames = [formatPortName(effectiveTemplateId, templateParams)];
@@ -168,9 +173,12 @@ export default function AddPortForm({
         startTransition(async () => {
             try {
                 if (isBulk) {
-                    const ports = generatedPortNames.map((generatedPortName) => ({
+                    const ports = generatedPortNames.map((generatedPortName, index) => ({
                         deviceId,
                         portName: generatedPortName,
+                        // Range numbers double as faceplate slots so bulk-provisioned
+                        // ports land on the diagram without extra work.
+                        portIndex: bulkStart + index,
                         portMode: portMode as "Access" | "Trunk" | "Routed" | "LACP",
                         vlanId: vlanId ? Number.parseInt(vlanId, 10) : null,
                         trunkVlans: trunkVlans || null,
@@ -186,6 +194,7 @@ export default function AddPortForm({
                     await addPort({
                         deviceId,
                         portName: generatedPortNames[0],
+                        portIndex: slotIndex.trim() === "" ? null : Number.parseInt(slotIndex, 10),
                         macAddress: macAddress || null,
                         ipAddress: ipAddress || null,
                         portMode: portMode as "Access" | "Trunk" | "Routed" | "LACP",
@@ -200,7 +209,9 @@ export default function AddPortForm({
                     setSuccess("Port definition added successfully!");
                 }
 
+                router.refresh();
                 setPortName("");
+                setSlotIndex("");
                 setMacAddress("");
                 setIpAddress("");
                 setTrunkVlans("");
@@ -383,6 +394,24 @@ export default function AddPortForm({
                             onChange={(e) => setMacAddress(e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
                             placeholder="00:1A:2B:3C:4D:5E"
+                            disabled={busy}
+                        />
+                    </div>
+                )}
+
+                {!isBulk && (
+                    <div>
+                        <label htmlFor="add-port-slot" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                            Slot Faceplate
+                        </label>
+                        <input
+                            id="add-port-slot"
+                            type="number"
+                            min="1"
+                            value={slotIndex}
+                            onChange={(e) => setSlotIndex(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                            placeholder="Auto dari nama port"
                             disabled={busy}
                         />
                     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { updatePort } from "@/actions/network";
 import { Loader2, X, Settings2 } from "lucide-react";
 
@@ -11,6 +12,7 @@ type Port = {
     id: number;
     deviceId: number;
     portName: string;
+    portIndex?: number | null;
     macAddress: string | null;
     ipAddress: string | null;
     portMode: string | null;
@@ -36,7 +38,9 @@ export default function EditPortModal({
     onClose: () => void;
     deviceId: number;
 }) {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
+    const [portIndex, setPortIndex] = useState(port.portIndex ? String(port.portIndex) : "");
     const [macAddress, setMacAddress] = useState(port.macAddress || "");
     const [ipAddress, setIpAddress] = useState(port.ipAddress || "");
     const [portMode, setPortMode] = useState(port.portMode || "Access");
@@ -58,6 +62,7 @@ export default function EditPortModal({
             try {
                 await updatePort(port.id, {
                     deviceId,
+                    portIndex: portIndex.trim() === "" ? null : Number.parseInt(portIndex, 10),
                     macAddress: macAddress || null,
                     ipAddress: ipAddress || null,
                     portMode: portMode as "Access" | "Trunk" | "Routed" | "LACP",
@@ -69,6 +74,7 @@ export default function EditPortModal({
                     connectedToDeviceId: connectedToDeviceId ? parseInt(connectedToDeviceId) : null,
                     description: description || null,
                 });
+                router.refresh();
                 onClose();
             } catch (err: unknown) {
                 const error = err as Error;
@@ -94,7 +100,23 @@ export default function EditPortModal({
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6">
-                    <div className="grid gap-6 md:grid-cols-3 border-b border-slate-200 dark:border-slate-700 pb-6 mb-6">
+                    <div className="grid gap-6 md:grid-cols-4 border-b border-slate-200 dark:border-slate-700 pb-6 mb-6">
+                        <div>
+                            <label htmlFor="edit-port-slot" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                                Slot Faceplate
+                            </label>
+                            <input
+                                id="edit-port-slot"
+                                type="number"
+                                min={1}
+                                value={portIndex}
+                                onChange={(e) => setPortIndex(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                placeholder="Auto dari nama port"
+                                disabled={isPending}
+                            />
+                            <p className="mt-1 text-[11px] text-slate-400">Kosongkan untuk mengikuti nomor pada nama interface.</p>
+                        </div>
                         <div>
                             <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
                                 MAC Address

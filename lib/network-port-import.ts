@@ -2,6 +2,7 @@ import type { networkPorts } from "@/db/schema";
 
 export const PORT_IMPORT_COLUMNS = [
   "Port Name",
+  "Port Index",
   "MAC Address",
   "IP Address",
   "Port Mode",
@@ -81,6 +82,17 @@ export function parseNetworkPortImportRows(rows: ImportRow[], options: ParseOpti
       if (vlanId === null) errors.push(`Row ${rowNumber}: VLAN ID ${vlanNumber} does not exist in this site.`);
     }
 
+    const rawPortIndex = text(row["Port Index"]);
+    let portIndex: number | null = null;
+    if (rawPortIndex) {
+      const parsedIndex = Number(rawPortIndex);
+      if (!Number.isInteger(parsedIndex) || parsedIndex < 1) {
+        errors.push(`Row ${rowNumber}: Port Index must be a whole number of 1 or higher.`);
+      } else {
+        portIndex = parsedIndex;
+      }
+    }
+
     const portMode = normalizeEnum(row["Port Mode"], portModes, "Access", "Port Mode", rowNumber, errors);
     const status = normalizeEnum(row.Status, statuses, "Active", "Status", rowNumber, errors);
     const speed = normalizeEnum(row.Speed, speeds, "1G", "Speed", rowNumber, errors);
@@ -89,6 +101,7 @@ export function parseNetworkPortImportRows(rows: ImportRow[], options: ParseOpti
     ports.push({
       deviceId: options.deviceId,
       portName,
+      portIndex,
       macAddress: nullableText(row["MAC Address"]),
       ipAddress: nullableText(row["IP Address"]),
       portMode,

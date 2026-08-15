@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "@/lib/action-auth";
 import * as XLSX from "xlsx";
 import { PORT_IMPORT_COLUMNS, parseNetworkPortImportRows } from "@/lib/network-port-import";
+import { normalizeFaceplateConfig, type FaceplateConfigInput } from "@/lib/faceplate";
 
 // --- VLAN ACTIONS ---
 
@@ -92,6 +93,7 @@ export async function getPortsByDevice(deviceId: number) {
         id: networkPorts.id,
         deviceId: networkPorts.deviceId,
         portName: networkPorts.portName,
+        portIndex: networkPorts.portIndex,
         macAddress: networkPorts.macAddress,
         ipAddress: networkPorts.ipAddress,
         portMode: networkPorts.portMode,
@@ -213,6 +215,7 @@ export async function downloadPortImportTemplate(deviceId: number) {
     const portsSheet = XLSX.utils.json_to_sheet([
         {
             "Port Name": "Gi1/0/1",
+            "Port Index": 1,
             "MAC Address": "",
             "IP Address": "",
             "Port Mode": "Access",
@@ -225,6 +228,7 @@ export async function downloadPortImportTemplate(deviceId: number) {
         },
         {
             "Port Name": "Te1/0/1",
+            "Port Index": 25,
             "MAC Address": "",
             "IP Address": "",
             "Port Mode": "Trunk",
@@ -237,6 +241,7 @@ export async function downloadPortImportTemplate(deviceId: number) {
         },
     ], { header: [...PORT_IMPORT_COLUMNS] });
     const referenceSheet = XLSX.utils.json_to_sheet([
+        { Field: "Port Index", AllowedValues: "Optional. Physical slot on the faceplate diagram; leave blank to derive it from the port name." },
         { Field: "Port Mode", AllowedValues: "Access, Trunk, Routed, LACP" },
         { Field: "Status", AllowedValues: "Active, Inactive, Down" },
         { Field: "Speed", AllowedValues: "10/100M, 1G, 10G, 25G, 40G, 100G, Auto" },
@@ -410,21 +415,21 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
     const auth = await requireActiveSiteAdminAction();
     if (!auth.ok) throw new Error(auth.message);
 
+    // Get current port info for bidirectional cleanup if connection changed
+    const currentPort = await db
+        .select({
+            id: networkPorts.id,
+            deviceId: networkPorts.deviceId,
+            connectedToPortId: networkPorts.connectedToPortId,
+        })
+        .from(networkPorts)
+        .innerJoin(devices, eq(networkPorts.deviceId, devices.id))
+        .where(and(eq(networkPorts.id, id), eq(devices.siteId, auth.activeSiteId)))
+        .limit(1);
+
+    if (currentPort.length === 0) throw new Error("Port tidak ditemukan di site aktif.");
+
     try {
-        // Get current port info for bidirectional cleanup if connection changed
-        const currentPort = await db
-            .select({
-                id: networkPorts.id,
-                deviceId: networkPorts.deviceId,
-                connectedToPortId: networkPorts.connectedToPortId,
-            })
-            .from(networkPorts)
-            .innerJoin(devices, eq(networkPorts.deviceId, devices.id))
-            .where(and(eq(networkPorts.id, id), eq(devices.siteId, auth.activeSiteId)))
-            .limit(1);
-
-        if (currentPort.length === 0) throw new Error("Port tidak ditemukan di site aktif.");
-
         await db.update(networkPorts).set(data).where(eq(networkPorts.id, id));
 
         // Handle Bidirectional cable disconnects/reconnects
@@ -449,26 +454,30 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
     }
 
     revalidatePath("/admin/network");
+    const ownerDeviceId = data.deviceId ?? currentPort[0].deviceId;
+    if (ownerDeviceId) revalidatePath(`/admin/devices/${ownerDeviceId}/network`);
 }
 
 export async function deletePort(id: number) {
     const auth = await requireActiveSiteAdminAction();
     if (!auth.ok) throw new Error(auth.message);
 
-    try {
-        // Clean up bidirectional links first
-        const port = await db
-            .select({
-                id: networkPorts.id,
-                connectedToPortId: networkPorts.connectedToPortId,
-            })
-            .from(networkPorts)
-            .innerJoin(devices, eq(networkPorts.deviceId, devices.id))
-            .where(and(eq(networkPorts.id, id), eq(devices.siteId, auth.activeSiteId)))
-            .limit(1);
+    // Clean up bidirectional links first
+    const port = await db
+        .select({
+            id: networkPorts.id,
+            deviceId: networkPorts.deviceId,
+            connectedToPortId: networkPorts.connectedToPortId,
+        })
+        .from(networkPorts)
+        .innerJoin(devices, eq(networkPorts.deviceId, devices.id))
+        .where(and(eq(networkPorts.id, id), eq(devices.siteId, auth.activeSiteId)))
+        .limit(1);
 
-        if (port.length === 0) throw new Error("Port tidak ditemukan di site aktif.");
-        if (port.length > 0 && port[0].connectedToPortId) {
+    if (port.length === 0) throw new Error("Port tidak ditemukan di site aktif.");
+
+    try {
+        if (port[0].connectedToPortId) {
             await db.update(networkPorts)
                 .set({ connectedToDeviceId: null, connectedToPortId: null })
                 .where(eq(networkPorts.id, port[0].connectedToPortId));
@@ -480,6 +489,84 @@ export async function deletePort(id: number) {
         throw new Error("Gagal menghapus port jaringan secara permanen.");
     }
     revalidatePath("/admin/network");
+    revalidatePath(`/admin/devices/${port[0].deviceId}/network`);
+}
+
+/**
+ * Declares how many physical ports a device exposes so its faceplate diagram can
+ * be drawn. A zero port count turns the faceplate off again.
+ */
+export async function updateDeviceFaceplate(deviceId: number, input: FaceplateConfigInput) {
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
+
+    const [device] = await db
+        .select({ id: devices.id, name: devices.name })
+        .from(devices)
+        .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)))
+        .limit(1);
+
+    if (!device) throw new Error("Perangkat tidak ditemukan di site aktif.");
+
+    const config = normalizeFaceplateConfig(input);
+    const isDisabled = config.portCount === 0;
+
+    try {
+        await db.update(devices)
+            .set({
+                faceplatePortCount: isDisabled ? null : config.portCount,
+                faceplateUplinkCount: isDisabled ? 0 : config.uplinkCount,
+                faceplateRows: config.rows,
+                faceplateNumbering: config.numbering,
+            })
+            .where(and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)));
+
+        await logAudit({
+            action: "UPDATE",
+            entity: "device",
+            entityId: deviceId,
+            entityName: device.name,
+            detail: isDisabled
+                ? "Faceplate layout disabled"
+                : `Faceplate: ${config.portCount} ports + ${config.uplinkCount} uplink, ${config.rows} row(s), ${config.numbering}`,
+        });
+    } catch (error) {
+        throw new Error("Gagal menyimpan layout faceplate perangkat. Silakan coba lagi.");
+    }
+
+    revalidatePath(`/admin/devices/${deviceId}/network`);
+}
+
+/** Sets or clears the physical slot override for a single port. */
+export async function updatePortSlot(id: number, portIndex: number | null) {
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) throw new Error(auth.message);
+
+    const [port] = await db
+        .select({ id: networkPorts.id, deviceId: networkPorts.deviceId, portName: networkPorts.portName })
+        .from(networkPorts)
+        .innerJoin(devices, eq(networkPorts.deviceId, devices.id))
+        .where(and(eq(networkPorts.id, id), eq(devices.siteId, auth.activeSiteId)))
+        .limit(1);
+
+    if (!port) throw new Error("Port tidak ditemukan di site aktif.");
+
+    const slot = portIndex === null || !Number.isInteger(portIndex) || portIndex < 1 ? null : portIndex;
+
+    try {
+        await db.update(networkPorts).set({ portIndex: slot }).where(eq(networkPorts.id, id));
+        await logAudit({
+            action: "UPDATE",
+            entity: "network_port",
+            entityId: id,
+            entityName: port.portName,
+            detail: slot === null ? "Slot override cleared" : `Slot override: ${slot}`,
+        });
+    } catch (error) {
+        throw new Error("Gagal menyimpan posisi slot port. Silakan coba lagi.");
+    }
+
+    revalidatePath(`/admin/devices/${port.deviceId}/network`);
 }
 
 

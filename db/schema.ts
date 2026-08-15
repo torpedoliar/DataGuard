@@ -11,6 +11,7 @@ export const portModeEnum = pgEnum("port_mode", ["Access", "Trunk", "Routed", "L
 export const portStatusEnum = pgEnum("port_status", ["Active", "Inactive", "Down"]);
 export const speedEnum = pgEnum("speed", ["10/100M", "1G", "10G", "25G", "40G", "100G", "Auto"]);
 export const mediaTypeEnum = pgEnum("media_type", ["Copper (RJ45)", "Fiber (SFP/SFP+)", "Twinax (DAC)"]);
+export const faceplateNumberingEnum = pgEnum("faceplate_numbering", ["zigzag", "sequential"]);
 export const incidentSeverityEnum = pgEnum("incident_severity", ["Low", "Medium", "High", "Critical"]);
 export const incidentStatusEnum = pgEnum("incident_status", ["Open", "In Progress", "Resolved", "Verified"]);
 export const incidentUpdateTypeEnum = pgEnum("incident_update_type", ["created", "assigned", "status_changed", "comment", "evidence"]);
@@ -178,6 +179,11 @@ export const devices = pgTable("devices", {
   photoPath: text("photo_path"),
   isActive: boolean("is_active").default(true),
   responsibleGroups: text("responsible_groups").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  // Faceplate layout for switch/router port diagrams. Null port count = no faceplate.
+  faceplatePortCount: integer("faceplate_port_count"),
+  faceplateUplinkCount: integer("faceplate_uplink_count").default(0),
+  faceplateRows: integer("faceplate_rows").default(2),
+  faceplateNumbering: faceplateNumberingEnum("faceplate_numbering").default("zigzag"),
 });
 
 // ==================== DEVICE PICS (Binding) ====================
@@ -266,6 +272,8 @@ export const networkPorts = pgTable("network_ports", {
   id: serial("id").primaryKey(),
   deviceId: integer("device_id").references(() => devices.id).notNull(),
   portName: text("port_name").notNull(),
+  // Optional override for the physical slot on the faceplate. Null = derive from portName.
+  portIndex: integer("port_index"),
   macAddress: text("mac_address"),
   ipAddress: text("ip_address"),
   portMode: portModeEnum("port_mode"),

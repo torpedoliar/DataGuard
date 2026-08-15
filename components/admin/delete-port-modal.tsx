@@ -1,17 +1,20 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { deletePort } from "@/actions/network";
 import { AlertTriangle, Loader2, X } from "lucide-react";
 
 type Port = { id: number; portName: string };
 
 export default function DeletePortModal({ port, onClose }: { port: Port; onClose: () => void }) {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
 
     const handleDelete = () => {
         startTransition(async () => {
             await deletePort(port.id);
+            router.refresh();
             onClose();
         });
     };
