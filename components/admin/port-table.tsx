@@ -1,9 +1,10 @@
 "use client";
 
 import { Edit, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import EditPortModal from "./edit-port-modal";
 import DeletePortModal from "./delete-port-modal";
+import { normalizeFaceplateConfig, resolveSlotNumber, type FaceplateConfigInput } from "@/lib/faceplate";
 
 type Vlan = { id: number; vlanId: number; name: string };
 type Device = { id: number; name: string; locationName: string | null };
@@ -12,6 +13,7 @@ type Port = {
     id: number;
     deviceId: number;
     portName: string;
+    portIndex?: number | null;
     macAddress: string | null;
     ipAddress: string | null;
     portMode: string | null;
@@ -33,15 +35,22 @@ export default function PortTable({
     ports,
     vlans,
     otherDevices,
-    deviceId
+    deviceId,
+    faceplateConfig,
 }: {
     ports: Port[];
     vlans: Vlan[];
     otherDevices: Device[];
     deviceId: number;
+    faceplateConfig?: FaceplateConfigInput;
 }) {
     const [editingPort, setEditingPort] = useState<Port | null>(null);
     const [deletingPort, setDeletingPort] = useState<Port | null>(null);
+
+    // When a faceplate exists, show which physical slot each port resolves to so a
+    // port missing from the diagram is explainable straight from the table.
+    const config = useMemo(() => normalizeFaceplateConfig(faceplateConfig), [faceplateConfig]);
+    const showSlotColumn = config.portCount > 0;
 
     const getStatusIndicator = (status: string | null) => {
         if (status === 'Active') return <span className="flex items-center gap-1 text-success"><span className="w-2 h-2 rounded-full bg-success"></span> Active</span>;
@@ -56,6 +65,9 @@ export default function PortTable({
                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                     <thead className="bg-slate-50 dark:bg-slate-800">
                         <tr>
+                            {showSlotColumn && (
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-20">Slot</th>
+                            )}
                             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Interface</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Media & Speed</th>
@@ -67,13 +79,36 @@ export default function PortTable({
                     <tbody className="bg-white dark:bg-surface divide-y divide-slate-200 dark:divide-slate-700">
                         {ports.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                                <td colSpan={showSlotColumn ? 7 : 6} className="px-6 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                                     No ports provisioned for this device.
                                 </td>
                             </tr>
                         ) : (
                             ports.map((port) => (
                                 <tr key={port.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    {showSlotColumn && (
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            {(() => {
+                                                const slotNumber = resolveSlotNumber(port, config);
+                                                if (slotNumber === null) {
+                                                    return (
+                                                        <span
+                                                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                                                            title="Port ini tidak terpetakan ke slot faceplate. Isi Slot Faceplate pada port ini, atau perbesar jumlah port di panel Faceplate Layout."
+                                                        >
+                                                            Unmapped
+                                                        </span>
+                                                    );
+                                                }
+                                                return (
+                                                    <span className="font-mono text-sm text-slate-800 dark:text-slate-200" title={port.portIndex ? "Slot diisi manual" : "Slot disimpulkan dari nama interface"}>
+                                                        {slotNumber}
+                                                        {!port.portIndex && <span className="text-slate-400 text-[10px] ml-1">auto</span>}
+                                                    </span>
+                                                );
+                                            })()}
+                                        </td>
+                                    )}
                                     <td className="px-4 py-3 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <span className="font-semibold text-slate-900 dark:text-white uppercase tracking-wider">{port.portName}</span>

@@ -161,7 +161,7 @@ export default async function NetworkDocumentationPage({
                 <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white flex items-center gap-2">
                     Physical & Logical Interfaces
                 </h3>
-                <PortTable ports={ports} vlans={vlans} otherDevices={otherDevices} deviceId={deviceId} />
+                <PortTable ports={ports} vlans={vlans} otherDevices={otherDevices} deviceId={deviceId} faceplateConfig={faceplateConfig} />
             </div>
         </div>
     );

@@ -155,12 +155,10 @@ export default function AddPortForm({
         setSuccess(null);
 
         let generatedPortNames: string[];
-        let bulkStart = 1;
         try {
             if (isBulk) {
                 const start = Number.parseInt(portStart, 10);
                 const end = Number.parseInt(portEnd, 10);
-                bulkStart = start;
                 generatedPortNames = buildPortNameRange(effectiveTemplateId, templateParams, start, end);
             } else {
                 generatedPortNames = [formatPortName(effectiveTemplateId, templateParams)];
@@ -173,12 +171,12 @@ export default function AddPortForm({
         startTransition(async () => {
             try {
                 if (isBulk) {
-                    const ports = generatedPortNames.map((generatedPortName, index) => ({
+                    // No portIndex here on purpose: a bulk range is numbered per
+                    // block (Te1/0/1-4 are uplinks, not access slots 1-4), so the
+                    // faceplate derives the slot from the name and media instead.
+                    const ports = generatedPortNames.map((generatedPortName) => ({
                         deviceId,
                         portName: generatedPortName,
-                        // Range numbers double as faceplate slots so bulk-provisioned
-                        // ports land on the diagram without extra work.
-                        portIndex: bulkStart + index,
                         portMode: portMode as "Access" | "Trunk" | "Routed" | "LACP",
                         vlanId: vlanId ? Number.parseInt(vlanId, 10) : null,
                         trunkVlans: trunkVlans || null,

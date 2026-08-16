@@ -190,13 +190,33 @@ describe("buildFaceplate port placement", () => {
     const faceplate = buildFaceplate({ portCount: 8 }, [port(1, "Gi1/0/9"), port(2, "Vlan10", { portIndex: 99 })]);
 
     expect(faceplate.slots.every((slot) => slot.port === null)).toBe(true);
-    expect(faceplate.unplaced.map((item) => item.id)).toEqual([1, 2]);
+    expect(faceplate.unplaced.map((item) => item.id).sort()).toEqual([1, 2]);
   });
 
   it("reports ports with no number in their name instead of guessing", () => {
     const faceplate = buildFaceplate({ portCount: 8 }, [port(1, "mgmt")]);
 
     expect(faceplate.unplaced.map((item) => item.id)).toEqual([1]);
+  });
+
+  it("lets an explicit slot evict a port that only guessed that slot from its name", () => {
+    const faceplate = buildFaceplate({ portCount: 8 }, [
+      port(1, "Gi1/0/3"),
+      port(2, "sfp-a", { portIndex: 3 }),
+    ]);
+
+    expect(slotAt(faceplate.slots, 3).port?.id).toBe(2);
+    expect(faceplate.unplaced.map((item) => item.id)).toEqual([1]);
+  });
+
+  it("keeps the first explicit slot when two overrides collide", () => {
+    const faceplate = buildFaceplate({ portCount: 8 }, [
+      port(1, "aaa", { portIndex: 5 }),
+      port(2, "bbb", { portIndex: 5 }),
+    ]);
+
+    expect(slotAt(faceplate.slots, 5).port?.id).toBe(1);
+    expect(faceplate.unplaced.map((item) => item.id)).toEqual([2]);
   });
 
   it("keeps the first port when two ports resolve to the same slot", () => {

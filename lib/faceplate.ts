@@ -332,15 +332,39 @@ export function buildFaceplate<T extends FaceplatePortLike>(
   const slotByNumber = new Map(slots.map((slot) => [slot.slotNumber, slot]));
   const unplaced: T[] = [];
 
+  // An explicit portIndex is a deliberate statement about where the port sits, so
+  // it is placed first and may evict a port that only guessed the same slot from
+  // its name. Within each pass, ports are placed in natural interface order.
   const ordered = [...ports].sort((a, b) => comparePortNames(a.portName, b.portName));
-  for (const port of ordered) {
-    const slotNumber = resolveSlotNumber(port, config);
-    const slot = slotNumber === null ? undefined : slotByNumber.get(slotNumber);
-    if (!slot || slot.port) {
-      unplaced.push(port);
-      continue;
+  const hasOverride = (port: T) => typeof port.portIndex === "number" && Number.isInteger(port.portIndex) && port.portIndex >= 1;
+  const passes = [ordered.filter(hasOverride), ordered.filter((port) => !hasOverride(port))];
+
+  for (const [passIndex, pass] of passes.entries()) {
+    const isOverridePass = passIndex === 0;
+
+    for (const port of pass) {
+      const slotNumber = resolveSlotNumber(port, config);
+      const slot = slotNumber === null ? undefined : slotByNumber.get(slotNumber);
+
+      if (!slot) {
+        unplaced.push(port);
+        continue;
+      }
+
+      if (slot.port) {
+        // Two overrides on one slot is a genuine conflict. An override landing on
+        // a port that only guessed the slot from its name is not: the guess gives way.
+        if (isOverridePass && !hasOverride(slot.port)) {
+          unplaced.push(slot.port);
+          slot.port = port;
+        } else {
+          unplaced.push(port);
+        }
+        continue;
+      }
+
+      slot.port = port;
     }
-    slot.port = port;
   }
 
   return {
