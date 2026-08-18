@@ -23,7 +23,7 @@ function alertMessage(input: { findingId: number; title: string; severity: SiemS
     `Device: ${input.deviceName ?? "Unmapped"}`,
     `Source: ${input.sourceIp ?? "-"}`,
     `Finding: #${input.findingId} ${input.title}`,
-    `Open: [Open in SIEM](${input.baseUrl}/admin/siem/findings?severity=High)`,
+    `Open: [Open in SIEM](${input.baseUrl}/admin/siem/findings?severity=${input.severity})`,
     `Summary: ${input.summary}`,
     `Action: ${input.recommendedAction ?? "Review finding in SIEM dashboard."}`,
   ].join("\n"));

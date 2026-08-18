@@ -251,6 +251,31 @@ describe("queueSiemAlerts", () => {
     expect(result.queued).toBe(1);
     expect(insertedValues[0]).toMatchObject({ recipient: "legacy-99" });
   });
+
+  it("deep-links to the triggering severity, not a hardcoded High", async () => {
+    mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
+      makeFinding({ severity: "Critical" }),
+    ]);
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+
+    const insertedValues: unknown[] = [];
+    mockedDb.insert.mockImplementation(() => ({
+      values: (v: unknown) => {
+        insertedValues.push(v);
+        return Promise.resolve();
+      },
+    }));
+
+    const result = await queueSiemAlerts();
+
+    expect(result.queued).toBe(1);
+    const message = (insertedValues[0] as { message: string }).message;
+    expect(message).toContain("/admin/siem/findings?severity=Critical");
+    expect(message).not.toContain("severity=High");
+  });
 });
 
 describe("resolveSiteTelegramRecipients", () => {
