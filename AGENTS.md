@@ -10,8 +10,16 @@ This is a Next.js 16 App Router project for data center audit management. Pages 
 - `npm run build`: create a production build and catch build errors.
 - `npm run start`: run the built production server.
 - `npm run lint`: run ESLint with Next core web vitals and TypeScript rules.
-- `npm run db:generate`: generate Drizzle migration SQL from `db/schema.ts`.
-- `npm run db:migrate`: apply migrations via `scripts/migrate.ts`.
+- `npm run db:migrate`: apply hand-written migrations via `scripts/migrate.ts`.
+- **Do not regenerate migrations** (`db:generate` / `db:push` were removed from
+  `package.json`): the `drizzle/meta/` snapshot chain is stale — the newest
+  snapshot is `0023_snapshot.json` while the journal registers migrations 0024
+  through 0035, and those later migrations are hand-written. A `drizzle-kit
+  generate`/`push` would diff `db/schema.ts` against the 0023 snapshot and emit
+  destructive duplicates (re-creating tables/columns that already exist on any
+  database that ran 0024+). Regenerating snapshots requires a database with all
+  migrations applied. All schema changes are hand-written SQL in `drizzle/` plus
+  a `meta/_journal.json` entry, applied via `npm run db:migrate`.
 - `npm run db:studio`: open Drizzle Studio.
 - `npm run seed`, `npm run seed:users`, `npm run reset:devices`: manage development data.
 

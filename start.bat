@@ -37,9 +37,9 @@ if not exist "node_modules\" (
     echo.
 )
 
-REM (Opsional) Langsung sinkronisasi schema database terbaru sebelum run dev
-echo [INFO] Mengecek dan menerapkan skema database Drizzle ke PostgreSQL...
-call npm run db:push
+REM (Opsional) Terapkan migrasi database terbaru sebelum run dev
+echo [INFO] Mengecek dan menerapkan migrasi database Drizzle ke PostgreSQL...
+call npm run db:migrate
 echo.
 
 echo [INFO] Memulai Next.js development server...
