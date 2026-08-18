@@ -182,3 +182,40 @@ export async function sendTelegramAlert(chatId: string | null | undefined, messa
         return { success: false, message: "Network error" };
     }
 }
+
+// Finding #22: Telegram drops messages over 4096 chars whole, so combined
+// alerts are split on device-block separators into <=4000-char pieces.
+export const TELEGRAM_CHUNK_SEPARATOR = "\n\n---\n\n";
+export const TELEGRAM_CHUNK_MAX_LENGTH = 4000;
+
+export function splitTelegramChunks(messages: string[], maxLength: number = TELEGRAM_CHUNK_MAX_LENGTH): string[] {
+    const chunks: string[] = [];
+    let current = "";
+    const separator = TELEGRAM_CHUNK_SEPARATOR;
+
+    for (const message of messages) {
+        if (message.length > maxLength) {
+            // A single rendered block that alone exceeds the cap: keep it
+            // reachable but truncated (Telegram would drop it otherwise).
+            if (current) {
+                chunks.push(current);
+                current = "";
+            }
+            console.warn(
+                `[checklist] telegram alert block of ${message.length} chars exceeds the ${maxLength}-char chunk cap; truncating`,
+            );
+            chunks.push(`${message.slice(0, maxLength - 1)}…`);
+            continue;
+        }
+
+        const candidate = current ? `${current}${separator}${message}` : message;
+        if (candidate.length > maxLength) {
+            chunks.push(current);
+            current = message;
+        } else {
+            current = candidate;
+        }
+    }
+    if (current) chunks.push(current);
+    return chunks;
+}

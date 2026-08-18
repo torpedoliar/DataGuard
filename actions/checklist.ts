@@ -5,7 +5,7 @@ import { db } from "../db";
 import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds, incidents, incidentUpdates } from "../db/schema";
 import { createIncidentsForChecklistItems } from "@/actions/incidents";
 import { getTelegramAlertTemplate } from "@/actions/settings";
-import { renderTelegramTemplate, sendTelegramAlert } from "@/lib/telegram";
+import { renderTelegramTemplate, sendTelegramAlert, splitTelegramChunks } from "@/lib/telegram";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
 import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
@@ -16,44 +16,6 @@ import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 
 const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const;
 type ChecklistSeverity = keyof typeof SEVERITY_RANK;
-
-// Finding #22: Telegram drops messages over 4096 chars whole, so a checklist
-// alert covering many devices must be split on device-block separators into
-// <= 4000-char pieces (one message per chunk) instead of dropping the batch.
-export const TELEGRAM_CHUNK_SEPARATOR = "\n\n---\n\n";
-export const TELEGRAM_CHUNK_MAX_LENGTH = 4000;
-
-export function splitTelegramChunks(messages: string[], maxLength: number = TELEGRAM_CHUNK_MAX_LENGTH): string[] {
-    const chunks: string[] = [];
-    let current = "";
-    const separator = TELEGRAM_CHUNK_SEPARATOR;
-
-    for (const message of messages) {
-        if (message.length > maxLength) {
-            // A single rendered block that alone exceeds the cap: keep it
-            // reachable but truncated (Telegram would drop it otherwise).
-            if (current) {
-                chunks.push(current);
-                current = "";
-            }
-            console.warn(
-                `[checklist] telegram alert block of ${message.length} chars exceeds the ${maxLength}-char chunk cap; truncating`,
-            );
-            chunks.push(`${message.slice(0, maxLength - 1)}…`);
-            continue;
-        }
-
-        const candidate = current ? `${current}${separator}${message}` : message;
-        if (candidate.length > maxLength) {
-            chunks.push(current);
-            current = message;
-        } else {
-            current = candidate;
-        }
-    }
-    if (current) chunks.push(current);
-    return chunks;
-}
 
 async function validateChecklistPhotos(formData: FormData, deviceIds: number[]) {
     for (const deviceId of deviceIds) {

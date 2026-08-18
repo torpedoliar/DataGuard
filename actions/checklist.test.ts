@@ -44,10 +44,14 @@ vi.mock("@/actions/incidents", () => ({
 vi.mock("@/actions/settings", () => ({
   getTelegramAlertTemplate: (...args: unknown[]) => mocks.getTelegramAlertTemplate(...args),
 }));
-vi.mock("@/lib/telegram", () => ({
-  renderTelegramTemplate: (...args: unknown[]) => mocks.renderTelegramTemplate(...args),
-  sendTelegramAlert: (...args: unknown[]) => mocks.sendTelegramAlert(...args),
-}));
+vi.mock("@/lib/telegram", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/telegram")>();
+  return {
+    ...actual,
+    renderTelegramTemplate: (...args: unknown[]) => mocks.renderTelegramTemplate(...args),
+    sendTelegramAlert: (...args: unknown[]) => mocks.sendTelegramAlert(...args),
+  };
+});
 vi.mock("@/lib/notification-url", () => ({
   resolveNotificationBaseUrl: (...args: unknown[]) => mocks.resolveNotificationBaseUrl(...args),
 }));
@@ -163,7 +167,8 @@ vi.mock("../db", () => {
 });
 
 import { db } from "../db";
-import { submitChecklist, updateChecklist, splitTelegramChunks } from "./checklist";
+import { submitChecklist, updateChecklist } from "./checklist";
+import { splitTelegramChunks } from "../lib/telegram";
 
 const mockedDb = db as unknown as {
   select: ReturnType<typeof vi.fn>;
