@@ -159,7 +159,7 @@ Write-Host "OK - Code updated" -ForegroundColor Green
 # STEP 3: REBUILD APP IMAGE (database TIDAK disentuh!)
 # ==================================================================
 $appService = "app"
-$siemWorkerServices = @("syslog-receiver", "siem-parser", "siem-rules", "siem-alerts", "siem-retention")
+$siemWorkerServices = @("syslog-receiver", "siem-parser", "siem-rules", "siem-alerts", "siem-ai", "siem-retention", "siem-snapshot", "incidents-overdue-notify", "backup-scheduler")
 $statelessServices = @($appService) + $siemWorkerServices
 Write-Host ""
 Write-Host "[3/6] Rebuilding app image (database untouched)..." -ForegroundColor Yellow
