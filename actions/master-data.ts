@@ -9,7 +9,7 @@ import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { checkRackCollision } from "../lib/rack-validation";
 import { logAudit } from "../lib/audit";
-import { requireActiveSiteAdminAction } from "../lib/action-auth";
+import { requireActiveSiteAction, requireActiveSiteAdminAction } from "../lib/action-auth";
 import { deleteUploadFile, saveUploadFile } from "../lib/upload";
 
 // Schemas
@@ -34,6 +34,9 @@ const categorySchema = z.object({
 
 // Category Actions
 export async function getCategories() {
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
+
     return await db.select().from(categories);
 }
 
@@ -123,8 +126,9 @@ export async function deleteCategory(id: number) {
 
 // Device Actions
 export async function getDevices() {
-    const session = await verifySession();
-    const siteFilter = session?.activeSiteId ? eq(devices.siteId, session.activeSiteId) : undefined;
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
+
     const rackFilter = or(eq(racks.isAuditable, true), isNull(racks.id));
 
     return await db
@@ -153,7 +157,7 @@ export async function getDevices() {
         .leftJoin(brands, eq(devices.brandId, brands.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
         .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
-        .where(siteFilter ? and(siteFilter, rackFilter) : rackFilter);
+        .where(and(eq(devices.siteId, auth.activeSiteId), rackFilter));
 }
 
 export async function addDevice(prevState: unknown, formData: FormData) {

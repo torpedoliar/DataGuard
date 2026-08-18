@@ -4,7 +4,7 @@
 import { db } from "../db";
 import { checklistEntries, checklistItems, devices, incidents, locations, racks } from "../db/schema";
 import { eq, and, desc, sql, gte, lte, or, isNull } from "drizzle-orm";
-import { verifySession } from "../lib/session";
+import { requireActiveSiteAction } from "../lib/action-auth";
 import { logAudit } from "../lib/audit";
 import type { IncidentStatus } from "@/lib/incidents";
 import * as XLSX from "xlsx";
@@ -13,17 +13,17 @@ import * as XLSX from "xlsx";
 
 
 export async function getAnalyticsStats() {
-    const session = await verifySession();
-    if (!session) return null;
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return null;
 
-    const siteId = session.activeSiteId;
+    const siteId = auth.activeSiteId;
 
     // 1. KPIs
     const totalItems = await db
         .select({ count: sql<number>`count(*)` })
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
-        .where(siteId ? eq(checklistEntries.siteId, siteId) : undefined)
+        .where(eq(checklistEntries.siteId, siteId))
         .then(res => Number(res[0].count));
 
     const okItems = await db
@@ -33,7 +33,7 @@ export async function getAnalyticsStats() {
         .where(
             and(
                 eq(checklistItems.status, 'OK'),
-                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+                eq(checklistEntries.siteId, siteId)
             )
         )
         .then(res => Number(res[0].count));
@@ -45,7 +45,7 @@ export async function getAnalyticsStats() {
         .where(
             and(
                 sql`${checklistItems.status} != 'OK'`,
-                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+                eq(checklistEntries.siteId, siteId)
             )
         )
         .then(res => Number(res[0].count));
@@ -59,7 +59,7 @@ export async function getAnalyticsStats() {
     })
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
-        .where(siteId ? eq(checklistEntries.siteId, siteId) : undefined)
+        .where(eq(checklistEntries.siteId, siteId))
         .groupBy(sql`SUBSTR(${checklistEntries.checkDate}, 1, 7)`)
         .orderBy(desc(sql`SUBSTR(${checklistEntries.checkDate}, 1, 7)`))
         .limit(12);
@@ -79,7 +79,7 @@ export async function getAnalyticsStats() {
         .where(
             and(
                 sql`${checklistItems.status} != 'OK'`,
-                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+                eq(checklistEntries.siteId, siteId)
             )
         )
         .groupBy(devices.categoryId)
@@ -105,16 +105,16 @@ export async function getReportData(
     pageSize: number = 20,
     incidentStatus?: IncidentStatus
 ) {
-    const session = await verifySession();
-    if (!session) return { data: [], total: 0, totalPages: 0, currentPage: page };
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return { data: [], total: 0, totalPages: 0, currentPage: page };
 
-    const siteId = session.activeSiteId;
+    const siteId = auth.activeSiteId;
 
     // Build where clause
     const whereClause = and(
         gte(checklistEntries.checkDate, startDate),
         lte(checklistEntries.checkDate, endDate),
-        siteId ? eq(checklistEntries.siteId, siteId) : undefined,
+        eq(checklistEntries.siteId, siteId),
         incidentStatus ? eq(incidents.status, incidentStatus) : undefined,
         or(eq(racks.isAuditable, true), isNull(racks.id)),
     );
@@ -168,10 +168,10 @@ export async function getReportData(
 }
 
 export async function getRawExportData(startDate: string, endDate: string, incidentStatus?: IncidentStatus) {
-    const session = await verifySession();
-    if (!session) return null;
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return null;
 
-    const siteId = session.activeSiteId;
+    const siteId = auth.activeSiteId;
 
     return await db
         .select({
@@ -200,7 +200,7 @@ export async function getRawExportData(startDate: string, endDate: string, incid
             and(
                 gte(checklistEntries.checkDate, startDate),
                 lte(checklistEntries.checkDate, endDate),
-                siteId ? eq(checklistEntries.siteId, siteId) : undefined,
+                eq(checklistEntries.siteId, siteId),
                 incidentStatus ? eq(incidents.status, incidentStatus) : undefined,
                 or(eq(racks.isAuditable, true), isNull(racks.id)),
             )

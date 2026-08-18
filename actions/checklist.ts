@@ -7,7 +7,6 @@ import { createIncidentsForChecklistItems } from "@/actions/incidents";
 import { getTelegramAlertTemplate } from "@/actions/settings";
 import { renderTelegramTemplate, sendTelegramAlert } from "@/lib/telegram";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
-import { verifySession } from "../lib/session";
 import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
 import { logAudit } from "../lib/audit";
@@ -423,10 +422,10 @@ export async function deleteChecklistEntry(entryId: number) {
 
 // Get recent checklists for report page
 export async function getRecentChecklists(limit: number = 50) {
-    const session = await verifySession();
-    if (!session) return [];
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
 
-    const siteFilter = session.activeSiteId ? eq(checklistEntries.siteId, session.activeSiteId) : undefined;
+    const siteFilter = eq(checklistEntries.siteId, auth.activeSiteId);
 
     const checklists = await db.select({
         id: checklistEntries.id,

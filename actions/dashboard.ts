@@ -3,15 +3,29 @@
 import { db } from "@/db";
 import { checklistEntries, devices, checklistItems, categories, users, incidents, racks } from "@/db/schema";
 import { sql, eq, and, desc, ne, gte, or, isNull } from "drizzle-orm";
-import { verifySession } from "@/lib/session";
+import { requireActiveSiteAction } from "@/lib/action-auth";
 
 function toDateString(d: Date) {
     return d.toISOString().split('T')[0];
 }
 
 export async function getDashboardStats() {
-    const session = await verifySession();
-    const siteId = session?.activeSiteId;
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) {
+        return {
+            overallCompletion: 0,
+            totalDevices: 0,
+            checkedToday: 0,
+            categoryStats: [],
+            recentActivities: [],
+            incidentStats: { open: 0, critical: 0, overdue: 0 },
+            dailyCompletion: [],
+            incidentTrend: [],
+            recentIncidents: [],
+        };
+    }
+
+    const siteId = auth.activeSiteId;
     const today = toDateString(new Date());
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - 6);
@@ -21,7 +35,7 @@ export async function getDashboardStats() {
     const totalDevices = await db.select({ count: sql<number>`count(*)` }).from(devices)
         .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
         .where(and(
-            siteId ? eq(devices.siteId, siteId) : undefined,
+            eq(devices.siteId, siteId),
             or(eq(racks.isAuditable, true), isNull(racks.id)),
         ))
         .then(res => Number(res[0].count));
@@ -33,7 +47,7 @@ export async function getDashboardStats() {
         .where(
             and(
                 eq(checklistEntries.checkDate, today),
-                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+                eq(checklistEntries.siteId, siteId)
             )
         )
         .then(res => Number(res[0].count));
@@ -50,7 +64,7 @@ export async function getDashboardStats() {
             .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
             .where(and(
                 eq(devices.categoryId, cat.id),
-                siteId ? eq(devices.siteId, siteId) : undefined,
+                eq(devices.siteId, siteId),
                 or(eq(racks.isAuditable, true), isNull(racks.id)),
             ))
             .then(res => Number(res[0].count));
@@ -63,7 +77,7 @@ export async function getDashboardStats() {
             .where(and(
                 eq(checklistEntries.checkDate, today),
                 eq(devices.categoryId, cat.id),
-                siteId ? eq(checklistEntries.siteId, siteId) : undefined,
+                eq(checklistEntries.siteId, siteId),
                 or(eq(racks.isAuditable, true), isNull(racks.id)),
             ))
             .then(res => Number(res[0].count));
@@ -93,7 +107,7 @@ export async function getDashboardStats() {
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
         .innerJoin(categories, eq(devices.categoryId, categories.id))
         .innerJoin(users, eq(checklistEntries.userId, users.id))
-        .where(siteId ? eq(checklistEntries.siteId, siteId) : undefined)
+        .where(eq(checklistEntries.siteId, siteId))
         .orderBy(desc(checklistEntries.createdAt))
         .limit(5);
 
@@ -103,7 +117,7 @@ export async function getDashboardStats() {
         overdue: sql<number>`sum(case when ${incidents.dueDate} < now() and ${incidents.status} != 'Verified' then 1 else 0 end)`,
     })
         .from(incidents)
-        .where(siteId ? eq(incidents.siteId, siteId) : undefined)
+        .where(eq(incidents.siteId, siteId))
         .then((res) => ({
             open: Number(res[0]?.open ?? 0),
             critical: Number(res[0]?.critical ?? 0),
@@ -120,7 +134,7 @@ export async function getDashboardStats() {
         .where(
             and(
                 gte(checklistEntries.checkDate, sevenDaysAgo),
-                siteId ? eq(checklistEntries.siteId, siteId) : undefined
+                eq(checklistEntries.siteId, siteId)
             )
         )
         .groupBy(checklistEntries.checkDate)
@@ -151,7 +165,7 @@ export async function getDashboardStats() {
         .where(
             and(
                 gte(incidents.createdAt, new Date(`${sevenDaysAgo}T00:00:00Z`)),
-                siteId ? eq(incidents.siteId, siteId) : undefined
+                eq(incidents.siteId, siteId)
             )
         )
         .groupBy(sql`date_trunc('day', ${incidents.createdAt})::date`, incidents.severity)
@@ -192,7 +206,7 @@ export async function getDashboardStats() {
         .where(
             and(
                 ne(incidents.status, 'Verified'),
-                siteId ? eq(incidents.siteId, siteId) : undefined
+                eq(incidents.siteId, siteId)
             )
         )
         .orderBy(desc(incidents.updatedAt))

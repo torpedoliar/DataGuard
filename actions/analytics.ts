@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { checklistEntries, checklistItems } from "@/db/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
-import { verifySession } from "@/lib/session";
+import { requireActiveSiteAction } from "@/lib/action-auth";
 
 export type DailyHealth = {
     date: string;
@@ -11,8 +11,8 @@ export type DailyHealth = {
 };
 
 export async function getDeviceHealthHistory(deviceId: number, days: number = 30): Promise<DailyHealth[]> {
-    const session = await verifySession();
-    if (!session) return [];
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
 
     // 1. Calculate the date window
     const endDate = new Date();
@@ -33,7 +33,7 @@ export async function getDeviceHealthHistory(deviceId: number, days: number = 30
             and(
                 eq(checklistItems.deviceId, deviceId),
                 gte(checklistEntries.checkDate, startDateStr),
-                session.activeSiteId ? eq(checklistEntries.siteId, session.activeSiteId) : undefined
+                eq(checklistEntries.siteId, auth.activeSiteId)
             )
         )
         .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime));

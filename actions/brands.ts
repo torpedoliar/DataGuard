@@ -5,6 +5,7 @@ import { brands, devices } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { requireActiveSiteAction } from "../lib/action-auth";
 import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
 import { saveUploadFile } from "../lib/upload";
@@ -23,6 +24,9 @@ async function handleFileUpload(file: File | null): Promise<string | null> {
 }
 
 export async function getBrands() {
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
+
     return await db.select().from(brands);
 }
 

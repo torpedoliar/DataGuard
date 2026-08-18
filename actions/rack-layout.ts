@@ -3,7 +3,7 @@
 import { db } from "../db";
 import { devices, categories, checklistItems, checklistEntries, brands, locations, racks as racksTable } from "../db/schema";
 import { sql, eq, asc, desc, inArray, and, isNotNull } from "drizzle-orm";
-import { verifySession } from "../lib/session";
+import { requireActiveSiteAction } from "../lib/action-auth";
 
 export interface RackDevice {
     id: number;
@@ -32,10 +32,10 @@ export interface RackData {
 }
 
 export async function getRackLayout() {
-    const session = await verifySession();
-    if (!session) return [];
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
 
-    const siteId = session.activeSiteId;
+    const siteId = auth.activeSiteId;
 
     // Get all devices with rack info
     const allDevices = await db
@@ -58,7 +58,7 @@ export async function getRackLayout() {
         .leftJoin(categories, eq(devices.categoryId, categories.id))
         .leftJoin(brands, eq(devices.brandId, brands.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
-        .where(siteId ? eq(devices.siteId, siteId) : undefined)
+        .where(eq(devices.siteId, siteId))
         .orderBy(asc(devices.rackName), asc(devices.rackPosition));
 
     // Get latest checklist status for these devices
@@ -96,7 +96,7 @@ export async function getRackLayout() {
         })
         .from(racksTable)
         .leftJoin(locations, eq(racksTable.locationId, locations.id))
-        .where(siteId ? eq(racksTable.siteId, siteId) : undefined);
+        .where(eq(racksTable.siteId, siteId));
 
     // Group devices by rack
     const racks = new Map<string, RackData>();
@@ -158,22 +158,22 @@ export async function getRackLayout() {
 }
 
 export async function getRackStats() {
-    const session = await verifySession();
-    if (!session) return null;
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return null;
 
-    const siteId = session.activeSiteId;
+    const siteId = auth.activeSiteId;
 
     const totalDevices = await db
         .select({ count: sql<number>`count(*)` })
         .from(devices)
-        .where(siteId ? eq(devices.siteId, siteId) : undefined)
+        .where(eq(devices.siteId, siteId))
         .then(res => res[0].count);
 
     const devicesWithRack = await db
         .select({ count: sql<number>`count(*)` })
         .from(devices)
         .where(and(
-            siteId ? eq(devices.siteId, siteId) : undefined,
+            eq(devices.siteId, siteId),
             isNotNull(devices.rackName),
             isNotNull(devices.rackPosition)
         ))
@@ -185,7 +185,7 @@ export async function getRackStats() {
             count: sql<number>`count(*)`,
         })
         .from(devices)
-        .where(siteId ? eq(devices.siteId, siteId) : undefined)
+        .where(eq(devices.siteId, siteId))
         .groupBy(devices.zone);
 
     const devicesByCategory = await db
@@ -195,7 +195,7 @@ export async function getRackStats() {
         })
         .from(devices)
         .leftJoin(categories, eq(devices.categoryId, categories.id))
-        .where(siteId ? eq(devices.siteId, siteId) : undefined)
+        .where(eq(devices.siteId, siteId))
         .groupBy(categories.name);
 
     return {

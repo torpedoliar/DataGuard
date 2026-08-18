@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
-import { requireActiveSiteAdminAction } from "../lib/action-auth";
+import { requireActiveSiteAction, requireActiveSiteAdminAction } from "../lib/action-auth";
 
 // Schema
 const rackSchema = z.object({
@@ -20,8 +20,9 @@ const rackSchema = z.object({
 
 // Get all racks (filtered by active site)
 export async function getRacks() {
-    const session = await verifySession();
-    const siteFilter = session?.activeSiteId ? eq(racks.siteId, session.activeSiteId) : undefined;
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
+
     return await db.select({
         id: racks.id,
         siteId: racks.siteId,
@@ -35,7 +36,7 @@ export async function getRacks() {
     })
         .from(racks)
         .leftJoin(locations, eq(racks.locationId, locations.id))
-        .where(siteFilter).orderBy(asc(racks.name));
+        .where(eq(racks.siteId, auth.activeSiteId)).orderBy(asc(racks.name));
 }
 
 // Get occupied slots for a specific rack
@@ -80,11 +81,11 @@ export async function getOccupiedSlots(rackName: string, excludeDeviceId?: numbe
 
 // Get single rack
 export async function getRackById(id: number) {
-    const session = await verifySession();
-    if (!session) return null;
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return null;
 
     return await db.query.racks.findFirst({
-        where: eq(racks.id, id),
+        where: and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)),
     });
 }
 

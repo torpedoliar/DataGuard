@@ -3,8 +3,8 @@
 
 import { db } from "@/db";
 import { checklistEntries, devices, checklistItems, categories, users, locations, racks } from "@/db/schema";
-import { sql, eq, and, gte, lte, or, isNull } from "drizzle-orm";
-import { verifySession } from "@/lib/session";
+import { eq, and, gte, lte, or, isNull } from "drizzle-orm";
+import { requireActiveSiteAction } from "@/lib/action-auth";
 
 export type DailyCheck = {
     status: string;
@@ -14,8 +14,10 @@ export type DailyCheck = {
 };
 
 export async function getAuditGridData(startDateStr?: string, endDateStr?: string) {
-    const session = await verifySession();
-    const siteId = session?.activeSiteId;
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return { dates: [], gridData: [] };
+
+    const siteId = auth.activeSiteId;
 
     // Determine bounds
     const today = new Date();
@@ -60,7 +62,7 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
         .leftJoin(locations, eq(devices.locationId, locations.id))
         .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
         .where(and(
-            siteId ? eq(devices.siteId, siteId) : undefined,
+            eq(devices.siteId, siteId),
             or(eq(racks.isAuditable, true), isNull(racks.id)),
         ))
         .orderBy(categories.name, devices.name);
@@ -80,7 +82,7 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
         .where(and(
             gte(checklistEntries.checkDate, startBoundary),
             lte(checklistEntries.checkDate, endBoundary),
-            siteId ? eq(checklistEntries.siteId, siteId) : undefined
+            eq(checklistEntries.siteId, siteId)
         ))
         .orderBy(checklistEntries.checkDate, checklistEntries.checkTime);
 
