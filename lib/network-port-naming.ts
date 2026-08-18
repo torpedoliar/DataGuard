@@ -12,6 +12,16 @@ export const BULK_PORT_NAMING_TEMPLATES = PORT_NAMING_TEMPLATES.filter((template
 
 export type PortNamingTemplateId = typeof PORT_NAMING_TEMPLATES[number]["id"];
 
+/**
+ * Fiber-style templates (Ten/Forty/HundredGigabitEthernet) name uplink
+ * interfaces whose place on the faceplate is the uplink block. The bulk port
+ * form uses this to auto-default media type to fiber so generated uplinks do
+ * not silently collide with access ports.
+ */
+export function isFiberNamingTemplate(templateId: PortNamingTemplateId): boolean {
+  return templateId === "tenGigabit" || templateId === "fortyGigabit" || templateId === "hundredGigabit";
+}
+
 export type PortNamingParams = {
   customName?: string;
   slot?: string;

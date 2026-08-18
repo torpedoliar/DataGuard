@@ -8,6 +8,7 @@ import {
     BULK_PORT_NAMING_TEMPLATES,
     buildPortNameRange,
     formatPortName,
+    isFiberNamingTemplate,
     type PortNamingTemplateId,
 } from "@/lib/network-port-naming";
 import { Download, Info, Layers, Loader2, Plus, Upload } from "lucide-react";
@@ -74,6 +75,7 @@ export default function AddPortForm({
     const [status, setStatus] = useState("Active");
     const [speed, setSpeed] = useState("1G");
     const [mediaType, setMediaType] = useState("Copper (RJ45)");
+    const [mediaTypeTouched, setMediaTypeTouched] = useState(false);
     const [connectedToDeviceId, setConnectedToDeviceId] = useState("");
     const [description, setDescription] = useState("");
 
@@ -87,6 +89,12 @@ export default function AddPortForm({
     const namingTemplates = isBulk ? BULK_PORT_NAMING_TEMPLATES : PORT_NAMING_TEMPLATES;
     const effectiveTemplateId = isBulk && templateId === "custom" ? "gigabit" : templateId;
     const selectedTemplate = namingTemplates.find((template) => template.id === effectiveTemplateId) ?? namingTemplates[0];
+
+    // Bulk fiber-style templates (Te/Fo/Hu) generate uplink interface names;
+    // the faceplate routes fiber media into the uplink block, so default to
+    // fiber unless the admin picked a media type explicitly.
+    const isFiberTemplate = isBulk && isFiberNamingTemplate(effectiveTemplateId);
+    const effectiveMediaType = isFiberTemplate && !mediaTypeTouched ? "Fiber (SFP/SFP+)" : mediaType;
     const templateParams = useMemo(() => ({
         customName: portName,
         slot: templateSlot,
@@ -182,7 +190,7 @@ export default function AddPortForm({
                         trunkVlans: trunkVlans || null,
                         status: status as "Active" | "Inactive" | "Down",
                         speed: speed as "10/100M" | "1G" | "10G" | "25G" | "40G" | "100G" | "Auto",
-                        mediaType: mediaType as "Copper (RJ45)" | "Fiber (SFP/SFP+)" | "Twinax (DAC)",
+                        mediaType: effectiveMediaType as "Copper (RJ45)" | "Fiber (SFP/SFP+)" | "Twinax (DAC)",
                         description: description || null,
                     }));
 
@@ -200,7 +208,7 @@ export default function AddPortForm({
                         trunkVlans: trunkVlans || null,
                         status: status as "Active" | "Inactive" | "Down",
                         speed: speed as "10/100M" | "1G" | "10G" | "25G" | "40G" | "100G" | "Auto",
-                        mediaType: mediaType as "Copper (RJ45)" | "Fiber (SFP/SFP+)" | "Twinax (DAC)",
+                        mediaType: effectiveMediaType as "Copper (RJ45)" | "Fiber (SFP/SFP+)" | "Twinax (DAC)",
                         connectedToDeviceId: connectedToDeviceId ? Number.parseInt(connectedToDeviceId, 10) : null,
                         description: description || null,
                     });
@@ -255,7 +263,11 @@ export default function AddPortForm({
                         />
                     </label>
                     <div
-                        onClick={() => !busy && setIsBulk(!isBulk)}
+                        onClick={() => {
+                            if (busy) return;
+                            if (!isBulk) setMediaTypeTouched(false);
+                            setIsBulk(!isBulk);
+                        }}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700"
                     >
                         <Layers className={`h-4 w-4 ${isBulk ? "text-teal-500" : "text-slate-400"}`} />
@@ -433,7 +445,7 @@ export default function AddPortForm({
                     <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
                         Media Type
                     </label>
-                    <select value={mediaType} onChange={(e) => setMediaType(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" disabled={busy}>
+                    <select value={effectiveMediaType} onChange={(e) => { setMediaType(e.target.value); setMediaTypeTouched(true); }} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" disabled={busy}>
                         {["Copper (RJ45)", "Fiber (SFP/SFP+)", "Twinax (DAC)"].map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                 </div>

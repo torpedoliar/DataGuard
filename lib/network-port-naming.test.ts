@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { BULK_PORT_NAMING_TEMPLATES, buildPortNameRange, formatPortName } from "./network-port-naming";
+import {
+  BULK_PORT_NAMING_TEMPLATES,
+  buildPortNameRange,
+  formatPortName,
+  isFiberNamingTemplate,
+} from "./network-port-naming";
 
 describe("network port naming templates", () => {
   it("formats gigabit interface names", () => {
@@ -31,6 +36,15 @@ describe("network port naming templates", () => {
   });
   it("excludes custom names from bulk templates", () => {
     expect(BULK_PORT_NAMING_TEMPLATES.map((template) => template.id)).not.toContain("custom");
+  });
+
+  it("classifies fiber-style naming templates (#66)", () => {
+    expect(isFiberNamingTemplate("tenGigabit")).toBe(true);
+    expect(isFiberNamingTemplate("fortyGigabit")).toBe(true);
+    expect(isFiberNamingTemplate("hundredGigabit")).toBe(true);
+    expect(isFiberNamingTemplate("gigabit")).toBe(false);
+    expect(isFiberNamingTemplate("ethernet")).toBe(false);
+    expect(isFiberNamingTemplate("management")).toBe(false);
   });
 });
 
