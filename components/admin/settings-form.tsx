@@ -16,6 +16,8 @@ type SettingsData = {
     telegramBotConfigured: boolean;
 };
 
+// Keep in sync with TELEGRAM_ALERT_TEMPLATE_FIELDS in lib/telegram.ts
+// (cannot share the constant directly: that module imports the server db).
 const telegramTemplateTokens = [
     "siteName",
     "siteCode",
@@ -35,6 +37,7 @@ const telegramTemplateTokens = [
     "deviceDescription",
     "deviceRemarks",
     "incidentId",
+    "incidentLink",
 ];
 
 export default function SettingsForm({ initialData }: { initialData: SettingsData }) {
