@@ -6,7 +6,9 @@ import { secureOrigin } from "./base-origin";
 
 // ponytail: headless workers (SIEM/parser) have no request host, so login
 // remembers the host the operator actually used; alerts link there. APP_URL
-// env overrides when a public domain exists and login host is an internal IP.
+// is the operator-controlled override and takes precedence over any stored
+// login host — it is the only way to pin a public domain (or an explicit
+// scheme) when the stored host is an internal IP.
 
 export async function resolveNotificationBaseUrl(): Promise<string> {
   if (process.env.npm_lifecycle_event === "build") return "";
@@ -29,7 +31,7 @@ export async function resolveNotificationBaseUrl(): Promise<string> {
     // Called outside a request (worker) — rely on stored/APP_URL.
   }
 
-  return secureOrigin(stored || process.env.APP_URL || host || "localhost:3000");
+  return secureOrigin(process.env.APP_URL || stored || host || "localhost:3000");
 }
 
 export async function rememberNotificationBaseUrl(host: string) {
