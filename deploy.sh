@@ -98,10 +98,11 @@ APP_CONTAINER="dccheck_app"
 # ==================================================================
 # STEP 0: PROVISION SECRETS (idempotent)
 # ==================================================================
-# Compose reads .env.production for every service. If the file is missing
-# or empty we generate a fresh set of random credentials so the operator
-# never ships the development defaults by accident.
-ENV_FILE=".env.production"
+# Compose reads .env for every service (container env via env_file and
+# interpolation via --env-file). If the file is missing or empty we
+# generate a fresh set of random credentials so the operator never ships
+# the development defaults by accident.
+ENV_FILE=".env"
 
 echo ""
 echo "[0/6] Provisioning production secrets in $ENV_FILE..."
@@ -149,7 +150,7 @@ echo "OK    - Secrets ready in $ENV_FILE (mode $ENV_FILE_MODE)"
 # ==================================================================
 # STEP 0b: DB_USER ↔ Postgres volume sanity check
 # ==================================================================
-# If the operator edited DB_USER in .env.production between runs but the
+# If the operator edited DB_USER in .env between runs but the
 # dccheck_pgdata volume still has the old role, compose will pass the new
 # env to the app container but Postgres will reject the connection. The
 # volume is the source of truth here (it bakes POSTGRES_USER in on first
@@ -332,7 +333,7 @@ cat <<'EOF'
   IMPORTANT:
     - The database volume 'dccheck_pgdata' is the source of truth.
       Take regular backups via /admin/backup before maintenance.
-    - .env.production holds the live secrets. NEVER commit it.
+    - .env holds the live secrets. NEVER commit it.
       Back it up out-of-band and rotate via a new deploy.
     - Open UDP/514 on the host firewall so syslog reaches the receiver.
 EOF

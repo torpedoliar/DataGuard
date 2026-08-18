@@ -83,8 +83,8 @@ fi
 
 if [ "$DB_RUNNING" -eq 1 ]; then
     # Always use direct docker exec to the running container by name.
-    # `docker compose exec` looks up the project env file (.env.production by
-    # default in some setups) and aborts with exit 1 if it's missing, even
+    # `docker compose exec` looks up the project env file (.env by default
+    # in some setups) and aborts with exit 1 if it's missing, even
     # when the container itself is healthy. Going through `docker exec` skips
     # that lookup and works regardless of which env file the operator uses.
     DB_CONTAINER="$(docker ps --format "{{.Names}}" | grep -i postgres | head -1 || true)"
