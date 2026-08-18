@@ -63,6 +63,12 @@ export async function getUserById(id: number) {
     const session = await verifySession();
     if (!session) return null;
 
+    // IDOR guard: users may only read their own profile; superadmins may
+    // read any profile for user management. Everyone else fails closed.
+    if (session.role !== "superadmin" && session.userId !== id) {
+        return null;
+    }
+
     const user = await db.query.users.findFirst({
         where: eq(users.id, id),
     });
