@@ -143,8 +143,11 @@ async function notifyCriticalIncidents(siteId: number, criticalIncidents: Incide
     ),
   ].join("\n");
 
+  // Fire-and-forget so a Telegram outage can never fail the action after
+  // the incident row is committed (a thrown error here made callers report
+  // failure and get resubmitted → duplicate incidents/checklist entries).
   for (const recipient of recipients) {
-    await sendTelegramAlert(recipient.chatId, message);
+    sendTelegramAlert(recipient.chatId, message).catch(console.error);
   }
 }
 
@@ -158,8 +161,11 @@ async function notifyResolvedWaitingVerification(siteId: number, incidentId: num
 
   const baseUrl = await resolveNotificationBaseUrl();
   const message = `*Incident Resolved*\nSite: ${site.name}\n[#${incidentId} ${title}](${baseUrl}/admin/incidents/${incidentId})\nWaiting for admin verification.`;
+  // Fire-and-forget so a Telegram outage can never fail the action after
+  // the incident row is committed (a thrown error here made callers report
+  // failure and get resubmitted → duplicate incidents/checklist entries).
   for (const recipient of recipients) {
-    await sendTelegramAlert(recipient.chatId, message);
+    sendTelegramAlert(recipient.chatId, message).catch(console.error);
   }
 }
 
