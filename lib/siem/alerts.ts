@@ -143,7 +143,13 @@ export async function queueSiemAlerts() {
 
       const queueForChannel = async (channel: "telegram" | "webhook" | "email", recipients: SiteAlertRecipient[]) => {
         for (const { recipient } of recipients) {
-          if (finding.alerts.some((a) => a.channel === channel && a.recipient === recipient)) continue;
+          // A pending or sent row already covers this (finding, channel,
+          // recipient); a row that permanently FAILED must not block a fresh
+          // queue pass (e.g. after a worker restart or a long outage), so it
+          // is excluded here and re-queued as a new pending row.
+          if (finding.alerts.some(
+            (a) => a.channel === channel && a.recipient === recipient && a.status !== "failed",
+          )) continue;
           await db.insert(siemAlerts).values({
             findingId: finding.id,
             channel,
@@ -167,6 +173,16 @@ export async function queueSiemAlerts() {
   return { queued };
 }
 
+// Retry budget: initial attempt + MAX_SEND_RETRIES retries, then the row is
+// marked 'failed' (which the queue dedupe ignores, so a later queue pass can
+// re-queue it — alerts are never dropped permanently).
+const MAX_SEND_RETRIES = 4;
+// Exponential backoff base. Anchored on the row's createdAt (the only
+// timestamp siem_alerts carries; no migration) so a failed alert waits
+// base*2^retryCount before its next attempt instead of hammering every
+// 15s worker tick. First attempt (retryCount 0) is immediate.
+const RETRY_BACKOFF_BASE_MS = 15_000;
+
 export async function sendPendingSiemAlerts() {
   const alerts = await db.select().from(siemAlerts)
     .where(eq(siemAlerts.status, "pending"))
@@ -174,7 +190,7 @@ export async function sendPendingSiemAlerts() {
 
   let sent = 0;
   let failed = 0;
-  
+
   // Create transporter once if needed
   let transporter: nodemailer.Transporter | null = null;
   if (alerts.some(a => a.channel === "email")) {
@@ -182,9 +198,19 @@ export async function sendPendingSiemAlerts() {
   }
 
   for (const alert of alerts) {
+    const currentRetries = alert.retryCount ?? 0;
+
+    // Backoff gate: a retried alert is only eligible once its exponential
+    // window (from creation) has elapsed. Skipped rows stay pending for a
+    // later tick.
+    if (currentRetries > 0 && alert.createdAt) {
+      const backoffMs = RETRY_BACKOFF_BASE_MS * 2 ** currentRetries;
+      if (Date.now() - alert.createdAt.getTime() < backoffMs) continue;
+    }
+
     let success = false;
     let errorMsg = "";
-    
+
     try {
       if (alert.channel === "telegram" && alert.recipient) {
         const result = await sendTelegramAlert(alert.recipient, alert.message);
@@ -216,8 +242,7 @@ export async function sendPendingSiemAlerts() {
       await db.update(siemAlerts).set({ status: "sent", sentAt: new Date(), error: null }).where(eq(siemAlerts.id, alert.id));
       sent++;
     } else {
-      const currentRetries = alert.retryCount ?? 0;
-      if (currentRetries < 3) {
+      if (currentRetries < MAX_SEND_RETRIES) {
         await db.update(siemAlerts).set({ retryCount: currentRetries + 1, error: errorMsg }).where(eq(siemAlerts.id, alert.id));
       } else {
         await db.update(siemAlerts).set({ status: "failed", error: errorMsg }).where(eq(siemAlerts.id, alert.id));

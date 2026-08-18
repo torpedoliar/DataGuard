@@ -57,7 +57,7 @@ type FindingOverrides = Partial<{
   site: { id: number; name: string; telegramChatId: string | null } | null;
   device: { id: number; name: string } | null;
   source: { id: number; sourceIp: string } | null;
-  alerts: { channel: string }[];
+  alerts: { channel: string; recipient?: string; status?: string }[];
 }>;
 
 function makeFinding(overrides: FindingOverrides = {}) {
@@ -157,6 +157,34 @@ describe("queueSiemAlerts", () => {
     const result = await queueSiemAlerts();
     expect(result.queued).toBe(0);
     expect(insertedValues).toHaveLength(0);
+  });
+
+  it("re-queues a permanently failed alert (failed rows do not block the queue)", async () => {
+    mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
+      makeFinding({ alerts: [{ channel: "telegram", recipient: "123", status: "failed" } as any] }),
+    ]);
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+
+    const insertedValues: unknown[] = [];
+    mockedDb.insert.mockImplementation(() => ({
+      values: (v: unknown) => {
+        insertedValues.push(v);
+        return Promise.resolve();
+      },
+    }));
+
+    const result = await queueSiemAlerts();
+
+    expect(result.queued).toBe(1);
+    expect(insertedValues).toHaveLength(1);
+    expect(insertedValues[0]).toMatchObject({
+      channel: "telegram",
+      recipient: "123",
+      status: "pending",
+    });
   });
 
   it("does not insert when severity is below the configured alertMinSeverity", async () => {
@@ -379,6 +407,78 @@ describe("sendPendingSiemAlerts", () => {
     expect(updateSet).toHaveBeenCalledWith(
       expect.objectContaining({ retryCount: 1, error: "boom" }),
     );
+    expect(result).toEqual({ sent: 0, failed: 1 });
+  });
+
+  it("skips a retried alert until its exponential backoff window elapses", async () => {
+    const rows = [{
+      id: 9,
+      channel: "telegram",
+      recipient: "x",
+      message: "m",
+      retryCount: 1,
+      // 10s < 2^1 * 15s → not yet eligible
+      createdAt: new Date(Date.now() - 10_000),
+    }];
+    const chain = makeSelectFromWhereLimitChain(rows);
+    mockedDb.select.mockReturnValueOnce(chain.select());
+
+    const result = await sendPendingSiemAlerts();
+
+    expect(mockedSend).not.toHaveBeenCalled();
+    expect(mockedDb.update).not.toHaveBeenCalled();
+    expect(result).toEqual({ sent: 0, failed: 0 });
+  });
+
+  it("retries once the backoff window has elapsed", async () => {
+    const rows = [{
+      id: 10,
+      channel: "telegram",
+      recipient: "x",
+      message: "m",
+      retryCount: 1,
+      // 35s > 30s window → eligible again
+      createdAt: new Date(Date.now() - 35_000),
+    }];
+    const chain = makeSelectFromWhereLimitChain(rows);
+    mockedDb.select.mockReturnValueOnce(chain.select());
+    mockedSend.mockResolvedValue({ success: false, message: "still down" });
+    const updateWhere = vi.fn().mockReturnValue(Promise.resolve());
+    const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
+    mockedDb.update.mockReturnValue({ set: updateSet });
+
+    const result = await sendPendingSiemAlerts();
+
+    expect(mockedSend).toHaveBeenCalledTimes(1);
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ retryCount: 2, error: "still down" }),
+    );
+    expect(result).toEqual({ sent: 0, failed: 1 });
+  });
+
+  it("marks the row failed once retries are exhausted so the queue can re-queue it", async () => {
+    const rows = [{
+      id: 11,
+      channel: "telegram",
+      recipient: "x",
+      message: "m",
+      retryCount: 4, // MAX_SEND_RETRIES
+      createdAt: new Date(Date.now() - 5 * 60_000),
+    }];
+    const chain = makeSelectFromWhereLimitChain(rows);
+    mockedDb.select.mockReturnValueOnce(chain.select());
+    mockedSend.mockResolvedValue({ success: false, message: "permanently down" });
+    const updateWhere = vi.fn().mockReturnValue(Promise.resolve());
+    const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
+    mockedDb.update.mockReturnValue({ set: updateSet });
+
+    const result = await sendPendingSiemAlerts();
+
+    expect(mockedSend).toHaveBeenCalledTimes(1);
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed", error: "permanently down" }),
+    );
+    expect(updateSet).not.toHaveBeenCalledWith(expect.objectContaining({ retryCount: 5 }));
     expect(result).toEqual({ sent: 0, failed: 1 });
   });
 });
