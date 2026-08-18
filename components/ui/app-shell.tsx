@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   Boxes,
   Bell,
@@ -86,6 +86,20 @@ export default function AppShell({
   const [isPending, startTransition] = useTransition();
   const navigation = getAppNavigation(user.role);
 
+  // ESC closes any open shell menu (site switcher, user menu, mobile nav),
+  // mirroring the dismissal contract of the Modal primitive.
+  useEffect(() => {
+    if (!siteOpen && !userOpen && !mobileOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setSiteOpen(false);
+      setUserOpen(false);
+      setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [siteOpen, userOpen, mobileOpen]);
+
   const isActive = (href: string) => {
     if (href === "/admin") return pathname === "/admin";
     return pathname === href || pathname.startsWith(`${href}/`);
@@ -120,6 +134,9 @@ export default function AppShell({
         type="button"
         onClick={() => setSiteOpen((value) => !value)}
         disabled={isPending || userSites.length <= 1}
+        aria-haspopup="listbox"
+        aria-expanded={siteOpen}
+        aria-controls="site-switcher-menu"
         className="relative mb-5 rounded-md border border-ops-border bg-ops-surface-raised p-3 text-left transition-colors hover:border-ops-accent/45 disabled:cursor-default"
       >
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">Active Site</p>
@@ -131,8 +148,8 @@ export default function AppShell({
 
       {siteOpen && userSites.length > 1 && (
         <>
-          <button className="fixed inset-0 z-40 cursor-default" type="button" onClick={() => setSiteOpen(false)} />
-          <div className="absolute left-5 top-[104px] z-50 w-64 overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl">
+          <div role="presentation" className="fixed inset-0 z-40" onClick={() => setSiteOpen(false)} />
+          <div id="site-switcher-menu" className="absolute left-5 top-[104px] z-50 w-64 overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl">
             <div className="border-b border-ops-border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">
               Switch Site
             </div>
@@ -237,6 +254,9 @@ export default function AppShell({
                 <button
                   type="button"
                   onClick={() => setUserOpen((value) => !value)}
+                  aria-haspopup="menu"
+                  aria-expanded={userOpen}
+                  aria-controls="user-menu"
                   className="flex size-9 items-center justify-center overflow-hidden rounded-full border border-ops-border bg-ops-surface-raised text-xs font-bold text-ops-text transition-colors hover:border-ops-accent/50"
                   title={user.username}
                 >
@@ -250,8 +270,8 @@ export default function AppShell({
 
                 {userOpen && (
                   <>
-                    <button className="fixed inset-0 z-40 cursor-default" type="button" onClick={() => setUserOpen(false)} />
-                    <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl">
+                    <div role="presentation" className="fixed inset-0 z-40" onClick={() => setUserOpen(false)} />
+                    <div id="user-menu" className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl">
                       <div className="border-b border-ops-border px-4 py-3">
                         <p className="truncate text-sm font-semibold text-ops-text">{user.username}</p>
                         <p className="text-xs capitalize text-ops-muted">{user.role}</p>
