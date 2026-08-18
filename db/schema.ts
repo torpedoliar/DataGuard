@@ -599,6 +599,9 @@ export const syslogEventsRaw = pgTable("syslog_events_raw", {
   // deletes filter eq(siteId) so unparsed null-site rows are skipped and
   // cleaned by the global orphan-raw path. NOT NULL would force a per-event
   // source lookup on the syslog hot path; upgrade when receiver does the match.
+  // Note: 0024 backfilled pre-existing NULL rows to the MIN active site id when
+  // the source_ip could not be matched, so rows parked on that site may be
+  // mis-attributed legacy data — see scripts/audit-site-backfill.sql.
   siteId: integer("site_id").references(() => sites.id),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
@@ -610,7 +613,14 @@ export const syslogEventsRaw = pgTable("syslog_events_raw", {
 
 export const syslogEvents = pgTable("syslog_events", {
   id: serial("id").primaryKey(),
-  rawEventId: integer("raw_event_id").references(() => syslogEventsRaw.id).notNull(),
+  // Plain integer by design: migration 0016 partitioned syslog_events_raw and
+  // dropped this FK. PostgreSQL forbids a regular FK referencing a partitioned
+  // table, so the raw_event_id FK can never be re-created. The reference is
+  // maintained by the application layer (lib/siem/evidence.ts). No
+  // .references() and no Drizzle relation — the ORM must not claim an FK that
+  // does not exist in the database. The legal referencing-side FKs (site_id,
+  // device_id, source_id) were restored by migration 0035.
+  rawEventId: integer("raw_event_id").notNull(),
   eventTime: timestamp("event_time"),
   receivedAt: timestamp("received_at").notNull(),
   sourceIp: text("source_ip").notNull(),
@@ -666,6 +676,9 @@ export const siemRules = pgTable("siem_rules", {
   windowSeconds: integer("window_seconds"),
   cooldownSeconds: integer("cooldown_seconds").notNull().default(300),
   alertEnabled: boolean("alert_enabled").notNull().default(false),
+  // 0024 backfilled NULL site_ids to the min active site id, then 0025 locked
+  // this column NOT NULL — rows parked on the min-site may be mis-attributed
+  // legacy data (see scripts/audit-site-backfill.sql for a review pass).
   siteId: integer("site_id").references(() => sites.id).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -679,6 +692,10 @@ export const siemRules = pgTable("siem_rules", {
 
 export const siemFindings = pgTable("siem_findings", {
   id: serial("id").primaryKey(),
+  // 0024 backfilled this column for rows whose event/source mapping could not
+  // be resolved (fallback = min active site id); 0025 then set NOT NULL, so
+  // fallback-assigned rows are indistinguishable from genuine ones — see
+  // scripts/audit-site-backfill.sql.
   siteId: integer("site_id").references(() => sites.id).notNull(),
   deviceId: integer("device_id").references(() => devices.id),
   sourceId: integer("source_id").references(() => syslogSources.id),
@@ -743,6 +760,9 @@ export const siemAiJobs = pgTable("siem_ai_jobs", {
 
 export const siemSettings = pgTable("siem_settings", {
   id: serial("id").primaryKey(),
+  // 0024 backfilled every pre-existing NULL row to the min active site id (no
+  // source mapping exists for settings); 0025 then set NOT NULL — see
+  // scripts/audit-site-backfill.sql.
   siteId: integer("site_id").references(() => sites.id).notNull(),
   udpPort: integer("udp_port").notNull().default(514),
   tcpPort: integer("tcp_port"),
@@ -783,6 +803,9 @@ export const siemEventsQuarantine = pgTable("siem_events_quarantine", {
   message: text("message").notNull(),
   severity: integer("severity"),
   rawEventId: integer("raw_event_id"),
+  // 0024 backfilled this column (original_event_id lookup, else fallback to
+  // min active site id); 0025 then set NOT NULL — see
+  // scripts/audit-site-backfill.sql.
   siteId: integer("site_id").references(() => sites.id).notNull(),
   quarantinedAt: timestamp("quarantined_at").defaultNow(),
   quarantinedReason: text("quarantined_reason"),
@@ -864,19 +887,14 @@ export const syslogSourcesRelations = relations(syslogSources, ({ one, many }) =
   findings: many(siemFindings),
 }));
 
-export const syslogEventsRawRelations = relations(syslogEventsRaw, ({ one, many }) => ({
+export const syslogEventsRawRelations = relations(syslogEventsRaw, ({ one }) => ({
   site: one(sites, {
     fields: [syslogEventsRaw.siteId],
     references: [sites.id],
   }),
-  events: many(syslogEvents),
 }));
 
 export const syslogEventsRelations = relations(syslogEvents, ({ one }) => ({
-  rawEvent: one(syslogEventsRaw, {
-    fields: [syslogEvents.rawEventId],
-    references: [syslogEventsRaw.id],
-  }),
   source: one(syslogSources, {
     fields: [syslogEvents.sourceId],
     references: [syslogSources.id],
