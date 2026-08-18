@@ -251,7 +251,6 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                   <label>
                     <span className={labelClass}>U Height</span>
                     <select name="uHeight" defaultValue={device.uHeight || 1} className={fieldClass}>
-                      <option value="0.5">0.5U</option>
                       <option value="1">1U</option>
                       <option value="2">2U</option>
                       <option value="3">3U</option>

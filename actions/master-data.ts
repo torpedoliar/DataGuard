@@ -36,7 +36,10 @@ const deviceSchema = z.object({
     zone: z.string().nullable().optional(),
     rackName: z.string().nullable().optional(),
     rackPosition: z.preprocess((val) => val === "" || val === null || val === undefined ? null : Number(val), z.number().nullable().optional()),
-    uHeight: z.preprocess((val) => val === "" || val === null || val === undefined ? 1 : Number(val), z.number().default(1)),
+    // u_height is an INTEGER column: reject fractional heights (e.g. 0.5U from
+    // an old/bulk payload) with a clear validation error instead of failing at
+    // the Postgres integer column with a generic server error.
+    uHeight: z.preprocess((val) => val === "" || val === null || val === undefined ? 1 : Number(val), z.number().int("U height harus bilangan bulat (mis. 1U, 2U).").default(1)),
     ipAddress: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
 });

@@ -461,6 +461,18 @@ describe("addDevice / updateDevice rack capacity (finding #10)", () => {
     expect(mockedDb.insert).not.toHaveBeenCalled();
   });
 
+  it("addDevice rejects a fractional uHeight (0.5U) with a validation error before any DB call (finding #32)", async () => {
+    mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
+
+    const result = await addDevice(null, rackFormData({ rackPosition: "10", uHeight: "0.5" }));
+
+    expect(result).toHaveProperty("errors");
+    expect((result as { errors: Record<string, unknown[]> }).errors).toHaveProperty("uHeight");
+    expect(mockedDb.query.racks.findFirst).not.toHaveBeenCalled();
+    expect(mocks.checkRackCollision).not.toHaveBeenCalled();
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
   it("addDevice allows a placement within totalU and proceeds with the insert", async () => {
     mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
     mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42 });

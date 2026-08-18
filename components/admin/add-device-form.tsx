@@ -220,7 +220,6 @@ export default function AddDeviceForm({
               <label>
                 <span className={labelClass}>U Height</span>
                 <select name="uHeight" value={form.uHeight} onChange={setField("uHeight")} className={fieldClass}>
-                  <option value="0.5">0.5U</option>
                   <option value="1">1U</option>
                   <option value="2">2U</option>
                   <option value="3">3U</option>
