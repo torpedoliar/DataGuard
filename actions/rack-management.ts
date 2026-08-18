@@ -2,7 +2,7 @@
 
 import { db } from "../db";
 import { racks, locations, devices } from "../db/schema";
-import { and, eq, asc } from "drizzle-orm";
+import { and, eq, asc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
@@ -180,15 +180,39 @@ export async function deleteRack(id: number) {
     const auth = await requireActiveSiteAdminAction();
     if (!auth.ok) return { message: auth.message };
 
+    // devices.rack_name is free text with no FK to racks, so the delete would
+    // always "succeed" while getRackLayout immediately resurrects the rack
+    // (default 42U, lost zone) from the referencing device rows. Refuse the
+    // deletion while any device in the active site references this rack.
+    const rackInUseMessage = "Gagal menghapus rak ini karena mungkin masih berisi perangkat server aktif.";
+
     try {
+        const rack = await db.query.racks.findFirst({
+            where: and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)),
+            columns: { name: true },
+        });
+        if (!rack) return { message: "Rak tidak ditemukan di site aktif." };
+
+        const [{ deviceCount }] = await db
+            .select({ deviceCount: sql<number>`count(*)` })
+            .from(devices)
+            .where(and(
+                eq(devices.siteId, auth.activeSiteId),
+                sql`lower(${devices.rackName}) = lower(${rack.name})`,
+            ));
+
+        if (deviceCount > 0) {
+            return { message: rackInUseMessage };
+        }
+
         await db.delete(racks).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
 
         revalidatePath("/admin/rack-manage");
         revalidatePath("/admin/rack");
-        await logAudit({ action: "DELETE", entity: "rack", entityId: id });
+        await logAudit({ action: "DELETE", entity: "rack", entityId: id, entityName: rack.name });
         return { success: true };
     } catch (error) {
-        return { message: "Gagal menghapus rak ini karena mungkin masih berisi perangkat server aktif." };
+        return { message: rackInUseMessage };
     }
 }
 
