@@ -235,6 +235,16 @@ describe("buildFaceplate port placement", () => {
     expect(faceplate.unplaced.map((item) => item.id)).toEqual([1]);
   });
 
+  it("gives an explicit slot precedence over a name guess even when the guess sorts first", () => {
+    const faceplate = buildFaceplate({ portCount: 8 }, [
+      port(1, "Gi1/0/3"),
+      port(2, "zzz", { portIndex: 3 }),
+    ]);
+
+    expect(slotAt(faceplate.slots, 3).port?.id).toBe(2);
+    expect(faceplate.unplaced.map((item) => item.id)).toEqual([1]);
+  });
+
   it("keeps the first explicit slot when two overrides collide", () => {
     const faceplate = buildFaceplate({ portCount: 8 }, [
       port(1, "aaa", { portIndex: 5 }),

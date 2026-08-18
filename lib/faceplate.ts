@@ -345,16 +345,16 @@ export function buildFaceplate<T extends FaceplatePortLike>(
   const slotByNumber = new Map(slots.map((slot) => [slot.slotNumber, slot]));
   const unplaced: T[] = [];
 
-  // An explicit portIndex is a deliberate statement about where the port sits, so
-  // it is placed first and may evict a port that only guessed the same slot from
-  // its name. Within each pass, ports are placed in natural interface order.
+  // Precedence is implemented by pass ordering, not eviction: explicit
+  // portIndex overrides are placed first, name-derived guesses second. A guess
+  // that would collide with an override therefore falls through to the
+  // unplaced list in its own pass. Within each pass, ports are placed in
+  // natural interface order and the first port keeps the slot.
   const ordered = [...ports].sort((a, b) => comparePortNames(a.portName, b.portName));
   const hasOverride = (port: T) => typeof port.portIndex === "number" && Number.isInteger(port.portIndex) && port.portIndex >= 1;
   const passes = [ordered.filter(hasOverride), ordered.filter((port) => !hasOverride(port))];
 
-  for (const [passIndex, pass] of passes.entries()) {
-    const isOverridePass = passIndex === 0;
-
+  for (const pass of passes) {
     for (const port of pass) {
       const slotNumber = resolveSlotNumber(port, config);
       const slot = slotNumber === null ? undefined : slotByNumber.get(slotNumber);
@@ -365,14 +365,8 @@ export function buildFaceplate<T extends FaceplatePortLike>(
       }
 
       if (slot.port) {
-        // Two overrides on one slot is a genuine conflict. An override landing on
-        // a port that only guessed the slot from its name is not: the guess gives way.
-        if (isOverridePass && !hasOverride(slot.port)) {
-          unplaced.push(slot.port);
-          slot.port = port;
-        } else {
-          unplaced.push(port);
-        }
+        // The slot is already taken — keep the earlier port and surface this one.
+        unplaced.push(port);
         continue;
       }
 
