@@ -63,7 +63,9 @@ const FieldAuditCard = forwardRef<HTMLDivElement, FieldAuditCardProps>(
           isHighlighted ? "border-ops-accent/70 shadow-[0_0_0_1px_rgba(93,212,180,0.18)]" : "border-ops-border",
         )}
       >
-        <input type="hidden" name="deviceId" value={device.id} />
+        {/* deviceId is submitted once for every device by the hidden all-devices
+            block in ChecklistForm; this card must NOT add a duplicate, or
+            formData.getAll("deviceId") yields the device twice → double entries. */}
 
         <div className="grid gap-4 xl:grid-cols-[minmax(220px,0.8fr)_minmax(360px,1fr)_minmax(280px,1fr)]">
           <div className="min-w-0">
