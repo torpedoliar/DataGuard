@@ -15,3 +15,20 @@ export function formatWibDateTime(date: Date | string, opts?: { seconds?: boolea
 export function formatWibForAlert(date: Date | string) {
   return `${formatWibDateTime(date)} WIB`;
 }
+
+// Date-only WIB form (e.g. "12 Agu 2026") for templates that render
+// checkDate/checkTime as separate fields.
+export function formatWibDate(date: Date | string) {
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeZone: WIB_TIME_ZONE,
+  }).format(new Date(date));
+}
+
+// Time-only WIB form (e.g. "14.30").
+export function formatWibTime(date: Date | string) {
+  return new Intl.DateTimeFormat("id-ID", {
+    timeStyle: "short",
+    timeZone: WIB_TIME_ZONE,
+  }).format(new Date(date));
+}

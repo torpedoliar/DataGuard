@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "../db";
-import { devices, globalSettings, sites } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { devices, globalSettings, incidents, sites } from "../db/schema";
+import { and, eq, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
@@ -15,6 +15,7 @@ import {
 } from "../lib/telegram";
 import { resolveNotificationBaseUrl } from "../lib/notification-url";
 import { saveUploadFile } from "../lib/upload";
+import { formatWibDate, formatWibTime } from "../lib/ui/datetime";
 
 const settingsSchema = z.object({
     appName: z.string().min(1, "Nama aplikasi tidak boleh kosong"),
@@ -239,13 +240,37 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
         : null;
     const rack = [sampleDevice?.rackName, sampleDevice?.rackPosition ? `U${sampleDevice.rackPosition}` : null].filter(Boolean).join(" ");
     const now = new Date();
+
+    // Only link a real incident when one exists for this site; a fabricated
+    // #TEST link to incident id 1 can 404 and undermines the smoke test.
+    // "Recent" = created within the last 14 days.
+    const recentIncident = session.activeSiteId
+        ? await db.query.incidents.findFirst({
+            where: and(
+                eq(incidents.siteId, session.activeSiteId),
+                gte(incidents.createdAt, new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)),
+            ),
+            orderBy: (rows, { desc }) => [desc(rows.createdAt)],
+            columns: { id: true },
+        })
+        : null;
+    const baseUrl = await resolveNotificationBaseUrl();
+    const incidentContext = recentIncident
+        ? {
+            incidentId: `#${recentIncident.id}`,
+            incidentLink: `[Open incident #${recentIncident.id}](${baseUrl}/admin/incidents/${recentIncident.id})`,
+        }
+        : { incidentId: null, incidentLink: null };
+
     const message = renderTelegramTemplate(template, {
         siteName: activeSite?.name ?? session.activeSiteName,
         siteCode: activeSite?.code,
         checker: session.username,
         shift: "Test",
-        checkDate: now.toISOString().slice(0, 10),
-        checkTime: now.toTimeString().slice(0, 5),
+        // WIB (Asia/Jakarta) dates — toISOString() slices a UTC date that
+        // can skew a day back for Jakarta evenings.
+        checkDate: formatWibDate(now),
+        checkTime: formatWibTime(now),
         deviceName: sampleDevice?.name ?? "TEST",
         deviceAssetCode: sampleDevice?.assetCode,
         deviceStatus: "Test",
@@ -257,8 +282,7 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
         deviceIp: sampleDevice?.ipAddress,
         deviceDescription: sampleDevice?.description,
         deviceRemarks: "Test Telegram dari halaman pengaturan",
-        incidentId: "TEST",
-        incidentLink: `[Open incident #TEST](${await resolveNotificationBaseUrl()}/admin/incidents/1)`,
+        ...incidentContext,
     }, {
         trustedMarkdownFields: ["incidentLink"],
     });
