@@ -125,7 +125,7 @@ export async function getReportData(
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
-        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
         .leftJoin(incidents, eq(incidents.checklistItemId, checklistItems.id))
         .where(whereClause)
         .then(res => res[0]?.count || 0);
@@ -157,7 +157,7 @@ export async function getReportData(
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
-        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
         .leftJoin(incidents, eq(incidents.checklistItemId, checklistItems.id))
         .where(whereClause)
         .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime))
@@ -194,7 +194,7 @@ export async function getRawExportData(startDate: string, endDate: string, incid
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
         .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
-        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
         .leftJoin(incidents, eq(incidents.checklistItemId, checklistItems.id))
         .where(
             and(

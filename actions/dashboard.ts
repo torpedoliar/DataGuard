@@ -33,7 +33,7 @@ export async function getDashboardStats() {
 
     // 1. Overall Completion
     const totalDevices = await db.select({ count: sql<number>`count(*)` }).from(devices)
-        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
         .where(and(
             eq(devices.siteId, siteId),
             or(eq(racks.isAuditable, true), isNull(racks.id)),
@@ -61,7 +61,7 @@ export async function getDashboardStats() {
     for (const cat of allCategories) {
         const catDevices = await db.select({ count: sql<number>`count(*)` })
             .from(devices)
-            .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+            .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
             .where(and(
                 eq(devices.categoryId, cat.id),
                 eq(devices.siteId, siteId),
@@ -73,7 +73,7 @@ export async function getDashboardStats() {
             .from(checklistItems)
             .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
             .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
-            .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+            .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
             .where(and(
                 eq(checklistEntries.checkDate, today),
                 eq(devices.categoryId, cat.id),

@@ -173,7 +173,7 @@ export async function getDevices() {
         .leftJoin(categories, eq(devices.categoryId, categories.id))
         .leftJoin(brands, eq(devices.brandId, brands.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
-        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
         .where(and(eq(devices.siteId, auth.activeSiteId), rackFilter));
 }
 

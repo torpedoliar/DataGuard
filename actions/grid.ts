@@ -3,7 +3,7 @@
 
 import { db } from "@/db";
 import { checklistEntries, devices, checklistItems, categories, users, locations, racks } from "@/db/schema";
-import { eq, and, gte, lte, or, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, or, isNull, sql } from "drizzle-orm";
 import { requireActiveSiteAction } from "@/lib/action-auth";
 
 export type DailyCheck = {
@@ -60,7 +60,7 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
         .from(devices)
         .leftJoin(categories, eq(devices.categoryId, categories.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
-        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), eq(racks.name, devices.rackName)))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
         .where(and(
             eq(devices.siteId, siteId),
             or(eq(racks.isAuditable, true), isNull(racks.id)),
