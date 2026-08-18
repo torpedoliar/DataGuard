@@ -93,6 +93,7 @@ export default async function AdminPage() {
   const governanceShortcuts: Shortcut[] = [
     { href: "/admin/incidents", label: "Incidents", meta: "Remediation queue", icon: <CircleAlert className="size-5" /> },
     { href: "/admin/users", label: "Users", meta: "Roles and access", icon: <Users className="size-5" /> },
+    { href: "/admin/device-groups", label: "PIC Groups", meta: "Device responsibility groups", icon: <Users className="size-5" /> },
     { href: "/admin/settings", label: "Settings", meta: "Telegram and app config", icon: <Settings className="size-5" /> },
   ];
 

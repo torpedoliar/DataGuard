@@ -24,6 +24,7 @@ export type AuditAction =
 
 export type AuditEntity =
     | "device"
+    | "device_group"
     | "brand"
     | "category"
     | "location"
