@@ -386,6 +386,47 @@ export function buildFaceplate<T extends FaceplatePortLike>(
 
 export type FaceplateSlotColors = { fill: string; stroke: string; label: string; accent: string | null };
 
+/**
+ * Maps each occupied slot number to the port that holds it after placement.
+ * Ports not present in any value are the diagram's unplaced list.
+ */
+export function slotOccupants<T extends FaceplatePortLike>(faceplate: Faceplate<T>): Map<number, T> {
+  const occupants = new Map<number, T>();
+  for (const slot of faceplate.slots) {
+    if (slot.port) occupants.set(slot.slotNumber, slot.port);
+  }
+  return occupants;
+}
+
+export type FaceplateSlotPlacement = {
+  /** The slot the port resolves to (null when the name carries no usable number). */
+  slotNumber: number | null;
+  /** True when the port actually occupies the slot on the rendered faceplate. */
+  placed: boolean;
+  /** True when another port holds the slot this port resolves to. */
+  conflict: boolean;
+};
+
+/**
+ * Per-port placement verdict for table-style UI, mirroring buildFaceplate: a
+ * port that lost its slot to an override or a collision reports `placed:
+ * false` so the table renders it as unmapped instead of showing a slot number
+ * the diagram does not honour.
+ */
+export function resolveSlotPlacement<T extends FaceplatePortLike>(
+  port: T,
+  config: FaceplateConfig,
+  occupants: Map<number, T>,
+): FaceplateSlotPlacement {
+  const slotNumber = resolveSlotNumber(port, config);
+  if (slotNumber === null) return { slotNumber: null, placed: false, conflict: false };
+  const occupant = occupants.get(slotNumber);
+  if (occupant === undefined || occupant.id !== port.id) {
+    return { slotNumber, placed: false, conflict: occupant !== undefined };
+  }
+  return { slotNumber, placed: true, conflict: false };
+}
+
 export function faceplateSlotColors(port: { status?: string | null; portMode?: string | null } | null): FaceplateSlotColors {
   const accent = port?.portMode ? FACEPLATE_MODE_ACCENT[port.portMode] ?? null : null;
   if (!port) return { ...FACEPLATE_PALETTE.empty, accent: null };

@@ -4,7 +4,7 @@ import { Edit, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import EditPortModal from "./edit-port-modal";
 import DeletePortModal from "./delete-port-modal";
-import { normalizeFaceplateConfig, resolveSlotNumber, type FaceplateConfigInput } from "@/lib/faceplate";
+import { buildFaceplate, normalizeFaceplateConfig, resolveSlotPlacement, slotOccupants, type FaceplateConfigInput } from "@/lib/faceplate";
 
 type Vlan = { id: number; vlanId: number; name: string };
 type Device = { id: number; name: string; locationName: string | null };
@@ -51,6 +51,17 @@ export default function PortTable({
     // port missing from the diagram is explainable straight from the table.
     const config = useMemo(() => normalizeFaceplateConfig(faceplateConfig), [faceplateConfig]);
     const showSlotColumn = config.portCount > 0;
+    // Resolve placement once, mirroring the diagram: a port that lost its slot to
+    // another port (override precedence or a collision) renders Unmapped instead
+    // of a slot number the faceplate does not honour.
+    const placement = useMemo(
+        () => (showSlotColumn ? buildFaceplate(config, ports) : null),
+        [showSlotColumn, config, ports],
+    );
+    const occupants = useMemo(
+        () => (placement ? slotOccupants(placement) : new Map<number, Port>()),
+        [placement],
+    );
 
     const getStatusIndicator = (status: string | null) => {
         if (status === 'Active') return <span className="flex items-center gap-1 text-success"><span className="w-2 h-2 rounded-full bg-success"></span> Active</span>;
@@ -89,12 +100,16 @@ export default function PortTable({
                                     {showSlotColumn && (
                                         <td className="px-4 py-3 whitespace-nowrap">
                                             {(() => {
-                                                const slotNumber = resolveSlotNumber(port, config);
-                                                if (slotNumber === null) {
+                                                const slotPlacement = resolveSlotPlacement(port, config, occupants);
+                                                if (!slotPlacement.placed) {
                                                     return (
                                                         <span
                                                             className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-                                                            title="Port ini tidak terpetakan ke slot faceplate. Isi Slot Faceplate pada port ini, atau perbesar jumlah port di panel Faceplate Layout."
+                                                            title={
+                                                                slotPlacement.conflict
+                                                                    ? `Slot ${slotPlacement.slotNumber} di diagram faceplate ditempati port lain. Atur Slot Faceplate port ini agar tidak bentrok.`
+                                                                    : "Port ini tidak terpetakan ke slot faceplate. Isi Slot Faceplate pada port ini, atau perbesar jumlah port di panel Faceplate Layout."
+                                                            }
                                                         >
                                                             Unmapped
                                                         </span>
@@ -102,7 +117,7 @@ export default function PortTable({
                                                 }
                                                 return (
                                                     <span className="font-mono text-sm text-slate-800 dark:text-slate-200" title={port.portIndex ? "Slot diisi manual" : "Slot disimpulkan dari nama interface"}>
-                                                        {slotNumber}
+                                                        {slotPlacement.slotNumber}
                                                         {!port.portIndex && <span className="text-slate-400 text-[10px] ml-1">auto</span>}
                                                     </span>
                                                 );

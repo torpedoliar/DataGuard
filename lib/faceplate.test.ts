@@ -9,6 +9,8 @@ import {
   normalizeFaceplateConfig,
   parsePortIndex,
   resolveSlotNumber,
+  resolveSlotPlacement,
+  slotOccupants,
   splitPortName,
   suggestPortName,
 } from "./faceplate";
@@ -280,6 +282,79 @@ describe("resolveSlotNumber", () => {
   it("ignores a zero or negative override and falls back to the name", () => {
     expect(resolveSlotNumber({ id: 1, portName: "Gi1/0/6", portIndex: 0 }, config)).toBe(6);
     expect(resolveSlotNumber({ id: 1, portName: "Gi1/0/6", portIndex: -3 }, config)).toBe(6);
+  });
+});
+
+describe("slotOccupants", () => {
+  it("maps each occupied slot to the port that holds it after placement", () => {
+    const faceplate = buildFaceplate({ portCount: 8 }, [port(1, "Gi1/0/1"), port(2, "Gi1/0/8")]);
+
+    const occupants = slotOccupants(faceplate);
+    expect(occupants.get(1)?.id).toBe(1);
+    expect(occupants.get(8)?.id).toBe(2);
+    expect(occupants.size).toBe(2);
+  });
+
+  it("excludes ports the diagram resolves to the unplaced list", () => {
+    const faceplate = buildFaceplate({ portCount: 8 }, [
+      port(1, "Gi1/0/3"),
+      port(2, "Eth3"),
+      port(3, "mgmt"),
+    ]);
+
+    const occupants = slotOccupants(faceplate);
+    expect([...occupants.values()].map((item) => item.id)).toEqual([2]);
+  });
+});
+
+describe("resolveSlotPlacement", () => {
+  const config = normalizeFaceplateConfig({ portCount: 8 });
+
+  it("reports a placed port as the occupant of its slot", () => {
+    const occupants = slotOccupants(buildFaceplate(config, [port(1, "Gi1/0/3")]));
+
+    expect(resolveSlotPlacement(port(1, "Gi1/0/3"), config, occupants)).toEqual({
+      slotNumber: 3,
+      placed: true,
+      conflict: false,
+    });
+  });
+
+  it("flags a port that lost its slot to a collision", () => {
+    const occupants = slotOccupants(
+      buildFaceplate(config, [port(1, "Gi1/0/3"), port(2, "Eth3")]),
+    );
+
+    // Eth3 sorts before Gi1/0/3 and keeps slot 3 on the diagram.
+    expect(resolveSlotPlacement(port(2, "Eth3"), config, occupants)).toMatchObject({ placed: true });
+    expect(resolveSlotPlacement(port(1, "Gi1/0/3"), config, occupants)).toEqual({
+      slotNumber: 3,
+      placed: false,
+      conflict: true,
+    });
+  });
+
+  it("reports a guess evicted by an explicit override as unplaced", () => {
+    const occupants = slotOccupants(
+      buildFaceplate(config, [port(1, "Gi1/0/3"), port(2, "sfp-a", { portIndex: 3 })]),
+    );
+
+    expect(resolveSlotPlacement(port(2, "sfp-a", { portIndex: 3 }), config, occupants)).toMatchObject({ placed: true });
+    expect(resolveSlotPlacement(port(1, "Gi1/0/3"), config, occupants)).toEqual({
+      slotNumber: 3,
+      placed: false,
+      conflict: true,
+    });
+  });
+
+  it("reports ports with no usable number as unmapped", () => {
+    const occupants = slotOccupants(buildFaceplate(config, [] as TestPort[]));
+
+    expect(resolveSlotPlacement(port(9, "mgmt"), config, occupants)).toEqual({
+      slotNumber: null,
+      placed: false,
+      conflict: false,
+    });
   });
 });
 
