@@ -21,7 +21,7 @@ import {
 } from "@/lib/incidents";
 import { hasAdminAccess } from "@/lib/site-access";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
-import { sendTelegramAlert } from "@/lib/telegram";
+import { escapeTelegramHtml, sendTelegramAlert } from "@/lib/telegram";
 import { saveUploadFile, UploadValidationError } from "@/lib/upload";
 import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -134,12 +134,15 @@ async function notifyCriticalIncidents(siteId: number, criticalIncidents: Incide
   if (recipients.length === 0) return;
 
   const baseUrl = await resolveNotificationBaseUrl();
+  // parse_mode=HTML (#58): bold via <b>, incident links as anchors, and
+  // entity-supplied site/incident fields HTML-escaped (previously raw
+  // Markdown interpolation was an injection vector, #75).
   const message = [
-    "*Critical Incident Opened*",
-    `Site: ${site.name}`,
+    "<b>Critical Incident Opened</b>",
+    `Site: ${escapeTelegramHtml(site.name)}`,
     ...criticalIncidents.map(
       (incident) =>
-        `[#${incident.id} ${incident.title}](${baseUrl}/admin/incidents/${incident.id})`,
+        `<a href="${escapeTelegramHtml(`${baseUrl}/admin/incidents/${incident.id}`)}">#${incident.id} ${escapeTelegramHtml(incident.title)}</a>`,
     ),
   ].join("\n");
 
@@ -160,7 +163,7 @@ async function notifyResolvedWaitingVerification(siteId: number, incidentId: num
   if (recipients.length === 0) return;
 
   const baseUrl = await resolveNotificationBaseUrl();
-  const message = `*Incident Resolved*\nSite: ${site.name}\n[#${incidentId} ${title}](${baseUrl}/admin/incidents/${incidentId})\nWaiting for admin verification.`;
+  const message = `<b>Incident Resolved</b>\nSite: ${escapeTelegramHtml(site.name)}\n<a href="${escapeTelegramHtml(`${baseUrl}/admin/incidents/${incidentId}`)}">#${incidentId} ${escapeTelegramHtml(title)}</a>\nWaiting for admin verification.`;
   // Fire-and-forget so a Telegram outage can never fail the action after
   // the incident row is committed (a thrown error here made callers report
   // failure and get resubmitted → duplicate incidents/checklist entries).

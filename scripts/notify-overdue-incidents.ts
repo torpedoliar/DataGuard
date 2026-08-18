@@ -5,7 +5,7 @@ import { incidents, siteTelegramChatIds, sites } from "@/db/schema";
 import { logAuditManual } from "@/lib/audit";
 import { type IncidentSeverity } from "@/lib/incidents";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
-import { sendTelegramAlert } from "@/lib/telegram";
+import { escapeTelegramHtml, sendTelegramAlert } from "@/lib/telegram";
 import { and, eq, isNull, lt, ne, or } from "drizzle-orm";
 
 export interface NotifyOverdueResult {
@@ -82,9 +82,9 @@ export async function notifyOverdueIncidents(): Promise<NotifyOverdueResult> {
     if (recipients.length === 0) continue;
 
     const message = [
-      "*Incident Overdue*",
-      `Site: ${incident.siteName}`,
-      `[#${incident.id} ${incident.title}](${baseUrl}/admin/incidents/${incident.id})`,
+      "<b>Incident Overdue</b>",
+      `Site: ${escapeTelegramHtml(incident.siteName)}`,
+      `<a href="${escapeTelegramHtml(`${baseUrl}/admin/incidents/${incident.id}`)}">#${incident.id} ${escapeTelegramHtml(incident.title)}</a>`,
     ].join("\n");
 
     let delivered = 0;

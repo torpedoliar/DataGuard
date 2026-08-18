@@ -16,7 +16,7 @@ vi.mock("../../db", () => {
   };
 });
 
-// Keep the real escapeTelegramMarkdown (the message-level escaping under
+// Keep the real escapeTelegramHtml (the message-level escaping under
 // test) while mocking only the network sender.
 vi.mock("../telegram", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../telegram")>();
@@ -139,7 +139,7 @@ describe("queueSiemAlerts", () => {
 
   it("does not insert when a telegram alert already exists on the finding", async () => {
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
-      makeFinding({ alerts: [{ channel: "telegram", recipient: "123" } as any] }),
+      makeFinding({ alerts: [{ channel: "telegram", recipient: "123" }] }),
     ]);
     mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
@@ -161,7 +161,7 @@ describe("queueSiemAlerts", () => {
 
   it("re-queues a permanently failed alert (failed rows do not block the queue)", async () => {
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
-      makeFinding({ alerts: [{ channel: "telegram", recipient: "123", status: "failed" } as any] }),
+      makeFinding({ alerts: [{ channel: "telegram", recipient: "123", status: "failed" }] }),
     ]);
     mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
@@ -310,9 +310,9 @@ describe("queueSiemAlerts", () => {
     expect(message).not.toContain("severity=High");
   });
 
-  it("escapes markdown metacharacters in entity fields but keeps the deep link intact", async () => {
+  it("HTML-escapes entity fields but keeps the SIEM deep link as an anchor (#58)", async () => {
     mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
-      makeFinding({ severity: "Critical", title: "Port [idle] issue_v2", summary: "summary_*with* chars" }),
+      makeFinding({ severity: "Critical", title: "Port <b>[down]</b> & \"warn\"", summary: "summary *with* <chars>" }),
     ]);
     mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
     mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
@@ -331,13 +331,13 @@ describe("queueSiemAlerts", () => {
 
     expect(result.queued).toBe(1);
     const message = (insertedValues[0] as { message: string }).message;
-    // Entity content escaped: [ -> \[, _ -> \_, * -> \*; a stray '[' cannot
-    // combine with the later '](' of the link.
-    expect(message).toContain("Finding: #1 Port \\[idle] issue\\_v2");
-    expect(message).toContain("Summary: summary\\_\\*with\\* chars");
-    // The generated link survives unescaped and clickable.
-    expect(message).toContain("[Open in SIEM](");
-    expect(message).toContain("/admin/siem/findings?severity=Critical)");
+    // Entity content HTML-escaped: < -> &lt;, > -> &gt;, & -> &amp;, " -> &quot;;
+    // a stray entity cannot close a tag we opened (#75 superseded by #58).
+    expect(message).toContain("Finding: #1 Port &lt;b&gt;[down]&lt;/b&gt; &amp; &quot;warn&quot;");
+    expect(message).toContain("Summary: summary *with* &lt;chars&gt;");
+    // The generated link survives unescaped and clickable as an anchor.
+    expect(message).toContain("<a href=\"");
+    expect(message).toContain("/admin/siem/findings?severity=Critical");
   });
 });
 

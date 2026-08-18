@@ -64,8 +64,33 @@ export async function getTelegramBotToken(botTokenOverride?: string | null) {
     }
 }
 
-export function escapeTelegramMarkdown(value: string) {
-    return value.replace(/([_*`\[])/g, "\\$1");
+/**
+ * HTML-escape entity-supplied field values for parse_mode=HTML. Telegram only
+ * parses the 5 HTML entities for injection (raw text ignores < & > unless the
+ * full tag/entity is valid), but we escape conservatively so user content can
+ * never close a tag we opened. This supersedes the legacy Markdown escaper
+ * (#75): in HTML mode there is no Markdown special-char set to maintain.
+ */
+export function escapeTelegramHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Convert a trusted, server-generated Markdown link (`[label](https://url)`)
+ * into an HTML anchor. Only http(s) URLs are accepted so entity input can
+ * never smuggle javascript:/data: hrefs; anything that does not match the
+ * shape is HTML-escaped as plain text instead of being emitted raw.
+ */
+function renderTrustedLink(value: string): string {
+  const match = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/.exec(value.trim());
+  if (!match) return escapeTelegramHtml(value);
+  const [, label, url] = match;
+  return `<a href="${escapeTelegramHtml(url)}">${escapeTelegramHtml(label)}</a>`;
 }
 
 function normalizeTemplateValue(
@@ -74,7 +99,8 @@ function normalizeTemplateValue(
 ) {
     const text = String(value ?? "").trim();
     if (!text) return "-";
-    return allowTrustedMarkdown ? text : escapeTelegramMarkdown(text);
+    if (allowTrustedMarkdown) return renderTrustedLink(text);
+    return escapeTelegramHtml(text);
 }
 
 export type TelegramTemplateRenderOptions = {
@@ -122,7 +148,10 @@ export async function sendTelegramAlert(chatId: string | null | undefined, messa
             body: JSON.stringify({
                 chat_id: chatId,
                 text: message,
-                parse_mode: "Markdown",
+                // #58/#75: Markdown v1 is legacy and injectable through
+                // entity-supplied fields; HTML mode with explicit escaping is
+                // the safe rendering path.
+                parse_mode: "HTML",
             }),
             // A black-holed/half-open connection must not stall the caller
             // (SIEM alert worker ticks, checklist/incident actions) forever.

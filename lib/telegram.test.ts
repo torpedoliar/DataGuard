@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderTelegramTemplate, sendTelegramAlert } from "./telegram";
+import { escapeTelegramHtml, renderTelegramTemplate, sendTelegramAlert } from "./telegram";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -14,28 +14,50 @@ describe("renderTelegramTemplate", () => {
     expect(message).toBe("Asset: AST-CORE-001");
   });
 
-  it("escapes Markdown characters in ordinary fields", () => {
+  it("HTML-escapes entity characters in ordinary fields (#58)", () => {
     const message = renderTelegramTemplate("Device: {deviceName}", {
-      deviceName: "switch_[core]*v2`",
+      deviceName: "switch_<a>&\"'v2",
     });
 
-    expect(message).toBe("Device: switch\\_\\[core]\\*v2\\`");
+    expect(message).toBe("Device: switch_&lt;a&gt;&amp;&quot;&#39;v2");
   });
 
-  it("keeps a generated incident link clickable when explicitly trusted", () => {
+  it("converts a trusted generated incident link into an HTML anchor", () => {
     const link = "[Open incident #42](https://example.test/admin/incidents/42)";
     const message = renderTelegramTemplate("Open: {incidentLink}", { incidentLink: link }, {
       trustedMarkdownFields: ["incidentLink"],
     });
 
-    expect(message).toBe(`Open: ${link}`);
+    expect(message).toBe('Open: <a href="https://example.test/admin/incidents/42">Open incident #42</a>');
   });
 
-  it("escapes an incident link unless the call site explicitly trusts it", () => {
+  it("escapes an untrusted link as plain text instead of rendering an anchor", () => {
     const link = "[Open incident #42](https://example.test/admin/incidents/42)";
     const message = renderTelegramTemplate("Open: {incidentLink}", { incidentLink: link });
 
-    expect(message).toBe("Open: \\[Open incident #42](https://example.test/admin/incidents/42)");
+    expect(message).toBe("Open: [Open incident #42](https://example.test/admin/incidents/42)");
+  });
+
+  it("refuses to build an anchor from a non-http(s) trusted link", () => {
+    const link = "[Open incident #42](javascript:alert(1))";
+    const message = renderTelegramTemplate("Open: {incidentLink}", { incidentLink: link }, {
+      trustedMarkdownFields: ["incidentLink"],
+    });
+
+    expect(message).toBe("Open: [Open incident #42](javascript:alert(1))");
+  });
+
+  it("escapes the scheme when a trusted link label/url carries HTML", () => {
+    const link = "[<b>& evil](https://example.test/a?b=1&c=2)";
+    const message = renderTelegramTemplate("Open: {incidentLink}", { incidentLink: link }, {
+      trustedMarkdownFields: ["incidentLink"],
+    });
+
+    expect(message).toBe('Open: <a href="https://example.test/a?b=1&amp;c=2">&lt;b&gt;&amp; evil</a>');
+  });
+
+  it("escapeTelegramHtml covers every entity Telegram parses", () => {
+    expect(escapeTelegramHtml(`&<>"'`)).toBe("&amp;&lt;&gt;&quot;&#39;");
   });
 });
 
@@ -50,6 +72,9 @@ describe("sendTelegramAlert", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [, init] = fetchMock.mock.calls[0];
     expect(init?.signal).toBeInstanceOf(AbortSignal);
+    const body = JSON.parse(String(init?.body));
+    // #58: legacy Markdown parse_mode was replaced by HTML.
+    expect(body.parse_mode).toBe("HTML");
   });
 
   it("surfaces the Telegram API description when the API rejects with JSON", async () => {

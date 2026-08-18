@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { siemAlerts, siemFindings, siemSettings, siteTelegramChatIds, siteWebhookUrls, siteEmailAddresses } from "../../db/schema";
-import { escapeTelegramMarkdown, sendTelegramAlert } from "../telegram";
+import { escapeTelegramHtml, sendTelegramAlert } from "../telegram";
 import { resolveNotificationBaseUrl } from "../notification-url";
 import { and, eq, ne } from "drizzle-orm";
 import { formatWibForAlert } from "../ui/datetime";
@@ -16,23 +16,23 @@ function isAtLeastSeverity(value: SiemSeverity, minimum: SiemSeverity) {
 }
 
 function alertMessage(input: { findingId: number; title: string; severity: SiemSeverity; siteName: string | null; deviceName: string | null; sourceIp: string | null; summary: string; recommendedAction: string | null; lastSeenAt: Date; baseUrl: string }) {
-  // Entity-supplied values are Markdown-escaped (same discipline as
+  // Entity-supplied values are HTML-escaped (same discipline as
   // renderTelegramTemplate); the generated link and server-controlled fields
   // (severity enum, finding id, formatted date) stay raw so the deep link
-  // remains clickable.
+  // remains clickable under parse_mode=HTML (#58, supersedes #75).
   const esc = (value: string | null | undefined, fallback: string) => {
     const text = value?.trim();
-    return text ? escapeTelegramMarkdown(text) : fallback;
+    return text ? escapeTelegramHtml(text) : fallback;
   };
   return redactSensitiveText([
-    "*SIEM Finding*",
+    "<b>SIEM Finding</b>",
     `Severity: ${input.severity}`,
     `Last seen: ${formatWibForAlert(input.lastSeenAt)}`,
     `Site: ${esc(input.siteName, "-")}`,
     `Device: ${esc(input.deviceName, "Unmapped")}`,
     `Source: ${esc(input.sourceIp, "-")}`,
     `Finding: #${input.findingId} ${esc(input.title, "-")}`,
-    `Open: [Open in SIEM](${input.baseUrl}/admin/siem/findings?severity=${input.severity})`,
+    `Open: <a href="${escapeTelegramHtml(input.baseUrl + "/admin/siem/findings?severity=" + input.severity)}">Open in SIEM</a>`,
     `Summary: ${esc(input.summary, "-")}`,
     `Action: ${esc(input.recommendedAction, "Review finding in SIEM dashboard.")}`,
   ].join("\n"));
