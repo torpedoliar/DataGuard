@@ -14,7 +14,7 @@ export const metadata = {
 
 export default async function SettingsPage() {
     const session = await verifySession();
-    if (!session || !["admin", "superadmin"].includes(session.role)) {
+    if (!session || session.role !== "superadmin") {
         redirect("/admin");
     }
 

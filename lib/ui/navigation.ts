@@ -29,7 +29,6 @@ const siemItems: NavItem[] = [
 
 const adminItems: NavItem[] = [
   { href: "/admin", label: "Devices", icon: "server" },
-  { href: "/admin/settings", label: "Settings", icon: "settings" },
   { href: "/admin/rack-manage", label: "Racks", icon: "boxes" },
   { href: "/admin/rack", label: "Rack Layout", icon: "panel-top" },
   { href: "/admin/network/vlans", label: "Network", icon: "network" },
@@ -40,6 +39,7 @@ const adminItems: NavItem[] = [
 ];
 
 const superadminItems: NavItem[] = [
+  { href: "/admin/settings", label: "Settings", icon: "settings" },
   { href: "/admin/users", label: "Users", icon: "users" },
   { href: "/admin/sites", label: "Sites", icon: "building-2" },
   { href: "/admin/update", label: "System Update", icon: "download" },
