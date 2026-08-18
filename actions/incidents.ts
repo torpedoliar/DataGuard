@@ -397,12 +397,24 @@ export async function assignIncident(prevState: unknown, formData: FormData) {
     }
   }
 
-  await db.update(incidents).set({
+  // Finding #61 (optimistic concurrency): the update matches only if the
+  // incident still has the status we read; a concurrent change makes the
+  // WHERE select no rows and this edit is rejected without an incidentUpdates
+  // row (no stale-base append).
+  const optimistic = await db.update(incidents).set({
     assignedToId,
     severity,
     dueDate,
     updatedAt: new Date(),
-  }).where(eq(incidents.id, incidentId));
+  }).where(and(
+    eq(incidents.id, incidentId),
+    eq(incidents.siteId, auth.activeSiteId),
+    eq(incidents.status, existing.status),
+  )).returning({ id: incidents.id });
+
+  if (optimistic.length === 0) {
+    return { message: "Incident was updated by someone else. Reload the page and try again." };
+  }
 
   await db.insert(incidentUpdates).values({
     incidentId,
@@ -412,8 +424,8 @@ export async function assignIncident(prevState: unknown, formData: FormData) {
   });
 
   if (existing.severity !== "Critical" && severity === "Critical") {
-    const updated = await db.query.incidents.findFirst({ where: eq(incidents.id, incidentId) });
-    if (updated) await notifyCriticalIncidents(auth.activeSiteId, [updated]);
+    const refreshed = await db.query.incidents.findFirst({ where: eq(incidents.id, incidentId) });
+    if (refreshed) await notifyCriticalIncidents(auth.activeSiteId, [refreshed]);
   }
 
   await logAudit({ action: "UPDATE", entity: "incident", entityId: incidentId, entityName: existing.title });
@@ -523,7 +535,10 @@ export async function changeIncidentStatus(prevState: unknown, formData: FormDat
   });
   if (!allowedTransition) return { message: "Status transition is not allowed." };
 
-  await db.update(incidents).set({
+  // Finding #61 (optimistic concurrency): same-status-restricted write as
+  // assignIncident — a concurrent status change rejects this edit before the
+  // status_changed update row or notifications are appended.
+  const optimistic = await db.update(incidents).set({
     status: next,
     // Reopening to Open clears stale resolution/verification stamps so a
     // later resolve starts from a clean record (finding #24).
@@ -534,7 +549,15 @@ export async function changeIncidentStatus(prevState: unknown, formData: FormDat
     verifiedById: next === "Verified" ? auth.session.userId : next === "Open" ? null : existing.verifiedById,
     verifiedAt: next === "Verified" ? new Date() : next === "Open" ? null : existing.verifiedAt,
     updatedAt: new Date(),
-  }).where(eq(incidents.id, incidentId));
+  }).where(and(
+    eq(incidents.id, incidentId),
+    eq(incidents.siteId, auth.activeSiteId),
+    eq(incidents.status, existing.status),
+  )).returning({ id: incidents.id });
+
+  if (optimistic.length === 0) {
+    return { message: "Incident was updated by someone else. Reload the page and try again." };
+  }
 
   await db.insert(incidentUpdates).values({
     incidentId,
