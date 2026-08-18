@@ -77,6 +77,17 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
         )];
         await validateChecklistPhotos(formData, deviceIds);
 
+        // Finding #44: reject device ids that do not belong to the active site
+        // BEFORE any insert. The incident sub-flow silently skips out-of-site
+        // devices, so unchecked ids would leave checklist rows with no derived
+        // incidents; rejecting the whole submit keeps records and incidents
+        // aligned.
+        const siteDevices = await db.select({ id: devices.id }).from(devices)
+            .where(and(inArray(devices.id, deviceIds), eq(devices.siteId, auth.activeSiteId)));
+        if (siteDevices.length !== deviceIds.length) {
+            return { message: "Some devices are not valid for the active site. Reload the page and try again." };
+        }
+
         // 2. Create entry + per-device items + incidents atomically (finding #08):
         //    a mid-loop failure rolls back the whole submit, and a retry is
         //    idempotent (unique (entry_id, device_id) index + onConflictDoNothing
@@ -296,8 +307,20 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
     }
 
     try {
-        const deviceIds = formData.getAll("deviceId");
+        const deviceIds = [...new Set(
+            formData.getAll("deviceId")
+                .map((id) => Number(id))
+                .filter((id) => Number.isInteger(id)),
+        )];
         await validateChecklistPhotos(formData, deviceIds);
+
+        // Finding #44: same site scoping as submitChecklist — foreign device
+        // ids must never reach checklist_items (or the derived incidents).
+        const siteDevices = await db.select({ id: devices.id }).from(devices)
+            .where(and(inArray(devices.id, deviceIds), eq(devices.siteId, auth.activeSiteId)));
+        if (siteDevices.length !== deviceIds.length) {
+            return { message: "Some devices are not valid for the active site. Reload the page and try again." };
+        }
 
         const checkDate = formData.get("checkDate") as string;
         const checkTime = formData.get("checkTime") as string;
