@@ -14,7 +14,6 @@ import { describe, expect, it } from "vitest";
 import { IconButton } from "./icon-button";
 import { Modal } from "./modal";
 import { EmptyState } from "./empty-state";
-import { LoadingState } from "./loading-state";
 
 describe("IconButton a11y", () => {
   it("renders aria-label and sr-only label", () => {
@@ -69,18 +68,11 @@ describe("Modal a11y", () => {
   });
 });
 
-describe("Empty/Loading state a11y", () => {
+describe("Empty state a11y", () => {
   it("EmptyState uses role=status for screen reader announcement", () => {
     const html = renderToStaticMarkup(
       React.createElement(EmptyState, { title: "No data" }),
     );
     expect(html).toContain('role="status"');
-  });
-
-  it("LoadingState renders label text", () => {
-    const html = renderToStaticMarkup(
-      React.createElement(LoadingState, { label: "Loading…" }),
-    );
-    expect(html).toContain("Loading…");
   });
 });

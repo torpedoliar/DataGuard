@@ -4,7 +4,7 @@
 import { db } from "@/db";
 import { auditLogs } from "@/db/schema";
 import { verifySession } from "./session";
-import { desc, sql } from "drizzle-orm";
+import { and, desc, sql } from "drizzle-orm";
 
 export type AuditAction =
     | "CREATE"
@@ -131,20 +131,23 @@ export async function getAuditLogs(options?: {
         conditions.push(sql`(username ILIKE ${"%" + options.search + "%"} OR entity_name ILIKE ${"%" + options.search + "%"} OR detail ILIKE ${"%" + options.search + "%"})`);
     }
 
-    const whereClause = conditions.length > 0
-        ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
-        : sql``;
+    // Apply the combined predicate to BOTH the paged select and the COUNT
+    // query so filtered results and pagination totals agree. When no filter
+    // is present the predicate is undefined (unscoped listing).
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     const rawLogs = await db
         .select()
         .from(auditLogs)
+        .where(where)
         .orderBy(desc(auditLogs.createdAt))
         .limit(limit)
         .offset(offset);
 
     const countResult = await db
         .select({ count: sql<number>`COUNT(*)` })
-        .from(auditLogs);
+        .from(auditLogs)
+        .where(where);
 
     return {
         logs: rawLogs,

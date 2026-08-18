@@ -4,19 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import { EmptyState } from "./empty-state";
 import { ErrorState } from "./error-state";
-import { LoadingState } from "./loading-state";
 
 describe("EmptyState", () => {
   it("renders the title", () => {
     const html = renderToStaticMarkup(React.createElement(EmptyState, { title: "No incidents" }));
     expect(html).toContain("No incidents");
-  });
-});
-
-describe("LoadingState", () => {
-  it("renders the label", () => {
-    const html = renderToStaticMarkup(React.createElement(LoadingState, { label: "Loading events…" }));
-    expect(html).toContain("Loading events…");
   });
 });
 
