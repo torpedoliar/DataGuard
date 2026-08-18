@@ -51,6 +51,8 @@ const mockedSend = sendTelegramAlert as unknown as ReturnType<typeof vi.fn>;
 type FindingOverrides = Partial<{
   id: number;
   severity: "Low" | "Medium" | "High" | "Critical";
+  title: string;
+  summary: string;
   rule: { alertEnabled: boolean } | null;
   site: { id: number; name: string; telegramChatId: string | null } | null;
   device: { id: number; name: string } | null;
