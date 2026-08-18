@@ -64,8 +64,10 @@ export function canTransitionIncidentStatus(input: {
   current: IncidentStatus;
   next: IncidentStatus;
 }): boolean {
-  if (input.current === input.next) return true;
-
+  // Same-status transitions are intentionally rejected: a no-op status change
+  // would surface as a meaningless "move to the current status" button and
+  // append a redundant incidentUpdates row. Terminal states simply have no
+  // allowed next status.
   if (input.isAdmin) {
     if (input.current === "Verified") return input.next === "Open";
     return true;

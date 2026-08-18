@@ -48,13 +48,13 @@ describe("allowedNextStatuses", () => {
       .toEqual(["In Progress"]);
   });
 
-  it("returns only the current status to staff assignees from Resolved (terminal for staff)", () => {
+  it("returns no transitions to staff assignees from Resolved (terminal for staff)", () => {
     expect(allowedNextStatuses({ isAdmin: false, isAssignee: true, current: "Resolved" }))
-      .toEqual(["Resolved"]);
+      .toEqual([]);
   });
 
-  it("returns Open and Verified to admins from Verified (re-open allowed)", () => {
+  it("returns only Open to admins from Verified (re-open allowed, no same-status no-op)", () => {
     expect(allowedNextStatuses({ isAdmin: true, isAssignee: false, current: "Verified" }))
-      .toEqual(["Open", "Verified"]);
+      .toEqual(["Open"]);
   });
 });
