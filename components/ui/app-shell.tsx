@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { routing } from "@/i18n/routing";
 import {
   Boxes,
   Bell,
@@ -32,7 +34,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { logout, switchSite } from "@/actions/auth";
-import { getAppNavigation, type NavItem } from "@/lib/ui/navigation";
+import { getAppNavigation, type NavGroup, type NavItem } from "@/lib/ui/navigation";
 import ActionButton from "@/components/ui/action-button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -80,11 +82,40 @@ export default function AppShell({
   children,
 }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const locale = useLocale();
+  const tNav = useTranslations("Nav");
+  const tAdmin = useTranslations("AdminMenu");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [siteOpen, setSiteOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const navigation = getAppNavigation(user.role);
+
+  const itemLabel = (item: NavItem) =>
+    item.labelKey ? (item.ns === "AdminMenu" ? tAdmin(item.labelKey) : tNav(item.labelKey)) : item.label;
+
+  const groupLabel = (group: NavGroup) => (group.labelKey ? tNav(group.labelKey) : group.label);
+
+  // Locale switcher: with localePrefix "as-needed" only the non-default
+  // locale ("en") is URL-prefixed. Strip any prefix, then re-apply the
+  // target prefix when it is not the default, preserving the current query.
+  const switchLocale = (nextLocale: (typeof routing.locales)[number]) => {
+    if (nextLocale === locale) return;
+    let nextPath = pathname;
+    for (const loc of routing.locales) {
+      if (nextPath === `/${loc}` || nextPath.startsWith(`/${loc}/`)) {
+        nextPath = nextPath.slice(loc.length + 1) || "/";
+        break;
+      }
+    }
+    if (nextLocale !== routing.defaultLocale) {
+      nextPath = nextPath === "/" ? `/${nextLocale}` : `/${nextLocale}${nextPath}`;
+    }
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    router.push(`${nextPath}${search}`);
+  };
+  const otherLocale = routing.locales.find((loc) => loc !== locale) ?? routing.defaultLocale;
 
   // ESC closes any open shell menu (site switcher, user menu, mobile nav),
   // mirroring the dismissal contract of the Modal primitive.
@@ -126,7 +157,7 @@ export default function AppShell({
         )}
         <div className="min-w-0">
           <p className="truncate text-sm font-bold text-ops-text">{appSettings.appName}</p>
-          <p className="text-[11px] font-medium text-ops-muted">Data center audit</p>
+          <p className="text-[11px] font-medium text-ops-muted">{tNav("subtitle")}</p>
         </div>
       </Link>
 
@@ -139,9 +170,9 @@ export default function AppShell({
         aria-controls="site-switcher-menu"
         className="relative mb-5 rounded-md border border-ops-border bg-ops-surface-raised p-3 text-left transition-colors hover:border-ops-accent/45 disabled:cursor-default"
       >
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">Active Site</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">{tNav("activeSite")}</p>
         <div className="mt-1 flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-semibold text-ops-text">{activeSite.name || "No site selected"}</span>
+          <span className="truncate text-sm font-semibold text-ops-text">{activeSite.name || tNav("noSiteSelected")}</span>
           {userSites.length > 1 && <ChevronDown className="size-4 shrink-0 text-ops-muted" />}
         </div>
       </button>
@@ -151,7 +182,7 @@ export default function AppShell({
           <div role="presentation" className="fixed inset-0 z-40" onClick={() => setSiteOpen(false)} />
           <div id="site-switcher-menu" className="absolute left-5 top-[104px] z-50 w-64 overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl">
             <div className="border-b border-ops-border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">
-              Switch Site
+              {tNav("switchSite")}
             </div>
             <div className="max-h-64 overflow-y-auto p-1.5">
               {userSites.map((site) => (
@@ -182,10 +213,10 @@ export default function AppShell({
       <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1.5">
         {navigation.map((group) => (
           <div key={group.label}>
-            <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">{group.label}</p>
+            <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">{groupLabel(group)}</p>
             <div className="space-y-1">
               {group.items.map((item) => (
-                <NavLink key={item.href} item={item} active={isActive(item.href)} onNavigate={() => setMobileOpen(false)} />
+                <NavLink key={item.href} item={item} label={itemLabel(item)} active={isActive(item.href)} onNavigate={() => setMobileOpen(false)} />
               ))}
             </div>
           </div>
@@ -198,7 +229,7 @@ export default function AppShell({
           className="flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text"
         >
           <User className="size-4" />
-          Profile
+          {tNav("profile")}
         </Link>
       </div>
     </aside>
@@ -229,16 +260,26 @@ export default function AppShell({
               </button>
 
               <div className="hidden items-center gap-2 text-xs text-ops-muted xl:flex">
-                <span className="rounded-full border border-ops-border px-2.5 py-1">{activeSite.name || "No active site"}</span>
+                <span className="rounded-full border border-ops-border px-2.5 py-1">{activeSite.name || tNav("noActiveSite")}</span>
                 <span>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
               </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => switchLocale(otherLocale)}
+                aria-label={tNav("switchLocale")}
+                title={tNav("switchLocale")}
+                className="flex size-9 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-[11px] font-bold text-ops-muted transition-colors hover:border-ops-accent/50 hover:text-ops-text"
+              >
+                {otherLocale.toUpperCase()}
+              </button>
+
               <ThemeToggle />
 
               <ActionButton href="/audit/new" size="sm" icon={<ClipboardCheck className="size-4" />}>
-                <span className="hidden sm:inline">New Audit</span>
+                <span className="hidden sm:inline">{tNav("newAudit")}</span>
               </ActionButton>
 
               <ActionButton
@@ -282,7 +323,7 @@ export default function AppShell({
                         className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-ops-surface hover:text-ops-text dark:text-slate-300 dark:hover:text-white"
                       >
                         <User className="size-4" />
-                        Profile Settings
+                        {tNav("profileSettings")}
                       </Link>
                       <button
                         type="button"
@@ -293,7 +334,7 @@ export default function AppShell({
                         className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-500/10 dark:text-red-400"
                       >
                         <LogOut className="size-4" />
-                        Log Out
+                        {tNav("logOut")}
                       </button>
                     </div>
                   </>
@@ -311,10 +352,12 @@ export default function AppShell({
 
 function NavLink({
   item,
+  label,
   active,
   onNavigate,
 }: {
   item: NavItem;
+  label: string;
   active: boolean;
   onNavigate: () => void;
 }) {
@@ -332,7 +375,7 @@ function NavLink({
       )}
     >
       <Icon className="size-4 shrink-0" />
-      <span className="truncate">{item.label}</span>
+      <span className="truncate">{label}</span>
     </Link>
   );
 }
