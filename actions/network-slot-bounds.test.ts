@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PgDialect } from "drizzle-orm/pg-core";
 
 const mocks = vi.hoisted(() => ({
   requireActiveSiteAdminAction: vi.fn(),
@@ -33,8 +32,13 @@ vi.mock("../db", () => ({
       chain.where = () => chain;
       chain.orderBy = () => chain;
       chain.limit = () => chain;
-      chain.then = (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
-        Promise.resolve(mocks.selectResult()).then(onFulfilled, onRejected);
+      chain.then = (...args: unknown[]) => {
+        const [onFulfilled, onRejected] = args;
+        return Promise.resolve(mocks.selectResult()).then(
+          onFulfilled as (value: unknown) => unknown,
+          onRejected as ((reason: unknown) => unknown) | undefined,
+        );
+      };
       return chain;
     },
     insert: (table: unknown) => {
@@ -42,8 +46,13 @@ vi.mock("../db", () => ({
       const chain: Record<string, (...args: unknown[]) => unknown> = {};
       chain.values = () => chain;
       chain.returning = () => chain;
-      chain.then = (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
-        Promise.resolve(mocks.insertResult()).then(onFulfilled, onRejected);
+      chain.then = (...args: unknown[]) => {
+        const [onFulfilled, onRejected] = args;
+        return Promise.resolve(mocks.insertResult()).then(
+          onFulfilled as (value: unknown) => unknown,
+          onRejected as ((reason: unknown) => unknown) | undefined,
+        );
+      };
       return chain;
     },
     update: (table: unknown) => {
@@ -65,11 +74,6 @@ vi.mock("../db", () => ({
 
 import { addPort, updatePort, updatePortSlot } from "./network";
 
-const dialect = new PgDialect();
-function queryOf(condition: unknown) {
-  return dialect.sqlToQuery(condition as Parameters<typeof dialect.sqlToQuery>[0]);
-}
-
 const adminAuth = {
   ok: true,
   session: { userId: 1, username: "admin", role: "admin" } as never,
@@ -77,7 +81,7 @@ const adminAuth = {
 };
 
 // Device A (id 5) with a 24+4 faceplate.
-const faceplateDevice = { id: 5, faceplatePortCount: 24, faceplateUplinkCount: 4 };
+const faceplateDevice = { faceplatePortCount: 24, faceplateUplinkCount: 4 };
 const linkedPortRow = {
   id: 1,
   deviceId: 5,
