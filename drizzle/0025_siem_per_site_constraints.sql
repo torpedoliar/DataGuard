@@ -4,8 +4,10 @@
 -- unique constraints/indexes, drops the dead default_siem_site_id + unknown_source_enabled
 -- columns, and seeds per-site default rules + a siem_settings row for any site missing them.
 --
--- Apply manually (like 0024): psql ... < drizzle/0025_siem_per_site_constraints.sql
--- NOT registered in meta/_journal.json — the drizzle migrator does not manage it.
+-- Registered in meta/_journal.json (idx 25) and applied automatically by
+-- `npm run db:migrate` (scripts/migrate.ts), exactly like 0024. The migration
+-- is idempotent (guarded DDL + WHERE-limited backfills), so re-running it via
+-- the migrator or psql is safe.
 
 -- ==================== DROP old global single-tenant constraints ====================
 -- siem_rules.key was globally unique (a UNIQUE CONSTRAINT from the .unique() col
