@@ -56,8 +56,8 @@ describe("GET /api/health", () => {
     const body = await res.json();
     expect(body.status).toBe("degraded");
     expect(body.db).toBe("down");
-    expect(typeof body.error).toBe("string");
-    expect(body.error).toContain("connection refused");
+    // The error field is sanitized — the raw pg message must not leak.
+    expect(body.error).toBe("db: down");
     // Must end the pool even on failure
     expect(mockEnd).toHaveBeenCalledTimes(1);
   });

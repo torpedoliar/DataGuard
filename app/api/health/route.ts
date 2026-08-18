@@ -18,11 +18,14 @@ export async function GET() {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    // Public, unauthenticated probe route — never leak internal error
+    // details. Log server-side, return a sanitized status string.
+    console.error("[HEALTH] DB check failed:", error);
     return NextResponse.json(
       {
         status: "degraded",
         db: "down",
-        error: error instanceof Error ? error.message : "unknown",
+        error: "db: down",
       },
       { status: 503 },
     );

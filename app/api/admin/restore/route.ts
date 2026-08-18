@@ -76,12 +76,15 @@ export async function POST(request: Request) {
     });
   }
   catch (error) {
-    const message = error instanceof Error ? error.message : "Restore gagal.";
+    // Do not leak internal error details to the caller. Log server-side;
+    // the audit record keeps the real detail for admins.
+    console.error("[RESTORE] Restore failed:", error);
+    const message = "Restore gagal.";
     await logAudit({
       action: "RESTORE",
       entity: "settings",
       entityName: "Backup",
-      detail: `failed: ${message}`,
+      detail: `failed: ${error instanceof Error ? error.message : "Restore gagal."}`,
     });
     return new Response(JSON.stringify({ message }), {
       status: 500,
