@@ -143,10 +143,10 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** Fresh/existing databases lack the column: the next `npm run db:generate` emits an unexpected ALTER TABLE devices ADD COLUMN (and db:push would alter the live DB), and any devices query selecting all columns fails on databases that never got the column ad hoc. New maintainers may also write PIC data into a column nothing reads.
   - **Saran:** Either add an idempotent migration ALTER TABLE devices ADD COLUMN IF NOT EXISTS responsible_groups jsonb NOT NULL DEFAULT '[]'::jsonb (mirroring 0029's users column) and wire it intentionally, or remove the field from schema.ts if per-device groups are no longer intended; then regenerate the missing meta snapshot.
 
-- [ ] **#10 · HIGH · misscode · network-rack-management-faceplate** — Rack capacity (totalU) never validated: multi-U devices can overflow the rack via drag-drop or forms and vanish from the diagram
+- [x] **#10 · HIGH · misscode · network-rack-management-faceplate** — Rack capacity (totalU) never validated: multi-U devices can overflow the rack via drag-drop or forms and vanish from the diagram
   - **File:** `app/[locale]/(dashboard)/admin/rack/api/update-position/route.ts; actions/master-data.ts:167-177,237-246 (addDevice/updateDevice)`
   - **Bukti:** The update-position route only calls checkRackCollision (overlap vs other devices) and never compares rackPosition + uHeight - 1 against the target rack's totalU; same gap in addDevice/updateDevice. The drag-drop UI creates a DroppableSlot per U row, so a 4U device can be dropped at U41 of a 42U rack. Rendering then computes topRow = totalU - (u + uHeight - 1) + 1 = 0 or negative (invalid CSS grid line), the device is drawn off the chassis, and getRackLayout pushes occupiedU beyond totalU so freeU goes negative and occupancy shows >100%.
-  - **Dampak:** From the standard UI a multi-U device can be placed overflowing the rack: it disappears from the diagram, occupancy stats show negative free U and >100%, and collision checks accept states the layout cannot render.
+  - **Dampak:** From the standard UI a multi-U device can be placed overflowing the rack: it disappears from the diagram, occupancy stats show negative free U and >100%, and collision checks accept states the layout cannot render. **Fixed and verified (commit e29a747):** new pure helpers in lib/rack-validation.ts reject placements where rackPosition<1 or rackPosition+uHeight-1>totalU (totalU defaults 42, fail-closed on non-numeric input); wired into the update-position route (including the swap path) and addDevice/updateDevice (master-data.ts); regression tests lib/rack-validation.test.ts (+12), route.test.ts (+5), master-data.test.ts (+4); targeted vitest 22/22, tsc clean.
   - **Saran:** Fetch the target rack's totalU in update-position/addDevice/updateDevice and reject placements where rackPosition < 1 or rackPosition + uHeight - 1 > totalU (mirror the client-side U option list); also pass totalU into checkRackCollision.
 
 - [ ] **#11 · HIGH · bug · network-rack-management-faceplate** — deleteRack never blocks or cleans devices referencing the rack; deleted rack silently resurrects in the layout with default 42U
@@ -155,9 +155,9 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** Rack CRUD is broken for any rack with devices: the delete reports success but the rack reappears in /admin/rack (default 42U, lost zone), devices keep a stale rackName, and the user-facing error message is a lie.
   - **Saran:** Either refuse deletion when devices reference the rack (count devices with eq(devices.rackName, name) first and return the real message) or cascade-clear rackName/rackPosition on referencing devices inside a transaction.
 
-- [ ] **#12 · HIGH · misscode · auth-admin-routing-i18n** — Admin rack-manage page: intended auth guard imported but never invoked — staff and unauthenticated users see the full rack admin UI
+- [x] **#12 · HIGH · misscode · auth-admin-routing-i18n** — Admin rack-manage page: intended auth guard imported but never invoked — staff and unauthenticated users see the full rack admin UI
   - **File:** `app/[locale]/(dashboard)/admin/rack-manage/page.tsx:1-8,28-36`
-  - **Bukti:** Verified: the page is 'use client', imports verifySession from '@/lib/session' and redirect from 'next/navigation' (lines 7-8), but never calls either — the component renders the full rack admin UI for any session. Also, lib/session.ts starts with 'import "server-only"', so this client component pulls a server-only module into the client graph.
+  - **Bukti:** Verified: the page is 'use client', imports verifySession from '@/lib/session' and redirect from 'next/navigation' (lines 7-8), but never calls either — the component renders the full rack admin UI for any session. Also, lib/session.ts starts with 'import "server-only"', so this client component pulls a server-only module into the client graph. **Fixed and verified (commit fe60f2c):** the page is now a guarded server component (verifySession + admin/superadmin check, non-admin redirect("/checklist") matching sibling pages); the client UI moved verbatim into components/admin/rack-manage-client.tsx; unused imports gone from the client graph.
   - **Dampak:** Authorization is not enforced at the page level for /admin/rack-manage: any logged-in user (staff included) sees and can drive the rack admin UI; write actions are only guarded by requireActiveSiteAdminAction and the read actions feeding it are not role-scoped.
   - **Saran:** Remove the unused imports; convert the page to a server component that calls verifySession() with an admin/superadmin check (like sibling admin pages) before rendering; if it must stay client-side, wrap it in a guarded server page. Fix getRacks/getRackById scoping per the read-action finding.
 
@@ -211,10 +211,10 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** Any Telegram outage longer than ~45s at queue time permanently drops those alerts with no dead-letter, re-queue, or subsequent retry — a monitoring alert pipeline silently losing the alert it exists to deliver.
   - **Saran:** Exclude status='failed' rows from the dedupe (or filter by status in the queue query), and add exponential backoff / nextAttemptAt so a transient outage is retried across a wider window.
 
-- [ ] **#21 · MEDIUM · incomplete · telegram-messaging** — Overdue-incident notifications ignore the multi-recipient table, severity filters, and deep links
+- [x] **#21 · MEDIUM · incomplete · telegram-messaging** — Overdue-incident notifications ignore the multi-recipient table, severity filters, and deep links
   - **File:** `scripts/notify-overdue-incidents.ts:20,34-37`
   - **Bukti:** Line 20 selects only legacy 'chatId: sites.telegramChatId', and lines 34-37 build '*Incident Overdue*\nSite: ${siteName}\n#${id} ${title}' with no '[link](url)'. Every other telegram path (actions/checklist.ts:146, actions/incidents.ts:133, lib/siem/alerts.ts:37) resolves recipients via siteTelegramChatIds with severity filters.
-  - **Dampak:** Sites that migrated to multi-recipient (or cleared the legacy field) receive no overdue notifications at all, and recipients that do get one cannot click through to the incident — inconsistent with the rest of the feature.
+  - **Dampak:** Sites that migrated to multi-recipient (or cleared the legacy field) receive no overdue notifications at all, and recipients that do get one cannot click through to the incident — inconsistent with the rest of the feature. **Fixed and verified (commit 2a083b0):** scripts/notify-overdue-incidents.ts now resolves recipients via site_telegram_chat_ids (enabled + per-incident severity filter) with legacy sites.telegram_chat_id as fallback, appends the deep link [#id title](baseUrl/admin/incidents/id), and writes lastOverdueNotifiedAt only when at least one recipient received the message (all-failed sends stay retry-eligible).
   - **Saran:** Reuse resolveIncidentRecipients-style resolution and append '[#${id} ${title}](${baseUrl}/admin/incidents/${id})' exactly like notifyCriticalIncidents.
 
 - [ ] **#22 · MEDIUM · bug · telegram-messaging** — Combined checklist alert message can exceed Telegram's 4096-char limit and drop the whole batch silently
@@ -289,21 +289,21 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** Duplicate rack names are permitted, enabling undetected device overlaps in the visual rack, arbitrary zone lookups, and a dedup error path that never fires.
   - **Saran:** Add a unique index on (site_id, lower(name)) or (site_id, name); normalize case in all rack lookups (collision check, occupied slots, layout map) so checks match the rendered layout.
 
-- [ ] **#34 · MEDIUM · bug · network-rack-management-faceplate** — updatePort destroys an existing bidirectional port link whenever the edit payload omits connectedToPortId
+- [x] **#34 · MEDIUM · bug · network-rack-management-faceplate** — updatePort destroys an existing bidirectional port link whenever the edit payload omits connectedToPortId
   - **File:** `actions/network.ts:436-450 (updatePort), 137-153 (addPort auto-link); components/admin/edit-port-modal.tsx:63-76`
   - **Bukti:** updatePort runs `if (oldConn !== newConn)` where newConn = data.connectedToPortId; edit-port-modal never sends connectedToPortId, so newConn is undefined and `null !== undefined` is always true: the branch unlinks the remote port's back-pointer and then skips relinking. Additionally addPort's auto-link fetches the new id with orderBy(desc(id)).limit(1) instead of INSERT RETURNING (racy under concurrent inserts) and never unlinks the target port's previous back-link, leaving stale one-directional pairs.
-  - **Dampak:** Any port that has connectedToPortId loses its remote pair the moment it is edited through the UI; topology becomes one-directional/stale, and concurrent port creation can back-link the wrong port id.
+  - **Dampak:** Any port that has connectedToPortId loses its remote pair the moment it is edited through the UI; topology becomes one-directional/stale, and concurrent port creation can back-link the wrong port id. **Fixed and verified (commit 55c2678):** updatePort reads oldConn from the stored row and uses newConn = payload.connectedToPortId ?? oldConn, unlinking only on real change and targeting the old peer; the edit-port-modal sends the stored connectedToPortId back; addPort uses insert(...).returning({id}) and releases the target's previous back-link before linking; new actions/network.test.ts (6 tests, mock-db) covers the cases.
   - **Saran:** Include connectedToPortId in the edit modal payload (or read it from the stored row) and only unlink when the new value differs from the stored value; use .returning({ id }) on insert; unlink the target's previous back-link in addPort.
 
-- [ ] **#35 · MEDIUM · incomplete · network-rack-management-faceplate** — portIndex slot override is unbounded server-side: out-of-range slots persist silently as permanent 'Unmapped'
+- [x] **#35 · MEDIUM · incomplete · network-rack-management-faceplate** — portIndex slot override is unbounded server-side: out-of-range slots persist silently as permanent 'Unmapped'
   - **File:** `actions/network.ts:554 (updatePortSlot), addPort/updatePort; components/admin/device-faceplate.tsx:70-85; drizzle/0030_device_faceplate.sql:16`
   - **Bukti:** updatePortSlot accepts any integer >= 1 and addPort/updatePort forward portIndex unvalidated; only the UnplacedPortRow client widget bounds input to maxSlot, while edit-port-modal and add-port-form inputs have min=1 with no max. The DB column is a plain integer with no CHECK. resolveSlotNumber returns null for overrides > portCount+uplinkCount, so a typo like 999 stores forever and the port never appears on the diagram, with no server-side explanation.
-  - **Dampak:** A typo'd slot value silently persists in the DB; the port stays unmapped, and the table/diagram both report failure without telling the admin the stored value is out of range.
+  - **Dampak:** A typo'd slot value silently persists in the DB; the port stays unmapped, and the table/diagram both report failure without telling the admin the stored value is out of range. **Fixed and verified (commit 2430330):** new assertFaceplateSlotInRange helper (max = faceplate portCount + uplinkCount; rejects non-integers, <1, >max, and any value when no faceplate layout) wired into updatePortSlot, addPort, updatePort; new actions/network-slot-bounds.test.ts (7 tests); no migration (validation is app-side).
   - **Saran:** Validate portIndex against the device's faceplate config (portCount + uplinkCount) inside updatePortSlot/addPort/updatePort, or add a DB CHECK constraint; return a clear error instead of storing it.
 
-- [ ] **#36 · MEDIUM · incomplete · network-rack-management-faceplate** — parsePortIndex maps subinterfaces, SVIs and bundles to wrong slots silently (last numeric group wins)
+- [x] **#36 · MEDIUM · incomplete · network-rack-management-faceplate** — parsePortIndex maps subinterfaces, SVIs and bundles to wrong slots silently (last numeric group wins)
   - **File:** `lib/faceplate.ts:138-144`
-  - **Bukti:** parsePortIndex takes the LAST numeric group: 'Gi1/0/2.10' -> 10, 'Vlan10' -> 10, 'Port-Channel1' -> 1, 'TenGigabitEthernet1/1/4' -> 4. A router subinterface 'Gi1/0/2.10' is therefore placed on slot 10 (or evicted into unplaced only by luck of a collision) instead of slot 2, and because the derived number stays in range it is NOT surfaced in the unplaced list — contradicting commit 01d52de's 'explainable and correct' claim.
+  - **Bukti:** parsePortIndex takes the LAST numeric group: 'Gi1/0/2.10' -> 10, 'Vlan10' -> 10, 'Port-Channel1' -> 1, 'TenGigabitEthernet1/1/4' -> 4. A router subinterface 'Gi1/0/2.10' is therefore placed on slot 10 (or evicted into unplaced only by luck of a collision) instead of slot 2, and because the derived number stays in range it is NOT surfaced in the unplaced list — contradicting commit 01d52de's 'explainable and correct' claim. **Fixed and verified (commit 11be058):** parsePortIndex now strips the subinterface suffix (/\.\d+$/) before deriving the slot (Gi1/0/2.10 → 2) and returns null for logical interfaces (Vlan*, Port-Channel*, subinterfaces of both) which route to the unplaced list; explicit portIndex override remains the escape hatch; lib/faceplate.test.ts extended.
   - **Dampak:** Router/switch ports named as subinterfaces, VLAN SVIs or bundles get attributed to the wrong physical slot on the diagram and in the PDF export with no warning.
   - **Saran:** Strip subinterface suffixes before deriving (e.g. split on '.', skip Vlan*/Port-Channel* prefixes, or require the numeric token to be the whole last path segment) and route unparsable names to the unplaced list.
 
@@ -325,10 +325,10 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** No graceful error/retry state on the main admin dashboard; during the documented deploy flows (schema migrations, restarts) the admin console can become a hard 500 with no recovery UI, and DB outages produce generic developer-facing pages in production.
   - **Saran:** Add error.tsx/global-error.tsx/not-found.tsx at the (dashboard) or admin route-group level with a retry affordance (plus loading.tsx for slow queries), and fetch the four datasets in parallel with per-call catches (or Promise.allSettled) so one failing source degrades inline.
 
-- [ ] **#40 · MEDIUM · bug · auth-admin-routing-i18n** — Audit-log page redirects unauthorized users to non-existent /dashboard (404)
+- [x] **#40 · MEDIUM · bug · auth-admin-routing-i18n** — Audit-log page redirects unauthorized users to non-existent /dashboard (404)
   - **File:** `app/[locale]/(dashboard)/admin/audit-log/page.tsx:19-21`
   - **Bukti:** Lines 19-21: `if (!session || !["admin","superadmin"].includes(session.role)) redirect("/dashboard")`. No /dashboard route exists under app/[locale]/(dashboard) — only about, admin, checklist, grid, profile, report.
-  - **Dampak:** Staff/logged-out users hitting /admin/audit-log are sent to a 404 instead of a graceful redirect; broken link navigation in the auth flow.
+  - **Dampak:** Staff/logged-out users hitting /admin/audit-log are sent to a 404 instead of a graceful redirect; broken link navigation in the auth flow. **Fixed and verified (commit a8038e8):** redirect changed to "/checklist", consistent with sibling admin pages.
   - **Saran:** Change to redirect("/checklist") — consistent with sibling pages like brand/category/location.
 
 - [ ] **#41 · MEDIUM · tech_debt · database-schema-migrations** — 0016 partition migration drops syslog_events FKs (raw_event_id, site_id, device_id, source_id) and never restores them; schema.ts still declares them
@@ -343,11 +343,11 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** On upgrade, SIEM events/findings whose source mapping could not be resolved get permanently attributed to the oldest active site; after 0025 the mis-assignment cannot be reset to NULL, so data silently lands in the wrong site's dashboards, retention jobs, and alert routing with no way to distinguish it from genuinely-site-1 data.
   - **Saran:** Before making site_id NOT NULL, add an explicit remediation path (log/flag fallback-assigned rows, or leave columns nullable until a manual review pass); at minimum document the fallback semantics in the schema comments as done for syslog_events_raw.
 
-- [ ] **#43 · MEDIUM · bug · cross-cutting** — Test suite is RED on main: 11 failures in 4 files (auth x7, incidents x1, update-scripts x2, deploy-secrets x1)
+- [x] **#43 · MEDIUM · bug · cross-cutting** — Test suite is RED on main: 11 failures in 4 files (auth x7, incidents x1, update-scripts x2, deploy-secrets x1)
   - **File:** `actions/auth.test.ts; lib/incidents.test.ts:48; scripts/update-scripts.test.ts; deploy-secrets.test.ts`
   - **Bukti:** npx vitest run: Test Files 4 failed | 72 passed (76), Tests 11 failed | 409 passed (420). auth.test.ts failures: '`headers` was called outside a request scope' — login() now calls (await headers()).get('host') (actions/auth.ts:163-170) with next/headers unmocked. lib/incidents.test.ts:48 expects allowedNextStatuses({isAdmin:false,isAssignee:true,current:'Open'}) to equal ['In Progress'] but code (lib/incidents.ts:67 early-return current===next) returns ['Open','In Progress']. update-scripts tests expect 'drizzle-kit push' but update scripts contain 'npm run db:migrate'; deploy-secrets regenerate=always assertion fails.
   - **Dampak:** CI/main branch is failing; the incidents failure also exposes a real behavior contradiction (staff see a no-op 'Open' transition button), and regressions from the recent login change went uncaught.
-  - **Saran:** Mock next/headers in auth.test.ts (or make rememberNotificationBaseUrl injectable); decide intent for the same-status transition (remove the early return in canTransitionIncidentStatus or update the test); refresh update-scripts/deploy-secrets tests to the deliberate db:migrate flow; add a CI gate so the suite must pass before merge.
+  - **Saran:** Mock next/headers in auth.test.ts (or make rememberNotificationBaseUrl injectable); decide intent for the same-status transition (remove the early return in canTransitionIncidentStatus or update the test); refresh update-scripts/deploy-secrets tests to the deliberate db:migrate flow; add a CI gate so the suite must pass before merge. **Fixed and verified (commits 8c2afe1 + 1c59162):** auth.test.ts failures were already resolved by the #05-era headers mock; update-scripts.test.ts now expects the deliberate `npm run db:migrate` flow (push would mutate live schema without a recorded migration); lib/incidents.ts same-status early return removed so staff no longer see a no-op Open transition (2 dependent test assertions updated to the new semantics; changeIncidentStatus untouched); deploy-secrets.test.ts failures are environmental (Git /usr/bin `tr` missing on the sandbox PATH → bash 127; passes once /usr/bin is added). Full suite now 523 passed / 4 failed (all 4 = the environmental deploy-secrets ensure_secret tests).
 
 - [ ] **#44 · MEDIUM · bug · cross-cutting** — submitChecklist inserts checklist items for deviceIds from any site — no site-scoping at the trust boundary
   - **File:** `actions/checklist.ts:82-108; actions/incidents.ts:310-316`
@@ -391,11 +391,11 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** Dead code yang hidup karena tesnya sendiri; tidak ada loading UI yang benar-benar tampil di rute mana pun.
   - **Saran:** Hapus, atau pakai di app/**/loading.tsx untuk rute-rute dashboard.
 
-- [ ] **#51 · MEDIUM · incomplete · ui-build** — tsc --noEmit gagal: 19 error di file tes; tidak ada script typecheck atau gate CI
+- [x] **#51 · MEDIUM · incomplete · ui-build** — tsc --noEmit gagal: 19 error di file tes; tidak ada script typecheck atau gate CI
   - **File:** `lib/env.test.ts (13), lib/siem/receiver.test.ts (4), actions/auth.test.ts (1)`
   - **Bukti:** npx tsc --noEmit exit 1: TS2540/TS2704 (process.env.NODE_ENV read-only di @types/node baru), TS2322 (vi.fn mock unknown[] vs array bertipe), TS2556 (spread). tsconfig mencakup **/*.ts. package.json tidak punya script typecheck — npm run check = lint+test+build. npm run build tetap bersih (Turbopack, exit 0, nol warning).
   - **Dampak:** Error hijau di vitest/esbuild tapi merah di IDE dan akan muncul begitu type-checking Next menyentuh file ini; menghambat siapa pun yang ingin menambahkan gate tsc.
-  - **Saran:** Tambahkan script `typecheck: tsc --noEmit`; perbaiki 3 file tes (vi.mocked / helper mutasi env).
+  - **Saran:** Tambahkan script `typecheck: tsc --noEmit`; perbaiki 3 file tes (vi.mocked / helper mutasi env). **Fixed and verified (commits 1c59162 + 27d3ecc):** lib/env.test.ts NODE_ENV mutations route through call-time setEnv/deleteEnv helpers (13 errors fixed), lib/siem/receiver.test.ts mocks typed with RawSyslogInsert[] (3 errors), the residual auth.test.ts fix landed in commit 853acf3, and the coordinator fixed the last error in lib/siem/alerts.test.ts (FindingOverrides gains title/summary, 27d3ecc). `"typecheck": "tsc --noEmit"` added to package.json. Result: `npx tsc --noEmit` now exits 0 with zero errors across the project.
 
 - [ ] **#52 · MEDIUM · tech_debt · ui-build** — pagination.tsx hardcode URL /report dan tombol first/last tanpa nama aksesibel
   - **File:** `components/ui/pagination.tsx L25, L79-136`
@@ -405,22 +405,22 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
 
 ### Band RENDAH — 31 temuan
 
-- [ ] **#53 · LOW · bug · telegram-messaging** — No timeout/abort on the Telegram fetch: a hung request stalls the entire SIEM alert worker
+- [x] **#53 · LOW · bug · telegram-messaging** — No timeout/abort on the Telegram fetch: a hung request stalls the entire SIEM alert worker
   - **File:** `lib/telegram.ts:95`
   - **Bukti:** 'await fetch(url, { method: "POST", headers, body })' — no AbortSignal/timeout. The worker scripts/siem-alert-worker.ts:53-75 awaits runSiemAlertWorkerOnce() per tick, and sendPendingSiemAlerts awaits sendTelegramAlert inline (lib/siem/alerts.ts:182).
-  - **Dampak:** A black-holed or half-open network connection blocks the alert loop indefinitely (telegram plus queued webhook/email alerts stall behind it) with no reaper.
+  - **Dampak:** A black-holed or half-open network connection blocks the alert loop indefinitely (telegram plus queued webhook/email alerts stall behind it) with no reaper. **Fixed and verified (commit ecd7618):** TELEGRAM_FETCH_TIMEOUT_MS = 10_000 with `signal: AbortSignal.timeout(...)` on the fetch in sendTelegramAlert.
   - **Saran:** Add 'signal: AbortSignal.timeout(10_000)' to the fetch, and/or enforce a per-alert send timeout in the worker.
 
-- [ ] **#54 · LOW · tech_debt · telegram-messaging** — sendTelegramAlert error path can throw on non-JSON bodies and masks the real Telegram API error
+- [x] **#54 · LOW · tech_debt · telegram-messaging** — sendTelegramAlert error path can throw on non-JSON bodies and masks the real Telegram API error
   - **File:** `lib/telegram.ts:107-117`
   - **Bukti:** On !response.ok it does 'await response.json()' — this throws if Telegram returns a non-JSON body (proxy HTML, 429 plain text), which the outer catch then labels 'Network error'. The returned message on any API rejection is the generic 'Gateway rejected request', discarding Telegram's error_data (e.g. 'chat not found', 'message is too long').
-  - **Dampak:** Admin test messages and worker failure records only show a vague message, making misconfiguration (wrong chat_id/bot token) very hard to diagnose.
+  - **Dampak:** Admin test messages and worker failure records only show a vague message, making misconfiguration (wrong chat_id/bot token) very hard to diagnose. **Fixed and verified (commit 98a6373):** the !response.ok branch reads the body as text, tries JSON parse, and propagates Telegram's description / error_data.description into the returned message (raw text fallback; generic string only for empty bodies); 4 new tests in lib/telegram.test.ts incl. a non-JSON HTML body and an AbortSignal regression assertion.
   - **Saran:** Read the body as text, try JSON parse, and propagate error_data.description into the returned message; keep the generic string only as a last-resort.
 
-- [ ] **#55 · LOW · misscode · telegram-messaging** — Client template token chip list omits the incidentLink token (UI/backend token lists drift)
+- [x] **#55 · LOW · misscode · telegram-messaging** — Client template token chip list omits the incidentLink token (UI/backend token lists drift)
   - **File:** `components/admin/settings-form.tsx:19-38`
   - **Bukti:** telegramTemplateTokens is defined without 'incidentLink', while the server renders it (lib/telegram.ts:24-44 TELEGRAM_ALERT_TEMPLATE_FIELDS includes incidentLink) and the default template relies on it (lib/telegram.ts:7).
-  - **Dampak:** Admins editing templates in the UI are never offered the {incidentLink} chip and may unknowingly delete the deep-link line from their custom template; UI and backend token lists drift apart.
+  - **Dampak:** Admins editing templates in the UI are never offered the {incidentLink} chip and may unknowingly delete the deep-link line from their custom template; UI and backend token lists drift apart. **Fixed and verified (commit 4b93960):** "incidentLink" added to telegramTemplateTokens in settings-form.tsx with a comment pinning TELEGRAM_ALERT_TEMPLATE_FIELDS (lib/telegram.ts) as the source of truth — a single shared constant is impossible because the server list imports the server-only db module.
   - **Saran:** Add 'incidentLink' to telegramTemplateTokens (and keep the two lists in sync — ideally derive both from a single source).
 
 - [ ] **#56 · LOW · misscode · telegram-messaging** — Submit-checklist Telegram severity mapping is dead code — always 'Medium', so severity-filtered recipients can miss all alerts
@@ -465,10 +465,10 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** Field evidence is silently lost when the tech filters/leaves a device's tab before submitting, and there is no evidence channel for OK items; in environments where public/uploads was not pre-created, the whole checklist submission fails partway.
   - **Saran:** Persist selected photo in a per-device state map (blob URL or ref) and re-emit it in the hidden block so evidence survives tab switches; add fs.mkdir(uploadDir, { recursive: true }) before the checklist writeFile to match saveUploadFile.
 
-- [ ] **#63 · LOW · tech_debt · network-rack-management-faceplate** — Faceplate eviction branch in buildFaceplate is dead code (override pass runs before guess pass)
+- [x] **#63 · LOW · tech_debt · network-rack-management-faceplate** — Faceplate eviction branch in buildFaceplate is dead code (override pass runs before guess pass)
   - **File:** `lib/faceplate.ts:340-368`
   - **Bukti:** buildFaceplate runs overrides in pass 0 and guesses in pass 1, so within pass 0 any occupied slot.port is itself an override (hasOverride true), and pass 1 has isOverridePass false — the branch `isOverridePass && !hasOverride(slot.port)` (line 357) can never be true. The comment 'the guess gives way' describes ordering, not eviction. Behavior is correct (tests pass).
-  - **Dampak:** No functional defect; misleading dead branch and comment in the mapping logic that commit 01d52de was meant to make explainable.
+  - **Dampak:** No functional defect; misleading dead branch and comment in the mapping logic that commit 01d52de was meant to make explainable. **Fixed and verified (commit c991a6e):** the unreachable `isOverridePass && !hasOverride(slot.port)` branch and the isOverridePass/passIndex variables were removed; the comment now documents that pass ordering (explicit overrides first) implements the precedence, with a regression test pinning that an explicit override wins over a name guess.
   - **Saran:** Delete the eviction branch and document that pass ordering (explicit overrides first) implements the precedence, or restructure so eviction is actually exercised and tested.
 
 - [ ] **#64 · LOW · tech_debt · network-rack-management-faceplate** — updateRack partial update silently flips isAuditable to false when the checkbox is absent; Zone '' stored instead of null
@@ -477,22 +477,22 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** Fragile partial-update semantics: a future form that doesn't include the checkbox silently turns rack auditing off; zone cleared to empty string instead of NULL.
   - **Saran:** Use `parsed.data.isAuditable ?? current.isAuditable` and `parsed.data.zone ?? current.zone` (or normalize '' to null) so partial updates only change fields the caller actually sent.
 
-- [ ] **#65 · LOW · incomplete · network-rack-management-faceplate** — Port-table Slot column can contradict the faceplate diagram for colliding ports
+- [x] **#65 · LOW · incomplete · network-rack-management-faceplate** — Port-table Slot column can contradict the faceplate diagram for colliding ports
   - **File:** `components/admin/port-table.tsx:89-110`
   - **Bukti:** The Slot column calls resolveSlotNumber per row with no knowledge of collisions or the override pass: two ports that resolve to the same slot both display that slot number with an 'auto' badge, while the diagram places only one and moves the other to the unplaced list. The feature was added (commit 01d52de) specifically to make missing-ports explainable from the table.
-  - **Dampak:** The table can show a port at 'Slot 5' while the faceplate renders it as unplaced — exactly the confusion the explainability commit set out to remove.
+  - **Dampak:** The table can show a port at 'Slot 5' while the faceplate renders it as unplaced — exactly the confusion the explainability commit set out to remove. **Fixed and verified (commit 5ed7908):** new pure helpers slotOccupants + resolveSlotPlacement in lib/faceplate.ts; port-table.tsx computes buildFaceplate once (useMemo) and renders the Unmapped badge (with conflict tooltip) for any port that is not the slot occupant; unit + render tests added.
   - **Saran:** Compute buildFaceplate placement once in PortTable and render 'Unmapped' (or a conflict marker) for ports that are not the slot occupant, mirroring the diagram.
 
-- [ ] **#66 · LOW · incomplete · network-rack-management-faceplate** — Bulk mode leaves mediaType defaulting to Copper, so uplink templates silently produce colliding/unplaced ports
+- [x] **#66 · LOW · incomplete · network-rack-management-faceplate** — Bulk mode leaves mediaType defaulting to Copper, so uplink templates silently produce colliding/unplaced ports
   - **File:** `components/admin/add-port-form.tsx:76`
   - **Bukti:** Commit 01d52de removed portIndex from bulk adds ('the faceplate derives the slot from the name and media instead'), but the bulk form still defaults mediaType to 'Copper (RJ45)'. A bulk 'TenGigabitEthernet1/1/1-4' with default media derives slots 1-4 and collides with existing access ports, sending every generated uplink to the unplaced list with no proactive warning — the admin must remember to switch Media Type to Fiber.
-  - **Dampak:** First-time bulk uplink provisioning looks broken (all ports unmapped) unless the admin manually sets fiber media; the placement rule that replaced portIndex is not surfaced in the form.
+  - **Dampak:** First-time bulk uplink provisioning looks broken (all ports unmapped) unless the admin manually sets fiber media; the placement rule that replaced portIndex is not surfaced in the form. **Fixed and verified (commit 8125573):** new exported isFiberNamingTemplate (tenGigabit/fortyGigabit/hundredGigabit); in bulk mode with a fiber template and no manual media selection the effective media type is 'Fiber (SFP/SFP+)' (user selection wins; switching off bulk mode resets the touched flag); classification test for all 6 templates.
   - **Saran:** Auto-default Media Type to 'Fiber (SFP/SFP+)' for fiber-style templates (tenGigabit/fortyGigabit/hundredGigabit) in bulk mode, or show a hint that copper media ports land in the access block.
 
-- [ ] **#67 · LOW · bug · auth-admin-routing-i18n** — switchSite action does not re-verify site.isActive when assigning the active site
+- [x] **#67 · LOW · bug · auth-admin-routing-i18n** — switchSite action does not re-verify site.isActive when assigning the active site
   - **File:** `actions/auth.ts:189-219`
   - **Bukti:** switchSite checks requireSiteAccess (a userSites row exists) but the site lookup `.where(eq(sites.id, siteId))` (line 202) never filters isActive; getUserSites/select-site filter to isActive=true.
-  - **Dampak:** A deactivated site can appear/operate as the active site for a user, inconsistent with the isActive filtering everywhere else (middleware, select-site, getUserSites). Minor state/authorization drift.
+  - **Dampak:** A deactivated site can appear/operate as the active site for a user, inconsistent with the isActive filtering everywhere else (middleware, select-site, getUserSites). Minor state/authorization drift. **Fixed and verified (commit 853acf3):** the site lookup in switchSite now filters eq(sites.isActive, true); deactivated sites fail closed ('Site tidak ditemukan.'); 2 new tests in actions/auth.test.ts (deactivated-site predicate + active-site session re-creation).
   - **Saran:** Add eq(sites.isActive, true) to the site lookup in switchSite and reject inactive sites.
 
 - [ ] **#68 · LOW · incomplete · auth-admin-routing-i18n** — update.sh restarts only 5 of 9 worker services — stale code after deploy
@@ -501,10 +501,10 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** After an update, siem-ai, siem-snapshot, incidents-overdue-notify and backup-scheduler keep running stale container code until manually restarted, so newly deployed logic silently diverges from the app.
   - **Saran:** Extend SIEM_WORKER_SERVICES to include siem-ai siem-snapshot incidents-overdue-notify backup-scheduler (or restart all non-db, non-app services via their dependent healthchecks).
 
-- [ ] **#69 · LOW · tech_debt · auth-admin-routing-i18n** — Settings page gate allows admin role while permissions.ts declares global settings superadmin-only
+- [x] **#69 · LOW · tech_debt · auth-admin-routing-i18n** — Settings page gate allows admin role while permissions.ts declares global settings superadmin-only
   - **File:** `app/[locale]/(dashboard)/admin/settings/page.tsx:16-18; lib/permissions.ts:8-9`
   - **Bukti:** Page gate allows global 'admin' to view the Settings page; lib/permissions.ts canManageGlobalSettings(role) returns true only for superadmin; the nav hides Settings from non-admin users but not from admins.
-  - **Dampak:** Inconsistent policy: an admin-role user can open Global Settings (Telegram/app config, backup linkage) read surface; safety depends entirely on per-action guards. Minor authorization inconsistency.
+  - **Dampak:** Inconsistent policy: an admin-role user can open Global Settings (Telegram/app config, backup linkage) read surface; safety depends entirely on per-action guards. Minor authorization inconsistency. **Fixed and verified (commit 442e170):** the page now redirects non-superadmin to /admin, matching lib/permissions.ts canManageGlobalSettings; the nav entry moved from adminItems to superadminItems in lib/ui/navigation.ts (admins no longer see Settings; 3/3 nav tests pass).
   - **Saran:** Gate /admin/settings to superadmin-only to match permissions.ts and the settings write actions, or document the intended admin-level read.
 
 - [ ] **#70 · LOW · incomplete · device-groups** — Minor CRUD gaps in device-groups: updatedAt never set on update; delete failures silently ignored in UI; search is client-side name-only with no pagination
@@ -543,10 +543,10 @@ Centang `[x]` setelah temuan selesai dikerjakan **dan** diverifikasi. Kerjakan u
   - **Dampak:** Markdown formatting injection / alert spoofing: a device remark beginning with '# ' or '> ' renders as a heading or quote block in every site alert, letting a low-privileged user alter the visual structure of alerts sent to the whole site's Telegram chat.
   - **Saran:** Extend the escape set to the full legacy Markdown special-char list (~ > # + - = | { } . ! \ and control chars) or switch to MarkdownV2 with strict escaping; add unit tests for line-start special characters.
 
-- [ ] **#76 · LOW · incomplete · cross-cutting** — getUserById is an IDOR with no ownership/role check (any authenticated user can read any user's profile)
+- [x] **#76 · LOW · incomplete · cross-cutting** — getUserById is an IDOR with no ownership/role check (any authenticated user can read any user's profile)
   - **File:** `actions/users.ts:61-76`
   - **Bukti:** getUserById only checks verifySession() truthiness; it returns username, email, role and site bindings for any user id (passwordHash excluded). It is currently not imported by any page/component (dead action), so exploitability requires deriving the action endpoint, but the guard is absent.
-  - **Dampak:** PII disclosure (usernames, emails, roles, site assignments) across the user base if the action is ever wired into a UI or invoked directly; defense-in-depth gap in the users module.
+  - **Dampak:** PII disclosure (usernames, emails, roles, site assignments) across the user base if the action is ever wired into a UI or invoked directly; defense-in-depth gap in the users module. **Fixed and verified (commit 0ed0aba):** getUserById returns null when unauthenticated; non-superadmins may only read self (session.userId === id), superadmins read any; unauthorized skips the DB query entirely (fail-closed, no existence leak); new actions/users.test.ts (6 tests).
   - **Saran:** Restrict to self (session.userId === id) or requireSuperadminAction; add a test covering unauthorized access.
 
 - [ ] **#77 · LOW · incomplete · cross-cutting** — Public /api/health and superadmin /api/admin/restore leak raw error messages to clients
