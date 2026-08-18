@@ -43,7 +43,7 @@ export default async function ProfilePage() {
         <main className="p-6">
             <div className="max-w-[1600px] mx-auto min-h-[calc(100vh-8rem)]">
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Profile Settings</h1>
+                    <h1 className="text-3xl font-bold tracking-tight text-ops-text mb-2">Profile Settings</h1>
                     <p className="text-slate-400">Kelola foto profil dan keamanan akun Anda.</p>
                 </div>
 

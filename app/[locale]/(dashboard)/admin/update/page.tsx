@@ -82,7 +82,7 @@ export default function SystemUpdatePage() {
                         <ArrowUpCircle className="w-7 h-7 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-white">System Update</h1>
+                        <h1 className="text-2xl font-bold text-ops-text">System Update</h1>
                         <p className="text-slate-400">Kelola pembaruan aplikasi OTA (Over-The-Air)</p>
                     </div>
                 </div>
@@ -90,7 +90,7 @@ export default function SystemUpdatePage() {
                 <button
                     onClick={checkForUpdates}
                     disabled={isChecking}
-                    className="flex h-10 items-center justify-center gap-2 rounded-lg bg-surface px-4 text-sm font-semibold text-white border border-border hover:bg-slate-700 transition-all disabled:opacity-50"
+                    className="flex h-10 items-center justify-center gap-2 rounded-lg bg-surface px-4 text-sm font-semibold text-ops-text border border-border hover:bg-slate-700 transition-all disabled:opacity-50"
                 >
                     <RefreshCw className={`w-4 h-4 ${isChecking ? "animate-spin" : ""}`} />
                     Check for Updates
@@ -106,7 +106,7 @@ export default function SystemUpdatePage() {
 
             {/* Current Version Card */}
             <div className="bg-surface border border-border/50 rounded-2xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-ops-text mb-4 flex items-center gap-2">
                     <GitBranch className="w-5 h-5 text-blue-400" />
                     Versi Saat Ini
                 </h2>
@@ -206,7 +206,7 @@ export default function SystemUpdatePage() {
 
             {/* Instructions */}
             <div className="bg-surface/50 border border-border/30 rounded-2xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-4">Cara Kerja Pembaruan OTA (Over-The-Air)</h2>
+                <h2 className="text-lg font-semibold text-ops-text mb-4">Cara Kerja Pembaruan OTA (Over-The-Air)</h2>
                 <div className="space-y-3 text-sm text-slate-400">
                     <p>
                         DC-Check dilengkapi skrip otomatisasi yang sangat aman dan dapat diandalkan untuk mengambil pembaharuan versi terbaru (OTA) langsung dari repositori Git proyek Anda tanpa memberhentikan sistem secara mendadak.

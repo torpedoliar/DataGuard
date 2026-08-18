@@ -40,7 +40,7 @@ export default async function SettingsPage() {
                         <span className="material-symbols-outlined text-[20px]">settings</span>
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-white tracking-tight">{t("title")}</h1>
+                        <h1 className="text-2xl font-bold text-ops-text tracking-tight">{t("title")}</h1>
                         <p className="text-sm text-slate-400 mt-1">
                             {t("description")}
                         </p>

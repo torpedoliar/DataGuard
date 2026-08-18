@@ -118,7 +118,7 @@ export default function AuditLogClient({
                         <Shield className="h-6 w-6" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-white">Audit Log</h1>
+                        <h1 className="text-2xl font-bold text-ops-text">Audit Log</h1>
                         <p className="text-sm text-slate-400">Rekam jejak seluruh aktivitas sistem {appName}</p>
                     </div>
                 </div>
@@ -218,7 +218,7 @@ export default function AuditLogClient({
                                             <div className="flex items-center gap-1.5">
                                                 <User className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                                                 <div>
-                                                    <p className="text-white font-medium text-xs">{log.username ?? "-"}</p>
+                                                    <p className="text-ops-text font-medium text-xs">{log.username ?? "-"}</p>
                                                     <p className="text-slate-500 text-[10px]">{log.userRole ?? ""}</p>
                                                 </div>
                                             </div>

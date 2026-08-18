@@ -16,7 +16,7 @@ export default async function BackupPage() {
     return (
         <div className="py-8 px-6 max-w-4xl mx-auto">
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-white tracking-tight">Backup &amp; Restore</h1>
+                <h1 className="text-2xl font-bold text-ops-text tracking-tight">Backup &amp; Restore</h1>
                 <p className="text-sm text-slate-400 mt-1">
                     Buat ZIP archive berisi pg_dump dan folder uploads, lalu restore ke server tujuan saat migrasi.
                 </p>

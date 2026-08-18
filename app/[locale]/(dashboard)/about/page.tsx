@@ -115,7 +115,7 @@ export default async function AboutPage() {
 
             {/* Repository */}
             <div className="bg-surface border border-border rounded-xl p-6 mb-8">
-                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-ops-text mb-4 flex items-center gap-2">
                     <Code2 className="h-5 w-5 text-blue-400" />
                     Repository
                 </h2>
@@ -146,7 +146,7 @@ export default async function AboutPage() {
 
             {/* Features */}
             <div className="bg-surface border border-border rounded-xl p-6 mb-8">
-                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-ops-text mb-4 flex items-center gap-2">
                     <Star className="h-5 w-5 text-amber-400" />
                     Fitur Utama
                 </h2>
@@ -157,7 +157,7 @@ export default async function AboutPage() {
                                 {f.icon}
                             </div>
                             <div>
-                                <p className="text-white text-sm font-medium">{f.label}</p>
+                                <p className="text-ops-text text-sm font-medium">{f.label}</p>
                                 <p className="text-slate-400 text-xs mt-0.5">{f.desc}</p>
                             </div>
                         </div>
@@ -167,7 +167,7 @@ export default async function AboutPage() {
 
             {/* Changelog */}
             <div className="bg-surface border border-border rounded-xl p-6">
-                <h2 className="text-lg font-bold text-white mb-4">
+                <h2 className="text-lg font-bold text-ops-text mb-4">
                     Changelog v{versionData.version}
                 </h2>
                 <ul className="space-y-2">

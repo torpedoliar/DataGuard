@@ -227,8 +227,10 @@ th {
 }
 
 /* ===== LIGHT MODE FIXES: route pages using legacy Tailwind utilities ===== */
-/* These override hardcoded slates so they stay visible on the ops-bg */
-html:not(.dark) .text-white { color: var(--color-foreground); }
+/* These override hardcoded slates so they stay visible on the ops-bg.
+   text-white is deliberately NOT overridden: it must stay white on colored
+   surfaces (bg-blue-600/bg-primary buttons). Legacy pages that used the old
+   shim have been migrated to text-ops-* tokens directly. */
 html:not(.dark) .text-slate-300 { color: var(--color-muted); }
 html:not(.dark) .text-slate-400 { color: var(--color-muted); }
 html:not(.dark) .text-slate-500 { color: var(--color-muted); }
