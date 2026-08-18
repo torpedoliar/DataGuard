@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { deleteDevice } from "@/actions/master-data";
+import { deleteDevice, getDeviceDeletionUsage, type DeviceDeletionUsageInfo } from "@/actions/master-data";
 import { X, AlertTriangle, Loader2, Info } from "lucide-react";
 
 interface DeleteDeviceModalProps {
@@ -19,26 +19,27 @@ export default function DeleteDeviceModal({
 }: DeleteDeviceModalProps) {
     const [reason, setReason] = useState("");
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isChecking, setIsChecking] = useState(false);
     const [error, setError] = useState("");
-    const [usageInfo, setUsageInfo] = useState<{ count: number; entries: Array<{ date: string; time: string; user: string }> } | null>(null);
-    const [forceDelete, setForceDelete] = useState(false);
+    const [usageInfo, setUsageInfo] = useState<DeviceDeletionUsageInfo | null>(null);
 
+    // "Check Device Usage" is a strictly read-only preflight: it reports
+    // dependency counts and a checklist history preview and never mutates
+    // the device or its data.
     const handleCheckUsage = async () => {
+        setIsChecking(true);
+        setError("");
         try {
-            const result = await deleteDevice(deviceId, reason || "Checking...", false) as { usageCount?: number; entries?: { date: string; time: string; user: string; }[]; success?: boolean; message?: string };
-            if (result?.usageCount) {
-                setUsageInfo({
-                    count: result.usageCount,
-                    entries: result.entries || [],
-                });
-                setError(result.message || "Device is in use");
-            } else if (result?.success) {
-                onSuccess();
-            } else if (result?.message) {
+            const result = await getDeviceDeletionUsage(deviceId);
+            if (result.success) {
+                setUsageInfo(result);
+            } else {
                 setError(result.message);
             }
         } catch (_err) {
             setError("Failed to check device usage");
+        } finally {
+            setIsChecking(false);
         }
     };
 
@@ -52,7 +53,7 @@ export default function DeleteDeviceModal({
         setError("");
 
         try {
-            const result = await deleteDevice(deviceId, reason, forceDelete);
+            const result = await deleteDevice(deviceId, reason);
             if (result?.success) {
                 onSuccess();
             } else if (result?.message) {
@@ -64,6 +65,9 @@ export default function DeleteDeviceModal({
             setIsDeleting(false);
         }
     };
+
+    const canDelete = usageInfo !== null && usageInfo.canDelete;
+    const blocked = usageInfo !== null && !usageInfo.canDelete;
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -101,70 +105,81 @@ export default function DeleteDeviceModal({
                         </p>
                     </div>
 
-                    {/* Usage Info */}
-                    {usageInfo && (
+                    {/* Blocked: related history/data cannot be deleted */}
+                    {blocked && usageInfo && (
                         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 space-y-3">
                             <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
                                 <Info className="h-5 w-5" />
-                                <p className="font-semibold">Device is in use!</p>
+                                <p className="font-semibold">Device cannot be deleted</p>
                             </div>
                             <p className="text-sm text-slate-700 dark:text-slate-300">
-                                This device is used in <strong>{usageInfo.count}</strong> checklist {usageInfo.count === 1 ? 'entry' : 'entries'}:
+                                This device is referenced by <strong>{usageInfo.blockingCount}</strong> related record{usageInfo.blockingCount === 1 ? "" : "s"} (checklist history, incidents, ports, syslog/SIEM data). Related data cannot be deleted.
                             </p>
-                            <div className="max-h-40 overflow-y-auto space-y-1">
-                                {usageInfo.entries.slice(0, 10).map((entry, idx) => (
-                                    <div key={idx} className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2">
-                                        <span className="font-mono">{entry.date}</span>
-                                        <span>at</span>
-                                        <span className="font-mono">{entry.time}</span>
-                                        <span>by</span>
-                                        <span className="font-medium">{entry.user}</span>
-                                    </div>
-                                ))}
-                                {usageInfo.entries.length > 10 && (
-                                    <p className="text-xs text-slate-500 italic">
-                                        ... and {usageInfo.entries.length - 10} more entries
+                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                                To retire this device, decommission it instead with the <strong>Active/Inactive</strong> toggle in the device table.
+                            </p>
+                            {usageInfo.checklistPreview.length > 0 && (
+                                <>
+                                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                                        Recent checklist history ({usageInfo.checklistPreview.length} of {usageInfo.dependencies.checklistItems} shown):
                                     </p>
-                                )}
-                            </div>
-
-                            <div className="flex items-start gap-2 mt-3">
-                                <input
-                                    type="checkbox"
-                                    id="forceDelete"
-                                    checked={forceDelete}
-                                    onChange={(e) => setForceDelete(e.target.checked)}
-                                    className="mt-1 rounded border-slate-300 text-red-600 focus:ring-red-500"
-                                />
-                                <label htmlFor="forceDelete" className="text-sm text-slate-700 dark:text-slate-300">
-                                    <strong>Force Delete</strong> - Also delete all {usageInfo.count} related checklist entries. This will remove historical data!
-                                </label>
-                            </div>
+                                    <div className="max-h-40 overflow-y-auto space-y-1">
+                                        {usageInfo.checklistPreview.map((entry, idx) => (
+                                            <div key={idx} className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                                                <span className="font-mono">{entry.date}</span>
+                                                <span>at</span>
+                                                <span className="font-mono">{entry.time}</span>
+                                                <span>by</span>
+                                                <span className="font-medium">{entry.user}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            Reason for Deletion *
-                        </label>
-                        <textarea
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            placeholder="e.g., Device decommissioned, replaced with new equipment, etc."
-                            rows={3}
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                        />
-                        {error && !usageInfo && (
-                            <p className="mt-1 text-sm text-red-500">{error}</p>
-                        )}
-                    </div>
+                    {/* No references found: safe to delete */}
+                    {canDelete && usageInfo && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
+                            <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                                No related records found — this device can be safely deleted.
+                            </p>
+                        </div>
+                    )}
+
+                    {!blocked && (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                Reason for Deletion *
+                            </label>
+                            <textarea
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                placeholder="e.g., Device decommissioned, replaced with new equipment, etc."
+                                rows={3}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                            />
+                            {error && (
+                                <p className="mt-1 text-sm text-red-500">{error}</p>
+                            )}
+                        </div>
+                    )}
 
                     {!usageInfo && (
                         <button
                             onClick={handleCheckUsage}
-                            className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            disabled={isChecking}
+                            className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                         >
-                            Check Device Usage
+                            {isChecking ? (
+                                <>
+                                    <Loader2 className="animate-spin h-4 w-4" />
+                                    Checking...
+                                </>
+                            ) : (
+                                "Check Device Usage"
+                            )}
                         </button>
                     )}
                 </div>
@@ -179,10 +194,10 @@ export default function DeleteDeviceModal({
                     >
                         Cancel
                     </button>
-                    {usageInfo && (
+                    {canDelete && (
                         <button
                             onClick={handleDelete}
-                            disabled={isDeleting || !reason.trim() || (!forceDelete && usageInfo.count > 0)}
+                            disabled={isDeleting || !reason.trim()}
                             className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isDeleting ? (
@@ -193,7 +208,7 @@ export default function DeleteDeviceModal({
                             ) : (
                                 <>
                                     <AlertTriangle className="h-4 w-4" />
-                                    {forceDelete ? `Force Delete (${usageInfo.count} entries)` : 'Delete'}
+                                    Delete Device
                                 </>
                             )}
                         </button>

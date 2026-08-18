@@ -2,7 +2,21 @@
 "use server";
 
 import { db } from "../db";
-import { devices, categories, checklistItems, brands, locations, racks } from "../db/schema";
+import {
+    devices,
+    categories,
+    checklistItems,
+    brands,
+    locations,
+    racks,
+    incidents,
+    networkPorts,
+    syslogSources,
+    syslogEvents,
+    siemFindings,
+    siemEvidenceEvents,
+    devicePics,
+} from "../db/schema";
 import { and, eq, or, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -291,58 +305,232 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
     }
 }
 
-export async function deleteDevice(id: number, reason?: string, forceDelete: boolean = false) {
+// ---- Device deletion (history-preserving) ----
+//
+// Every column below references devices.id. All are NO ACTION FKs (or, for
+// syslog_events, an FK dropped by the 0016 partition migration) whose rows are
+// audit history — they MUST block hard deletion and must never be deleted to
+// satisfy the FK. device_pics is the single ON DELETE CASCADE reference and is
+// therefore informational only, never a blocker.
+
+export type DeviceUsageDependency = {
+    /** checklist_items.device_id — NO ACTION; audit history, blocks deletion. */
+    checklistItems: number;
+    /** incidents.device_id — NO ACTION; blocks deletion. */
+    incidents: number;
+    /** network_ports.device_id — NO ACTION; ports of this device, blocks deletion. */
+    networkPorts: number;
+    /** network_ports.connected_to_device_id — NO ACTION; ports of OTHER devices linked to this device. */
+    linkedNetworkPorts: number;
+    /** syslog_sources.device_id — NO ACTION; source config/history, blocks deletion. */
+    syslogSources: number;
+    /** syslog_events.device_id — FK dropped by migration 0016; events must be preserved. */
+    syslogEvents: number;
+    /** siem_findings.device_id — NO ACTION; findings must be preserved. */
+    siemFindings: number;
+    /** siem_evidence_events.device_id — NO ACTION; evidence snapshots must be preserved. */
+    siemEvidenceEvents: number;
+    /** device_pics.device_id — ON DELETE CASCADE; removed with the device, NOT a blocker. */
+    devicePics: number;
+};
+
+export type ChecklistEntryPreview = {
+    date: string;
+    time: string;
+    user: string;
+};
+
+export type DeviceDeletionUsageInfo = {
+    success: true;
+    deviceId: number;
+    deviceName: string;
+    canDelete: boolean;
+    blockingCount: number;
+    dependencies: DeviceUsageDependency;
+    checklistPreview: ChecklistEntryPreview[];
+    message: string;
+};
+
+export type DeviceDeletionUsageResult = DeviceDeletionUsageInfo | { success: false; message: string };
+
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type UsageSource = typeof db | DbTx;
+
+function sumBlockingDeviceDependencies(dependencies: DeviceUsageDependency): number {
+    return dependencies.checklistItems
+        + dependencies.incidents
+        + dependencies.networkPorts
+        + dependencies.linkedNetworkPorts
+        + dependencies.syslogSources
+        + dependencies.syslogEvents
+        + dependencies.siemFindings
+        + dependencies.siemEvidenceEvents;
+}
+
+async function collectDeviceUsage(source: UsageSource, id: number): Promise<DeviceUsageDependency> {
+    const [
+        checklistItemsCount,
+        incidentsCount,
+        networkPortsCount,
+        linkedNetworkPortsCount,
+        syslogSourcesCount,
+        syslogEventsCount,
+        siemFindingsCount,
+        siemEvidenceEventsCount,
+        devicePicsCount,
+    ] = await Promise.all([
+        source.$count(checklistItems, eq(checklistItems.deviceId, id)),
+        source.$count(incidents, eq(incidents.deviceId, id)),
+        source.$count(networkPorts, eq(networkPorts.deviceId, id)),
+        source.$count(networkPorts, eq(networkPorts.connectedToDeviceId, id)),
+        source.$count(syslogSources, eq(syslogSources.deviceId, id)),
+        source.$count(syslogEvents, eq(syslogEvents.deviceId, id)),
+        source.$count(siemFindings, eq(siemFindings.deviceId, id)),
+        source.$count(siemEvidenceEvents, eq(siemEvidenceEvents.deviceId, id)),
+        source.$count(devicePics, eq(devicePics.deviceId, id)),
+    ]);
+    return {
+        checklistItems: checklistItemsCount,
+        incidents: incidentsCount,
+        networkPorts: networkPortsCount,
+        linkedNetworkPorts: linkedNetworkPortsCount,
+        syslogSources: syslogSourcesCount,
+        syslogEvents: syslogEventsCount,
+        siemFindings: siemFindingsCount,
+        siemEvidenceEvents: siemEvidenceEventsCount,
+        devicePics: devicePicsCount,
+    };
+}
+
+async function loadChecklistPreview(id: number): Promise<ChecklistEntryPreview[]> {
+    const items = await db.query.checklistItems.findMany({
+        where: eq(checklistItems.deviceId, id),
+        columns: { id: true },
+        with: {
+            entry: {
+                with: {
+                    user: true,
+                },
+            },
+        },
+        limit: 10,
+    });
+    return items.map(item => ({
+        date: item.entry.checkDate,
+        time: item.entry.checkTime,
+        user: item.entry.user.username,
+    }));
+}
+
+/**
+ * Read-only preflight for device deletion. Reports every reference to the
+ * device (and a checklist history preview) without ever mutating anything.
+ */
+export async function getDeviceDeletionUsage(id: number): Promise<DeviceDeletionUsageResult> {
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return { success: false, message: auth.message };
+
+    const device = await db.query.devices.findFirst({
+        where: and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)),
+        columns: { id: true, name: true },
+    });
+    if (!device) return { success: false, message: "Perangkat tidak ditemukan di site aktif." };
+
+    const dependencies = await collectDeviceUsage(db, id);
+    const blockingCount = sumBlockingDeviceDependencies(dependencies);
+    const checklistPreview = dependencies.checklistItems > 0 ? await loadChecklistPreview(id) : [];
+
+    if (blockingCount === 0) {
+        return {
+            success: true,
+            deviceId: device.id,
+            deviceName: device.name,
+            canDelete: true,
+            blockingCount: 0,
+            dependencies,
+            checklistPreview,
+            message: "Perangkat tidak memiliki data terkait dan dapat dihapus.",
+        };
+    }
+
+    return {
+        success: true,
+        deviceId: device.id,
+        deviceName: device.name,
+        canDelete: false,
+        blockingCount,
+        dependencies,
+        checklistPreview,
+        message: `Perangkat ini tidak dapat dihapus karena masih direferensikan oleh ${blockingCount} data terkait (riwayat checklist, insiden, port, syslog/SIEM). Nonaktifkan perangkat melalui toggle status untuk decommission.`,
+    };
+}
+
+type DeleteDeviceTxOutcome =
+    | { kind: "missing" }
+    | { kind: "blocked"; blockingCount: number }
+    | { kind: "deleted"; photoPath: string | null; deviceName: string };
+
+/**
+ * Hard-deletes a device, but ONLY when nothing references it. Related data
+ * (checklist history, incidents, ports, syslog/SIEM records, evidence) is
+ * never deleted — devices with any reference must be decommissioned via
+ * `toggleDeviceStatus` instead.
+ *
+ * The delete runs inside a transaction: the device is re-read with the
+ * active-site scope and every dependency is re-checked inside the tx, then
+ * only the device row is deleted (device_pics cascades via its FK). The
+ * database FK is the final race guard: if a reference appears between the
+ * count and the DELETE, the NO ACTION FK aborts the transaction and nothing
+ * is mutated. Upload files are removed only AFTER the commit succeeds, and
+ * cache revalidation/audit logging also run after commit — never as part of
+ * the rollback path.
+ */
+export async function deleteDevice(id: number, reason?: string) {
     const auth = await requireActiveSiteAdminAction();
     if (!auth.ok) return { message: auth.message };
 
-    console.log(`Deleting device ${id}. Reason: ${reason || "Not provided"}. Force: ${forceDelete}`);
-
     try {
-        const device = await db.query.devices.findFirst({
-            where: and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)),
-        });
-        if (!device) return { message: "Perangkat tidak ditemukan di site aktif." };
+        const outcome = await db.transaction(async (tx): Promise<DeleteDeviceTxOutcome> => {
+            // Re-read inside the transaction: state may have changed since the preflight.
+            const device = await tx.query.devices.findFirst({
+                where: and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)),
+                columns: { id: true, name: true, photoPath: true },
+            });
+            if (!device) return { kind: "missing" };
 
-        // Check if device is used in checklist items
-        const items = await db.query.checklistItems.findMany({
-            where: eq(checklistItems.deviceId, id),
-            with: {
-                entry: {
-                    with: {
-                        user: true,
-                    },
-                },
-            },
+            const dependencies = await collectDeviceUsage(tx, id);
+            const blockingCount = sumBlockingDeviceDependencies(dependencies);
+            if (blockingCount > 0) return { kind: "blocked", blockingCount };
+
+            await tx.delete(devices).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)));
+            return { kind: "deleted", photoPath: device.photoPath, deviceName: device.name };
         });
 
-        if (items.length > 0 && !forceDelete) {
+        if (outcome.kind === "missing") return { message: "Perangkat tidak ditemukan di site aktif." };
+        if (outcome.kind === "blocked") {
             return {
-                message: "Perangkat ini tidak bisa dihapus karena masih tercatat di riwayat Checklist / Audit! Gunakan fitur Hapus Paksa jika benar-benar perlu.",
-                usageCount: items.length,
-                entries: items.map(item => ({
-                    date: item.entry.checkDate,
-                    time: item.entry.checkTime,
-                    user: item.entry.user.username,
-                })),
+                message: `Perangkat ini tidak dapat dihapus karena masih direferensikan oleh ${outcome.blockingCount} data terkait. Data riwayat tidak dapat dihapus; nonaktifkan perangkat melalui toggle status untuk decommission.`,
+                blockingCount: outcome.blockingCount,
             };
         }
 
-        // If force delete, first delete related checklist items
-        if (forceDelete && items.length > 0) {
-            await db.delete(checklistItems).where(eq(checklistItems.deviceId, id));
+        // The transaction committed — the device row is gone. Only now is it
+        // safe to remove its upload photo (the filesystem is not transactional;
+        // an orphan file is safer than a deleted photo of a still-existing device).
+        if (outcome.photoPath) {
+            try { await deleteUploadFile(outcome.photoPath); } catch (e) { }
         }
-
-        if (device?.photoPath) {
-            try { await deleteUploadFile(device.photoPath); } catch (e) { }
-        }
-
-        await db.delete(devices).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)));
         revalidatePath("/admin");
         revalidatePath("/admin/rack");
         revalidatePath("/admin/rack-manage");
-        await logAudit({ action: "DELETE", entity: "device", entityId: id, entityName: device?.name, detail: reason ? `Reason: ${reason}` : undefined });
+        await logAudit({ action: "DELETE", entity: "device", entityId: id, entityName: outcome.deviceName, detail: reason ? `Reason: ${reason}` : undefined });
         return { success: true };
     } catch (error) {
+        if (error instanceof Error && /foreign key constraint/i.test(error.message)) {
+            // A reference appeared between the in-transaction count and the DELETE.
+            console.error("Delete device blocked by FK race:", error);
+            return { message: "Perangkat tidak dapat dihapus: data terkait baru muncul saat penghapusan. Periksa kembali pemakaian perangkat." };
+        }
         console.error("Delete device error:", error);
         return { message: "Terjadi kesalahan fatal saat menghapus perangkat. Coba lagi perlahan." };
     }
