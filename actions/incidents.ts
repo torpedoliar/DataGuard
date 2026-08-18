@@ -499,25 +499,40 @@ export async function changeIncidentStatus(prevState: unknown, formData: FormDat
   if (!existing) return { message: "Incident not found." };
 
   const canAdminister = await hasAdminAccess();
-  const allowed = canTransitionIncidentStatus({
+  // Finding #24: Verified (admin fast-path from Open/In Progress) is a
+  // resolution state and requires resolution data just like Resolved. Data may
+  // be staged fresh in the form -- or already on record from the Resolved step,
+  // where the form's pristine selects must not wipe the stored values.
+  const resolutionState = next === "Resolved" || next === "Verified";
+  const effectiveCategory: ResolutionCategory | null =
+    resolutionCategory ?? (next === "Verified" ? existing.resolutionCategory : null);
+  const effectiveAction: ResolutionAction | null =
+    resolutionAction ?? (next === "Verified" ? existing.resolutionAction : null);
+  const effectiveResolutionProvided = Boolean(effectiveCategory && effectiveAction);
+
+  if (resolutionState && !effectiveResolutionProvided) {
+    return { message: "Resolution category and action are required before resolving." };
+  }
+
+  const allowedTransition = canTransitionIncidentStatus({
     isAdmin: canAdminister,
     isAssignee: existing.assignedToId === auth.session.userId,
     current: existing.status,
     next,
+    resolutionProvided: effectiveResolutionProvided,
   });
-  if (!allowed) return { message: "Status transition is not allowed." };
-  if (next === "Resolved" && (!resolutionCategory || !resolutionAction)) {
-    return { message: "Resolution category and action are required before resolving." };
-  }
+  if (!allowedTransition) return { message: "Status transition is not allowed." };
 
   await db.update(incidents).set({
     status: next,
-    resolutionCategory: next === "Resolved" ? resolutionCategory : existing.resolutionCategory,
-    resolutionAction: next === "Resolved" ? resolutionAction : existing.resolutionAction,
-    resolvedById: next === "Resolved" ? auth.session.userId : existing.resolvedById,
-    resolvedAt: next === "Resolved" ? new Date() : existing.resolvedAt,
-    verifiedById: next === "Verified" ? auth.session.userId : existing.verifiedById,
-    verifiedAt: next === "Verified" ? new Date() : existing.verifiedAt,
+    // Reopening to Open clears stale resolution/verification stamps so a
+    // later resolve starts from a clean record (finding #24).
+    resolutionCategory: resolutionState ? effectiveCategory : next === "Open" ? null : existing.resolutionCategory,
+    resolutionAction: resolutionState ? effectiveAction : next === "Open" ? null : existing.resolutionAction,
+    resolvedById: resolutionState ? auth.session.userId : next === "Open" ? null : existing.resolvedById,
+    resolvedAt: resolutionState ? new Date() : next === "Open" ? null : existing.resolvedAt,
+    verifiedById: next === "Verified" ? auth.session.userId : next === "Open" ? null : existing.verifiedById,
+    verifiedAt: next === "Verified" ? new Date() : next === "Open" ? null : existing.verifiedAt,
     updatedAt: new Date(),
   }).where(eq(incidents.id, incidentId));
 

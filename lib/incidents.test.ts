@@ -24,10 +24,24 @@ describe("incident domain rules", () => {
 
   it("limits status transitions by role and assignment", () => {
     expect(canTransitionIncidentStatus({ isAdmin: false, isAssignee: true, current: "Open", next: "In Progress" })).toBe(true);
-    expect(canTransitionIncidentStatus({ isAdmin: false, isAssignee: true, current: "In Progress", next: "Resolved" })).toBe(true);
+    expect(canTransitionIncidentStatus({ isAdmin: false, isAssignee: true, current: "In Progress", next: "Resolved", resolutionProvided: true })).toBe(true);
+    expect(canTransitionIncidentStatus({ isAdmin: false, isAssignee: true, current: "In Progress", next: "Resolved", resolutionProvided: false })).toBe(false);
     expect(canTransitionIncidentStatus({ isAdmin: false, isAssignee: true, current: "Resolved", next: "Verified" })).toBe(false);
-    expect(canTransitionIncidentStatus({ isAdmin: true, isAssignee: false, current: "Resolved", next: "Verified" })).toBe(true);
+    expect(canTransitionIncidentStatus({ isAdmin: true, isAssignee: false, current: "Resolved", next: "Verified", resolutionProvided: true })).toBe(true);
     expect(canTransitionIncidentStatus({ isAdmin: true, isAssignee: false, current: "Verified", next: "Open" })).toBe(true);
+  });
+
+  it("requires resolution data before Resolved or Verified (finding #24)", () => {
+    // Admin fast-path may verify straight from Open/In Progress, but only with
+    // resolution category/action staged.
+    expect(canTransitionIncidentStatus({ isAdmin: true, isAssignee: false, current: "Open", next: "Verified" })).toBe(false);
+    expect(canTransitionIncidentStatus({ isAdmin: true, isAssignee: false, current: "Open", next: "Verified", resolutionProvided: false })).toBe(false);
+    expect(canTransitionIncidentStatus({ isAdmin: true, isAssignee: false, current: "Open", next: "Verified", resolutionProvided: true })).toBe(true);
+    expect(canTransitionIncidentStatus({ isAdmin: true, isAssignee: false, current: "In Progress", next: "Resolved", resolutionProvided: false })).toBe(false);
+    expect(canTransitionIncidentStatus({ isAdmin: true, isAssignee: false, current: "In Progress", next: "Resolved", resolutionProvided: true })).toBe(true);
+    // Staff In Progress -> Resolved is likewise gated (the action already
+    // required resolution data; the lib now models it too).
+    expect(canTransitionIncidentStatus({ isAdmin: false, isAssignee: true, current: "In Progress", next: "Resolved", resolutionProvided: true })).toBe(true);
   });
 
   it("flags recurring device incidents after multiple recent incidents", () => {

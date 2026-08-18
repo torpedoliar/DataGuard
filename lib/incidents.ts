@@ -63,11 +63,24 @@ export function canTransitionIncidentStatus(input: {
   isAssignee: boolean;
   current: IncidentStatus;
   next: IncidentStatus;
+  /**
+   * Whether resolution category/action data is staged (or already on record)
+   * for this transition. Resolved and Verified are resolution states — an
+   * admin fast-path may verify straight from Open/In Progress, but never
+   * without resolution data (finding #24). Leave undefined when the caller
+   * only asks about the status matrix (allowedNextStatuses); the action
+   * enforces the data gate with the real value.
+   */
+  resolutionProvided?: boolean;
 }): boolean {
   // Same-status transitions are intentionally rejected: a no-op status change
   // would surface as a meaningless "move to the current status" button and
   // append a redundant incidentUpdates row. Terminal states simply have no
   // allowed next status.
+  if (!input.resolutionProvided && (input.next === "Resolved" || input.next === "Verified")) {
+    return false;
+  }
+
   if (input.isAdmin) {
     if (input.current === "Verified") return input.next === "Open";
     return true;
@@ -94,7 +107,9 @@ export function allowedNextStatuses(input: {
   current: IncidentStatus;
 }): IncidentStatus[] {
   return incidentStatuses.filter((next) =>
-    canTransitionIncidentStatus({ ...input, next }),
+    // The list cannot know whether resolution data exists; the action enforces
+    // the resolution gate with the real value (finding #24).
+    canTransitionIncidentStatus({ ...input, next, resolutionProvided: true }),
   );
 }
 
