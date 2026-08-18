@@ -276,10 +276,35 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                     // device-block separators (finding #22).
                     const chunks = splitTelegramChunks(messages);
 
-                    // Async dispatch so we don't block the UI response
+                    // Async dispatch so we don't block the UI response. Each chunk send is
+                    // audited (finding #59) — chatId + success/failure — so
+                    // outbound notifications leave a trail; logAudit never
+                    // throws and the send still never blocks the caller.
                     for (const recipient of recipients) {
                         for (const chunk of chunks) {
-                            sendTelegramAlert(recipient.chatId, chunk).catch(console.error);
+                            sendTelegramAlert(recipient.chatId, chunk)
+                                .then((result) => {
+                                    void logAudit({
+                                        action: "TELEGRAM_SEND",
+                                        entity: "checklist",
+                                        entityId: entryId,
+                                        entityName: `${checkDate} ${shift}`,
+                                        detail: `chatId=${recipient.chatId} success=${result.success}${result.message ? `: ${result.message}` : ""} (${chunk.length} chars)`,
+                                    });
+                                    if (!result.success) {
+                                        console.error(`Telegram alert send failed for chatId=${recipient.chatId}:`, result.message);
+                                    }
+                                })
+                                .catch((error) => {
+                                    console.error("Failed to send telegram alert:", error);
+                                    void logAudit({
+                                        action: "TELEGRAM_SEND",
+                                        entity: "checklist",
+                                        entityId: entryId,
+                                        entityName: `${checkDate} ${shift}`,
+                                        detail: `chatId=${recipient.chatId} error=${String(error)}`,
+                                    });
+                                });
                         }
                     }
                 }

@@ -124,6 +124,31 @@ async function resolveIncidentRecipients(siteId: number, severity: IncidentSever
     .map((row) => ({ chatId: row.chatId }));
 }
 
+// Fire-and-forget so a Telegram outage can never fail the action after
+// the incident row is committed (a thrown error here made callers report
+// failure and get resubmitted → duplicate incidents/checklist entries).
+// Each send result is audited (finding #59) with chatId + success/failure;
+// logAudit never throws and the send still never blocks the caller.
+function sendIncidentAlertFireAndForget(chatId: string, message: string, audit: Parameters<typeof logAudit>[0]) {
+  sendTelegramAlert(chatId, message)
+    .then((result) => {
+      void logAudit({
+        ...audit,
+        detail: `chatId=${chatId} success=${result.success}${result.message ? `: ${result.message}` : ""} ${audit.detail ?? ""}`.trim(),
+      });
+      if (!result.success) {
+        console.error(`Telegram alert send failed for chatId=${chatId}:`, result.message);
+      }
+    })
+    .catch((error) => {
+      console.error("Failed to send telegram alert:", error);
+      void logAudit({
+        ...audit,
+        detail: `chatId=${chatId} error=${String(error)} ${audit.detail ?? ""}`.trim(),
+      });
+    });
+}
+
 async function notifyCriticalIncidents(siteId: number, criticalIncidents: IncidentRecord[]) {
   if (criticalIncidents.length === 0) return;
 
@@ -146,11 +171,14 @@ async function notifyCriticalIncidents(siteId: number, criticalIncidents: Incide
     ),
   ].join("\n");
 
-  // Fire-and-forget so a Telegram outage can never fail the action after
-  // the incident row is committed (a thrown error here made callers report
-  // failure and get resubmitted → duplicate incidents/checklist entries).
   for (const recipient of recipients) {
-    sendTelegramAlert(recipient.chatId, message).catch(console.error);
+    sendIncidentAlertFireAndForget(recipient.chatId, message, {
+      action: "TELEGRAM_SEND",
+      entity: "incident",
+      entityId: criticalIncidents[0].id,
+      entityName: criticalIncidents.map((incident) => `#${incident.id}`).join(", "),
+      detail: `critical incident alert (${criticalIncidents.length} incident(s))`,
+    });
   }
 }
 
@@ -168,7 +196,13 @@ async function notifyResolvedWaitingVerification(siteId: number, incidentId: num
   // the incident row is committed (a thrown error here made callers report
   // failure and get resubmitted → duplicate incidents/checklist entries).
   for (const recipient of recipients) {
-    sendTelegramAlert(recipient.chatId, message).catch(console.error);
+    sendIncidentAlertFireAndForget(recipient.chatId, message, {
+      action: "TELEGRAM_SEND",
+      entity: "incident",
+      entityId: incidentId,
+      entityName: `#${incidentId} ${title}`,
+      detail: "resolved-waiting-verification alert",
+    });
   }
 }
 

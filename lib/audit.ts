@@ -20,7 +20,11 @@ export type AuditAction =
     | "TEST"
     | "SCHEMA_PUSH"
     | "SITE_SWITCH"
-    | "BACKUP";
+    | "BACKUP"
+    // Finding #59: fire-and-forget Telegram alert sends (checklist & incident
+    // notifications) are audited with chatId + success/failure so outbound
+    // notifications leave a trail even though they never block the caller.
+    | "TELEGRAM_SEND";
 
 export type AuditEntity =
     | "device"
