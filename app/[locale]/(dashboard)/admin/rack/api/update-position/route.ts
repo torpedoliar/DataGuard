@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { devices, racks } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { checkRackCollision } from "@/lib/rack-validation";
+import { checkRackCollision, rackPlacementExceedsCapacity, rackCapacityErrorMessage } from "@/lib/rack-validation";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 
 export async function POST(request: NextRequest) {
@@ -28,17 +28,29 @@ export async function POST(request: NextRequest) {
         const newUHeight = uHeight !== undefined ? uHeight : (deviceA.uHeight || 1);
 
         let targetZone: string | null = null;
+        let rackTotalU: number | null = null;
         if (rackName) {
             const targetRack = await db.query.racks.findFirst({
-                where: and(eq(racks.name, rackName), eq(racks.siteId, auth.activeSiteId))
+                where: and(eq(racks.name, rackName), eq(racks.siteId, auth.activeSiteId)),
+                columns: { totalU: true, zone: true }
             });
-            if (targetRack && targetRack.zone) {
-                targetZone = targetRack.zone;
+            if (targetRack) {
+                rackTotalU = targetRack.totalU;
+                if (targetRack.zone) {
+                    targetZone = targetRack.zone;
+                }
             }
         }
 
         // Standard position update checks if rack details are provided
         if (rackName && rackPosition) {
+            // Reject placements that exceed the rack's U capacity (client-side
+            // U list only offers positions 1..totalU) — otherwise the device
+            // overflows the chassis and vanishes from the rack diagram.
+            if (rackPlacementExceedsCapacity({ rackPosition, uHeight: newUHeight, totalU: rackTotalU })) {
+                return NextResponse.json({ error: rackCapacityErrorMessage(rackTotalU) }, { status: 400 });
+            }
+
             const collisions = await checkRackCollision(
                 auth.activeSiteId,
                 rackName,
@@ -75,6 +87,22 @@ export async function POST(request: NextRequest) {
                         if (Math.max(aNewStart, bNewStart) <= Math.min(aNewEnd, bNewEnd)) {
                             return NextResponse.json({
                                 error: `Cannot swap: The new positions would cause ${deviceA.name} and ${deviceB.name} to overlap.`
+                            }, { status: 400 });
+                        }
+
+                        // Device B is moving into Device A's old spot — that spot
+                        // must fit B's height within the destination rack's capacity.
+                        let bDestinationTotalU = rackTotalU;
+                        if (deviceA.rackName !== rackName) {
+                            const oldRack = await db.query.racks.findFirst({
+                                where: and(eq(racks.name, deviceA.rackName), eq(racks.siteId, auth.activeSiteId)),
+                                columns: { totalU: true }
+                            });
+                            bDestinationTotalU = oldRack?.totalU ?? null;
+                        }
+                        if (rackPlacementExceedsCapacity({ rackPosition: deviceA.rackPosition, uHeight: deviceB.uHeight || 1, totalU: bDestinationTotalU })) {
+                            return NextResponse.json({
+                                error: rackCapacityErrorMessage(bDestinationTotalU)
                             }, { status: 400 });
                         }
 

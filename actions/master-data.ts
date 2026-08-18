@@ -21,7 +21,7 @@ import { and, eq, or, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
-import { checkRackCollision } from "../lib/rack-validation";
+import { checkRackCollision, rackCapacityErrorMessage, rackPlacementExceedsCapacity } from "../lib/rack-validation";
 import { logAudit } from "../lib/audit";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "../lib/action-auth";
 import { deleteUploadFile, saveUploadFile } from "../lib/upload";
@@ -181,7 +181,20 @@ export async function addDevice(prevState: unknown, formData: FormData) {
     const parsed = deviceSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
+    let rackTotalU: number | null = null;
+    if (parsed.data.rackName) {
+        const targetRack = await db.query.racks.findFirst({
+            where: and(eq(racks.name, parsed.data.rackName), eq(racks.siteId, auth.activeSiteId)),
+            columns: { totalU: true },
+        });
+        rackTotalU = targetRack?.totalU ?? null;
+    }
+
     if (parsed.data.rackName && parsed.data.rackPosition) {
+        if (rackPlacementExceedsCapacity({ rackPosition: parsed.data.rackPosition, uHeight: parsed.data.uHeight, totalU: rackTotalU })) {
+            return { message: rackCapacityErrorMessage(rackTotalU) };
+        }
+
         const collisions = await checkRackCollision(
             auth.activeSiteId,
             parsed.data.rackName,
@@ -247,7 +260,20 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
         });
         if (!existingDevice) return { message: "Perangkat tidak ditemukan di site aktif." };
 
+        let rackTotalU: number | null = null;
+        if (parsed.data.rackName) {
+            const targetRack = await db.query.racks.findFirst({
+                where: and(eq(racks.name, parsed.data.rackName), eq(racks.siteId, auth.activeSiteId)),
+                columns: { totalU: true },
+            });
+            rackTotalU = targetRack?.totalU ?? null;
+        }
+
         if (parsed.data.rackName && parsed.data.rackPosition) {
+            if (rackPlacementExceedsCapacity({ rackPosition: parsed.data.rackPosition, uHeight: parsed.data.uHeight ?? existingDevice.uHeight, totalU: rackTotalU })) {
+                return { message: rackCapacityErrorMessage(rackTotalU) };
+            }
+
             const collisions = await checkRackCollision(
                 auth.activeSiteId,
                 parsed.data.rackName,

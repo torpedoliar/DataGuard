@@ -25,6 +25,33 @@ export function rackRangesOverlap(proposed: RackRange, existing: RackRange): boo
     return Math.max(proposedStart, existingStart) <= Math.min(proposedEnd, existingEnd);
 }
 
+/**
+ * Returns true when a proposed placement does not fit inside the rack's U capacity.
+ * Mirrors the client-side U option list (valid starting positions are 1..totalU,
+ * defaulting to 42 when the rack has no totalU). A placement without a rack
+ * position (no placement requested) always fits.
+ */
+export function rackPlacementExceedsCapacity(opts: {
+    rackPosition?: number | string | null;
+    uHeight?: number | string | null;
+    totalU?: number | string | null;
+}): boolean {
+    if (opts.rackPosition === null || opts.rackPosition === undefined || opts.rackPosition === "") {
+        return false;
+    }
+    const position = Number(opts.rackPosition);
+    if (!Number.isFinite(position) || position < 1) return true;
+    const height = Number(opts.uHeight) || 1;
+    const capacity = Number(opts.totalU) || 42;
+    return position + height - 1 > capacity;
+}
+
+/** Indonesian error message used when a placement exceeds rack capacity. */
+export function rackCapacityErrorMessage(totalU?: number | string | null): string {
+    const capacity = Number(totalU) || 42;
+    return `Posisi melebihi kapasitas rak (maksimal U${capacity}).`;
+}
+
 export async function checkRackCollision(
     siteId: number,
     rackName: string,

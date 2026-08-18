@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   deleteUploadFile: vi.fn(),
   revalidatePath: vi.fn(),
   logAudit: vi.fn(),
+  checkRackCollision: vi.fn(),
+  rackPlacementExceedsCapacity: vi.fn(),
 }));
 
 vi.mock("../lib/action-auth", () => ({
@@ -16,7 +18,14 @@ vi.mock("../lib/action-auth", () => ({
 
 vi.mock("../lib/session", () => ({ verifySession: vi.fn() }));
 vi.mock("../lib/site-access", () => ({ hasAdminAccess: vi.fn() }));
-vi.mock("../lib/rack-validation", () => ({ checkRackCollision: vi.fn() }));
+vi.mock("../lib/rack-validation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/rack-validation")>();
+  return {
+    checkRackCollision: (...args: unknown[]) => mocks.checkRackCollision(...args),
+    rackPlacementExceedsCapacity: (...args: unknown[]) => mocks.rackPlacementExceedsCapacity(...args),
+    rackCapacityErrorMessage: actual.rackCapacityErrorMessage,
+  };
+});
 vi.mock("../lib/upload", () => ({
   saveUploadFile: vi.fn(),
   deleteUploadFile: (...args: unknown[]) => mocks.deleteUploadFile(...args),
@@ -31,16 +40,19 @@ vi.mock("../db", () => ({
   db: {
     query: {
       devices: { findFirst: vi.fn() },
+      racks: { findFirst: vi.fn() },
       checklistItems: { findMany: vi.fn() },
     },
     $count: vi.fn(),
     delete: vi.fn(),
+    insert: vi.fn(),
+    update: vi.fn(),
     transaction: vi.fn(),
   },
 }));
 
 import { db } from "../db";
-import { deleteDevice, getDeviceDeletionUsage } from "./master-data";
+import { addDevice, deleteDevice, getDeviceDeletionUsage, updateDevice } from "./master-data";
 import {
   checklistItems,
   devices,
@@ -56,10 +68,13 @@ import {
 const mockedDb = db as unknown as {
   query: {
     devices: { findFirst: ReturnType<typeof vi.fn> };
+    racks: { findFirst: ReturnType<typeof vi.fn> };
     checklistItems: { findMany: ReturnType<typeof vi.fn> };
   };
   $count: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
+  insert: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
   transaction: ReturnType<typeof vi.fn>;
 };
 
@@ -155,9 +170,13 @@ beforeEach(() => {
   mockedDb.transaction.mockImplementation(async (fn: (tx: typeof mockedDb) => unknown) => fn(mockedDb));
   mockedDb.delete.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
   mockedDb.$count.mockResolvedValue(0);
+  mockedDb.insert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
+  mockedDb.update.mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) });
   mocks.requireActiveSiteAction.mockResolvedValue({ ok: false, message: "Unauthorized." });
   mocks.requireActiveSiteAdminAction.mockResolvedValue({ ok: false, message: "Unauthorized." });
   mocks.deleteUploadFile.mockResolvedValue(true);
+  mocks.checkRackCollision.mockResolvedValue([]);
+  mocks.rackPlacementExceedsCapacity.mockReturnValue(false);
 });
 
 describe("getDeviceDeletionUsage (read-only preflight)", () => {
@@ -413,5 +432,82 @@ describe("deleteDevice (history-preserving real delete)", () => {
     expect(mocks.deleteUploadFile).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
     expect(mocks.logAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe("addDevice / updateDevice rack capacity (finding #10)", () => {
+  function rackFormData(overrides: { name?: string; rackPosition?: string; uHeight?: string } = {}) {
+    const fd = new FormData();
+    fd.set("name", overrides.name ?? "FW-01");
+    fd.set("categoryId", "1");
+    fd.set("locationId", "1");
+    fd.set("rackName", "Rack A");
+    if (overrides.rackPosition !== undefined) fd.set("rackPosition", overrides.rackPosition);
+    if (overrides.uHeight !== undefined) fd.set("uHeight", overrides.uHeight);
+    return fd;
+  }
+
+  it("addDevice rejects a placement exceeding totalU before any collision check or insert", async () => {
+    mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
+    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42 });
+    mocks.rackPlacementExceedsCapacity.mockReturnValue(true);
+
+    const result = await addDevice(null, rackFormData({ rackPosition: "41", uHeight: "4" }));
+
+    expect(result).toEqual({ message: "Posisi melebihi kapasitas rak (maksimal U42)." });
+    expect(mockedDb.query.racks.findFirst).toHaveBeenCalledOnce();
+    expect(mocks.rackPlacementExceedsCapacity).toHaveBeenCalledWith({ rackPosition: 41, uHeight: 4, totalU: 42 });
+    expect(mocks.checkRackCollision).not.toHaveBeenCalled();
+    expect(mockedDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("addDevice allows a placement within totalU and proceeds with the insert", async () => {
+    mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
+    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42 });
+    mocks.rackPlacementExceedsCapacity.mockReturnValue(false);
+    mocks.checkRackCollision.mockResolvedValue([]);
+
+    const result = await addDevice(null, rackFormData({ rackPosition: "38", uHeight: "4" }));
+
+    expect(result).toEqual({ success: true, message: "Device added successfully" });
+    expect(mocks.rackPlacementExceedsCapacity).toHaveBeenCalledWith({ rackPosition: 38, uHeight: 4, totalU: 42 });
+    expect(mocks.checkRackCollision).toHaveBeenCalledWith(SITE_ID, "Rack A", 38, 4);
+    expect(mockedDb.insert).toHaveBeenCalledOnce();
+  });
+
+  it("updateDevice rejects a move exceeding totalU using the stored uHeight when the form omits it", async () => {
+    mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
+    mockedDb.query.devices.findFirst.mockResolvedValue({ id: DEVICE_ID, name: "FW-01", uHeight: 5, photoPath: null });
+    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42 });
+    mocks.rackPlacementExceedsCapacity.mockReturnValue(true);
+
+    const fd = rackFormData({ rackPosition: "41" });
+    fd.set("id", String(DEVICE_ID));
+    // no uHeight field: must fall back to existingDevice.uHeight (5)
+
+    const result = await updateDevice(null, fd);
+
+    expect(result).toEqual({ message: "Posisi melebihi kapasitas rak (maksimal U42)." });
+    expect(mocks.rackPlacementExceedsCapacity).toHaveBeenCalledWith({ rackPosition: 41, uHeight: 5, totalU: 42 });
+    expect(mocks.checkRackCollision).not.toHaveBeenCalled();
+    expect(mockedDb.update).not.toHaveBeenCalled();
+  });
+
+  it("updateDevice allows a move within totalU and proceeds with the update", async () => {
+    mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
+    mockedDb.query.devices.findFirst.mockResolvedValue({ id: DEVICE_ID, name: "FW-01", uHeight: 1, photoPath: null });
+    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42 });
+    mocks.rackPlacementExceedsCapacity.mockReturnValue(false);
+    mocks.checkRackCollision.mockResolvedValue([]);
+
+    const fd = rackFormData({ rackPosition: "5", uHeight: "1" });
+    fd.set("id", String(DEVICE_ID));
+
+    const result = await updateDevice(null, fd);
+
+    expect(result).toEqual({ success: true, message: "Device updated successfully" });
+    expect(mocks.rackPlacementExceedsCapacity).toHaveBeenCalledWith({ rackPosition: 5, uHeight: 1, totalU: 42 });
+    expect(mocks.checkRackCollision).toHaveBeenCalledWith(SITE_ID, "Rack A", 5, 1, DEVICE_ID);
+    expect(mockedDb.update).toHaveBeenCalledOnce();
   });
 });
