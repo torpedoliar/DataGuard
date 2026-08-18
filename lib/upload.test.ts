@@ -69,6 +69,31 @@ describe("upload validation", () => {
     expect(arrayBuffer).not.toHaveBeenCalled();
   });
 
+  it("enforces the configured MAX_FILE_SIZE env default (not just the per-call override)", async () => {
+    // #47 regression: MAX_FILE_SIZE is consumed via getEnv() when no per-call
+    // `maxBytes` is given. Reset modules so a fresh env module parses the
+    // new value, mirroring lib/env.test.ts.
+    vi.resetModules();
+    process.env.MAX_FILE_SIZE = "10";
+    const mod = await import("./upload");
+
+    const arrayBuffer = vi.fn(async () => new ArrayBuffer(1));
+    const oversized = {
+      name: "big.png",
+      size: 11,
+      arrayBuffer,
+    } as unknown as File;
+
+    try {
+      await expect(mod.saveUploadFile(oversized, "test")).rejects.toMatchObject({
+        code: "TOO_LARGE",
+      });
+      expect(arrayBuffer).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.MAX_FILE_SIZE;
+    }
+  });
+
   it("writes canonical extensions and keeps the generated path inside the selected directory", async () => {
     const uploadPath = await saveUploadFile(
       makeFile(PNG_BYTES, "../../not-used.svg", "image/svg+xml"),
