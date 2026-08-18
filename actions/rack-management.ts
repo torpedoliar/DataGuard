@@ -142,12 +142,16 @@ export async function updateRack(prevState: unknown, formData: FormData) {
         });
         if (!current) return { message: "Rack tidak ditemukan di site aktif." };
 
+        // Partial updates must only change fields the caller actually sent:
+        // absent isAuditable keeps the stored value (never force-flips to
+        // false), and an absent zone keeps the stored zone while an explicit
+        // empty string clears it to NULL (matching addRack's || null).
         await db.update(racks).set({
             name: parsed.data.name,
-            zone: parsed.data.zone,
+            zone: parsed.data.zone === undefined ? current.zone : (parsed.data.zone === "" ? null : parsed.data.zone),
             totalU: parsed.data.totalU,
             locationId: parsed.data.locationId,
-            isAuditable: parsed.data.isAuditable,
+            isAuditable: parsed.data.isAuditable ?? current.isAuditable,
         }).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
 
         // Cascade rename to devices referencing this rack by name
