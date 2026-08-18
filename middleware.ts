@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import createIntlMiddleware from "next-intl/middleware";
-import { decrypt } from "@/lib/session";
+import { decrypt } from "@/lib/session-token";
+import { validateSessionPayload } from "@/lib/session-auth";
 import { verifyCsrfToken } from "@/lib/csrf";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { routing } from "@/i18n/routing";
+
+// Middleware performs a current-user lookup, so it must run in the Node.js
+// runtime rather than the Edge runtime.
+export const runtime = "nodejs";
 
 // 1. Specify protected and public routes
 const protectedRoutes = ["/checklist", "/report", "/admin", "/grid", "/audit"];
@@ -95,9 +100,12 @@ export default async function middleware(req: NextRequest) {
         }
     }
 
-    // 3. Decrypt the session from the cookie
+    // 3. Decrypt the session and validate its claims against current user state.
+    // A valid signature is not sufficient after disablement, role/password
+    // changes, or when the database cannot confirm the user state.
     const cookie = req.cookies.get("session")?.value;
-    const session = await decrypt(cookie);
+    const tokenPayload = await decrypt(cookie);
+    const session = tokenPayload ? await validateSessionPayload(tokenPayload) : null;
 
     // 4. Redirect to /login if the user is not authenticated
     if ((isProtectedRoute || isSelectSite) && !session?.userId) {

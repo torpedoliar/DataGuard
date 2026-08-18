@@ -7,6 +7,7 @@ import { eq, and } from "drizzle-orm";
 import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { createSession, deleteSession } from "../lib/session";
+import { getSessionFingerprint } from "../lib/session-token";
 import { rememberNotificationBaseUrl } from "../lib/notification-url";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -156,7 +157,8 @@ export async function login(prevState: unknown, formData: FormData) {
         }
     }
 
-    await createSession(user.id, user.username, role, activeSiteId, activeSiteName);
+    const passwordFingerprint = await getSessionFingerprint(user.passwordHash);
+    await createSession(user.id, user.username, role, activeSiteId, activeSiteName, passwordFingerprint);
 
     // Remember the host the operator reached the app on, so Telegram alert
     // links use the domain when accessed via domain and the IP when via IP.
@@ -210,7 +212,8 @@ export async function switchSite(siteId: number) {
         session.username,
         session.role as "superadmin" | "admin" | "staff",
         siteId,
-        site[0].name
+        site[0].name,
+        session.passwordFingerprint,
     );
 
     await logAudit({ action: "SITE_SWITCH", entity: "site", entityId: siteId, entityName: site[0].name });

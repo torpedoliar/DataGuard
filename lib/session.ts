@@ -1,50 +1,31 @@
 
 import "server-only";
-import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { getEnvValue } from "./env";
 import { generateCsrfToken } from "./csrf-token";
+import { validateSessionPayload } from "./session-auth";
+import { decrypt, encrypt, type SessionRole } from "./session-token";
 
-const secretKey = getEnvValue("SESSION_SECRET");
-const encodedKey = new TextEncoder().encode(secretKey);
-
-export type SessionPayload = {
-    userId: number;
-    username: string;
-    role: "superadmin" | "admin" | "staff";
-    activeSiteId: number | null;
-    activeSiteName: string | null;
-    expiresAt: Date;
-};
-
-export async function encrypt(payload: SessionPayload) {
-    return new SignJWT(payload)
-        .setProtectedHeader({ alg: "HS256" })
-        .setIssuedAt()
-        .setExpirationTime("7d")
-        .sign(encodedKey);
-}
-
-export async function decrypt(session: string | undefined = "") {
-    try {
-        const { payload } = await jwtVerify(session, encodedKey, {
-            algorithms: ["HS256"],
-        });
-        return payload as unknown as SessionPayload;
-    } catch (_error) {
-        return null;
-    }
-}
+export { decrypt, encrypt } from "./session-token";
+export type { SessionPayload, SessionRole } from "./session-token";
 
 export async function createSession(
     userId: number,
     username: string,
-    role: "superadmin" | "admin" | "staff",
+    role: SessionRole,
     activeSiteId: number | null = null,
-    activeSiteName: string | null = null
+    activeSiteName: string | null = null,
+    passwordFingerprint = "",
 ) {
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const session = await encrypt({ userId, username, role, activeSiteId, activeSiteName, expiresAt });
+    const session = await encrypt({
+        userId,
+        username,
+        role,
+        activeSiteId,
+        activeSiteName,
+        passwordFingerprint,
+        expiresAt,
+    });
 
     // secure: true hanya jika diakses via HTTPS (misal di belakang reverse proxy)
     // Jika masih HTTP (akses langsung via IP), harus false agar cookie bisa tersimpan
@@ -76,18 +57,11 @@ export async function verifySession() {
     const session = cookieStore.get("session")?.value;
     const payload = await decrypt(session);
 
-    if (!session || !payload) {
+    if (!payload) {
         return null;
     }
 
-    return {
-        isAuth: true,
-        userId: payload.userId,
-        username: payload.username,
-        role: payload.role,
-        activeSiteId: payload.activeSiteId,
-        activeSiteName: payload.activeSiteName,
-    };
+    return validateSessionPayload(payload);
 }
 
 export async function deleteSession() {

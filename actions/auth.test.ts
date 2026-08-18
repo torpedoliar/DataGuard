@@ -51,6 +51,10 @@ vi.mock("./users", () => ({
   updateUserLastLogin: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
+}));
+
 const logAuditManualMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/audit", () => ({
   logAudit: vi.fn().mockResolvedValue(undefined),
