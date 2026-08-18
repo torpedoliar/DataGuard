@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { vlans, networkPorts, devices } from "@/db/schema";
-import { and, eq, desc, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "@/lib/action-auth";
@@ -131,25 +131,25 @@ export async function addPort(data: typeof networkPorts.$inferInsert) {
     if (!device) throw new Error("Perangkat tidak ditemukan di site aktif.");
 
     try {
-        await db.insert(networkPorts).values(data);
+        const [inserted] = await db.insert(networkPorts).values(data).returning({ id: networkPorts.id });
 
         // Attempt bidirectional connection if connectedToPortId is provided
-        if (data.connectedToPortId) {
-            // Fetch new port ID
-            const newlyInserted = await db.select({ id: networkPorts.id })
-                .from(networkPorts)
-                .where(eq(networkPorts.deviceId, data.deviceId))
-                .orderBy(desc(networkPorts.id))
-                .limit(1);
-
-            if (newlyInserted.length > 0) {
-                await db.update(networkPorts)
-                    .set({
-                        connectedToDeviceId: data.deviceId,
-                        connectedToPortId: newlyInserted[0].id
-                    })
-                    .where(eq(networkPorts.id, data.connectedToPortId));
-            }
+        if (data.connectedToPortId && inserted) {
+            // Release the target port's previous back-link so the old peer does
+            // not keep a stale one-directional pointer to it. Never release the
+            // just-inserted port's own forward link.
+            await db.update(networkPorts)
+                .set({ connectedToDeviceId: null, connectedToPortId: null })
+                .where(and(
+                    eq(networkPorts.connectedToPortId, data.connectedToPortId),
+                    ne(networkPorts.id, inserted.id),
+                ));
+            await db.update(networkPorts)
+                .set({
+                    connectedToDeviceId: data.deviceId,
+                    connectedToPortId: inserted.id
+                })
+                .where(eq(networkPorts.id, data.connectedToPortId));
         }
         await logAudit({ action: "CREATE", entity: "network_port", entityName: data.portName, detail: `DeviceID: ${data.deviceId}, Mode: ${data.portMode || '-'}` });
     } catch (error) {
@@ -432,20 +432,21 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
     try {
         await db.update(networkPorts).set(data).where(eq(networkPorts.id, id));
 
-        // Handle Bidirectional cable disconnects/reconnects
-        if (currentPort.length > 0) {
-            const oldConn = currentPort[0].connectedToPortId;
-            const newConn = data.connectedToPortId;
+        // Handle Bidirectional cable disconnects/reconnects. The connection only
+        // changes when the caller explicitly sends connectedToPortId (null =
+        // clear, id = relink); an omitted field keeps the stored link so that
+        // editing unrelated fields never destroys the remote back-pointer.
+        const oldConn = currentPort[0].connectedToPortId;
+        const newConn = data.connectedToPortId === undefined ? oldConn : data.connectedToPortId;
 
-            if (oldConn !== newConn) {
-                // Unlink old
-                if (oldConn) {
-                    await db.update(networkPorts).set({ connectedToDeviceId: null, connectedToPortId: null }).where(eq(networkPorts.id, oldConn));
-                }
-                // Link new
-                if (newConn && data.deviceId) {
-                    await db.update(networkPorts).set({ connectedToDeviceId: data.deviceId, connectedToPortId: id }).where(eq(networkPorts.id, newConn));
-                }
+        if (oldConn !== newConn) {
+            // Unlink old
+            if (oldConn) {
+                await db.update(networkPorts).set({ connectedToDeviceId: null, connectedToPortId: null }).where(eq(networkPorts.id, oldConn));
+            }
+            // Link new
+            if (newConn && data.deviceId) {
+                await db.update(networkPorts).set({ connectedToDeviceId: data.deviceId, connectedToPortId: id }).where(eq(networkPorts.id, newConn));
             }
         }
         await logAudit({ action: "UPDATE", entity: "network_port", entityId: id, entityName: data.portName, detail: `DeviceID: ${data.deviceId || '-'}` });

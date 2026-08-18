@@ -22,6 +22,7 @@ type Port = {
     speed: string | null;
     mediaType: string | null;
     connectedToDeviceId: number | null;
+    connectedToPortId: number | null;
     description: string | null;
 };
 
@@ -60,6 +61,7 @@ export default function EditPortModal({
 
         startTransition(async () => {
             try {
+                const targetDeviceId = connectedToDeviceId ? Number.parseInt(connectedToDeviceId, 10) : null;
                 await updatePort(port.id, {
                     deviceId,
                     portIndex: portIndex.trim() === "" ? null : Number.parseInt(portIndex, 10),
@@ -71,7 +73,14 @@ export default function EditPortModal({
                     status: status as "Active" | "Inactive" | "Down",
                     speed: speed as "10/100M" | "1G" | "10G" | "25G" | "40G" | "100G" | "Auto",
                     mediaType: mediaType as "Copper (RJ45)" | "Fiber (SFP/SFP+)" | "Twinax (DAC)",
-                    connectedToDeviceId: connectedToDeviceId ? parseInt(connectedToDeviceId) : null,
+                    connectedToDeviceId: targetDeviceId,
+                    // Carry the stored remote port only when the target device is
+                    // unchanged (null otherwise), so updatePort keeps the existing
+                    // back-link instead of treating the omission as an unlink.
+                    connectedToPortId:
+                        targetDeviceId !== null && targetDeviceId === port.connectedToDeviceId
+                            ? port.connectedToPortId
+                            : null,
                     description: description || null,
                 });
                 router.refresh();
