@@ -29,7 +29,7 @@ export function ThemeToggle() {
         setDark(next);
         applyTheme(next);
       }}
-      className="p-2 rounded-lg text-muted hover:text-foreground hover:bg-surface-darker transition-colors"
+      className="p-2 rounded-md text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised transition-colors"
     >
       {dark === null ? (
         <span className="block w-5 h-5" />
