@@ -99,7 +99,7 @@ export const users = pgTable("users", {
   failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
   lockoutUntil: timestamp("lockout_until"),
   createdAt: timestamp("created_at").defaultNow(),
-  responsibleForGroups: text("responsible_for_groups").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  responsibleForGroups: jsonb("responsible_for_groups").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 });
 
 // ==================== USER-SITE ASSIGNMENT ====================
