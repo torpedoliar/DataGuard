@@ -2,7 +2,7 @@
 "use server";
 
 import { db } from "../db";
-import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds } from "../db/schema";
+import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds, incidents, incidentUpdates } from "../db/schema";
 import { createIncidentsForChecklistItems } from "@/actions/incidents";
 import { getTelegramAlertTemplate } from "@/actions/settings";
 import { renderTelegramTemplate, sendTelegramAlert } from "@/lib/telegram";
@@ -12,7 +12,7 @@ import { requireActiveSiteAction } from "../lib/action-auth";
 import { logAudit } from "../lib/audit";
 import { revalidatePath } from "next/cache";
 import { deleteUploadFile, saveUploadFile, UploadValidationError, validateUpload } from "../lib/upload";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 
 const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const;
 type ChecklistSeverity = keyof typeof SEVERITY_RANK;
@@ -370,65 +370,153 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
         const checkTime = formData.get("checkTime") as string;
         const shift = formData.get("shift") as "Pagi" | "Siang" | "Malam";
 
-        // Update entry
-        await db.update(checklistEntries).set({
-            checkDate,
-            checkTime,
-            shift,
-        }).where(eq(checklistEntries.id, entryId));
+        // Finding #23: keep original item rows and update them in place instead
+        // of delete + re-insert. incidents.checklistItemId (unique, FK
+        // onDelete: set null) used to be severed on every edit by fresh item
+        // ids — orphaning open incidents and never creating incidents for
+        // newly NOT-OK devices. In-place updates keep incident links alive;
+        // incident creation for newly NOT-OK devices dedupes on the unique
+        // incidents.checklist_item_id, so re-edits never double-create.
+        await db.transaction(async (tx) => {
+            await tx.update(checklistEntries).set({
+                checkDate,
+                checkTime,
+                shift,
+            }).where(eq(checklistEntries.id, entryId));
 
-        // Get all device IDs from the form
+            const oldItems = await tx.query.checklistItems.findMany({
+                where: eq(checklistItems.entryId, entryId),
+            });
+            const oldByDevice = new Map(oldItems.map((item) => [item.deviceId, item]));
 
-        // Delete existing items for this entry
-        await db.delete(checklistItems).where(eq(checklistItems.entryId, entryId));
+            const upserted: { itemId: number; deviceId: number; status: "OK" | "NOT OK"; remarks: string }[] = [];
 
-        // Re-insert items
-        for (const idStr of deviceIds) {
-            const deviceId = parseInt(idStr as string);
-            const status = formData.get(`status-${deviceId}`) as "OK" | "NOT OK";
-            const remarks = formData.get(`remarks-${deviceId}`) as string;
-            const photoFile = formData.get(`photo-${deviceId}`) as File;
-            const existingPhotoPath = formData.get(`existingPhoto-${deviceId}`) as string;
+            for (const deviceId of deviceIds) {
+                const status = (formData.get(`status-${deviceId}`) as "OK" | "NOT OK") || "OK";
+                const remarks = formData.get(`remarks-${deviceId}`) as string;
+                const photoFile = formData.get(`photo-${deviceId}`) as File;
+                const existingPhotoPath = formData.get(`existingPhoto-${deviceId}`) as string;
 
-            let photoPath: string | null = existingPhotoPath || null;
+                let photoPath: string | null = existingPhotoPath || null;
 
-            // Handle new file upload
-            if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
-                photoPath = await saveUploadFile(
-                    photoFile,
-                    `${entryId}-${deviceId}`,
-                    { kind: "photo", directory: "root" },
-                );
+                // Handle new file upload
+                if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
+                    photoPath = await saveUploadFile(
+                        photoFile,
+                        `${entryId}-${deviceId}`,
+                        { kind: "photo", directory: "root" },
+                    );
 
-                // Delete old photo if exists
-                if (existingPhotoPath) {
-                    try {
-                        await deleteUploadFile(existingPhotoPath);
-                    } catch (e) {
-                        console.error("Failed to delete old photo:", e);
+                    // Delete old photo if exists
+                    if (existingPhotoPath) {
+                        try {
+                            await deleteUploadFile(existingPhotoPath);
+                        } catch (e) {
+                            console.error("Failed to delete old photo:", e);
+                        }
                     }
                 }
-            }
 
-            // Handle photo deletion
-            const deletePhoto = formData.get(`deletePhoto-${deviceId}`) === "on";
-            if (deletePhoto && photoPath) {
-                try {
-                    await deleteUploadFile(photoPath);
-                } catch (e) {
-                    console.error("Failed to delete photo:", e);
+                // Handle photo deletion
+                const deletePhoto = formData.get(`deletePhoto-${deviceId}`) === "on";
+                if (deletePhoto && photoPath) {
+                    try {
+                        await deleteUploadFile(photoPath);
+                    } catch (e) {
+                        console.error("Failed to delete photo:", e);
+                    }
+                    photoPath = null;
                 }
-                photoPath = null;
+
+                const old = oldByDevice.get(deviceId);
+                if (old) {
+                    // In-place update: the row (and any incident linked to it)
+                    // survives the edit.
+                    await tx.update(checklistItems).set({
+                        status,
+                        remarks: remarks || "",
+                        photoPath,
+                    }).where(eq(checklistItems.id, old.id));
+                    upserted.push({ itemId: old.id, deviceId, status, remarks: remarks || "" });
+                } else {
+                    const [item] = await tx.insert(checklistItems).values({
+                        entryId,
+                        deviceId,
+                        status,
+                        remarks: remarks || "",
+                        photoPath,
+                    }).onConflictDoNothing({ target: [checklistItems.entryId, checklistItems.deviceId] }).returning();
+                    if (item) upserted.push({ itemId: item.id, deviceId, status, remarks: remarks || "" });
+                }
             }
 
-            await db.insert(checklistItems).values({
-                entryId,
-                deviceId,
-                status: (status || "OK") as "OK" | "NOT OK",
-                remarks: remarks || "",
-                photoPath,
-            });
-        }
+            // Devices that left the entry: drop the row (and its photo). The
+            // incident FK goes NULL here as before, but a removal is an
+            // explicit edit, not a delete/re-insert side effect — and we do
+            // NOT auto-resolve its incident (removal says nothing about the
+            // device's health).
+            for (const old of oldItems) {
+                if (deviceIds.includes(old.deviceId)) continue;
+                if (old.photoPath) {
+                    try {
+                        await deleteUploadFile(old.photoPath);
+                    } catch (e) {
+                        console.error("Failed to delete photo:", e);
+                    }
+                }
+                await tx.delete(checklistItems).where(eq(checklistItems.id, old.id));
+            }
+
+            // Reconcile incidents (finding #23):
+            // 1. newly NOT-OK items → create incidents. Dedupes on the unique
+            //    incidents.checklist_item_id, so NOT-OK items that already
+            //    have an incident (still NOT-OK re-edit) stay single.
+            const notOkItems = upserted.filter((item) => item.status === "NOT OK");
+            await createIncidentsForChecklistItems({
+                siteId: auth.activeSiteId,
+                userId: session.userId,
+                items: notOkItems.map((item) => ({
+                    checklistItemId: item.itemId,
+                    deviceId: item.deviceId,
+                    status: item.status,
+                    remarks: item.remarks || "No remarks provided",
+                })),
+            }, tx);
+
+            // 2. Devices flipped NOT OK → OK: auto-resolve their still-open
+            //    incidents. Verified/Resolved incidents are left untouched.
+            const newStatusByDevice = new Map(upserted.map((item) => [item.deviceId, item.status]));
+            const flippedToOk = oldItems.filter(
+                (old) => old.status === "NOT OK" && newStatusByDevice.get(old.deviceId) === "OK",
+            );
+            if (flippedToOk.length > 0) {
+                const openOnFlipped = await tx.select({ id: incidents.id, status: incidents.status }).from(incidents)
+                    .where(and(
+                        inArray(incidents.checklistItemId, flippedToOk.map((item) => item.id)),
+                        or(eq(incidents.status, "Open"), eq(incidents.status, "In Progress")),
+                    ));
+
+                for (const incident of openOnFlipped) {
+                    await tx.update(incidents).set({
+                        status: "Resolved",
+                        resolutionCategory: "False Alarm",
+                        resolutionAction: "No Action Needed",
+                        resolvedById: session.userId,
+                        resolvedAt: new Date(),
+                        updatedAt: new Date(),
+                    }).where(eq(incidents.id, incident.id));
+
+                    await tx.insert(incidentUpdates).values({
+                        incidentId: incident.id,
+                        authorId: session.userId,
+                        updateType: "status_changed",
+                        note: "Device OK in updated checklist entry — auto-resolved.",
+                        previousStatus: incident.status,
+                        newStatus: "Resolved",
+                    });
+                }
+            }
+        });
 
         await logAudit({
             action: "UPDATE",
