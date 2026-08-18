@@ -155,7 +155,7 @@ export const deviceGroups = pgTable("device_groups", {
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").default("#3b82f6"),
-  isActive: boolean("is_active").default(true),
+  isActive: boolean("is_active").default(true).notNull(), // DB: 0029 creates NOT NULL DEFAULT true (finding #72)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -302,6 +302,9 @@ export const sitesRelations = relations(sites, ({ many }) => ({
   syslogEvents: many(syslogEvents),
   siemFindings: many(siemFindings),
   telegramChats: many(siteTelegramChatIds),
+  deviceGroups: many(deviceGroups),
+  devicePics: many(devicePics),
+  siemSettings: many(siemSettings, { relationName: "siemSettingsSite" }),
 }));
 
 export const siteTelegramChatIdsRelations = relations(siteTelegramChatIds, ({ one }) => ({
@@ -382,6 +385,34 @@ export const devicesRelations = relations(devices, ({ one, many }) => ({
   syslogSources: many(syslogSources),
   syslogEvents: many(syslogEvents),
   siemFindings: many(siemFindings),
+  devicePics: many(devicePics),
+}));
+
+// PIC group relation set (finding #31). Owners live in
+// users.responsible_for_groups as a JSONB array of group ids — Drizzle cannot
+// express a relation over a JSONB array, so group → owners is intentionally not
+// modelled (the actions query it directly with a full users scan).
+export const deviceGroupsRelations = relations(deviceGroups, ({ one, many }) => ({
+  site: one(sites, {
+    fields: [deviceGroups.siteId],
+    references: [sites.id],
+  }),
+  devicePics: many(devicePics),
+}));
+
+export const devicePicsRelations = relations(devicePics, ({ one }) => ({
+  device: one(devices, {
+    fields: [devicePics.deviceId],
+    references: [devices.id],
+  }),
+  group: one(deviceGroups, {
+    fields: [devicePics.groupId],
+    references: [deviceGroups.id],
+  }),
+  site: one(sites, {
+    fields: [devicePics.siteId],
+    references: [sites.id],
+  }),
 }));
 
 export const checklistEntriesRelations = relations(checklistEntries, ({ one, many }) => ({
