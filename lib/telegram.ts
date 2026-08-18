@@ -129,9 +129,21 @@ export async function sendTelegramAlert(chatId: string | null | undefined, messa
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Telegram API Error:", errorData);
-            return { success: false, message: "Gateway rejected request" };
+            // Telegram can return non-JSON error bodies (proxy HTML, plain-text
+            // 429s); read as text and try JSON so the real API error surfaces.
+            const rawBody = await response.text();
+            let detail = rawBody.trim();
+            try {
+                const parsed = JSON.parse(rawBody) as { description?: unknown; error_data?: { description?: unknown } };
+                const apiDescription = parsed.description ?? parsed.error_data?.description;
+                if (typeof apiDescription === "string" && apiDescription.trim()) {
+                    detail = apiDescription.trim();
+                }
+            } catch {
+                // Non-JSON body — keep the raw text as the detail.
+            }
+            console.error("Telegram API Error:", detail || "Gateway rejected request");
+            return { success: false, message: detail || "Gateway rejected request" };
         }
 
         return { success: true };
