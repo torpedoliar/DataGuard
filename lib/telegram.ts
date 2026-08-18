@@ -99,6 +99,8 @@ export function renderTelegramTemplate(
     });
 }
 
+export const TELEGRAM_FETCH_TIMEOUT_MS = 10_000;
+
 export async function sendTelegramAlert(chatId: string | null | undefined, message: string, botTokenOverride?: string | null) {
     if (!chatId) return { success: false, message: "No chat ID provided" };
 
@@ -121,6 +123,9 @@ export async function sendTelegramAlert(chatId: string | null | undefined, messa
                 text: message,
                 parse_mode: "Markdown",
             }),
+            // A black-holed/half-open connection must not stall the caller
+            // (SIEM alert worker ticks, checklist/incident actions) forever.
+            signal: AbortSignal.timeout(TELEGRAM_FETCH_TIMEOUT_MS),
         });
 
         if (!response.ok) {
