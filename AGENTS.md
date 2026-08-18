@@ -21,7 +21,14 @@ Use TypeScript with `strict` mode and the `@/*` alias from `tsconfig.json`. Foll
 
 ## Testing Guidelines
 
-No automated test framework is currently configured. Validate changes with `npm run lint` and `npm run build`, then manually exercise affected workflows such as login, site switching, checklist entry, rack layout, report export, or admin CRUD. If adding tests, prefer colocated `*.test.ts` or `*.test.tsx` files and document the command in `package.json`.
+The test framework is Vitest, with tests colocated as `*.test.ts` / `*.test.tsx` next to the source they cover (`lib/`, `actions/`, `components/`, `app/`). Run:
+
+- `npm run test` — run the full Vitest suite (single pass).
+- `npm run test:watch` — Vitest watch mode during development.
+- `npm run typecheck` — `tsc --noEmit`; catches type errors the bundler ignores.
+- `npm run lint` — ESLint (Next core web vitals and TypeScript rules).
+
+The suite must be green before handoff: `npm run test`, `npm run lint`, and `npm run typecheck` should all pass on the changed files and the full suite.
 
 ## Commit & Pull Request Guidelines
 
