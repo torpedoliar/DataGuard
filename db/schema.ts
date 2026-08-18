@@ -178,7 +178,7 @@ export const devices = pgTable("devices", {
   description: text("description"),
   photoPath: text("photo_path"),
   isActive: boolean("is_active").default(true),
-  responsibleGroups: text("responsible_groups").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  responsibleGroups: jsonb("responsible_groups").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   // Faceplate layout for switch/router port diagrams. Null port count = no faceplate.
   faceplatePortCount: integer("faceplate_port_count"),
   faceplateUplinkCount: integer("faceplate_uplink_count").default(0),

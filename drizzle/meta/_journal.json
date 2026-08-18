@@ -211,6 +211,13 @@
       "when": 1785254402000,
       "tag": "0030_device_faceplate",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787019456650,
+      "tag": "0031_device_responsible_groups",
+      "breakpoints": true
     }
   ]
 }
