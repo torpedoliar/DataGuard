@@ -182,11 +182,13 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
 
                 const recipients = await resolveChecklistRecipients(
                     auth.activeSiteId,
-                    // Map the worst item severity to a single severity bucket
-                    // for filter purposes. Critical > High > Medium > Low.
-                    alertItems.some((a) => a.status === "NOT OK")
-                        ? "Medium"
-                        : "Low",
+                    // Finding #56: alertItems only ever contains NOT-OK items,
+                    // so the previous `some(...) ? "Medium" : "Low"` ternary was
+                    // dead code. The checklist form collects no per-device
+                    // severity, and incident creation derives NOT-OK → Medium
+                    // (getDefaultIncidentSeverity in lib/incidents.ts), so
+                    // checklist alerts are uniformly Medium for filter purposes.
+                    "Medium",
                     site?.telegramChatId,
                 );
 
