@@ -30,3 +30,17 @@ Recent history uses conventional-style subjects such as `feat: ...`, `fix: ...`,
 ## Security & Configuration Tips
 
 Do not commit `.env`, uploaded private files, database dumps, or production secrets. Configure the database with `DATABASE_URL` or `DB_HOST`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME`; Drizzle currently targets PostgreSQL. Keep `SESSION_SECRET` at least 32 characters and rotate default credentials after seeding.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`torpedoliar/DataGuard`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical 5-role triage label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout (`CONTEXT.md` + `docs/adr/` at repo root). See `docs/agents/domain.md`.
