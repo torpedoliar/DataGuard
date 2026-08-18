@@ -10,6 +10,26 @@ import * as XLSX from "xlsx";
 import { PORT_IMPORT_COLUMNS, parseNetworkPortImportRows } from "@/lib/network-port-import";
 import { normalizeFaceplateConfig, type FaceplateConfigInput } from "@/lib/faceplate";
 
+/**
+ * Rejects a faceplate slot override the device's configured layout cannot
+ * display. The faceplate draws slots 1..(portCount + uplinkCount); anything
+ * outside that range would persist as a permanent "Unmapped" port.
+ * null/undefined means "no override / keep as-is" and is always allowed.
+ */
+function assertFaceplateSlotInRange(
+    portIndex: number | null | undefined,
+    faceplate: { faceplatePortCount: number | null; faceplateUplinkCount: number | null },
+) {
+    if (portIndex === null || portIndex === undefined) return;
+    const maxSlot = (faceplate.faceplatePortCount ?? 0) + (faceplate.faceplateUplinkCount ?? 0);
+    if (maxSlot === 0) {
+        throw new Error("Perangkat ini belum memiliki layout faceplate; slot tidak bisa diatur.");
+    }
+    if (!Number.isInteger(portIndex) || portIndex < 1 || portIndex > maxSlot) {
+        throw new Error(`Nomor slot ${portIndex} di luar layout faceplate perangkat (slot 1-${maxSlot}).`);
+    }
+}
+
 // --- VLAN ACTIONS ---
 
 export async function getVlans() {
@@ -123,12 +143,18 @@ export async function addPort(data: typeof networkPorts.$inferInsert) {
     if (!auth.ok) throw new Error(auth.message);
 
     const [device] = await db
-        .select({ id: devices.id })
+        .select({
+            id: devices.id,
+            faceplatePortCount: devices.faceplatePortCount,
+            faceplateUplinkCount: devices.faceplateUplinkCount,
+        })
         .from(devices)
         .where(and(eq(devices.id, data.deviceId), eq(devices.siteId, auth.activeSiteId)))
         .limit(1);
 
     if (!device) throw new Error("Perangkat tidak ditemukan di site aktif.");
+
+    assertFaceplateSlotInRange(data.portIndex, device);
 
     try {
         const [inserted] = await db.insert(networkPorts).values(data).returning({ id: networkPorts.id });
@@ -421,6 +447,8 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
             id: networkPorts.id,
             deviceId: networkPorts.deviceId,
             connectedToPortId: networkPorts.connectedToPortId,
+            faceplatePortCount: devices.faceplatePortCount,
+            faceplateUplinkCount: devices.faceplateUplinkCount,
         })
         .from(networkPorts)
         .innerJoin(devices, eq(networkPorts.deviceId, devices.id))
@@ -428,6 +456,8 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
         .limit(1);
 
     if (currentPort.length === 0) throw new Error("Port tidak ditemukan di site aktif.");
+
+    assertFaceplateSlotInRange(data.portIndex, currentPort[0]);
 
     try {
         await db.update(networkPorts).set(data).where(eq(networkPorts.id, id));
@@ -544,7 +574,13 @@ export async function updatePortSlot(id: number, portIndex: number | null) {
     if (!auth.ok) throw new Error(auth.message);
 
     const [port] = await db
-        .select({ id: networkPorts.id, deviceId: networkPorts.deviceId, portName: networkPorts.portName })
+        .select({
+            id: networkPorts.id,
+            deviceId: networkPorts.deviceId,
+            portName: networkPorts.portName,
+            faceplatePortCount: devices.faceplatePortCount,
+            faceplateUplinkCount: devices.faceplateUplinkCount,
+        })
         .from(networkPorts)
         .innerJoin(devices, eq(networkPorts.deviceId, devices.id))
         .where(and(eq(networkPorts.id, id), eq(devices.siteId, auth.activeSiteId)))
@@ -553,6 +589,7 @@ export async function updatePortSlot(id: number, portIndex: number | null) {
     if (!port) throw new Error("Port tidak ditemukan di site aktif.");
 
     const slot = portIndex === null || !Number.isInteger(portIndex) || portIndex < 1 ? null : portIndex;
+    if (slot !== null) assertFaceplateSlotInRange(slot, port);
 
     try {
         await db.update(networkPorts).set({ portIndex: slot }).where(eq(networkPorts.id, id));
