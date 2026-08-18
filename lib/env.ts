@@ -34,6 +34,41 @@ const envSchema = z.object({
 
   // PostgreSQL — DATABASE_URL opsional, bisa di-compose dari DB_HOST/DB_USER/DB_PASSWORD/DB_NAME
   DATABASE_URL: z.string().optional(),
+  // DB_* components used by buildDatabaseUrl when DATABASE_URL is absent.
+  // Optional so a partial environment (e.g. a bare app container that only
+  // passes DATABASE_URL) does not fail validation; the dev defaults in
+  // lib/database-url.ts remain the fallback for unset fields.
+  DB_HOST: z.string().optional(),
+  DB_PORT: z.string().optional(),
+  DB_USER: z.string().optional(),
+  DB_PASSWORD: z.string().optional(),
+  DB_NAME: z.string().optional(),
+
+  // Telegram bot. Optional: a missing token must not fail a build; the bot
+  // falls back to the DB-stored token (lib/telegram.ts) or reports
+  // "Telegram bot token missing" when neither is configured.
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+
+  // Operator-controlled base URL for alert deep links. Optional: when
+  // absent lib/notification-url.ts falls back to the stored login host.
+  APP_URL: z.string().optional(),
+
+  // Explicit cookie security override (lib/session.ts). Optional — secure
+  // cookies are also forced when APP_URL is https or the request arrived
+  // behind a TLS proxy (X-Forwarded-Proto: https).
+  SECURE_COOKIES: z.string().optional(),
+
+  // SIEM AI provider overrides (actions/siem-ai.ts, lib/siem/ai-queue.ts)
+  SIEM_AI_ENDPOINT_URL: z.string().optional(),
+  SIEM_AI_API_KEY: z.string().optional(),
+  SIEM_AI_DEFAULT_MODEL: z.string().optional(),
+  SIEM_AI_MODEL_OPUS: z.string().optional(),
+  SIEM_AI_MODEL_SONNET: z.string().optional(),
+  SIEM_AI_MODEL_HAIKU: z.string().optional(),
+
+  // SMTP used by the SIEM email alert channel (lib/siem/alerts.ts)
+  SMTP_URL: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
 
   // Optional: S3
   AWS_ACCESS_KEY_ID: z.string().optional(),
@@ -54,6 +89,16 @@ const envSchema = z.object({
 export type EnvConfig = z.infer<typeof envSchema>;
 
 let config: EnvConfig | null = null;
+// Fingerprint of exactly the variables envSchema validates, captured from the
+// process.env snapshot that produced `config`. When the env changes (tests use
+// vi.stubEnv/assignment to vary values per test), getEnv() re-parses instead of
+// returning the stale cached snapshot; the steady state stays cached+validated.
+let configEnvelope: string | null = null;
+
+function envEnvelope(source: NodeJS.ProcessEnv): string | null {
+  const keys = Object.keys(envSchema.shape).sort();
+  return JSON.stringify(keys.map((key) => [key, source[key] ?? ""]));
+}
 
 function validateProduction(config: EnvConfig): void {
   if (process.env.NODE_ENV !== "production") {
@@ -83,7 +128,8 @@ function validateProduction(config: EnvConfig): void {
 }
 
 export function getEnv() {
-  if (config) {
+  const envelope = envEnvelope(process.env);
+  if (config && envelope !== null && envelope === configEnvelope) {
     return config;
   }
 
@@ -91,6 +137,7 @@ export function getEnv() {
     const parsed = envSchema.parse(process.env);
     validateProduction(parsed);
     config = parsed;
+    configEnvelope = envelope;
     return config;
   } catch (error) {
     if (error instanceof z.ZodError) {

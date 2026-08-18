@@ -1,5 +1,6 @@
 import { db } from "../db";
 import { globalSettings } from "../db/schema";
+import { getEnv } from "./env";
 
 export const DEFAULT_TELEGRAM_ALERT_TEMPLATE = [
     "*Data Center Audit Alert*",
@@ -48,11 +49,11 @@ export type TelegramAlertTemplateField = typeof TELEGRAM_ALERT_TEMPLATE_FIELDS[n
 export type TelegramAlertTemplateContext = Partial<Record<TelegramAlertTemplateField, string | number | null | undefined>>;
 
 export function isTelegramBotConfigured(storedToken?: string | null) {
-    return Boolean(process.env.TELEGRAM_BOT_TOKEN || storedToken?.trim());
+    return Boolean(getEnv().TELEGRAM_BOT_TOKEN || storedToken?.trim());
 }
 
 export async function getTelegramBotToken(botTokenOverride?: string | null) {
-    const directToken = botTokenOverride?.trim() || process.env.TELEGRAM_BOT_TOKEN || "";
+    const directToken = botTokenOverride?.trim() || getEnv().TELEGRAM_BOT_TOKEN || "";
     if (directToken) return directToken;
 
     try {

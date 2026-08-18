@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { globalSettings } from "../db/schema";
+import { getEnv } from "./env";
 import { secureOrigin } from "./base-origin";
 
 // ponytail: headless workers (SIEM/parser) have no request host, so login
@@ -31,7 +32,7 @@ export async function resolveNotificationBaseUrl(): Promise<string> {
     // Called outside a request (worker) — rely on stored/APP_URL.
   }
 
-  return secureOrigin(process.env.APP_URL || stored || host || "localhost:3000");
+  return secureOrigin(getEnv().APP_URL || stored || host || "localhost:3000");
 }
 
 export async function rememberNotificationBaseUrl(host: string) {

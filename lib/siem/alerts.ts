@@ -6,6 +6,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { formatWibForAlert } from "../ui/datetime";
 import { redactSensitiveText } from "./redaction";
 import type { SiemSeverity } from "./types";
+import { getEnv } from "../env";
 import nodemailer from "nodemailer";
 
 const severityRank: Record<SiemSeverity, number> = { Low: 1, Medium: 2, High: 3, Critical: 4 };
@@ -194,7 +195,7 @@ export async function sendPendingSiemAlerts() {
   // Create transporter once if needed
   let transporter: nodemailer.Transporter | null = null;
   if (alerts.some(a => a.channel === "email")) {
-    transporter = nodemailer.createTransport(process.env.SMTP_URL || "smtp://localhost:1025");
+    transporter = nodemailer.createTransport(getEnv().SMTP_URL ?? "smtp://localhost:1025");
   }
 
   for (const alert of alerts) {
@@ -226,7 +227,7 @@ export async function sendPendingSiemAlerts() {
         if (!success) errorMsg = `HTTP ${res.status} ${res.statusText}`;
       } else if (alert.channel === "email" && alert.recipient && transporter) {
         await transporter.sendMail({
-          from: process.env.SMTP_FROM || "siem@dc-check.local",
+          from: getEnv().SMTP_FROM ?? "siem@dc-check.local",
           to: alert.recipient,
           subject: `SIEM Alert: Finding #${alert.findingId}`,
           text: alert.message,

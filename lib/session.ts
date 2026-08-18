@@ -1,9 +1,10 @@
 
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { generateCsrfToken } from "./csrf-token";
 import { validateSessionPayload } from "./session-auth";
 import { decrypt, encrypt, type SessionRole } from "./session-token";
+import { getEnv } from "./env";
 
 export { decrypt, encrypt } from "./session-token";
 export type { SessionPayload, SessionRole } from "./session-token";
@@ -27,9 +28,24 @@ export async function createSession(
         expiresAt,
     });
 
-    // secure: true hanya jika diakses via HTTPS (misal di belakang reverse proxy)
-    // Jika masih HTTP (akses langsung via IP), harus false agar cookie bisa tersimpan
-    const isSecure = process.env.SECURE_COOKIES === "true";
+    // secure: true only when the deployment is actually HTTPS — an explicit
+    // SECURE_COOKIES=true override, an https APP_URL, or the request arriving
+    // through a TLS proxy (X-Forwarded-Proto: https, e.g. NODE_ENV=production
+    // behind a reverse proxy). Plain HTTP on LAN/on-prem deployments stays
+    // non-secure so the session cookie can persist (finding #18); SECURE_COOKIES
+    // defaults false to match the pre-#46 behavior unless one of the https
+    // signals above is present.
+    const env = getEnv();
+    let proxiedHttps = false;
+    try {
+      proxiedHttps = (await headers()).get("x-forwarded-proto") === "https";
+    } catch {
+      // Not inside a request scope — fall back to the env-based decision.
+    }
+    const isSecure =
+      env.SECURE_COOKIES === "true" ||
+      String(env.APP_URL ?? "").trim().replace(/\/+$/, "").toLowerCase().startsWith("https://") ||
+      proxiedHttps;
 
     const cookieStore = await cookies();
     cookieStore.set("session", session, {

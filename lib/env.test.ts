@@ -157,4 +157,99 @@ describe("env validation (lib/env.ts)", () => {
     const env = mod.getEnv();
     expect(env.AI_KEY_ENCRYPTION_SECRET).toBe("c".repeat(48));
   });
+
+  // --- #46: the env schema now covers the vars the app actually reads
+  // (TELEGRAM_BOT_TOKEN, APP_URL, SECURE_COOKIES, SIEM_AI_*, DB_*, SMTP_*).
+  // All are optional: a missing TELEGRAM_BOT_TOKEN must never fail a build.
+
+  it("validates DB_* component variables in the schema", async () => {
+    setEnv("DB_HOST", "db-01");
+    setEnv("DB_PORT", "5433");
+    setEnv("DB_USER", "ops");
+    setEnv("DB_PASSWORD", "s3cret");
+    setEnv("DB_NAME", "telemetry");
+
+    const mod = await import("./env");
+    const env = mod.getEnv();
+    expect(env).toMatchObject({
+      DB_HOST: "db-01",
+      DB_PORT: "5433",
+      DB_USER: "ops",
+      DB_PASSWORD: "s3cret",
+      DB_NAME: "telemetry",
+    });
+  });
+
+  it("buildDatabaseUrl composes from the validated DB_* fields when DATABASE_URL is absent", async () => {
+    deleteEnv("DATABASE_URL");
+    setEnv("DB_HOST", "db-01");
+    setEnv("DB_USER", "ops");
+    setEnv("DB_PASSWORD", "s3cret");
+    setEnv("DB_NAME", "telemetry");
+    deleteEnv("DB_PORT");
+
+    const mod = await import("./database-url");
+    const url = mod.buildDatabaseUrl();
+
+    expect(url).toBe("postgresql://ops:s3cret@db-01:5432/telemetry");
+  });
+
+  it("leaves the new optional vars undefined when absent (no fail-fast, no default)", async () => {
+    for (const key of [
+      "TELEGRAM_BOT_TOKEN",
+      "APP_URL",
+      "SECURE_COOKIES",
+      "SIEM_AI_ENDPOINT_URL",
+      "SIEM_AI_API_KEY",
+      "SIEM_AI_DEFAULT_MODEL",
+      "SIEM_AI_MODEL_OPUS",
+      "SIEM_AI_MODEL_SONNET",
+      "SIEM_AI_MODEL_HAIKU",
+      "SMTP_URL",
+      "SMTP_FROM",
+    ]) {
+      deleteEnv(key);
+    }
+
+    const mod = await import("./env");
+    const env = mod.getEnv();
+    expect(env.TELEGRAM_BOT_TOKEN).toBeUndefined();
+    expect(env.APP_URL).toBeUndefined();
+    expect(env.SECURE_COOKIES).toBeUndefined();
+    expect(env.SIEM_AI_ENDPOINT_URL).toBeUndefined();
+    expect(env.SIEM_AI_API_KEY).toBeUndefined();
+    expect(env.SIEM_AI_DEFAULT_MODEL).toBeUndefined();
+    expect(env.SIEM_AI_MODEL_OPUS).toBeUndefined();
+    expect(env.SIEM_AI_MODEL_SONNET).toBeUndefined();
+    expect(env.SIEM_AI_MODEL_HAIKU).toBeUndefined();
+    expect(env.SMTP_URL).toBeUndefined();
+    expect(env.SMTP_FROM).toBeUndefined();
+    expect(env.DB_HOST).toBeUndefined();
+    expect(env.DB_PORT).toBeUndefined();
+    expect(env.DB_USER).toBeUndefined();
+    expect(env.DB_PASSWORD).toBeUndefined();
+    expect(env.DB_NAME).toBeUndefined();
+  });
+
+  it("passes the new optional vars through when present", async () => {
+    setEnv("TELEGRAM_BOT_TOKEN", "123:token");
+    setEnv("APP_URL", "https://ops.example.test");
+    setEnv("SECURE_COOKIES", "true");
+    setEnv("SIEM_AI_ENDPOINT_URL", "https://ai.example.test/v1");
+    setEnv("SIEM_AI_MODEL_OPUS", "opus-test");
+    setEnv("SMTP_URL", "smtp://relay:1025");
+    setEnv("SMTP_FROM", "oncall@example.test");
+
+    const mod = await import("./env");
+    const env = mod.getEnv();
+    expect(env).toMatchObject({
+      TELEGRAM_BOT_TOKEN: "123:token",
+      APP_URL: "https://ops.example.test",
+      SECURE_COOKIES: "true",
+      SIEM_AI_ENDPOINT_URL: "https://ai.example.test/v1",
+      SIEM_AI_MODEL_OPUS: "opus-test",
+      SMTP_URL: "smtp://relay:1025",
+      SMTP_FROM: "oncall@example.test",
+    });
+  });
 });

@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { decryptIfEncrypted } from "@/lib/crypto";
 import { detectAiAuthRequirement, normalizeOpenAiCompatibleEndpoint } from "@/lib/siem/ai-analysis";
 import { generateSiemAiAnalysisForFinding } from "@/lib/siem/ai-queue";
+import { getEnv } from "@/lib/env";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { siemFindings } from "@/db/schema";
@@ -20,16 +21,17 @@ export async function testSiemAiConnection(prevState: unknown, formData: FormDat
 
   // Prefer values typed into the form so admins can test before saving.
   // Fall back to the saved API key when the password field is left blank.
+  const env = getEnv();
   const endpointUrl = normalizeOpenAiCompatibleEndpoint(
-    process.env.SIEM_AI_ENDPOINT_URL || String(formData.get("aiEndpointUrl") ?? "").trim() || settings?.aiEndpointUrl || "",
+    env.SIEM_AI_ENDPOINT_URL || String(formData.get("aiEndpointUrl") ?? "").trim() || settings?.aiEndpointUrl || "",
   );
-  const model = (process.env.SIEM_AI_DEFAULT_MODEL || String(formData.get("aiDefaultModel") ?? "").trim() || settings?.aiDefaultModel || "").trim();
+  const model = (env.SIEM_AI_DEFAULT_MODEL || String(formData.get("aiDefaultModel") ?? "").trim() || settings?.aiDefaultModel || "").trim();
   const formApiKey = String(formData.get("aiApiKey") ?? "").trim();
   // N49: stored aiApiKey may be encrypted; decrypt for use as a plaintext
   // bearer token. decryptIfEncrypted returns the input unchanged for legacy
   // plaintext rows so the test connection still works during the rollout.
   const storedApiKey = decryptIfEncrypted(settings?.aiApiKey ?? null) ?? "";
-  const apiKey = process.env.SIEM_AI_API_KEY || formApiKey || storedApiKey;
+  const apiKey = env.SIEM_AI_API_KEY || formApiKey || storedApiKey;
 
   if (!endpointUrl) return { ok: false, message: "Endpoint URL belum diisi." };
   if (!model) return { ok: false, message: "Model belum diisi." };

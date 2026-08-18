@@ -19,7 +19,7 @@ describe("Telegram bot token settings", () => {
 
     expect(telegramHelper).toContain("getTelegramBotToken");
     expect(telegramHelper).toContain("globalSettings.telegramBotToken");
-    expect(telegramHelper).toContain("process.env.TELEGRAM_BOT_TOKEN ||");
+    expect(telegramHelper).toContain("getEnv().TELEGRAM_BOT_TOKEN ||");
   });
   it("does not hardcode DC Jakarta sample data in Telegram test messages", () => {
     const settingsAction = readFileSync(join(process.cwd(), "actions/settings.ts"), "utf8");
