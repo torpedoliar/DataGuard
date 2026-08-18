@@ -61,21 +61,21 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1780622000000,
+      "when": 1780621150481,
       "tag": "0008_siem_retention_scale",
       "breakpoints": true
     },
     {
       "idx": 9,
       "version": "7",
-      "when": 1781417681000,
+      "when": 1781417680661,
       "tag": "0009_siem_alert_channel_telegram_only",
       "breakpoints": true
     },
     {
       "idx": 10,
       "version": "7",
-      "when": 1781417682000,
+      "when": 1781417681534,
       "tag": "0010_siem_settings_drop_tcp_tls",
       "breakpoints": true
     },
@@ -110,7 +110,7 @@
     {
       "idx": 16,
       "version": "7",
-      "when": 1781500000000,
+      "when": 1781493005111,
       "tag": "0016_si_partitioned",
       "breakpoints": true
     },
@@ -124,7 +124,7 @@
     {
       "idx": 18,
       "version": "7",
-      "when": 1781500001000,
+      "when": 1781500000648,
       "tag": "0018_site_telegram_chat_ids",
       "breakpoints": true
     },
@@ -145,14 +145,14 @@
     {
       "idx": 21,
       "version": "7",
-      "when": 1781537000000,
+      "when": 1781536395000,
       "tag": "0021_user_default_site",
       "breakpoints": true
     },
     {
       "idx": 22,
       "version": "7",
-      "when": 1781538000000,
+      "when": 1781537495123,
       "tag": "0022_siem_vendor_new_normalizers",
       "breakpoints": true
     },

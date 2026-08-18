@@ -1,9 +1,16 @@
 #!/usr/bin/env tsx
 /**
  * Database Migration Runner for PostgreSQL
- * 
+ *
  * This script runs all pending migrations in the drizzle/ folder.
  * Usage: npm run db:migrate
+ *
+ * Ordering is by journal idx, NOT by `when`: drizzle's migrator iterates
+ * drizzle/meta/_journal.json entries in array order (idx order) and the `when`
+ * field is only bookkeeping — it is stored as created_at in
+ * __drizzle_migrations and used solely to decide whether an entry is newer
+ * than the last applied migration. Keep `when` strictly increasing with idx
+ * (see finding #74) but never rely on it for application order.
  */
 
 import crypto from 'crypto';
