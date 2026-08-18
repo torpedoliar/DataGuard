@@ -2,13 +2,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ORIGINAL_ENV = { ...process.env };
 
+// Current @types/node declares process.env.NODE_ENV as a read-only property,
+// so direct assignment/delete fails tsc. These helpers mutate it through a
+// mutable view resolved at call time — a module-level cast goes stale because
+// beforeEach() replaces the whole process.env object.
+function setEnv(key: string, value: string): void {
+  (process.env as Record<string, string | undefined>)[key] = value;
+}
+
+function deleteEnv(key: string): void {
+  delete (process.env as Record<string, string | undefined>)[key];
+}
+
 describe("env validation (lib/env.ts)", () => {
   beforeEach(() => {
     vi.resetModules();
     // Reset process.env to a known baseline before each test
     process.env = { ...ORIGINAL_ENV };
     delete process.env.SESSION_SECRET;
-    delete process.env.NODE_ENV;
+    deleteEnv("NODE_ENV");
   });
 
   afterEach(() => {
@@ -16,7 +28,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("throws at parse time when NODE_ENV=production and SESSION_SECRET is missing", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     delete process.env.SESSION_SECRET;
 
     const mod = await import("./env");
@@ -24,7 +36,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("throws when NODE_ENV=production and SESSION_SECRET is the dev default", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     // The dev fallback is constructed at runtime in lib/env.ts (two halves joined
     // with '+') so it does not appear as a single literal in source. Mirror that
     // join here to exercise the "still equal to dev default" branch.
@@ -35,7 +47,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("boots in dev mode with no SESSION_SECRET env var (uses the runtime dev fallback)", async () => {
-    process.env.NODE_ENV = "development";
+    setEnv("NODE_ENV", "development");
     delete process.env.SESSION_SECRET;
 
     const mod = await import("./env");
@@ -44,7 +56,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("does not fall back to the dev default when NODE_ENV=production and SESSION_SECRET is missing", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     delete process.env.SESSION_SECRET;
 
     const mod = await import("./env");
@@ -52,7 +64,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("throws when SESSION_SECRET is shorter than 32 characters", async () => {
-    process.env.NODE_ENV = "test";
+    setEnv("NODE_ENV", "test");
     process.env.SESSION_SECRET = "short-secret";
 
     const mod = await import("./env");
@@ -60,7 +72,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("accepts a strong SESSION_SECRET in production", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     process.env.SESSION_SECRET = "a".repeat(48);
     process.env.AI_KEY_ENCRYPTION_SECRET = "b".repeat(48);
 
@@ -70,7 +82,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("accepts a strong SESSION_SECRET in development without NODE_ENV=production", async () => {
-    process.env.NODE_ENV = "development";
+    setEnv("NODE_ENV", "development");
     process.env.SESSION_SECRET = "a".repeat(40);
 
     const mod = await import("./env");
@@ -85,7 +97,7 @@ describe("env validation (lib/env.ts)", () => {
   // a missing/empty value silently fall through to the dev default).
 
   it("throws when SESSION_SECRET is an empty string (does not fall through to dev default)", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     process.env.SESSION_SECRET = "";
 
     const mod = await import("./env");
@@ -93,7 +105,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("accepts a SESSION_SECRET of exactly 32 characters (boundary, valid)", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     process.env.SESSION_SECRET = "a".repeat(32);
     process.env.AI_KEY_ENCRYPTION_SECRET = "b".repeat(48);
 
@@ -104,7 +116,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("throws when SESSION_SECRET is exactly 31 characters (boundary, invalid)", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     process.env.SESSION_SECRET = "a".repeat(31);
     process.env.AI_KEY_ENCRYPTION_SECRET = "b".repeat(48);
 
@@ -117,7 +129,7 @@ describe("env validation (lib/env.ts)", () => {
   // test suite and `npm run dev` work out of the box.
 
   it("throws in production when AI_KEY_ENCRYPTION_SECRET is missing", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     process.env.SESSION_SECRET = "a".repeat(48);
     delete process.env.AI_KEY_ENCRYPTION_SECRET;
 
@@ -126,7 +138,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("throws in production when AI_KEY_ENCRYPTION_SECRET is the dev fallback", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     process.env.SESSION_SECRET = "a".repeat(48);
     // Mirror the runtime join used in lib/env.ts so the literal never appears
     // as a single contiguous token in this file.
@@ -137,7 +149,7 @@ describe("env validation (lib/env.ts)", () => {
   });
 
   it("accepts a strong AI_KEY_ENCRYPTION_SECRET in production", async () => {
-    process.env.NODE_ENV = "production";
+    setEnv("NODE_ENV", "production");
     process.env.SESSION_SECRET = "a".repeat(48);
     process.env.AI_KEY_ENCRYPTION_SECRET = "c".repeat(48);
 

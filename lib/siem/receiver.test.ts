@@ -14,6 +14,7 @@ import {
   createSyslogTlsReceiver,
   decodeSyslogPacket,
   splitTcpFrames,
+  type RawSyslogInsert,
 } from "./receiver";
 
 describe("syslog receiver config", () => {
@@ -128,7 +129,7 @@ describe("syslog TCP receiver", () => {
     return r;
   }
 
-  function readMessages(writer: { insertRawEvents: (e: unknown[]) => Promise<void> }, n: number, timeoutMs = 2000): Promise<{ rawMessage: string; sourceIp: string; sourcePort: number }[]> {
+  function readMessages(writer: { insertRawEvents: (e: RawSyslogInsert[]) => Promise<void> }, n: number, timeoutMs = 2000): Promise<{ rawMessage: string; sourceIp: string; sourcePort: number }[]> {
     return new Promise((resolve, reject) => {
       const collected: { rawMessage: string; sourceIp: string; sourcePort: number }[] = [];
       const original = writer.insertRawEvents;
@@ -149,7 +150,7 @@ describe("syslog TCP receiver", () => {
 
   it("binds, accepts, and parses \\n-delimited messages", async () => {
     const port = await freePort();
-    const writer = { insertRawEvents: async (_e: unknown[]) => undefined };
+    const writer = { insertRawEvents: async (_e: RawSyslogInsert[]) => undefined };
     const receiver = track(createSyslogTcpReceiver({ port, maxMessageSize: 1024, batchSize: 1, queueLimit: 100, flushIntervalMs: 60_000 }, writer));
     await receiver.start();
     const collectedPromise = readMessages(writer, 2);
@@ -166,7 +167,7 @@ describe("syslog TCP receiver", () => {
 
   it("buffers partial frames across packets", async () => {
     const port = await freePort();
-    const writer = { insertRawEvents: async (_e: unknown[]) => undefined };
+    const writer = { insertRawEvents: async (_e: RawSyslogInsert[]) => undefined };
     const receiver = track(createSyslogTcpReceiver({ port, maxMessageSize: 1024, batchSize: 1, queueLimit: 100, flushIntervalMs: 60_000 }, writer));
     await receiver.start();
     const collectedPromise = readMessages(writer, 1);
@@ -185,7 +186,7 @@ describe("syslog TCP receiver", () => {
 
   it("rejects oversize messages", async () => {
     const port = await freePort();
-    const writer = { insertRawEvents: async (_e: unknown[]) => undefined };
+    const writer = { insertRawEvents: async (_e: RawSyslogInsert[]) => undefined };
     const receiver = track(createSyslogTcpReceiver({ port, maxMessageSize: 16, batchSize: 1, queueLimit: 100, flushIntervalMs: 60_000 }, writer));
     await receiver.start();
 
@@ -216,7 +217,7 @@ describe("syslog TLS receiver", () => {
   }
 
   it("throws when cert is missing", () => {
-    const writer = { insertRawEvents: async (_e: unknown[]) => undefined };
+    const writer = { insertRawEvents: async (_e: RawSyslogInsert[]) => undefined };
     expect(() => createSyslogTlsReceiver({ port: 1, certPath: "/nonexistent/cert.pem", keyPath: "/nonexistent/key.pem", maxMessageSize: 1024, batchSize: 1, queueLimit: 100, flushIntervalMs: 60_000 }, writer))
       .toThrow(/cert not found/);
   });
@@ -226,7 +227,7 @@ describe("syslog TLS receiver", () => {
     const certPath = path.join(dir, "cert.pem");
     fs.writeFileSync(certPath, "dummy");
     try {
-      const writer = { insertRawEvents: async (_e: unknown[]) => undefined };
+      const writer = { insertRawEvents: async (_e: RawSyslogInsert[]) => undefined };
       expect(() => createSyslogTlsReceiver({ port: 1, certPath, keyPath: "/nonexistent/key.pem", maxMessageSize: 1024, batchSize: 1, queueLimit: 100, flushIntervalMs: 60_000 }, writer))
         .toThrow(/key not found/);
     } finally {
@@ -240,7 +241,7 @@ describe("syslog TLS receiver", () => {
       return;
     }
     const port = await freePort();
-    const writer = { insertRawEvents: async (_e: unknown[]) => undefined };
+    const writer = { insertRawEvents: async (_e: RawSyslogInsert[]) => undefined };
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "syslog-tls-"));
     const certPath = path.join(dir, "cert.pem");
     const keyPath = path.join(dir, "key.pem");
@@ -305,8 +306,8 @@ describe("multiple transports in one process", () => {
     const udpPort = await freePort();
     const tcpPort = await freePort();
 
-    const udpWriter = { insertRawEvents: async (_e: unknown[]) => undefined };
-    const tcpWriter = { insertRawEvents: async (_e: unknown[]) => undefined };
+    const udpWriter = { insertRawEvents: async (_e: RawSyslogInsert[]) => undefined };
+    const tcpWriter = { insertRawEvents: async (_e: RawSyslogInsert[]) => undefined };
     const udpBuffer = createReceiverBuffer({ batchSize: 1, queueLimit: 100 }, udpWriter);
     const udpSocket = dgram.createSocket("udp4");
     sockets.push(udpSocket);
