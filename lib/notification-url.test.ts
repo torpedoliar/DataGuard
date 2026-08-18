@@ -44,6 +44,11 @@ describe("resolveNotificationBaseUrl priority", () => {
     expect(await resolveNotificationBaseUrl()).toBe("https://dc.example.com:3001");
   });
 
+  it("renders a stored plain-IP login host as http (LAN deployment)", async () => {
+    settingsRead.mockResolvedValue(stored("192.168.1.10:3001"));
+    expect(await resolveNotificationBaseUrl()).toBe("http://192.168.1.10:3001");
+  });
+
   it("falls back to the request host when nothing is stored", async () => {
     headersMock.mockResolvedValue({
       get: (name: string) => (name === "host" ? "dc.example.com" : null),
