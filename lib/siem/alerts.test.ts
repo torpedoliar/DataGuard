@@ -16,9 +16,12 @@ vi.mock("../../db", () => {
   };
 });
 
-vi.mock("../telegram", () => ({
-  sendTelegramAlert: vi.fn(),
-}));
+// Keep the real escapeTelegramMarkdown (the message-level escaping under
+// test) while mocking only the network sender.
+vi.mock("../telegram", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../telegram")>();
+  return { ...actual, sendTelegramAlert: vi.fn() };
+});
 
 vi.mock("../ui/datetime", () => ({
   formatWibForAlert: (d: Date) => d.toISOString(),
@@ -275,6 +278,36 @@ describe("queueSiemAlerts", () => {
     const message = (insertedValues[0] as { message: string }).message;
     expect(message).toContain("/admin/siem/findings?severity=Critical");
     expect(message).not.toContain("severity=High");
+  });
+
+  it("escapes markdown metacharacters in entity fields but keeps the deep link intact", async () => {
+    mockedDb.query.siemFindings.findMany.mockResolvedValueOnce([
+      makeFinding({ severity: "Critical", title: "Port [idle] issue_v2", summary: "summary_*with* chars" }),
+    ]);
+    mockedDb.select.mockReturnValueOnce(makeSettingsChain([{ alertMinSeverity: "High" }]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([{ chatId: "123", severityFilter: null, enabled: true }]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+    mockedDb.select.mockReturnValueOnce(makeSelectFromWhere([]));
+
+    const insertedValues: unknown[] = [];
+    mockedDb.insert.mockImplementation(() => ({
+      values: (v: unknown) => {
+        insertedValues.push(v);
+        return Promise.resolve();
+      },
+    }));
+
+    const result = await queueSiemAlerts();
+
+    expect(result.queued).toBe(1);
+    const message = (insertedValues[0] as { message: string }).message;
+    // Entity content escaped: [ -> \[, _ -> \_, * -> \*; a stray '[' cannot
+    // combine with the later '](' of the link.
+    expect(message).toContain("Finding: #1 Port \\[idle] issue\\_v2");
+    expect(message).toContain("Summary: summary\\_\\*with\\* chars");
+    // The generated link survives unescaped and clickable.
+    expect(message).toContain("[Open in SIEM](");
+    expect(message).toContain("/admin/siem/findings?severity=Critical)");
   });
 });
 

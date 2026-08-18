@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { siemAlerts, siemFindings, siemSettings, siteTelegramChatIds, siteWebhookUrls, siteEmailAddresses } from "../../db/schema";
-import { sendTelegramAlert } from "../telegram";
+import { escapeTelegramMarkdown, sendTelegramAlert } from "../telegram";
 import { resolveNotificationBaseUrl } from "../notification-url";
 import { and, eq, ne } from "drizzle-orm";
 import { formatWibForAlert } from "../ui/datetime";
@@ -15,17 +15,25 @@ function isAtLeastSeverity(value: SiemSeverity, minimum: SiemSeverity) {
 }
 
 function alertMessage(input: { findingId: number; title: string; severity: SiemSeverity; siteName: string | null; deviceName: string | null; sourceIp: string | null; summary: string; recommendedAction: string | null; lastSeenAt: Date; baseUrl: string }) {
+  // Entity-supplied values are Markdown-escaped (same discipline as
+  // renderTelegramTemplate); the generated link and server-controlled fields
+  // (severity enum, finding id, formatted date) stay raw so the deep link
+  // remains clickable.
+  const esc = (value: string | null | undefined, fallback: string) => {
+    const text = value?.trim();
+    return text ? escapeTelegramMarkdown(text) : fallback;
+  };
   return redactSensitiveText([
     "*SIEM Finding*",
     `Severity: ${input.severity}`,
     `Last seen: ${formatWibForAlert(input.lastSeenAt)}`,
-    `Site: ${input.siteName ?? "-"}`,
-    `Device: ${input.deviceName ?? "Unmapped"}`,
-    `Source: ${input.sourceIp ?? "-"}`,
-    `Finding: #${input.findingId} ${input.title}`,
+    `Site: ${esc(input.siteName, "-")}`,
+    `Device: ${esc(input.deviceName, "Unmapped")}`,
+    `Source: ${esc(input.sourceIp, "-")}`,
+    `Finding: #${input.findingId} ${esc(input.title, "-")}`,
     `Open: [Open in SIEM](${input.baseUrl}/admin/siem/findings?severity=${input.severity})`,
-    `Summary: ${input.summary}`,
-    `Action: ${input.recommendedAction ?? "Review finding in SIEM dashboard."}`,
+    `Summary: ${esc(input.summary, "-")}`,
+    `Action: ${esc(input.recommendedAction, "Review finding in SIEM dashboard.")}`,
   ].join("\n"));
 }
 

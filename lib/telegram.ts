@@ -63,7 +63,7 @@ export async function getTelegramBotToken(botTokenOverride?: string | null) {
     }
 }
 
-function escapeTelegramMarkdown(value: string) {
+export function escapeTelegramMarkdown(value: string) {
     return value.replace(/([_*`\[])/g, "\\$1");
 }
 
