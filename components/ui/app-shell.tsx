@@ -22,7 +22,6 @@ import {
   Network,
   PanelTop,
   QrCode,
-  Search,
   Server,
   Settings,
   ShieldAlert,
@@ -211,15 +210,6 @@ export default function AppShell({
               >
                 <Menu className="size-5" />
               </button>
-
-              <div className="hidden min-w-0 items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-1.5 text-sm text-ops-muted md:flex">
-                <Search className="size-4" />
-                <input
-                  type="search"
-                  placeholder="Search device or incident..."
-                  className="w-56 bg-transparent text-sm text-ops-text outline-none placeholder:text-ops-muted"
-                />
-              </div>
 
               <div className="hidden items-center gap-2 text-xs text-ops-muted xl:flex">
                 <span className="rounded-full border border-ops-border px-2.5 py-1">{activeSite.name || "No active site"}</span>
