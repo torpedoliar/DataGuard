@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useCallback } from "react";
+import { useActionState, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { submitChecklist } from "@/actions/checklist";
 import ActionButton from "@/components/ui/action-button";
 import { CalendarDays, Clock3, Layers3, Send, Search } from "lucide-react";
@@ -60,6 +60,30 @@ export default function ChecklistForm({
       return { ...prev, [deviceId]: { status, remarks: remarks ?? "" } };
     });
   }, []);
+
+  // Finding #62: evidence photos survive tab switches. The card's file input
+  // unmounts with the card, so selected files are mirrored into a hidden
+  // file input per device in the all-devices block (it never unmounts).
+  // type="file" inputs cannot be pre-filled; the DataTransfer assignment is
+  // the only browser-sanctioned way to move the selected File across inputs.
+  const photoInputs = useRef<Record<number, HTMLInputElement | null>>({});
+
+  const mirrorPhotoToHiddenInput = useCallback((deviceId: number, file: File | null) => {
+    const input = photoInputs.current[deviceId];
+    if (!input) return;
+    try {
+      const transfer = new DataTransfer();
+      if (file) transfer.items.add(file);
+      input.files = transfer.files;
+    } catch {
+      // Unsupported browser: the visible card input (when mounted) still
+      // submits its own selection, so evidence is only lost on tab switches.
+    }
+  }, []);
+
+  const handleCardPhotoChange = useCallback((deviceId: number) => (file: File | null) => {
+    mirrorPhotoToHiddenInput(deviceId, file);
+  }, [mirrorPhotoToHiddenInput]);
 
   // All devices — render every card so switching tabs never loses data
   const visibleDevices = useMemo(() => {
@@ -199,6 +223,7 @@ export default function ChecklistForm({
                 device={device}
                 isHighlighted={prefillDeviceId === device.id}
                 onStatusChange={(status, remarks) => updateDeviceStatus(device.id, status, remarks)}
+                onPhotoChange={handleCardPhotoChange(device.id)}
                 prefillStatus={stored?.status || "OK"}
                 prefillRemarks={stored?.remarks || ""}
               />
@@ -222,6 +247,22 @@ export default function ChecklistForm({
                 <input type="hidden" name="deviceId" value={device.id} />
                 <input type="hidden" name={`status-${device.id}`} value={stored?.status || "OK"} />
                 <input type="hidden" name={`remarks-${device.id}`} value={stored?.remarks || ""} />
+                {/* Finding #62: live file input (not type=hidden — file inputs
+                    cannot be submitted hidden) that mirrors the selected photo
+                    from the card, so evidence survives tab switches. Gated on
+                    NOT OK like the visible card so OK devices never submit
+                    photos. */}
+                {stored?.status === "NOT OK" && (
+                  <input
+                    type="file"
+                    name={`photo-${device.id}`}
+                    accept="image/*"
+                    className="hidden"
+                    ref={(el) => {
+                      photoInputs.current[device.id] = el;
+                    }}
+                  />
+                )}
               </div>
             );
           })}

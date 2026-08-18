@@ -16,7 +16,27 @@ type FieldAuditCardProps = {
   onStatusChange?: (status: string, remarks?: string) => void;
   prefillStatus?: string;
   prefillRemarks?: string;
+  // Finding #62: the card reports its selected evidence photo so ChecklistForm
+  // can mirror it into the hidden all-devices input — switching category tabs
+  // unmounts this card, and the file would otherwise be lost.
+  onPhotoChange?: (file: File | null) => void;
 };
+
+export type ChecklistPhotoTarget = { files: FileList | null; value: string };
+
+/**
+ * Client-side size guard for evidence photos (finding #62/#60). A photo over
+ * 10MB is rejected with the Indonesian alert the UI has always shown and the
+ * input is cleared. Extracted so the behavior is unit-testable (the repo's
+ * vitest environment is node — no DOM).
+ */
+export function handleChecklistPhotoFile(target: ChecklistPhotoTarget) {
+  const file = target.files?.[0];
+  if (file && file.size > 10 * 1024 * 1024) {
+    alert("Ukuran file maksimal 10MB");
+    target.value = "";
+  }
+}
 
 const statusOptions: {
   value: AuditStatus;
@@ -42,7 +62,7 @@ const statusOptions: {
 ];
 
 const FieldAuditCard = forwardRef<HTMLDivElement, FieldAuditCardProps>(
-  ({ device, isHighlighted = false, onStatusChange, prefillStatus, prefillRemarks }, ref) => {
+  ({ device, isHighlighted = false, onStatusChange, prefillStatus, prefillRemarks, onPhotoChange }, ref) => {
     // Start with prefilled values if provided (from localStorage)
     const [status, setStatus] = useState<AuditStatus>(
       (prefillStatus as AuditStatus) || "OK"
@@ -138,11 +158,8 @@ const FieldAuditCard = forwardRef<HTMLDivElement, FieldAuditCardProps>(
                   name={`photo-${device.id}`}
                   accept="image/*"
                   onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file && file.size > 10 * 1024 * 1024) {
-                      alert("Ukuran file maksimal 10MB");
-                      event.target.value = "";
-                    }
+                    handleChecklistPhotoFile(event.target);
+                    onPhotoChange?.(event.target.files?.[0] ?? null);
                   }}
                   className="block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-xs file:font-semibold file:text-ops-text"
                 />
