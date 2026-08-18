@@ -200,8 +200,8 @@ export async function switchSite(siteId: number) {
         return { message: "Anda tidak memiliki akses ke site ini." };
     }
 
-    // Get site name
-    const site = await db.select().from(sites).where(eq(sites.id, siteId)).limit(1);
+    // Get site name — only active sites may become the active site
+    const site = await db.select().from(sites).where(and(eq(sites.id, siteId), eq(sites.isActive, true))).limit(1);
     if (site.length === 0) {
         return { message: "Site tidak ditemukan." };
     }

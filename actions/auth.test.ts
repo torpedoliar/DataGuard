@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 // Mock the database module with a fluent chain so we can drive the lockout
 // branches of `login` without touching Postgres.
@@ -7,6 +8,9 @@ const findFirstUsers = vi.fn();
 // the userSites lookup in the auto-pick logic. Default: empty array (matches
 // a user with no accessible sites, so login still goes to /select-site).
 const userSitesQuery = vi.fn().mockResolvedValue([]);
+// Captures every `.where(...)` condition so tests can inspect predicates
+// (e.g. the switchSite site lookup must filter isActive).
+const whereConditions: unknown[] = [];
 
 vi.mock("@/db", () => ({
   db: {
@@ -22,7 +26,10 @@ vi.mock("@/db", () => ({
       const chain: Record<string, unknown> = {};
       chain.from = () => chain;
       chain.innerJoin = () => chain;
-      chain.where = () => chain;
+      chain.where = (condition: unknown) => {
+        whereConditions.push(condition);
+        return chain;
+      };
       chain.limit = (..._args: unknown[]) => {
         const result = userSitesQuery(..._args);
         // If the test did not configure a response, return [] so .map() works.
@@ -34,9 +41,16 @@ vi.mock("@/db", () => ({
 }));
 
 const createSessionMock = vi.fn().mockResolvedValue(undefined);
+const verifySessionMock = vi.fn().mockResolvedValue(null);
 vi.mock("@/lib/session", () => ({
   createSession: (...args: unknown[]) => createSessionMock(...args),
   deleteSession: vi.fn().mockResolvedValue(undefined),
+  verifySession: (...args: unknown[]) => verifySessionMock(...args),
+}));
+
+const requireSiteAccessMock = vi.fn().mockResolvedValue(true);
+vi.mock("@/lib/site-access", () => ({
+  requireSiteAccess: (...args: unknown[]) => requireSiteAccessMock(...args),
 }));
 
 const redirectMock = vi.fn((url: string) => {
@@ -44,7 +58,7 @@ const redirectMock = vi.fn((url: string) => {
   throw new Error(`__REDIRECT__${url}`);
 });
 vi.mock("next/navigation", () => ({
-  redirect: (...args: unknown[]) => redirectMock(...args),
+  redirect: (url: string) => redirectMock(url),
 }));
 
 vi.mock("./users", () => ({
@@ -63,7 +77,7 @@ vi.mock("@/lib/audit", () => ({
 
 // Use real bcrypt with a known hash to keep behavior faithful.
 import bcrypt from "bcryptjs";
-import { login } from "./auth";
+import { login, switchSite } from "./auth";
 
 const HASH = bcrypt.hashSync("correct-password", 4);
 
@@ -79,6 +93,11 @@ beforeEach(() => {
   createSessionMock.mockClear();
   logAuditManualMock.mockClear();
   userSitesQuery.mockReset();
+  verifySessionMock.mockReset();
+  verifySessionMock.mockResolvedValue(null);
+  requireSiteAccessMock.mockReset();
+  requireSiteAccessMock.mockResolvedValue(true);
+  whereConditions.length = 0;
 });
 
 describe("login lockout", () => {
@@ -311,5 +330,48 @@ describe("login default site selection (N50)", () => {
     expect(args[4]).toBeNull();
     expect(redirectUrl).toMatch(/__REDIRECT__\/select-site/);
     expect(userSitesQuery).not.toHaveBeenCalled();
+  });
+});
+
+describe("switchSite", () => {
+  const dialect = new PgDialect();
+
+  function validSession() {
+    return {
+      userId: 1,
+      username: "alice",
+      role: "admin",
+      activeSiteId: 7,
+      activeSiteName: "DC-JKT",
+      passwordFingerprint: "fp",
+    };
+  }
+
+  it("rejects a deactivated site by filtering isActive in the lookup", async () => {
+    verifySessionMock.mockResolvedValue(validSession());
+    // requireSiteAccess passes (userSites row exists) but the site lookup
+    // returns no rows because the site is deactivated -> fail closed.
+    userSitesQuery.mockResolvedValueOnce([]);
+
+    const result = await switchSite(7);
+    expect(result).toEqual({ message: "Site tidak ditemukan." });
+    expect(createSessionMock).not.toHaveBeenCalled();
+
+    // The site lookup predicate must constrain BOTH the site id and isActive.
+    const params = whereConditions.map((c) => dialect.sqlToQuery(c as never).params);
+    expect(params).toContainEqual(expect.arrayContaining([7, true]));
+  });
+
+  it("switches to an active site and re-creates the session", async () => {
+    verifySessionMock.mockResolvedValue(validSession());
+    userSitesQuery.mockResolvedValueOnce([{ id: 9, name: "DC-SBY" }]);
+
+    const result = await switchSite(9);
+    expect(result).toMatchObject({ success: true, siteName: "DC-SBY" });
+
+    const args = createSessionMock.mock.calls[createSessionMock.mock.calls.length - 1] as unknown[];
+    expect(args[3]).toBe(9); // activeSiteId
+    expect(args[4]).toBe("DC-SBY"); // activeSiteName
+    expect(args[5]).toBe("fp"); // validated password fingerprint carried forward
   });
 });
