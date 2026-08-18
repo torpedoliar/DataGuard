@@ -18,7 +18,7 @@ export default async function AuditLogPage({
 }) {
     const session = await verifySession();
     if (!session || !["admin", "superadmin"].includes(session.role)) {
-        redirect("/dashboard");
+        redirect("/checklist");
     }
 
     const params = await searchParams;
