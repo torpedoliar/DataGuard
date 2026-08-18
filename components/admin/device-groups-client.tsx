@@ -7,6 +7,7 @@ import StatusBadge from "@/components/ui/status-badge";
 import { DataTable, DataTableBody, DataTableEmpty, DataTableFrame, DataTableHead } from "@/components/ui/data-table";
 import { Edit, Plus, Search, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import clsx from "clsx";
 
 type DeviceOpt = { id: number; name: string; rackName: string | null };
@@ -16,12 +17,14 @@ const fieldClass = "ops-input w-full px-3 py-2 text-sm";
 const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
 
 export default function DeviceGroupsClient({ initialGroups }: { initialGroups: DeviceGroupWithPics[] }) {
-  const [groups, setGroups] = useState(initialGroups);
+  const t = useTranslations("DeviceGroups");
+  const [groups] = useState(initialGroups);
   const [editing, setEditing] = useState<DeviceGroupWithPics | null>(null);
   const [creating, setCreating] = useState(false);
   const [devices, setDevices] = useState<DeviceOpt[]>([]);
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [query, setQuery] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const router = useRouter();
 
   const [state, action, isPending] = useActionState(
@@ -31,8 +34,10 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
 
   useEffect(() => {
     if (state?.success) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditing(null);
       setCreating(false);
+      setDeleteError(null);
       router.refresh();
     }
   }, [state?.success, router]);
@@ -47,23 +52,28 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
     return groups.filter((g) => !q || g.name.toLowerCase().includes(q));
   }, [groups, query]);
 
-  const deviceName = (id: number) => devices.find((d) => d.id === id)?.name ?? `#${id}`;
+  const deviceName = (id: number) => devices.find((d) => d.id === id)?.name ?? t("deviceFallback", { id });
 
   return (
     <div className="space-y-5">
+      {deleteError && (
+        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {deleteError}
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
           <input
             type="search"
-            placeholder="Filter groups…"
+            placeholder={t("filterGroups")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-64 bg-transparent text-sm text-ops-text outline-none placeholder:text-ops-muted"
           />
         </div>
-        <ActionButton type="button" icon={<Plus className="size-4" />} onClick={() => { setEditing(null); setCreating(true); }}>
-          New Group
+        <ActionButton type="button" icon={<Plus className="size-4" />} onClick={() => { setEditing(null); setCreating(true); setDeleteError(null); }}>
+          {t("newGroup")}
         </ActionButton>
       </div>
 
@@ -71,16 +81,16 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
         <DataTable>
           <DataTableHead>
             <tr>
-              <th className="px-5 py-3">Group</th>
-              <th className="px-5 py-3">Devices</th>
-              <th className="px-5 py-3">PIC Owners</th>
-              <th className="px-5 py-3">Status</th>
-              <th className="px-5 py-3 text-right">Actions</th>
+              <th className="px-5 py-3">{t("colGroup")}</th>
+              <th className="px-5 py-3">{t("colDevices")}</th>
+              <th className="px-5 py-3">{t("colOwners")}</th>
+              <th className="px-5 py-3">{t("colStatus")}</th>
+              <th className="px-5 py-3 text-right">{t("colActions")}</th>
             </tr>
           </DataTableHead>
           <DataTableBody>
             {filtered.length === 0 ? (
-              <DataTableEmpty colSpan={5} title="No PIC groups" description="Create a group, then bind devices to it." />
+              <DataTableEmpty colSpan={5} title={t("emptyTitle")} description={t("emptyDescription")} />
             ) : (
               filtered.map((group) => (
                 <tr key={group.id} className="transition-colors hover:bg-ops-surface">
@@ -95,7 +105,7 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
                   </td>
                   <td className="px-5 py-3 text-sm text-ops-muted">
                     {group.deviceIds.length > 0
-                      ? `${group.deviceIds.length} bound · ${group.deviceIds.slice(0, 3).map(deviceName).join(", ")}${group.deviceIds.length > 3 ? "…" : ""}`
+                      ? t("boundDevices", { count: group.deviceIds.length, names: group.deviceIds.slice(0, 3).map(deviceName).join(", ") }) + (group.deviceIds.length > 3 ? "…" : "")
                       : "—"}
                   </td>
                   <td className="px-5 py-3 text-sm text-ops-muted">
@@ -105,21 +115,31 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
                   </td>
                   <td className="px-5 py-3">
                     {group.isActive ? (
-                      <StatusBadge tone="success">Active</StatusBadge>
+                      <StatusBadge tone="success">{t("active")}</StatusBadge>
                     ) : (
-                      <StatusBadge tone="neutral">Inactive</StatusBadge>
+                      <StatusBadge tone="neutral">{t("inactive")}</StatusBadge>
                     )}
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
-                      <ActionButton type="button" variant="ghost" size="icon" title="Edit group"
-                        onClick={() => { setEditing(group); setCreating(false); }}>
+                      <ActionButton type="button" variant="ghost" size="icon" title={t("editGroup")}
+                        onClick={() => { setEditing(group); setCreating(false); setDeleteError(null); }}>
                         <Edit className="size-4 text-blue-300" />
                       </ActionButton>
-                      <ActionButton type="button" variant="danger" size="icon" title="Delete group"
+                      <ActionButton type="button" variant="danger" size="icon" title={t("deleteGroup")}
                         onClick={() => {
-                          if (confirm(`Delete group "${group.name}"? Devices stay, membership is removed.`)) {
-                            deleteDeviceGroup(group.id).then(() => router.refresh());
+                          if (confirm(t("deleteConfirm", { name: group.name }))) {
+                            deleteDeviceGroup(group.id)
+                              .then((result) => {
+                                if (result && "success" in result && result.success) {
+                                  setDeleteError(null);
+                                  router.refresh();
+                                } else {
+                                  const message = result && "message" in result ? result.message ?? t("deleteFailed") : t("deleteFailed");
+                                  setDeleteError(message);
+                                }
+                              })
+                              .catch(() => setDeleteError(t("deleteFailed")));
                           }
                         }}>
                         <Trash2 className="size-4" />
@@ -159,6 +179,7 @@ function GroupModal({
   isPending: boolean;
   onClose: () => void;
 }) {
+  const t = useTranslations("DeviceGroups");
   const [selectedDevices, setSelectedDevices] = useState<Set<number>>(new Set(group?.deviceIds ?? []));
   const [selectedOwners, setSelectedOwners] = useState<Set<number>>(new Set(group?.ownerIds ?? []));
   const [deviceFilter, setDeviceFilter] = useState("");
@@ -182,11 +203,11 @@ function GroupModal({
               <Users className="size-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-ops-text">{group ? "Edit Group" : "New Group"}</h2>
-              <p className="text-xs text-ops-muted">Bind devices to this group; owners inherit from it.</p>
+              <h2 className="text-lg font-bold text-ops-text">{group ? t("editTitle") : t("newTitle")}</h2>
+              <p className="text-xs text-ops-muted">{t("modalDescription")}</p>
             </div>
           </div>
-          <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} title="Close">✕</ActionButton>
+          <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} title={t("close")}>✕</ActionButton>
         </div>
 
         <form action={action} className="min-h-0 flex-1 overflow-y-auto">
@@ -194,33 +215,42 @@ function GroupModal({
 
           <div className="grid grid-cols-1 gap-5 p-5 md:grid-cols-2">
             <label className="md:col-span-1">
-              <span className={labelClass}>Group Name *</span>
-              <input name="name" required defaultValue={group?.name ?? ""} className={fieldClass} placeholder="e.g. Cooling Team" />
+              <span className={labelClass}>{t("groupName")}</span>
+              <input name="name" required defaultValue={group?.name ?? ""} className={fieldClass} placeholder={t("groupNamePlaceholder")} />
             </label>
             <label className="md:col-span-1">
-              <span className={labelClass}>Color</span>
+              <span className={labelClass}>{t("color")}</span>
               <input name="color" type="color" defaultValue={group?.color ?? "#3b82f6"} className="h-10 w-full cursor-pointer rounded-md border border-ops-border bg-ops-bg" />
             </label>
             <label className="md:col-span-2">
-              <span className={labelClass}>Description</span>
-              <textarea name="description" rows={2} defaultValue={group?.description ?? ""} className={fieldClass} placeholder="Optional note" />
+              <span className={labelClass}>{t("description")}</span>
+              <textarea name="description" rows={2} defaultValue={group?.description ?? ""} className={fieldClass} placeholder={t("descriptionPlaceholder")} />
+            </label>
+            <label className="md:col-span-2 flex cursor-pointer items-center gap-2 rounded-md border border-ops-border bg-ops-bg/40 px-3 py-2">
+              <input
+                type="checkbox"
+                name="isActive"
+                defaultChecked={group?.isActive ?? true}
+                className="accent-ops-accent"
+              />
+              <span className="text-sm font-medium text-ops-text">{t("isActiveLabel")}</span>
             </label>
 
             {/* Device binding — bulk multi-select */}
             <div className="md:col-span-2">
-              <span className={labelClass}>Bound Devices ({selectedDevices.size})</span>
+              <span className={labelClass}>{t("boundDevicesLabel", { count: selectedDevices.size })}</span>
               <div className="relative mb-2">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
                 <input
                   type="search"
-                  placeholder="Filter devices…"
+                  placeholder={t("filterDevices")}
                   value={deviceFilter}
                   onChange={(e) => setDeviceFilter(e.target.value)}
                   className={clsx(fieldClass, "pl-9")}
                 />
               </div>
               <div className="max-h-52 overflow-y-auto rounded-md border border-ops-border bg-ops-bg/40 p-2">
-                {filteredDevices.length === 0 && <p className="p-2 text-sm text-ops-muted">No devices match.</p>}
+                {filteredDevices.length === 0 && <p className="p-2 text-sm text-ops-muted">{t("noDevicesMatch")}</p>}
                 {filteredDevices.map((device) => (
                   <label key={device.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-ops-surface">
                     <input
@@ -240,19 +270,19 @@ function GroupModal({
 
             {/* Owner (PIC) assignment */}
             <div className="md:col-span-2">
-              <span className={labelClass}>PIC Owners ({selectedOwners.size})</span>
+              <span className={labelClass}>{t("picOwnersLabel", { count: selectedOwners.size })}</span>
               <div className="relative mb-2">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
                 <input
                   type="search"
-                  placeholder="Filter users…"
+                  placeholder={t("filterUsers")}
                   value={userFilter}
                   onChange={(e) => setUserFilter(e.target.value)}
                   className={clsx(fieldClass, "pl-9")}
                 />
               </div>
               <div className="max-h-44 overflow-y-auto rounded-md border border-ops-border bg-ops-bg/40 p-2">
-                {filteredUsers.length === 0 && <p className="p-2 text-sm text-ops-muted">No users match.</p>}
+                {filteredUsers.length === 0 && <p className="p-2 text-sm text-ops-muted">{t("noUsersMatch")}</p>}
                 {filteredUsers.map((user) => (
                   <label key={user.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-ops-surface">
                     <input
@@ -280,8 +310,8 @@ function GroupModal({
               {state?.message && !state.success && <p className="text-red-300">{state.message}</p>}
             </div>
             <div className="flex gap-2">
-              <ActionButton type="button" variant="secondary" onClick={onClose}>Cancel</ActionButton>
-              <ActionButton type="submit" isPending={isPending}>{group ? "Save Changes" : "Create Group"}</ActionButton>
+              <ActionButton type="button" variant="secondary" onClick={onClose}>{t("cancel")}</ActionButton>
+              <ActionButton type="submit" isPending={isPending}>{group ? t("saveChanges") : t("createGroup")}</ActionButton>
             </div>
           </div>
         </form>
