@@ -290,6 +290,7 @@ describe("submitChecklist", () => {
   });
 
   it("returns a failure message after rollback when the transaction fails (finding #08)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.requireActiveSiteAction.mockResolvedValue(auth);
     queueSelect([{ id: 1 }]);
     mockedDb.transaction.mockRejectedValue(new Error("connection terminated"));
@@ -299,6 +300,7 @@ describe("submitChecklist", () => {
     expect(result).toEqual({ message: "Failed to submit checklist" });
     expect(mocks.logAudit).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });
 
