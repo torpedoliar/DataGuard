@@ -3,7 +3,7 @@ import createIntlMiddleware from "next-intl/middleware";
 import { decrypt } from "@/lib/session-token";
 import { validateSessionPayload } from "@/lib/session-auth";
 import { verifyCsrfToken } from "@/lib/csrf";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { routing } from "@/i18n/routing";
 
 // Middleware performs a current-user lookup, so it must run in the Node.js
@@ -82,9 +82,18 @@ export default async function middleware(req: NextRequest) {
     // 2. Rate limit POST /login per client IP (5/min).
     // Done before any DB work so it stays cheap.
     if (path === "/login" && req.method === "POST") {
-        const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim()
-            || req.headers.get("x-real-ip")
-            || "unknown";
+        // Proxy-trust model: read the IP from X-Real-IP (which the reverse
+        // proxy overwrites per request) or the proxy-appended LAST
+        // X-Forwarded-For entry — never the client-supplied first XFF
+        // element. The deployment MUST front the app with a reverse proxy
+        // that sets X-Real-IP (deploy.sh/docker-compose route through one).
+        // Buckets are per-process memory, so a multi-worker deployment would
+        // need a shared store (Redis) for exact accounting; account lockout
+        // (5 fails / 15 min) remains the backstop.
+        const ip = getClientIp(
+            req.headers.get("x-forwarded-for"),
+            req.headers.get("x-real-ip"),
+        ) ?? "unknown";
         const rate = checkRateLimit("login-ip", ip, { windowMs: 60_000, max: 5 });
         if (!rate.allowed) {
             return new NextResponse(

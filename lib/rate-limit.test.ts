@@ -1,5 +1,33 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { checkRateLimit, __resetRateLimitBuckets } from "./rate-limit";
+import { checkRateLimit, getClientIp, __resetRateLimitBuckets } from "./rate-limit";
+
+describe("getClientIp", () => {
+  it("prefers X-Real-IP over X-Forwarded-For", () => {
+    expect(getClientIp("203.0.113.7, 10.0.0.1", "198.51.100.9")).toBe("198.51.100.9");
+  });
+
+  it("takes the LAST X-Forwarded-For entry (trusted-proxy-appended), not the first", () => {
+    // The first entry is attacker-controlled; the last is proxy-appended.
+    expect(getClientIp("203.0.113.7, 10.0.0.1", null)).toBe("10.0.0.1");
+  });
+
+  it("handles a single X-Forwarded-For entry", () => {
+    expect(getClientIp("198.51.100.9", null)).toBe("198.51.100.9");
+  });
+
+  it("uses X-Real-IP even when X-Forwarded-For is absent", () => {
+    expect(getClientIp(null, "198.51.100.9")).toBe("198.51.100.9");
+  });
+
+  it("trims whitespace around entries", () => {
+    expect(getClientIp(" 203.0.113.7 ,  198.51.100.9 ", null)).toBe("198.51.100.9");
+    expect(getClientIp(null, "  198.51.100.9  ")).toBe("198.51.100.9");
+  });
+
+  it("returns null when no trusted header is present", () => {
+    expect(getClientIp(null, null)).toBe(null);
+  });
+});
 
 describe("checkRateLimit", () => {
   beforeEach(() => {
