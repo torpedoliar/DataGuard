@@ -32,6 +32,19 @@ type Shortcut = {
   icon: ReactNode;
 };
 
+/**
+ * Normalize one dashboard dataset so a single failing source (DB outage,
+ * migration window) degrades to an empty list instead of a whole-page 500.
+ * All four fetches run in parallel below via Promise.allSettled.
+ */
+function readSettled<T>(result: PromiseSettledResult<T[]>): T[] {
+  if (result.status === "rejected") {
+    console.error("Failed to load admin dashboard dataset, degrading to empty:", result.reason);
+    return [];
+  }
+  return Array.isArray(result.value) ? result.value : [];
+}
+
 function ShortcutGroup({ title, items }: { title: string; items: Shortcut[] }) {
   return (
     <section className="space-y-2">
@@ -63,12 +76,19 @@ export default async function AdminPage() {
   const session = await verifySession();
   if (!session || !["admin", "superadmin"].includes(session.role)) redirect("/checklist");
 
-  const categories = await getCategories();
-  const devices = await getDevices();
-  const { getBrands } = await import("@/actions/brands");
-  const brands = await getBrands();
-  const { getLocations } = await import("@/actions/locations");
-  const locations = await getLocations();
+  // Fetch all four datasets in parallel. One failing source (e.g. DB down
+  // during a migration) degrades to an empty list instead of a hard 500 —
+  // getLocations already catches internally, the other three may throw.
+  const [categoriesResult, devicesResult, brandsResult, locationsResult] = await Promise.allSettled([
+    getCategories(),
+    getDevices(),
+    import("@/actions/brands").then((m) => m.getBrands()),
+    import("@/actions/locations").then((m) => m.getLocations()),
+  ]);
+  const categories = readSettled(categoriesResult);
+  const devices = readSettled(devicesResult);
+  const brands = readSettled(brandsResult);
+  const locations = readSettled(locationsResult);
 
   const inventoryShortcuts: Shortcut[] = [
     { href: "/admin/categories", label: "Categories", meta: "Device taxonomy", icon: <FolderTree className="size-5" /> },
