@@ -1,5 +1,18 @@
-import { describe, expect, it } from "vitest";
-import { rackCapacityErrorMessage, rackPlacementExceedsCapacity, rackRangesOverlap } from "./rack-validation";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
+import { rackCapacityErrorMessage, rackPlacementExceedsCapacity, rackRangesOverlap, checkRackCollision } from "./rack-validation";
+
+const dbMocks = vi.hoisted(() => ({ findMany: vi.fn() }));
+
+vi.mock("../db", () => ({
+  db: {
+    query: {
+      devices: { findMany: (...args: unknown[]) => dbMocks.findMany(...args) },
+    },
+  },
+}));
+
+const dialect = new PgDialect();
 
 describe("rackRangesOverlap", () => {
   it("detects overlapping U ranges", () => {
@@ -77,5 +90,38 @@ describe("rackCapacityErrorMessage", () => {
   it("falls back to 42U when the rack has no totalU", () => {
     expect(rackCapacityErrorMessage(null)).toBe("Posisi melebihi kapasitas rak (maksimal U42).");
     expect(rackCapacityErrorMessage(undefined)).toBe("Posisi melebihi kapasitas rak (maksimal U42).");
+  });
+});
+
+describe("checkRackCollision (finding #33 case-normalized lookup)", () => {
+  beforeEach(() => {
+    dbMocks.findMany.mockReset();
+    dbMocks.findMany.mockResolvedValue([]);
+  });
+
+  it("matches devices by lowercased rack name, like getRackLayout's merge key", async () => {
+    await checkRackCollision(7, "Rack A", 3, 2);
+
+    const [args] = dbMocks.findMany.mock.calls[0];
+    const { where } = args as { where: unknown };
+    const query = dialect.sqlToQuery(where as never);
+
+    // Both sides of the name comparison must go through lower() so a
+    // case-variant ('rack a') still collides with the rendered rack, and the
+    // site must stay site-scoped.
+    expect(query.sql).toContain("lower(");
+    expect(query.sql).toMatch(/lower\([^)]*\) = lower\(\$\d\)/i);
+    expect(query.params).toEqual(expect.arrayContaining([7, "Rack A"]));
+  });
+
+  it("reports devices sharing the same case-insensitive rack as collisions", async () => {
+    dbMocks.findMany.mockResolvedValue([
+      { id: 9, name: "SW-09", rackPosition: 4, uHeight: 1 },
+    ]);
+
+    const collisions = await checkRackCollision(1, "rack a", 3, 2);
+
+    expect(collisions).toEqual([{ id: 9, name: "SW-09", rackPosition: 4, uHeight: 1 }]);
+    expect(dbMocks.findMany).toHaveBeenCalledOnce();
   });
 });

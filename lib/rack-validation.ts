@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { devices } from "../db/schema";
-import { eq, and, ne, isNotNull } from "drizzle-orm";
+import { eq, and, ne, isNotNull, sql } from "drizzle-orm";
 
 /**
  * Checks if a proposed device placement overlaps with any existing devices in the same rack.
@@ -61,13 +61,13 @@ export async function checkRackCollision(
 ) {
     // A proposed placement occupies the interval [rackPosition, rackPosition + uHeight - 1]
     const proposedStart = rackPosition;
-    const proposedEnd = rackPosition + uHeight - 1;
 
-    // Fetch all existing devices in the exact same rack
-    // We only care about devices that HAVE a rack position
+    // Fetch all existing devices in the exact same rack (case-insensitive:
+    // getRackLayout merges devices into racks by lowercased name, so a
+    // case-variant rackName must still collide with the same rack, #33)
     const conditions = [
         eq(devices.siteId, siteId),
-        eq(devices.rackName, rackName),
+        sql`lower(${devices.rackName}) = lower(${rackName})`,
         isNotNull(devices.rackPosition)
     ];
 

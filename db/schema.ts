@@ -128,6 +128,9 @@ export const locations = pgTable("locations", {
 });
 
 // ==================== RACKS (PER SITE) ====================
+// Unique per (site, lower(name)): app code (addRack/updateRack) catches
+// 'UNIQUE constraint' errors, and getRackLayout merges racks by lowercased
+// name, so case-variant duplicates must be rejected at the DB (finding #33).
 export const racks = pgTable("racks", {
   id: serial("id").primaryKey(),
   siteId: integer("site_id").references(() => sites.id),
@@ -138,7 +141,9 @@ export const racks = pgTable("racks", {
   locationId: integer("location_id").references(() => locations.id),
   isAuditable: boolean("is_auditable").default(true),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  siteNameUnique: uniqueIndex("racks_site_name_lower_unique").on(table.siteId, sql`lower(${table.name})`),
+}));
 
 // ==================== BRANDS (GLOBAL) ====================
 export const brands = pgTable("brands", {

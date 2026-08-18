@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { devices, racks } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { checkRackCollision, rackPlacementExceedsCapacity, rackCapacityErrorMessage } from "@/lib/rack-validation";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 
@@ -11,7 +11,10 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { deviceId, rackName, rackPosition, uHeight } = body;
+        const { deviceId, rackName: rawRackName, rackPosition, uHeight } = body;
+        // Canonicalized to the racks row name when the target rack exists
+        // (see below); keeps case-variant drops from drifting device data.
+        let rackName: string | null = rawRackName;
 
         if (!deviceId) {
             return NextResponse.json({ error: "Device ID required" }, { status: 400 });
@@ -30,15 +33,21 @@ export async function POST(request: NextRequest) {
         let targetZone: string | null = null;
         let rackTotalU: number | null = null;
         if (rackName) {
+            // Case-insensitive name match: getRackLayout merges racks by
+            // lowercased name, so a case-variant drop must resolve to the
+            // same rack row (finding #33).
             const targetRack = await db.query.racks.findFirst({
-                where: and(eq(racks.name, rackName), eq(racks.siteId, auth.activeSiteId)),
-                columns: { totalU: true, zone: true }
+                where: and(sql`lower(${racks.name}) = lower(${rackName})`, eq(racks.siteId, auth.activeSiteId)),
+                columns: { totalU: true, zone: true, name: true }
             });
             if (targetRack) {
                 rackTotalU = targetRack.totalU;
                 if (targetRack.zone) {
                     targetZone = targetRack.zone;
                 }
+                // Store the canonical rack row name so devices never drift
+                // into case-variant spellings of an existing rack.
+                rackName = targetRack.name;
             }
         }
 
@@ -95,7 +104,7 @@ export async function POST(request: NextRequest) {
                         let bDestinationTotalU = rackTotalU;
                         if (deviceA.rackName !== rackName) {
                             const oldRack = await db.query.racks.findFirst({
-                                where: and(eq(racks.name, deviceA.rackName), eq(racks.siteId, auth.activeSiteId)),
+                                where: and(sql`lower(${racks.name}) = lower(${deviceA.rackName})`, eq(racks.siteId, auth.activeSiteId)),
                                 columns: { totalU: true }
                             });
                             bDestinationTotalU = oldRack?.totalU ?? null;

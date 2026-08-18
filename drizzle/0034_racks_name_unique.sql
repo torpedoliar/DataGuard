@@ -1,0 +1,15 @@
+-- Finding #33: racks.name has no unique constraint while app code assumes one.
+-- addRack/updateRack catch 'UNIQUE constraint' errors ('Nama rak ini sudah
+-- terdaftar') that could never fire; getRackLayout merges racks by lowercased
+-- name, so case-variant duplicates ('Rack A' vs 'rack A') render as one rack
+-- while collision checks treat them as different.
+--
+-- The expression index makes rack names unique per site, case-insensitive,
+-- matching the lowercased merge key the layout actually uses (and the
+-- case-normalized lookups in checkRackCollision/getOccupiedSlots).
+--
+-- NOTE: applying this to a database that ALREADY contains duplicate or
+-- case-variant rack names within one site fails. Dedupe first: keep the row
+-- that owns the devices (rename surviving devices.rack_name to it) and delete
+-- the duplicates.
+CREATE UNIQUE INDEX IF NOT EXISTS "racks_site_name_lower_unique" ON "racks" ("site_id", lower("name"));

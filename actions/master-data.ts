@@ -17,7 +17,7 @@ import {
     siemEvidenceEvents,
     devicePics,
 } from "../db/schema";
-import { and, eq, or, isNull } from "drizzle-orm";
+import { and, eq, or, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
@@ -187,7 +187,10 @@ export async function addDevice(prevState: unknown, formData: FormData) {
     let rackTotalU: number | null = null;
     if (parsed.data.rackName) {
         const targetRack = await db.query.racks.findFirst({
-            where: and(eq(racks.name, parsed.data.rackName), eq(racks.siteId, auth.activeSiteId)),
+            // Case-insensitive name match: getRackLayout merges racks by
+            // lowercased name, so capacity/collision checks must find the
+            // rack regardless of casing (finding #33)
+            where: and(sql`lower(${racks.name}) = lower(${parsed.data.rackName})`, eq(racks.siteId, auth.activeSiteId)),
             columns: { totalU: true },
         });
         rackTotalU = targetRack?.totalU ?? null;
@@ -266,7 +269,8 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
         let rackTotalU: number | null = null;
         if (parsed.data.rackName) {
             const targetRack = await db.query.racks.findFirst({
-                where: and(eq(racks.name, parsed.data.rackName), eq(racks.siteId, auth.activeSiteId)),
+                // Case-insensitive name match (finding #33): see addDevice.
+                where: and(sql`lower(${racks.name}) = lower(${parsed.data.rackName})`, eq(racks.siteId, auth.activeSiteId)),
                 columns: { totalU: true },
             });
             rackTotalU = targetRack?.totalU ?? null;

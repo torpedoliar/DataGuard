@@ -50,7 +50,9 @@ export async function getOccupiedSlots(rackName: string, excludeDeviceId?: numbe
 
     const conditions = [
         eq(devices.siteId, session.activeSiteId),
-        eq(devices.rackName, rackName),
+        // Case-insensitive match so 'rack A' land on the same rack as 'Rack A'
+        // (getRackLayout merges by lowercased name, #33)
+        sql`lower(${devices.rackName}) = lower(${rackName})`,
         isNotNull(devices.rackPosition)
     ];
 
@@ -155,11 +157,12 @@ export async function updateRack(prevState: unknown, formData: FormData) {
         }).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
 
         // Cascade rename to devices referencing this rack by name
+        // (case-insensitive match, consistent with the merged layout, #33)
         if (parsed.data.name && parsed.data.name !== current.name) {
             await db.update(devices).set({ rackName: parsed.data.name })
                 .where(and(
                     eq(devices.siteId, auth.activeSiteId),
-                    eq(devices.rackName, current.name),
+                    sql`lower(${devices.rackName}) = lower(${current.name})`,
                 ));
         }
 
@@ -211,7 +214,7 @@ export async function deleteRack(id: number) {
         revalidatePath("/admin/rack");
         await logAudit({ action: "DELETE", entity: "rack", entityId: id, entityName: rack.name });
         return { success: true };
-    } catch (error) {
+    } catch {
         return { message: rackInUseMessage };
     }
 }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 const mocks = vi.hoisted(() => ({
   requireActiveSiteAdminAction: vi.fn(),
@@ -67,7 +68,7 @@ beforeEach(() => {
     rackPosition: null,
     zone: null,
   });
-  mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42, zone: null });
+  mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42, zone: null, name: "Rack A" });
   mockedDb.update.mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) });
   mockedDb.transaction.mockImplementation(async (fn: (tx: typeof mockedDb) => unknown) => fn(mockedDb));
 });
@@ -92,7 +93,7 @@ describe("POST /api/update-position rack capacity (finding #10)", () => {
   });
 
   it("accepts a placement within capacity and persists the move", async () => {
-    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42, zone: "DC-1" });
+    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42, zone: "DC-1", name: "Rack A" });
     mocks.checkRackCollision.mockResolvedValue([]);
 
     const res = await post({ deviceId: 1, rackName: "Rack A", rackPosition: 5, uHeight: 1 });
@@ -104,7 +105,7 @@ describe("POST /api/update-position rack capacity (finding #10)", () => {
   });
 
   it("accepts a rack's default totalU when the rack row has none", async () => {
-    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: null, zone: null });
+    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: null, zone: null, name: "Rack A" });
     const res = await post({ deviceId: 1, rackName: "Rack A", rackPosition: 42, uHeight: 1 });
 
     expect(res.status).toBe(200);
@@ -122,7 +123,7 @@ describe("POST /api/update-position rack capacity (finding #10)", () => {
       rackPosition: 41,
       zone: null,
     });
-    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42, zone: null });
+    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42, zone: null, name: "Rack A" });
     mocks.checkRackCollision
       .mockResolvedValueOnce([{ id: 2, name: "SW-02", rackPosition: 1, uHeight: 4 }])
       .mockResolvedValueOnce([]);
@@ -132,5 +133,27 @@ describe("POST /api/update-position rack capacity (finding #10)", () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Posisi melebihi kapasitas rak (maksimal U42)." });
     expect(mockedDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it("resolves a case-variant drop to the rack row and stores its canonical name (finding #33)", async () => {
+    // The layout merges racks by lowercased name; a drop onto "RACK A" must
+    // find the "rack a" row and persist the canonical spelling.
+    let findFirstArgs: unknown[] | undefined;
+    mockedDb.query.racks.findFirst.mockImplementation((...args: unknown[]) => {
+      findFirstArgs = args;
+      return Promise.resolve({ totalU: 42, zone: null, name: "rack a" });
+    });
+    const setMock = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+    mockedDb.update.mockReturnValue({ set: setMock } as never);
+
+    const res = await post({ deviceId: 1, rackName: "RACK A", rackPosition: 5, uHeight: 1 });
+
+    expect(res.status).toBe(200);
+    const dialect = new PgDialect();
+    const { where } = findFirstArgs?.[0] as { where: unknown };
+    const query = dialect.sqlToQuery(where as never);
+    expect(query.sql).toContain("lower(");
+    expect(query.params).toEqual(expect.arrayContaining([SITE_ID, "RACK A"]));
+    expect(setMock).toHaveBeenCalledWith(expect.objectContaining({ rackName: "rack a" }));
   });
 });
