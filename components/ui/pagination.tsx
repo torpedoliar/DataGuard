@@ -8,6 +8,8 @@ interface PaginationProps {
     totalPages: number;
     totalItems: number;
     pageSize: number;
+    /** Base path the page links are built on (e.g. "/report"). Defaults to "/report". */
+    basePath?: string;
 }
 
 export default function Pagination({
@@ -15,6 +17,7 @@ export default function Pagination({
     totalPages,
     totalItems,
     pageSize,
+    basePath = "/report",
 }: PaginationProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -22,7 +25,7 @@ export default function Pagination({
     const getPageUrl = (page: number) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set("page", String(page));
-        return `/report?${params.toString()}`;
+        return `${basePath}?${params.toString()}`;
     };
 
     const handlePageChange = (page: number) => {
@@ -65,29 +68,37 @@ export default function Pagination({
 
     if (totalPages <= 1) return null;
 
+    const controlClass =
+        "p-2 rounded-lg border border-ops-border text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ops-muted";
+
     return (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-300 dark:border-slate-600">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-ops-border">
             {/* Info */}
-            <div className="text-sm text-slate-600 dark:text-slate-400">
-                Showing <span className="font-medium">{startItem}</span> to{" "}
-                <span className="font-medium">{endItem}</span> of{" "}
-                <span className="font-medium">{totalItems}</span> results
+            <div className="text-sm text-ops-muted">
+                Showing <span className="font-medium text-ops-text">{startItem}</span> to{" "}
+                <span className="font-medium text-ops-text">{endItem}</span> of{" "}
+                <span className="font-medium text-ops-text">{totalItems}</span> results
             </div>
 
             {/* Pagination Controls */}
-            <div className="flex items-center gap-1">
+            <nav aria-label="Pagination" className="flex items-center gap-1">
                 <button
+                    type="button"
                     onClick={() => handlePageChange(1)}
                     disabled={currentPage === 1}
-                    className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:border-slate-600 dark:hover:bg-slate-700"
+                    aria-label="First page"
+                    title="First page"
+                    className={controlClass}
                 >
                     <ChevronsLeft className="h-4 w-4" />
                 </button>
                 <button
+                    type="button"
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:border-slate-600 dark:hover:bg-slate-700"
+                    aria-label="Previous page"
                     title="Previous page"
+                    className={controlClass}
                 >
                     <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -98,11 +109,14 @@ export default function Pagination({
                         typeof page === "number" ? (
                             <button
                                 key={index}
+                                type="button"
                                 onClick={() => handlePageChange(page)}
+                                aria-current={page === currentPage ? "page" : undefined}
+                                aria-label={`Page ${page}`}
                                 className={`min-w-[40px] h-10 rounded-lg border text-sm font-medium transition-colors ${
                                     page === currentPage
-                                        ? "bg-blue-600 border-blue-600 text-white"
-                                        : "border-slate-300 hover:bg-slate-100 text-slate-700 dark:border-slate-600 dark:hover:bg-slate-700 dark:text-slate-300"
+                                        ? "bg-ops-accent border-ops-accent text-slate-950"
+                                        : "border-ops-border text-ops-text hover:bg-ops-surface-raised"
                                 }`}
                             >
                                 {page}
@@ -110,7 +124,8 @@ export default function Pagination({
                         ) : (
                             <span
                                 key={index}
-                                className="px-2 text-slate-400"
+                                aria-hidden="true"
+                                className="px-2 text-ops-muted"
                             >
                                 {page}
                             </span>
@@ -119,22 +134,26 @@ export default function Pagination({
                 </div>
 
                 <button
+                    type="button"
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:border-slate-600 dark:hover:bg-slate-700"
+                    aria-label="Next page"
                     title="Next page"
+                    className={controlClass}
                 >
                     <ChevronRight className="h-4 w-4" />
                 </button>
                 <button
+                    type="button"
                     onClick={() => handlePageChange(totalPages)}
                     disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:border-slate-600 dark:hover:bg-slate-700"
+                    aria-label="Last page"
                     title="Last page"
+                    className={controlClass}
                 >
                     <ChevronsRight className="h-4 w-4" />
                 </button>
-            </div>
+            </nav>
         </div>
     );
 }

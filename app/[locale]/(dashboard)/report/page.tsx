@@ -285,6 +285,7 @@ export default async function ReportPage({
             totalPages={totalPages}
             totalItems={total}
             pageSize={pageSize}
+            basePath="/report"
           />
         )}
       </section>
