@@ -57,3 +57,26 @@ export function getCsrfTokenFromRequest(request: {
   }
   return null;
 }
+
+/**
+ * Read one cookie from a Cookie header without relying on Node-only APIs.
+ * Values are decoded when possible, while malformed percent-encoding is
+ * returned as-is so verification still fails safely rather than throwing.
+ */
+export function getCookieValue(cookieHeader: string | null, name: string): string | null {
+  if (!cookieHeader || !name) return null;
+
+  for (const entry of cookieHeader.split(";")) {
+    const separator = entry.indexOf("=");
+    if (separator < 0 || entry.slice(0, separator).trim() !== name) continue;
+
+    const rawValue = entry.slice(separator + 1).trim();
+    try {
+      return decodeURIComponent(rawValue);
+    } catch {
+      return rawValue;
+    }
+  }
+
+  return null;
+}

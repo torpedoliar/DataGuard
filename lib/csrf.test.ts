@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   verifyCsrfToken,
   getCsrfTokenFromRequest,
+  getCookieValue,
 } from "./csrf";
 import { generateCsrfToken } from "./csrf-token";
 
@@ -96,5 +97,20 @@ describe("getCsrfTokenFromRequest", () => {
   it("returns null when request has no formData and no header", () => {
     const headers = new Headers();
     expect(getCsrfTokenFromRequest({ headers })).toBeNull();
+  });
+});
+
+describe("getCookieValue", () => {
+  it("reads and decodes the named cookie from a Cookie header", () => {
+    expect(getCookieValue("session=abc; csrf=token%2Bvalue; theme=dark", "csrf")).toBe("token+value");
+  });
+
+  it("does not confuse similarly named cookies", () => {
+    expect(getCookieValue("csrf_token=wrong; csrf=right", "csrf")).toBe("right");
+  });
+
+  it("returns null for missing or malformed entries", () => {
+    expect(getCookieValue(null, "csrf")).toBeNull();
+    expect(getCookieValue("session=abc", "csrf")).toBeNull();
   });
 });

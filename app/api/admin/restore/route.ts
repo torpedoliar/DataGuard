@@ -1,4 +1,5 @@
 import { requireSuperadminAction } from "@/lib/action-auth";
+import { getCookieValue, verifyCsrfToken } from "@/lib/csrf";
 import { logAudit } from "@/lib/audit";
 import { resolveBackupEnv } from "@/lib/backup/env";
 import { acquireLock, releaseLock } from "@/lib/backup/lock";
@@ -13,6 +14,15 @@ export async function POST(request: Request) {
   if (!guard.ok) {
     return new Response(JSON.stringify({ message: guard.message }), {
       status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  const cookieToken = getCookieValue(request.headers.get("cookie"), "csrf");
+  const headerToken = request.headers.get("x-csrf-token") ?? undefined;
+  if (!verifyCsrfToken(cookieToken ?? undefined, headerToken)) {
+    return new Response(JSON.stringify({ message: "CSRF token missing or invalid." }), {
+      status: 403,
       headers: { "content-type": "application/json" },
     });
   }

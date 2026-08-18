@@ -10,8 +10,7 @@ import { verifySession } from "../lib/session";
 import { checkRackCollision } from "../lib/rack-validation";
 import { logAudit } from "../lib/audit";
 import { requireActiveSiteAdminAction } from "../lib/action-auth";
-import fs from "node:fs/promises";
-import path from "node:path";
+import { deleteUploadFile, saveUploadFile } from "../lib/upload";
 
 // Schemas
 const deviceSchema = z.object({
@@ -180,15 +179,11 @@ export async function addDevice(prevState: unknown, formData: FormData) {
         let photoPath: string | null = null;
         const photoFile = formData.get("photo") as File | null;
         if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
-            const buffer = Buffer.from(await photoFile.arrayBuffer());
-            const timestamp = Date.now();
-            const safeName = photoFile.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-            const fileName = `device-${timestamp}-${safeName}`;
-            const uploadDir = path.join(process.cwd(), "public/uploads/devices");
-
-            try { await fs.mkdir(uploadDir, { recursive: true }); } catch (e) { }
-            await fs.writeFile(path.join(uploadDir, fileName), buffer);
-            photoPath = `/uploads/devices/${fileName}`;
+            photoPath = await saveUploadFile(
+                photoFile,
+                "device",
+                { kind: "photo", directory: "devices" },
+            );
         }
 
         await db.insert(devices).values({
@@ -252,22 +247,18 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
         const deletePhoto = formData.get("deletePhoto") === "on";
 
         if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
-            const buffer = Buffer.from(await photoFile.arrayBuffer());
-            const timestamp = Date.now();
-            const safeName = photoFile.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-            const fileName = `device-${timestamp}-${safeName}`;
-            const uploadDir = path.join(process.cwd(), "public/uploads/devices");
-
-            try { await fs.mkdir(uploadDir, { recursive: true }); } catch (e) { }
-            await fs.writeFile(path.join(uploadDir, fileName), buffer);
-            photoPath = `/uploads/devices/${fileName}`;
+            photoPath = await saveUploadFile(
+                photoFile,
+                "device",
+                { kind: "photo", directory: "devices" },
+            );
 
             // Remove old photo if exists
             if (existingDevice.photoPath) {
-                try { await fs.unlink(path.join(process.cwd(), "public", existingDevice.photoPath)); } catch (e) { }
+                try { await deleteUploadFile(existingDevice.photoPath); } catch (e) { }
             }
         } else if (deletePhoto && existingDevice.photoPath) {
-            try { await fs.unlink(path.join(process.cwd(), "public", existingDevice.photoPath)); } catch (e) { }
+            try { await deleteUploadFile(existingDevice.photoPath); } catch (e) { }
             photoPath = null;
         }
 
@@ -338,7 +329,7 @@ export async function deleteDevice(id: number, reason?: string, forceDelete: boo
         }
 
         if (device?.photoPath) {
-            try { await fs.unlink(path.join(process.cwd(), "public", device.photoPath)); } catch (e) { }
+            try { await deleteUploadFile(device.photoPath); } catch (e) { }
         }
 
         await db.delete(devices).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)));

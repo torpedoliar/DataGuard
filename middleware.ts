@@ -26,7 +26,38 @@ function isStateChangingMethod(method: string): boolean {
     return method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
 }
 
+function isApiPath(path: string): boolean {
+    return path === "/api" || path.startsWith("/api/");
+}
+
+function csrfForbiddenResponse(): NextResponse {
+    return new NextResponse(
+        JSON.stringify({ message: "CSRF token missing or invalid." }),
+        { status: 403, headers: { "content-type": "application/json" } },
+    );
+}
+
 export default async function middleware(req: NextRequest) {
+    // API routes are not localized or session-redirected, but state-changing
+    // requests still pass through the CSRF gate before reaching their handler.
+    const requestPath = req.nextUrl.pathname;
+    if (requestPath === "/uploads" || requestPath.startsWith("/uploads/")) {
+        const uploadUrl = req.nextUrl.clone();
+        uploadUrl.pathname = `/api${requestPath}`;
+        return NextResponse.rewrite(uploadUrl);
+    }
+
+    if (isApiPath(requestPath)) {
+        if (isStateChangingMethod(req.method) && !isCsrfExempt(requestPath)) {
+            const cookieToken = req.cookies.get("csrf")?.value;
+            const headerToken = req.headers.get("x-csrf-token") ?? undefined;
+            if (!verifyCsrfToken(cookieToken, headerToken)) {
+                return csrfForbiddenResponse();
+            }
+        }
+        return NextResponse.next();
+    }
+
     // 0. i18n locale handling (cheap, no DB).
     // next-intl internally rewrites the URL (e.g. /en/admin -> /admin) and
     // sets response headers; for the default locale (id) it leaves the URL
@@ -91,26 +122,13 @@ export default async function middleware(req: NextRequest) {
         return NextResponse.redirect(new URL("/login", req.nextUrl));
     }
 
-    // 8. CSRF double-submit cookie check for /api/* state-changing requests.
-    // The middleware matcher already excludes /api from auth-redirects, so
-    // this is the dedicated CSRF gate for raw HTTP /api endpoints.
-    if (path.startsWith("/api/") && isStateChangingMethod(req.method)) {
-        if (!isCsrfExempt(path)) {
-            const cookieToken = req.cookies.get("csrf")?.value;
-            const headerToken = req.headers.get("x-csrf-token") ?? undefined;
-            if (!verifyCsrfToken(cookieToken, headerToken)) {
-                return new NextResponse(
-                    JSON.stringify({ message: "CSRF token missing or invalid." }),
-                    { status: 403, headers: { "content-type": "application/json" } },
-                );
-            }
-        }
-    }
-
     return intlResponse;
 }
 
 // Routes Middleware should not run on
 export const config = {
-    matcher: ["/((?!api|_next/static|_next/image|.*\\.png$|.*\\.ico$|.*\\.svg$|uploads).*)"],
+    matcher: [
+        "/uploads/:path*",
+        "/((?!_next/static|_next/image|.*\\.png$|.*\\.ico$|.*\\.svg$|uploads).*)",
+    ],
 };

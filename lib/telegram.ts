@@ -67,16 +67,35 @@ function escapeTelegramMarkdown(value: string) {
     return value.replace(/([_*`\[])/g, "\\$1");
 }
 
-function normalizeTemplateValue(value: string | number | null | undefined) {
+function normalizeTemplateValue(
+    value: string | number | null | undefined,
+    allowTrustedMarkdown: boolean,
+) {
     const text = String(value ?? "").trim();
-    return text ? escapeTelegramMarkdown(text) : "-";
+    if (!text) return "-";
+    return allowTrustedMarkdown ? text : escapeTelegramMarkdown(text);
 }
 
-export function renderTelegramTemplate(template: string | null | undefined, context: TelegramAlertTemplateContext) {
+export type TelegramTemplateRenderOptions = {
+    /**
+     * Only generated, server-controlled Markdown may be opted out of escaping.
+     * Keep this allowlist narrow: user/device fields must remain escaped.
+     */
+    trustedMarkdownFields?: readonly ["incidentLink"] | readonly ("incidentLink")[];
+};
+
+export function renderTelegramTemplate(
+    template: string | null | undefined,
+    context: TelegramAlertTemplateContext,
+    options: TelegramTemplateRenderOptions = {},
+) {
     const source = template?.trim() || DEFAULT_TELEGRAM_ALERT_TEMPLATE;
+    const trustedMarkdownFields = new Set(options.trustedMarkdownFields ?? []);
+
     return source.replace(/\{([a-zA-Z0-9]+)\}/g, (match, key: string) => {
         if (!TELEGRAM_ALERT_TEMPLATE_FIELDS.includes(key as TelegramAlertTemplateField)) return match;
-        return normalizeTemplateValue(context[key as TelegramAlertTemplateField]);
+        const allowTrustedMarkdown = key === "incidentLink" && trustedMarkdownFields.has("incidentLink");
+        return normalizeTemplateValue(context[key as TelegramAlertTemplateField], allowTrustedMarkdown);
     });
 }
 

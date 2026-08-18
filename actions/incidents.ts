@@ -22,7 +22,7 @@ import {
 import { hasAdminAccess } from "@/lib/site-access";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
 import { sendTelegramAlert } from "@/lib/telegram";
-import { saveUploadFile } from "@/lib/upload";
+import { saveUploadFile, UploadValidationError } from "@/lib/upload";
 import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -427,7 +427,19 @@ export async function addIncidentUpdate(prevState: unknown, formData: FormData) 
   if (!canUpdate) return { message: "Unauthorized." };
   if (!note && (!photoFile || photoFile.size === 0)) return { message: "Add a note or evidence photo." };
 
-  const photoPath = photoFile ? await saveUploadFile(photoFile, `incident-${incidentId}-${auth.session.userId}`) : null;
+  let photoPath: string | null = null;
+  if (photoFile) {
+    try {
+      photoPath = await saveUploadFile(photoFile, `incident-${incidentId}-${auth.session.userId}`, {
+        kind: "photo",
+        directory: "root",
+      });
+    } catch (error) {
+      if (error instanceof UploadValidationError) return { message: error.message };
+      console.error("Incident evidence upload error:", error);
+      return { message: "Failed to upload evidence photo." };
+    }
+  }
   await db.insert(incidentUpdates).values({
     incidentId,
     authorId: auth.session.userId,

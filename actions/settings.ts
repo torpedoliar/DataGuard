@@ -14,9 +14,7 @@ import {
     sendTelegramAlert,
 } from "../lib/telegram";
 import { resolveNotificationBaseUrl } from "../lib/notification-url";
-import fs from "fs/promises";
-import path from "path";
-import crypto from "crypto";
+import { saveUploadFile } from "../lib/upload";
 
 const settingsSchema = z.object({
     appName: z.string().min(1, "Nama aplikasi tidak boleh kosong"),
@@ -29,7 +27,12 @@ function getErrorMessage(error: unknown, fallback: string): string {
     return error instanceof Error ? error.message : fallback;
 }
 
-const UPLOAD_DIR = path.join(process.cwd(), "public/uploads/settings");
+async function handleFileUpload(file: File | null, type: "logo" | "favicon"): Promise<string | null> {
+    return saveUploadFile(file, type, {
+        kind: type,
+        directory: "settings",
+    });
+}
 
 function defaultSettings() {
     return {
@@ -69,47 +72,6 @@ async function getActiveSiteTelegramSettings() {
             activeSiteTelegramChatId: null,
         };
     }
-}
-
-// Initialize upload directory
-async function ensureUploadDir() {
-    try {
-        await fs.access(UPLOAD_DIR);
-    } catch {
-        await fs.mkdir(UPLOAD_DIR, { recursive: true });
-    }
-}
-
-async function handleFileUpload(file: File | null, type: 'logo' | 'favicon'): Promise<string | null> {
-    if (!file || file.size === 0) return null;
-
-    await ensureUploadDir();
-
-    // Validate file type
-    if (type === 'favicon') {
-        if (!file.type.includes("icon") && !file.type.startsWith("image/")) {
-            throw new Error("Invalid favicon file type. Only icons/images are allowed.");
-        }
-    } else {
-        if (!file.type.startsWith("image/")) {
-            throw new Error("Invalid logo file type. Only images are allowed.");
-        }
-    }
-
-    // Generate unique filename
-    const ext = path.extname(file.name) || (type === 'favicon' ? '.ico' : '.png');
-    const uniqueId = crypto.randomUUID();
-    const filename = `${type}_${uniqueId}${ext}`;
-    const filePath = path.join(UPLOAD_DIR, filename);
-
-    // Write array buffer to disk
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    await fs.writeFile(filePath, buffer);
-
-    // Return relative URL path
-    return `/uploads/settings/${filename}`;
 }
 
 export async function getSettings() {
@@ -297,6 +259,8 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
         deviceRemarks: "Test Telegram dari halaman pengaturan",
         incidentId: "TEST",
         incidentLink: `[Open incident #TEST](${await resolveNotificationBaseUrl()}/admin/incidents/1)`,
+    }, {
+        trustedMarkdownFields: ["incidentLink"],
     });
 
     const result = await sendTelegramAlert(chatId, message, botToken);

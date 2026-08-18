@@ -7,9 +7,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
-import fs from "fs/promises";
-import path from "path";
-import crypto from "crypto";
+import { saveUploadFile } from "../lib/upload";
 
 const brandSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -20,41 +18,8 @@ function getErrorMessage(error: unknown, fallback: string): string {
     return error instanceof Error ? error.message : fallback;
 }
 
-const UPLOAD_DIR = path.join(process.cwd(), "public/uploads/brands");
-
-// Initialize upload directory
-async function ensureUploadDir() {
-    try {
-        await fs.access(UPLOAD_DIR);
-    } catch {
-        await fs.mkdir(UPLOAD_DIR, { recursive: true });
-    }
-}
-
 async function handleFileUpload(file: File | null): Promise<string | null> {
-    if (!file || file.size === 0) return null;
-
-    await ensureUploadDir();
-
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-        throw new Error("Invalid file type. Only images are allowed.");
-    }
-
-    // Generate unique filename
-    const ext = path.extname(file.name) || ".jpg";
-    const uniqueId = crypto.randomUUID();
-    const filename = `${uniqueId}${ext}`;
-    const filePath = path.join(UPLOAD_DIR, filename);
-
-    // Write array buffer to disk
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    await fs.writeFile(filePath, buffer);
-
-    // Return relative URL path
-    return `/uploads/brands/${filename}`;
+    return saveUploadFile(file, "brand", { kind: "logo", directory: "brands" });
 }
 
 export async function getBrands() {

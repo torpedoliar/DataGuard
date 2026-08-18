@@ -9,6 +9,7 @@ import { verifySession } from "../lib/session";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "../lib/audit";
 import { requireSuperadminAction } from "../lib/action-auth";
+import { deleteUploadFile, saveUploadFile } from "../lib/upload";
 
 // Schemas
 const createUserSchema = z.object({
@@ -326,10 +327,6 @@ export async function updateProfilePhoto(prevState: unknown, formData: FormData)
         return { message: "Unauthorized" };
     }
 
-    const { existsSync } = await import("fs");
-    const { mkdir, writeFile, unlink } = await import("fs/promises");
-    const path = await import("path");
-
     const photo = formData.get("photo") as File | null;
     const removePhoto = formData.get("removePhoto") === "true";
 
@@ -346,38 +343,26 @@ export async function updateProfilePhoto(prevState: unknown, formData: FormData)
 
     try {
         if (removePhoto && photoPath) {
-            // Delete existing photo if explicitly requested or replaced
-            const fullPath = path.join(process.cwd(), "public", photoPath);
-            if (existsSync(fullPath)) await unlink(fullPath);
+            // Delete existing photo if explicitly requested or replaced.
+            await deleteUploadFile(photoPath);
             photoPath = null;
         }
 
         if (photo && photo.size > 0 && !removePhoto) {
-            // Setup upload directory
-            const uploadDir = path.join(process.cwd(), "public", "uploads", "profiles");
-            if (!existsSync(uploadDir)) {
-                await mkdir(uploadDir, { recursive: true });
+            const newPhotoPath = await saveUploadFile(
+                photo,
+                `user-${session.userId}`,
+                { kind: "photo", directory: "profiles" },
+            );
+
+            if (newPhotoPath) {
+                // Delete old photo only after the new upload has passed validation and been saved.
+                if (user.photoPath) {
+                    await deleteUploadFile(user.photoPath);
+                }
+
+                photoPath = newPhotoPath;
             }
-
-            // Create unique filename
-            const ext = photo.name.split(".").pop();
-            const fileName = `user-${session.userId}-${Date.now()}.${ext}`;
-            const fullPath = path.join(uploadDir, fileName);
-
-            // Convert arrayBuffer to buffer
-            const arrayBuffer = await photo.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-
-            // Write new file
-            await writeFile(fullPath, buffer);
-
-            // Delete old photo if replacing
-            if (user.photoPath) {
-                const oldPath = path.join(process.cwd(), "public", user.photoPath);
-                if (existsSync(oldPath)) await unlink(oldPath);
-            }
-
-            photoPath = `/uploads/profiles/${fileName}`;
         }
 
         // Update database

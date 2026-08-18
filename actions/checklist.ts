@@ -12,12 +12,21 @@ import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
 import { logAudit } from "../lib/audit";
 import { revalidatePath } from "next/cache";
-import fs from "node:fs/promises";
-import path from "node:path";
+import { deleteUploadFile, saveUploadFile, UploadValidationError, validateUpload } from "../lib/upload";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 
 const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const;
 type ChecklistSeverity = keyof typeof SEVERITY_RANK;
+
+async function validateChecklistPhotos(formData: FormData, deviceIds: FormDataEntryValue[]) {
+    for (const idStr of deviceIds) {
+        const deviceId = parseInt(idStr as string);
+        const photoFile = formData.get(`photo-${deviceId}`) as File;
+        if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
+            await validateUpload(photoFile, { kind: "photo", directory: "root" });
+        }
+    }
+}
 
 async function resolveChecklistRecipients(siteId: number, severity: ChecklistSeverity, legacyChatId: string | null | undefined) {
     const rows = await db
@@ -59,6 +68,9 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
             return { message: "Date, Time, and Shift are required" };
         }
 
+        const deviceIds = formData.getAll("deviceId");
+        await validateChecklistPhotos(formData, deviceIds);
+
         // 2. Create Checklist Entry
         const [entry] = await db.insert(checklistEntries).values({
             siteId: auth.activeSiteId,
@@ -69,7 +81,6 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
         }).returning();
 
         // 3. Process each device item
-        const deviceIds = formData.getAll("deviceId");
         const alertItems: { checklistItemId: number; deviceId: number; status: "NOT OK"; remarks: string }[] = [];
         const incidentItems: {
             checklistItemId: number;
@@ -89,14 +100,11 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
 
             // 4. Handle File Upload if exists
             if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
-                const buffer = Buffer.from(await photoFile.arrayBuffer());
-                const timestamp = Date.now();
-                const safeName = photoFile.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-                const fileName = `${entry.id}-${deviceId}-${timestamp}-${safeName}`;
-                const uploadDir = path.join(process.cwd(), "public/uploads");
-
-                await fs.writeFile(path.join(uploadDir, fileName), buffer);
-                photoPath = `/uploads/${fileName}`;
+                photoPath = await saveUploadFile(
+                    photoFile,
+                    `${entry.id}-${deviceId}`,
+                    { kind: "photo", directory: "root" },
+                );
             }
 
             const normalizedStatus = (status || "OK") as "OK" | "NOT OK";
@@ -191,6 +199,8 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                             incidentLink: incident?.id
                                 ? `[Open incident #${incident.id}](${baseUrl}/admin/incidents/${incident.id})`
                                 : "-",
+                        }, {
+                            trustedMarkdownFields: ["incidentLink"],
                         });
                     });
                     const message = messages.join("\n\n---\n\n");
@@ -212,6 +222,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
 
     } catch (error) {
         console.error("Submit checklist error:", error);
+        if (error instanceof UploadValidationError) return { message: error.message };
         return { message: "Failed to submit checklist" };
     }
 }
@@ -267,6 +278,9 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
     }
 
     try {
+        const deviceIds = formData.getAll("deviceId");
+        await validateChecklistPhotos(formData, deviceIds);
+
         const checkDate = formData.get("checkDate") as string;
         const checkTime = formData.get("checkTime") as string;
         const shift = formData.get("shift") as "Pagi" | "Siang" | "Malam";
@@ -279,7 +293,6 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
         }).where(eq(checklistEntries.id, entryId));
 
         // Get all device IDs from the form
-        const deviceIds = formData.getAll("deviceId");
 
         // Delete existing items for this entry
         await db.delete(checklistItems).where(eq(checklistItems.entryId, entryId));
@@ -296,20 +309,16 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
 
             // Handle new file upload
             if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
-                const buffer = Buffer.from(await photoFile.arrayBuffer());
-                const timestamp = Date.now();
-                const safeName = photoFile.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-                const fileName = `${entryId}-${deviceId}-${timestamp}-${safeName}`;
-                const uploadDir = path.join(process.cwd(), "public/uploads");
-
-                await fs.writeFile(path.join(uploadDir, fileName), buffer);
-                photoPath = `/uploads/${fileName}`;
+                photoPath = await saveUploadFile(
+                    photoFile,
+                    `${entryId}-${deviceId}`,
+                    { kind: "photo", directory: "root" },
+                );
 
                 // Delete old photo if exists
                 if (existingPhotoPath) {
                     try {
-                        const oldPath = path.join(process.cwd(), "public", existingPhotoPath);
-                        await fs.unlink(oldPath);
+                        await deleteUploadFile(existingPhotoPath);
                     } catch (e) {
                         console.error("Failed to delete old photo:", e);
                     }
@@ -320,8 +329,7 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
             const deletePhoto = formData.get(`deletePhoto-${deviceId}`) === "on";
             if (deletePhoto && photoPath) {
                 try {
-                    const oldPath = path.join(process.cwd(), "public", photoPath);
-                    await fs.unlink(oldPath);
+                    await deleteUploadFile(photoPath);
                 } catch (e) {
                     console.error("Failed to delete photo:", e);
                 }
@@ -351,6 +359,7 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
 
     } catch (error) {
         console.error("Update checklist error:", error);
+        if (error instanceof UploadValidationError) return { message: error.message };
         return { message: "Failed to update checklist" };
     }
 }
@@ -381,8 +390,7 @@ export async function deleteChecklistEntry(entryId: number) {
         for (const item of items) {
             if (item.photoPath) {
                 try {
-                    const photoPath = path.join(process.cwd(), "public", item.photoPath);
-                    await fs.unlink(photoPath);
+                    await deleteUploadFile(item.photoPath);
                 } catch (e) {
                     console.error("Failed to delete photo:", e);
                 }

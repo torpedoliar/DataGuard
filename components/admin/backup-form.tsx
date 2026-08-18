@@ -1,6 +1,7 @@
 "use client";
 
 import ActionButton from "@/components/ui/action-button";
+import { getCookieValue } from "@/lib/csrf";
 import { useState } from "react";
 
 export default function BackupForm() {
@@ -47,7 +48,14 @@ export default function BackupForm() {
     const data = new FormData(form);
     data.set("mode", mode);
     try {
-      const response = await fetch("/api/admin/restore", { method: "POST", body: data });
+      const csrfToken = getCookieValue(document.cookie, "csrf");
+      if (!csrfToken) throw new Error("CSRF token tidak tersedia. Silakan login ulang.");
+
+      const response = await fetch("/api/admin/restore", {
+        method: "POST",
+        headers: { "x-csrf-token": csrfToken },
+        body: data,
+      });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? "Restore gagal");
       const warnings: string[] = Array.isArray(body.warnings) ? body.warnings : [];
