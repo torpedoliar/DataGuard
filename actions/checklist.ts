@@ -17,6 +17,44 @@ import { eq, and, desc, sql, inArray } from "drizzle-orm";
 const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const;
 type ChecklistSeverity = keyof typeof SEVERITY_RANK;
 
+// Finding #22: Telegram drops messages over 4096 chars whole, so a checklist
+// alert covering many devices must be split on device-block separators into
+// <= 4000-char pieces (one message per chunk) instead of dropping the batch.
+export const TELEGRAM_CHUNK_SEPARATOR = "\n\n---\n\n";
+export const TELEGRAM_CHUNK_MAX_LENGTH = 4000;
+
+export function splitTelegramChunks(messages: string[], maxLength: number = TELEGRAM_CHUNK_MAX_LENGTH): string[] {
+    const chunks: string[] = [];
+    let current = "";
+    const separator = TELEGRAM_CHUNK_SEPARATOR;
+
+    for (const message of messages) {
+        if (message.length > maxLength) {
+            // A single rendered block that alone exceeds the cap: keep it
+            // reachable but truncated (Telegram would drop it otherwise).
+            if (current) {
+                chunks.push(current);
+                current = "";
+            }
+            console.warn(
+                `[checklist] telegram alert block of ${message.length} chars exceeds the ${maxLength}-char chunk cap; truncating`,
+            );
+            chunks.push(`${message.slice(0, maxLength - 1)}…`);
+            continue;
+        }
+
+        const candidate = current ? `${current}${separator}${message}` : message;
+        if (candidate.length > maxLength) {
+            chunks.push(current);
+            current = message;
+        } else {
+            current = candidate;
+        }
+    }
+    if (current) chunks.push(current);
+    return chunks;
+}
+
 async function validateChecklistPhotos(formData: FormData, deviceIds: number[]) {
     for (const deviceId of deviceIds) {
         const photoFile = formData.get(`photo-${deviceId}`) as File;
@@ -234,11 +272,15 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                             trustedMarkdownFields: ["incidentLink"],
                         });
                     });
-                    const message = messages.join("\n\n---\n\n");
+                    // Chat API drops messages over 4096 chars; split on
+                    // device-block separators (finding #22).
+                    const chunks = splitTelegramChunks(messages);
 
                     // Async dispatch so we don't block the UI response
                     for (const recipient of recipients) {
-                        sendTelegramAlert(recipient.chatId, message).catch(console.error);
+                        for (const chunk of chunks) {
+                            sendTelegramAlert(recipient.chatId, chunk).catch(console.error);
+                        }
                     }
                 }
             } catch (e) {
