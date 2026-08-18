@@ -131,12 +131,25 @@ export function normalizeFaceplateConfig(input: FaceplateConfigInput | null | un
 }
 
 /**
+ * Logical interfaces that name a virtual construct (VLAN SVI, link bundle)
+ * rather than a physical port. They never map to a faceplate slot on their
+ * own; an admin can still pin one to a slot with an explicit portIndex.
+ */
+const LOGICAL_INTERFACE_NAME = /^(vlan|port-channel|portchannel)\d*$/i;
+
+/**
  * Derives a physical port number from a free-text interface name by taking its
  * last numeric group: "Gi1/0/13" -> 13, "ether5" -> 5, "Eth1" -> 1.
- * Returns null when no usable number is present.
+ * Subinterface suffixes are stripped first so a router subinterface maps to
+ * its physical port: "Gi1/0/2.10" -> 2.
+ * Returns null when no usable number is present, including logical interfaces
+ * such as "Vlan10" and "Port-Channel1" — the caller routes those to the
+ * unplaced list instead of guessing a physical slot.
  */
 export function parsePortIndex(portName: string | null | undefined): number | null {
-  const groups = String(portName ?? "").match(/\d+/g);
+  const physicalName = String(portName ?? "").replace(/\.\d+$/, "");
+  if (LOGICAL_INTERFACE_NAME.test(physicalName)) return null;
+  const groups = physicalName.match(/\d+/g);
   if (!groups || groups.length === 0) return null;
   const value = Number.parseInt(groups[groups.length - 1], 10);
   if (!Number.isFinite(value) || value < 1) return null;

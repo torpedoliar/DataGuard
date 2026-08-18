@@ -46,6 +46,20 @@ describe("parsePortIndex", () => {
     expect(parsePortIndex("")).toBeNull();
     expect(parsePortIndex(null)).toBeNull();
   });
+
+  it("strips subinterface suffixes before deriving the port number", () => {
+    expect(parsePortIndex("Gi1/0/2.10")).toBe(2);
+    expect(parsePortIndex("Gi1/0/13.100")).toBe(13);
+    expect(parsePortIndex("Te1/1/4.500")).toBe(4);
+  });
+
+  it("treats SVIs and link bundles as logical interfaces with no physical slot", () => {
+    expect(parsePortIndex("Vlan10")).toBeNull();
+    expect(parsePortIndex("Port-Channel1")).toBeNull();
+    expect(parsePortIndex("PortChannel3")).toBeNull();
+    expect(parsePortIndex("Vlan10.100")).toBeNull();
+    expect(parsePortIndex("Port-Channel1.100")).toBeNull();
+  });
 });
 
 describe("comparePortNames", () => {
@@ -197,6 +211,18 @@ describe("buildFaceplate port placement", () => {
     const faceplate = buildFaceplate({ portCount: 8 }, [port(1, "mgmt")]);
 
     expect(faceplate.unplaced.map((item) => item.id)).toEqual([1]);
+  });
+
+  it("places a subinterface on its physical slot and surfaces logical interfaces as unplaced", () => {
+    const faceplate = buildFaceplate({ portCount: 8 }, [
+      port(1, "Gi1/0/2.10"),
+      port(2, "Vlan10"),
+      port(3, "Port-Channel1"),
+    ]);
+
+    expect(slotAt(faceplate.slots, 2).port?.id).toBe(1);
+    expect(faceplate.slots.filter((slot) => slot.port !== null)).toHaveLength(1);
+    expect(faceplate.unplaced.map((item) => item.id).sort()).toEqual([2, 3]);
   });
 
   it("lets an explicit slot evict a port that only guessed that slot from its name", () => {
