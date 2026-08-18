@@ -293,24 +293,30 @@ export async function getAssignableIncidentUsers() {
   return [...byId.values()].sort((a, b) => a.username.localeCompare(b.username));
 }
 
-export async function createIncidentsForChecklistItems(input: {
-  siteId: number;
-  userId: number;
-  items: Array<{
-    checklistItemId: number;
-    deviceId: number;
-    status: ChecklistStatus;
-    remarks: string;
-    photoPath?: string | null;
-  }>;
-}) {
+export async function createIncidentsForChecklistItems(
+  input: {
+    siteId: number;
+    userId: number;
+    items: Array<{
+      checklistItemId: number;
+      deviceId: number;
+      status: ChecklistStatus;
+      remarks: string;
+      photoPath?: string | null;
+    }>;
+  },
+  // Finding #08: submitChecklist creates incidents inside the SAME db.transaction
+  // as the entry + items; a mid-loop failure then rolls back the incidents too
+  // instead of leaving a partial submit. Defaults to db for other callers.
+  executor: Pick<typeof db, "insert" | "query"> = db,
+) {
   const incidentItems = input.items
     .map((item) => ({ ...item, severity: getDefaultIncidentSeverity(item.status) }))
     .filter((item): item is typeof item & { severity: IncidentSeverity } => item.severity !== null);
 
   if (incidentItems.length === 0) return [];
 
-  const deviceRows = await db.query.devices.findMany({
+  const deviceRows = await executor.query.devices.findMany({
     where: and(
       eq(devices.siteId, input.siteId),
       inArray(devices.id, incidentItems.map((item) => item.deviceId)),
@@ -323,7 +329,7 @@ export async function createIncidentsForChecklistItems(input: {
     const device = deviceById.get(item.deviceId);
     if (!device) continue;
 
-    const [incident] = await db.insert(incidents).values({
+    const [incident] = await executor.insert(incidents).values({
       siteId: input.siteId,
       deviceId: item.deviceId,
       checklistItemId: item.checklistItemId,
@@ -337,7 +343,7 @@ export async function createIncidentsForChecklistItems(input: {
 
     if (!incident) continue;
 
-    await db.insert(incidentUpdates).values({
+    await executor.insert(incidentUpdates).values({
       incidentId: incident.id,
       authorId: input.userId,
       updateType: item.photoPath ? "evidence" : "created",
@@ -349,6 +355,9 @@ export async function createIncidentsForChecklistItems(input: {
     created.push(incident);
   }
 
+  // Inside a caller transaction this fires before commit; a rollback after it
+  // can leave a stale alert. Acceptable: sends are the final step of
+  // submitChecklist, and the alert must not block the DB commit itself.
   await notifyCriticalIncidents(input.siteId, created.filter((incident) => incident.severity === "Critical"));
   return created;
 }

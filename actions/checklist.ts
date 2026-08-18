@@ -17,9 +17,8 @@ import { eq, and, desc, sql, inArray } from "drizzle-orm";
 const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const;
 type ChecklistSeverity = keyof typeof SEVERITY_RANK;
 
-async function validateChecklistPhotos(formData: FormData, deviceIds: FormDataEntryValue[]) {
-    for (const idStr of deviceIds) {
-        const deviceId = parseInt(idStr as string);
+async function validateChecklistPhotos(formData: FormData, deviceIds: number[]) {
+    for (const deviceId of deviceIds) {
         const photoFile = formData.get(`photo-${deviceId}`) as File;
         if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
             await validateUpload(photoFile, { kind: "photo", directory: "root" });
@@ -67,19 +66,21 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
             return { message: "Date, Time, and Shift are required" };
         }
 
-        const deviceIds = formData.getAll("deviceId");
+        // Deduplicate: the same device can appear twice in the form (visible
+        // card + hidden all-devices block). One item row per (entry, device)
+        // is enforced by the unique index; the alert/incident sub-flow must
+        // not run twice for a device either.
+        const deviceIds = [...new Set(
+            formData.getAll("deviceId")
+                .map((id) => Number(id))
+                .filter((id) => Number.isInteger(id)),
+        )];
         await validateChecklistPhotos(formData, deviceIds);
 
-        // 2. Create Checklist Entry
-        const [entry] = await db.insert(checklistEntries).values({
-            siteId: auth.activeSiteId,
-            userId: session.userId,
-            checkDate,
-            checkTime,
-            shift,
-        }).returning();
-
-        // 3. Process each device item
+        // 2. Create entry + per-device items + incidents atomically (finding #08):
+        //    a mid-loop failure rolls back the whole submit, and a retry is
+        //    idempotent (unique (entry_id, device_id) index + onConflictDoNothing
+        //    on items; incidents dedupe on the unique checklist_item_id).
         const alertItems: { checklistItemId: number; deviceId: number; status: "NOT OK"; remarks: string }[] = [];
         const incidentItems: {
             checklistItemId: number;
@@ -88,55 +89,73 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
             remarks: string;
             photoPath: string | null;
         }[] = [];
+        let entryId = 0;
+        let createdIncidents: Awaited<ReturnType<typeof createIncidentsForChecklistItems>> = [];
 
-        for (const idStr of deviceIds) {
-            const deviceId = parseInt(idStr as string);
-            const status = formData.get(`status-${deviceId}`) as "OK" | "NOT OK";
-            const remarks = formData.get(`remarks-${deviceId}`) as string;
-            const photoFile = formData.get(`photo-${deviceId}`) as File;
-
-            let photoPath = null;
-
-            // 4. Handle File Upload if exists
-            if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
-                photoPath = await saveUploadFile(
-                    photoFile,
-                    `${entry.id}-${deviceId}`,
-                    { kind: "photo", directory: "root" },
-                );
-            }
-
-            const normalizedStatus = (status || "OK") as "OK" | "NOT OK";
-            const [item] = await db.insert(checklistItems).values({
-                entryId: entry.id,
-                deviceId,
-                status: normalizedStatus,
-                remarks: remarks || "",
-                photoPath,
+        await db.transaction(async (tx) => {
+            const [entry] = await tx.insert(checklistEntries).values({
+                siteId: auth.activeSiteId,
+                userId: session.userId,
+                checkDate,
+                checkTime,
+                shift,
             }).returning();
+            entryId = entry.id;
 
-            if (normalizedStatus === "NOT OK") {
-                alertItems.push({ checklistItemId: item.id, deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided" });
-                incidentItems.push({
-                    checklistItemId: item.id,
+            for (const deviceId of deviceIds) {
+                const status = formData.get(`status-${deviceId}`) as "OK" | "NOT OK";
+                const remarks = formData.get(`remarks-${deviceId}`) as string;
+                const photoFile = formData.get(`photo-${deviceId}`) as File;
+
+                let photoPath = null;
+
+                // 4. Handle File Upload if exists (disk writes inside the tx;
+                //    a rollback can leave an orphan file but never a partial submit)
+                if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
+                    photoPath = await saveUploadFile(
+                        photoFile,
+                        `${entry.id}-${deviceId}`,
+                        { kind: "photo", directory: "root" },
+                    );
+                }
+
+                const normalizedStatus = (status || "OK") as "OK" | "NOT OK";
+                const [item] = await tx.insert(checklistItems).values({
+                    entryId: entry.id,
                     deviceId,
                     status: normalizedStatus,
-                    remarks: remarks || "No remarks provided",
+                    remarks: remarks || "",
                     photoPath,
-                });
-            }
-        }
+                }).onConflictDoNothing({ target: [checklistItems.entryId, checklistItems.deviceId] }).returning();
 
-        const createdIncidents = await createIncidentsForChecklistItems({
-            siteId: auth.activeSiteId,
-            userId: session.userId,
-            items: incidentItems,
+                // Conflict = a concurrent duplicate insert of the same
+                // entry+device already created the row: the first insert wins
+                // and the alert/incident sub-flow must not run again for it.
+                if (!item) continue;
+
+                if (normalizedStatus === "NOT OK") {
+                    alertItems.push({ checklistItemId: item.id, deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided" });
+                    incidentItems.push({
+                        checklistItemId: item.id,
+                        deviceId,
+                        status: normalizedStatus,
+                        remarks: remarks || "No remarks provided",
+                        photoPath,
+                    });
+                }
+            }
+
+            createdIncidents = await createIncidentsForChecklistItems({
+                siteId: auth.activeSiteId,
+                userId: session.userId,
+                items: incidentItems,
+            }, tx);
         });
 
         await logAudit({
             action: "CREATE",
             entity: "checklist",
-            entityId: entry.id,
+            entityId: entryId,
             entityName: `${checkDate} ${shift}`,
             detail: `Checklist submitted with ${deviceIds.length} items, ${alertItems.length} alerts`,
         });

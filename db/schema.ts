@@ -216,7 +216,12 @@ export const checklistItems = pgTable("checklist_items", {
   status: statusEnum("status").notNull(),
   remarks: text("remarks"),
   photoPath: text("photo_path"),
-});
+}, (table) => ({
+  // Finding #08: one item per (entry, device). submitChecklist inserts items
+  // inside one transaction with onConflictDoNothing so a retried/concurrent
+  // submit of the same entry+device is a no-op instead of a duplicate item.
+  entryDeviceUnique: uniqueIndex("checklist_items_entry_device_unique").on(table.entryId, table.deviceId),
+}));
 
 // ==================== INCIDENTS ====================
 export const incidents = pgTable("incidents", {
