@@ -86,7 +86,7 @@ vi.mock("../db", () => {
         mocks.insertValues.push(value);
         mocks.order.push("insert");
         const resultChain: Record<string, (...args: unknown[]) => unknown> = {
-          onConflictDoNothing: (_target: unknown) => {
+          onConflictDoNothing: () => {
             mocks.order.push("insert-conflict");
             return resultChain;
           },
