@@ -91,7 +91,7 @@ echo "Using: ${COMPOSE_CMD[*]}"
 # ---- Service definitions ----
 APP_SERVICE="app"
 DB_SERVICE="db"
-SIEM_WORKER_SERVICES=(syslog-receiver siem-parser siem-rules siem-alerts siem-ai siem-retention siem-snapshot incidents-overdue-notify backup-scheduler)
+SIEM_WORKER_SERVICES=(syslog-receiver siem-parser siem-rules siem-alerts siem-ai siem-retention siem-snapshot incidents-overdue-notify backup-scheduler network-doc-sync)
 DB_CONTAINER="dccheck_postgres"
 APP_CONTAINER="dccheck_app"
 

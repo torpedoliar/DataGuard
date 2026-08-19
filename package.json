@@ -18,6 +18,8 @@
     "reset:devices": "tsx scripts/reset-devices.ts",
     "incidents:notify-overdue": "tsx scripts/notify-overdue-incidents.ts",
     "incidents:notify-overdue:loop": "tsx scripts/notify-overdue-loop.ts",
+    "network-doc:sync": "tsx scripts/network-doc-worker.ts --sync-once",
+    "network-doc:sync:loop": "tsx scripts/network-doc-worker.ts",
     "syslog:receiver": "tsx scripts/syslog-receiver.ts",
     "siem:parser": "tsx scripts/siem-parser-worker.ts",
     "siem:rules": "tsx scripts/siem-rule-worker.ts",

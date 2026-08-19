@@ -38,6 +38,7 @@ const adminItems: NavItem[] = [
   { href: "/admin/rack-manage", label: "Racks", labelKey: "racks", ns: "AdminMenu", icon: "boxes" },
   { href: "/admin/rack", label: "Rack Layout", labelKey: "rackLayout", ns: "AdminMenu", icon: "panel-top" },
   { href: "/admin/network/vlans", label: "Network", labelKey: "network", ns: "AdminMenu", icon: "network" },
+  { href: "/admin/network-docs", label: "Network Docs", ns: "AdminMenu", icon: "cable" },
   { href: "/admin/brands", label: "Brands", labelKey: "brands", ns: "AdminMenu", icon: "tag" },
   { href: "/admin/categories", label: "Categories", labelKey: "categories", ns: "AdminMenu", icon: "folder-tree" },
   { href: "/admin/locations", label: "Locations", labelKey: "locations", ns: "AdminMenu", icon: "map-pin" },

@@ -53,6 +53,14 @@ const envSchema = z.object({
   // absent lib/notification-url.ts falls back to the stored login host.
   APP_URL: z.string().optional(),
 
+  // network-doc sync (lib/network-doc.ts). Optional: when URL or API key are
+  // absent the sync reports "not configured" and skips — it must never crash
+  // the scheduled worker (restart: always).
+  NETWORK_DOC_URL: z.string().optional(),
+  NETWORK_DOC_API_KEY: z.string().optional(),
+  NETWORK_DOC_SITE_ID: z.string().optional(),
+  NETWORK_DOC_SYNC_INTERVAL_MS: z.string().optional(),
+
   // Explicit cookie security override (lib/session.ts). Optional — secure
   // cookies are also forced when APP_URL is https or the request arrived
   // behind a TLS proxy (X-Forwarded-Proto: https).
