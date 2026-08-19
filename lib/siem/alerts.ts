@@ -15,7 +15,7 @@ function isAtLeastSeverity(value: SiemSeverity, minimum: SiemSeverity) {
   return severityRank[value] >= severityRank[minimum];
 }
 
-function alertMessage(input: { findingId: number; title: string; severity: SiemSeverity; siteName: string | null; deviceName: string | null; sourceIp: string | null; summary: string; recommendedAction: string | null; lastSeenAt: Date; baseUrl: string }) {
+function alertMessage(input: { findingId: number; title: string; severity: SiemSeverity; siteName: string | null; siteId: number; deviceName: string | null; sourceIp: string | null; summary: string; recommendedAction: string | null; lastSeenAt: Date; baseUrl: string }) {
   // Entity-supplied values are HTML-escaped (same discipline as
   // renderTelegramTemplate); the generated link and server-controlled fields
   // (severity enum, finding id, formatted date) stay raw so the deep link
@@ -34,8 +34,9 @@ function alertMessage(input: { findingId: number; title: string; severity: SiemS
     `Finding: #${input.findingId} ${esc(input.title, "-")}`,
     // Deep link into the finding row (the findings page scrolls to and
     // highlights `highlight=<id>`); the severity filter keeps the list
-    // short enough that the row is present.
-    `Open: <a href="${escapeTelegramHtml(input.baseUrl + "/admin/siem/findings?severity=" + input.severity + "&highlight=" + input.findingId)}">Open in SIEM</a>`,
+    // short and `site=` lets the page open the finding's own site even
+    // when the operator's active site differs.
+    `Open: <a href="${escapeTelegramHtml(input.baseUrl + "/admin/siem/findings?severity=" + input.severity + "&site=" + input.siteId + "&highlight=" + input.findingId)}">Open in SIEM</a>`,
     `Summary: ${esc(input.summary, "-")}`,
     `Action: ${esc(input.recommendedAction, "Review finding in SIEM dashboard.")}`,
   ].join("\n"));
@@ -137,6 +138,7 @@ export async function queueSiemAlerts() {
         title: finding.title,
         severity,
         siteName: finding.site?.name ?? "Unknown",
+        siteId: finding.site?.id ?? 0,
         deviceName: finding.device?.name ?? null,
         sourceIp: finding.source?.sourceIp ?? null,
         summary: finding.humanAnalysis ?? finding.summary,

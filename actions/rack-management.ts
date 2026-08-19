@@ -22,7 +22,10 @@ const rackSchema = z.object({
     name: z.string().min(1, "Rack name is required"),
     zone: z.string().optional(),
     totalU: z.coerce.number().min(1).max(60).default(42),
-    locationId: z.coerce.number().optional(),
+    // The edit form's "-- No Location --" option submits "" → coerce → 0;
+    // normalize to null so clearing the location is a valid update instead
+    // of an FK violation on locations.id=0.
+    locationId: z.coerce.number().optional().transform((v) => (v === 0 ? null : v)),
     isAuditable: formBoolean.optional(),
 });
 

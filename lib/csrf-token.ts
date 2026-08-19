@@ -1,5 +1,6 @@
-import "server-only";
-
+// No "server-only" marker: imported transitively by lib/session.ts, which the
+// tsx workers reach via lib/audit — a hard-throwing marker crash-loops them.
+// The cookie it reads is set server-side; client bundles can't use it anyway.
 /**
  * Generate a random CSRF token. Stored in a non-httpOnly cookie so the
  * client-side JavaScript can read it and include it in a hidden form

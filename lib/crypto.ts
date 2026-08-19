@@ -11,9 +11,12 @@
  * be supplied as 32 raw bytes, 32+ ASCII characters, or hex/base64 encoded.
  * See {@link deriveKey} for the accepted formats.
  *
- * Server-only. Do not import from client components.
+ * No `import "server-only"` guard on purpose: tsx workers (siem-ai via
+ * lib/siem/ai-queue.ts, network-doc sync) decrypt keys from the DB at import
+ * time and a hard-throwing marker crash-loops them in Docker. Client bundles
+ * still can't import this — `node:crypto` is unresolvable client-side and
+ * decryption requires the server-only AI_KEY_ENCRYPTION_SECRET.
  */
-import "server-only";
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";

@@ -1,5 +1,8 @@
 
-import "server-only";
+// No `import "server-only"` guard: the incidents-overdue + network-doc tsx
+// workers import this transitively (lib/audit), and a hard-throwing marker
+// would crash-loop them in Docker. Client components still can't use it —
+// next/headers (cookies) is server-only and fails to build client-side.
 import { cookies, headers } from "next/headers";
 import { generateCsrfToken } from "./csrf-token";
 import { validateSessionPayload } from "./session-auth";

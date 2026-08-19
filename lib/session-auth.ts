@@ -1,5 +1,6 @@
-import "server-only";
-
+// No "server-only" marker: imported transitively by lib/session.ts, which the
+// tsx workers reach via lib/audit — a hard-throwing marker crash-loops them.
+// Session validation is server-side by nature (db + fingerprint check).
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";

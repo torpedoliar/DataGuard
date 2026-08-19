@@ -23,32 +23,43 @@ export type NetworkDocSettingsData = {
 };
 
 export async function getNetworkDocSettings(): Promise<NetworkDocSettingsData | { message: string }> {
+    // During NEXT BUILD the DB may be down or absent; hide the card instead
+    // of crashing the settings page (same guard as getSettings).
+    if (process.env.npm_lifecycle_event === "build") {
+        return { message: "Build" };
+    }
+
     const session = await verifySession();
     if (!session || session.role !== "superadmin") {
         return { message: "Unauthorized. Only superadmin can manage Network Docs settings." };
     }
 
-    const [row, siteList] = await Promise.all([
-        db.select({
-            networkDocUrl: globalSettings.networkDocUrl,
-            networkDocApiKey: globalSettings.networkDocApiKey,
-            networkDocSiteId: globalSettings.networkDocSiteId,
-            networkDocIntervalMs: globalSettings.networkDocIntervalMs,
-        }).from(globalSettings).limit(1),
-        db.select({ id: sites.id, name: sites.name }).from(sites).orderBy(asc(sites.name)),
-    ]);
+    try {
+        const [row, siteList] = await Promise.all([
+            db.select({
+                networkDocUrl: globalSettings.networkDocUrl,
+                networkDocApiKey: globalSettings.networkDocApiKey,
+                networkDocSiteId: globalSettings.networkDocSiteId,
+                networkDocIntervalMs: globalSettings.networkDocIntervalMs,
+            }).from(globalSettings).limit(1),
+            db.select({ id: sites.id, name: sites.name }).from(sites).orderBy(asc(sites.name)),
+        ]);
 
-    const env = getEnv();
-    return {
-        networkDocUrl: row[0]?.networkDocUrl ?? "",
-        networkDocSiteId: row[0]?.networkDocSiteId ?? null,
-        networkDocIntervalMs: row[0]?.networkDocIntervalMs ?? null,
-        networkDocApiKeyConfigured: Boolean(row[0]?.networkDocApiKey),
-        envOverridesUrl: Boolean(env.NETWORK_DOC_URL?.trim()),
-        envOverridesKey: Boolean(env.NETWORK_DOC_API_KEY?.trim()),
-        envOverridesSiteId: Boolean(env.NETWORK_DOC_SITE_ID?.trim()),
-        sites: siteList,
-    };
+        const env = getEnv();
+        return {
+            networkDocUrl: row[0]?.networkDocUrl ?? "",
+            networkDocSiteId: row[0]?.networkDocSiteId ?? null,
+            networkDocIntervalMs: row[0]?.networkDocIntervalMs ?? null,
+            networkDocApiKeyConfigured: Boolean(row[0]?.networkDocApiKey),
+            envOverridesUrl: Boolean(env.NETWORK_DOC_URL?.trim()),
+            envOverridesKey: Boolean(env.NETWORK_DOC_API_KEY?.trim()),
+            envOverridesSiteId: Boolean(env.NETWORK_DOC_SITE_ID?.trim()),
+            sites: siteList,
+        };
+    } catch (error) {
+        console.warn("Soft fail: Could not fetch Network Docs settings. Using defaults.");
+        return { message: "Could not load Network Docs settings." };
+    }
 }
 
 const settingsSchema = z.object({

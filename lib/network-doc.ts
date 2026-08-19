@@ -162,41 +162,67 @@ function matchDevice(docSwitch: NetworkDocSwitch, siteDevices: SiteDevice[]): Si
     return null;
 }
 
-function mapPortFields(port: NetworkDocPort, vlanByNumber: Map<number, number>, warnings: string[]): {
-    portMode: "Access" | "Trunk" | null;
-    vlanId: number | null;
-    trunkVlans: string | null;
-    status: "Active" | "Inactive";
-    description: string | null;
-} {
-    let portMode: "Access" | "Trunk" | null = null;
+type MappedPortFields = {
+    // undefined = the doc did not provide the field → leave the stored value
+    // untouched; null = explicitly clear; value = set.
+    portMode: "Access" | "Trunk" | null | undefined;
+    vlanId: number | null | undefined;
+    trunkVlans: string | null | undefined;
+    status: "Active" | "Inactive" | undefined;
+    description: string | null | undefined;
+};
+
+function mapPortFields(port: NetworkDocPort, vlanByNumber: Map<number, number>, warnings: string[]): MappedPortFields {
+    let portMode: "Access" | "Trunk" | null | undefined;
     if (port.mode === "access") portMode = "Access";
     else if (port.mode === "trunk") portMode = "Trunk";
-    else if (port.mode) warnings.push(`port ${port.name}: unknown mode "${port.mode}" → left unset`);
+    else if (port.mode) {
+        portMode = null;
+        warnings.push(`port ${port.name}: unknown mode "${port.mode}" → cleared`);
+    } else {
+        portMode = undefined;
+    }
 
     // Access ports: PVID is access_vlan (native_vlan is usually null); trunk
-    // ports: PVID is native_vlan.
-    const vlanNumber = port.access_vlan ?? port.native_vlan;
-    let vlanId: number | null = null;
+    // ports: PVID is native_vlan. Unknown modes fall back to either field so
+    // a PVID the doc does provide is still mapped. Absent vlan fields leave
+    // the stored PVID untouched.
+    let vlanNumber: number | null | undefined;
+    if (port.mode === "trunk") vlanNumber = port.native_vlan;
+    else vlanNumber = port.access_vlan ?? port.native_vlan;
+
+    let vlanId: number | null | undefined;
     if (vlanNumber != null) {
         vlanId = vlanByNumber.get(vlanNumber) ?? null;
         if (vlanId === null) {
-            warnings.push(`port ${port.name}: vlan ${vlanNumber} not present on this site → vlanId unset`);
+            warnings.push(`port ${port.name}: vlan ${vlanNumber} not present on this site → vlanId cleared`);
         }
+    } else {
+        vlanId = undefined;
     }
 
-    // Allowed VLAN list is natively a list; dc-check stores it as CSV text.
-    const trunkVlans = port.trunk_allowed_vlans && port.trunk_allowed_vlans.length > 0
-        ? port.trunk_allowed_vlans.join(", ")
-        : null;
+    let trunkVlans: string | null | undefined;
+    if (port.trunk_allowed_vlans && port.trunk_allowed_vlans.length > 0) {
+        trunkVlans = port.trunk_allowed_vlans.join(", ");
+    } else if (Array.isArray(port.trunk_allowed_vlans)) {
+        trunkVlans = null; // explicit empty list → clear
+    } else {
+        trunkVlans = undefined;
+    }
 
-    return {
-        portMode,
-        vlanId,
-        trunkVlans,
-        status: port.enabled === false ? "Inactive" : "Active",
-        description: port.description?.trim() || null,
-    };
+    let status: "Active" | "Inactive" | undefined;
+    if (port.enabled === true) status = "Active";
+    else if (port.enabled === false) status = "Inactive";
+    else status = undefined;
+
+    let description: string | null | undefined;
+    if (port.description === undefined || port.description === null) {
+        description = undefined;
+    } else {
+        description = port.description.trim() || null;
+    }
+
+    return { portMode, vlanId, trunkVlans, status, description };
 }
 
 export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSummary> {
@@ -294,7 +320,16 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
         summary.switchesMatched++;
 
         const existingPorts = portsByDevice.get(device.id) ?? [];
+        const seenPortNames = new Set<string>();
         for (const docPort of docSwitch.ports) {
+            // Duplicate port names in one doc: only the first occurrence is
+            // processed (creating the rest would fabricate duplicate rows).
+            if (seenPortNames.has(docPort.name)) {
+                summary.warnings.push(`device ${device.name}: duplicate port "${docPort.name}" in doc — skipped`);
+                continue;
+            }
+            seenPortNames.add(docPort.name);
+
             const existing = existingPorts.find((p) => p.portName === docPort.name);
             if (existing && existingPorts.filter((p) => p.portName === docPort.name).length > 1) {
                 summary.warnings.push(
@@ -308,24 +343,25 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
                 await db.insert(networkPorts).values({
                     deviceId: device.id,
                     portName: docPort.name,
-                    portMode: mapped.portMode,
-                    vlanId: mapped.vlanId,
-                    trunkVlans: mapped.trunkVlans,
-                    status: mapped.status,
-                    description: mapped.description,
+                    portMode: mapped.portMode ?? null,
+                    vlanId: mapped.vlanId ?? null,
+                    trunkVlans: mapped.trunkVlans ?? null,
+                    status: mapped.status ?? "Active",
+                    description: mapped.description ?? null,
                 });
                 summary.portsCreated++;
                 continue;
             }
 
             // Update only the API-provided fields; cabling/faceplate/MAC/speed/
-            // connectedTo*/portIndex stay untouched. Skip when nothing changed.
+            // connectedTo*/portIndex stay untouched. Fields the doc omits
+            // (undefined) leave the stored value alone. Skip when nothing changed.
             const update: Partial<typeof networkPorts.$inferInsert> = {};
-            if (existing.portMode !== mapped.portMode) update.portMode = mapped.portMode ?? null;
-            if (existing.vlanId !== mapped.vlanId) update.vlanId = mapped.vlanId;
-            if (existing.trunkVlans !== mapped.trunkVlans) update.trunkVlans = mapped.trunkVlans;
-            if (existing.status !== mapped.status) update.status = mapped.status;
-            if ((existing.description ?? null) !== mapped.description) update.description = mapped.description;
+            if (mapped.portMode !== undefined && existing.portMode !== mapped.portMode) update.portMode = mapped.portMode ?? null;
+            if (mapped.vlanId !== undefined && existing.vlanId !== mapped.vlanId) update.vlanId = mapped.vlanId;
+            if (mapped.trunkVlans !== undefined && existing.trunkVlans !== mapped.trunkVlans) update.trunkVlans = mapped.trunkVlans;
+            if (mapped.status !== undefined && existing.status !== mapped.status) update.status = mapped.status;
+            if (mapped.description !== undefined && (existing.description ?? null) !== mapped.description) update.description = mapped.description;
             if (Object.keys(update).length > 0) {
                 await db.update(networkPorts).set(update).where(eq(networkPorts.id, existing.id));
                 summary.portsUpdated++;

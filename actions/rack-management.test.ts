@@ -149,6 +149,16 @@ describe("updateRack partial updates (finding #64)", () => {
     }));
   });
 
+  it("clears the location to null when the form submits the empty option", async () => {
+    // "-- No Location --" submits "" → coerce → 0; must become null, not an
+    // FK violation on locations.id=0.
+    await updateRack(null, rackFormData({ locationId: "" }));
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({
+      locationId: null,
+    }));
+  });
+
   it("keeps the stored zone when the form omits the field", async () => {
     mocks.findRack.mockResolvedValue({ id: 5, name: "Rack A", zone: "DC-1", totalU: 42, isAuditable: true });
 

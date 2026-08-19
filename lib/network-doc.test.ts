@@ -298,6 +298,44 @@ describe("syncNetworkDocs", () => {
     expect(mocks.updateSets).toHaveLength(0);
   });
 
+  it("leaves stored fields untouched when the doc omits them (no enabled/mode/vlans)", async () => {
+    stubEnv({});
+    // Only a description is provided — status "Down", portMode, vlanId and
+    // trunkVlans must all survive.
+    stubFetch([{ ...SWITCH_A, ports: [{ name: "port1.0.1", description: "uplink" }] }]);
+    mocks.selectResults.push(
+      [],
+      [DEVICE_IP],
+      [{ id: 100, vlanId: 88, name: "IPH-DEVICE" }, { id: 101, vlanId: 11, name: "MGMT" }],
+      [
+        {
+          id: 500, deviceId: 10, portName: "port1.0.1", portMode: "Trunk", vlanId: 101,
+          trunkVlans: "88, 11", status: "Down", description: "old",
+        },
+      ],
+    );
+
+    const summary = await syncNetworkDocs(7);
+
+    expect(mocks.updateSets).toHaveLength(1);
+    expect(mocks.updateSets[0]).toEqual({ description: "uplink" });
+    expect(summary.portsUpdated).toBe(1);
+  });
+
+  it("skips duplicate port names within one doc instead of fabricating duplicate rows", async () => {
+    stubEnv({});
+    const port = { name: "port1.0.1", description: "a", enabled: true, mode: "access", native_vlan: null, access_vlan: 88, trunk_allowed_vlans: [] };
+    stubFetch([{ ...SWITCH_A, ports: [port, { ...port, description: "b" }] }]);
+    mocks.selectResults.push([], [DEVICE_IP], [], []);
+    mocks.insertReturning.push([{ id: 100 }], [{ id: 101 }]);
+
+    const summary = await syncNetworkDocs(7);
+
+    expect(summary.portsCreated).toBe(1);
+    expect(mocks.insertValues.slice(2)).toHaveLength(1);
+    expect(summary.warnings.some((w) => w.includes("duplicate port"))).toBe(true);
+  });
+
   it("uses DB settings (decrypted API key) when env vars are absent", async () => {
     stubEnv({ NETWORK_DOC_URL: "", NETWORK_DOC_API_KEY: "", NETWORK_DOC_SITE_ID: "" });
     vi.stubEnv("AI_KEY_ENCRYPTION_SECRET", "test-network-doc-secret-32charsxxxx");

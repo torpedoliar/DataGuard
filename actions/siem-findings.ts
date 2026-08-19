@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { devices, incidentUpdates, incidents, siemFindings, siemRules, sites, syslogSources } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
+import { requireSiteAccess } from "@/lib/site-access";
 import { logAudit } from "@/lib/audit";
 import { calculateIncidentDueDate } from "@/lib/incidents";
 import { and, desc, eq } from "drizzle-orm";
@@ -19,11 +20,19 @@ export type SiemFindingListFilters = {
   severity?: "Low" | "Medium" | "High" | "Critical";
 };
 
-export async function getSiemFindings(filters: SiemFindingListFilters = {}) {
+export async function getSiemFindings(filters: SiemFindingListFilters = {}, siteIdOverride?: number) {
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { findings: [], message: auth.message };
 
-  const conditions = [eq(siemFindings.siteId, auth.activeSiteId)];
+  // Telegram alert deep links carry ?site=<id> for findings of other sites
+  // (the alert worker spans all sites, the page is scoped to the active
+  // one). Only honor the override when the session can access that site.
+  const scopeSiteId =
+    siteIdOverride !== undefined && (await requireSiteAccess(siteIdOverride))
+      ? siteIdOverride
+      : auth.activeSiteId;
+
+  const conditions = [eq(siemFindings.siteId, scopeSiteId)];
   if (filters.status) conditions.push(eq(siemFindings.status, filters.status));
   if (filters.severity) conditions.push(eq(siemFindings.severity, filters.severity));
 
