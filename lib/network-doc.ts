@@ -47,10 +47,19 @@ export const NETWORK_DOC_TIMEOUT_MS = 10_000;
 
 export async function fetchNetworkDoc(baseUrl: string, apiKey: string): Promise<NetworkDocSwitch[]> {
     const url = `${baseUrl.replace(/\/+$/, "")}/api/v1/network-doc`;
-    const response = await fetch(url, {
-        headers: { "X-API-Key": apiKey, "Accept": "application/json" },
-        signal: AbortSignal.timeout(NETWORK_DOC_TIMEOUT_MS),
-    });
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            headers: { "X-API-Key": apiKey, "Accept": "application/json" },
+            signal: AbortSignal.timeout(NETWORK_DOC_TIMEOUT_MS),
+        });
+    } catch (error) {
+        // Node's fetch throws a bare "fetch failed" — include the URL so the
+        // operator can see which host was unreachable (localhost in Docker is
+        // the container itself, not the host).
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`Gagal terhubung ke ${url}: ${reason}`);
+    }
     if (!response.ok) {
         const body = await response.text().catch(() => "");
         throw new Error(`network-doc API responded ${response.status}: ${body.trim().slice(0, 200)}`);

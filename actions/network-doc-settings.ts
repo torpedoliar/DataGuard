@@ -9,7 +9,7 @@ import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
 import { encryptString } from "../lib/crypto";
 import { getEnv } from "../lib/env";
-import { resolveNetworkDocConfig } from "../lib/network-doc";
+import { fetchNetworkDoc, resolveNetworkDocConfig } from "../lib/network-doc";
 
 export type NetworkDocSettingsData = {
     networkDocUrl: string;
@@ -20,6 +20,7 @@ export type NetworkDocSettingsData = {
     envOverridesKey: boolean;
     envOverridesSiteId: boolean;
     envOverridesInterval: boolean;
+    effectiveUrl: string | null;
     sites: { id: number; name: string }[];
 };
 
@@ -47,6 +48,7 @@ export async function getNetworkDocSettings(): Promise<NetworkDocSettingsData | 
         ]);
 
         const env = getEnv();
+        const effective = await resolveNetworkDocConfig();
         return {
             networkDocUrl: row[0]?.networkDocUrl ?? "",
             networkDocSiteId: row[0]?.networkDocSiteId ?? null,
@@ -56,6 +58,10 @@ export async function getNetworkDocSettings(): Promise<NetworkDocSettingsData | 
             envOverridesKey: Boolean(env.NETWORK_DOC_API_KEY?.trim()),
             envOverridesSiteId: Boolean(env.NETWORK_DOC_SITE_ID?.trim()),
             envOverridesInterval: Boolean(env.NETWORK_DOC_SYNC_INTERVAL_MS?.trim()),
+            // The URL the sync/worker actually uses (env wins per field).
+            // Shown in the UI so an env override cannot silently override
+            // what the operator typed here.
+            effectiveUrl: effective.url,
             sites: siteList,
         };
     } catch (error) {
@@ -133,5 +139,32 @@ export async function saveNetworkDocSettings(prevState: unknown, formData: FormD
     } catch (error) {
         console.error("Save network-doc settings error:", error);
         return { message: "Terjadi kesalahan saat menyimpan pengaturan Network Docs." };
+    }
+}
+
+/**
+ * Test the network-doc connection from the server side using the EFFECTIVE
+ * config (env overrides included) — surfaces the exact URL attempted so a
+ * localhost/container mismatch is obvious.
+ */
+export async function testNetworkDocConnection() {
+    const session = await verifySession();
+    if (!session || session.role !== "superadmin") {
+        return { ok: false, message: "Unauthorized. Only superadmin can test Network Docs settings." };
+    }
+
+    const config = await resolveNetworkDocConfig();
+    if (!config.url || !config.apiKey) {
+        return {
+            ok: false,
+            message: "Belum dikonfigurasi: isi URL + API key (dan Site ID untuk worker), lalu simpan.",
+        };
+    }
+
+    try {
+        const switches = await fetchNetworkDoc(config.url, config.apiKey);
+        return { ok: true, message: `OK — ${switches.length} switch ditemukan di ${config.url}` };
+    } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : String(error) };
     }
 }

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
-import { saveNetworkDocSettings } from "@/actions/network-doc-settings";
+import { saveNetworkDocSettings, testNetworkDocConnection } from "@/actions/network-doc-settings";
 import type { NetworkDocSettingsData } from "@/actions/network-doc-settings";
 import ActionButton from "@/components/ui/action-button";
 
@@ -17,6 +17,7 @@ const INTERVAL_OPTIONS = [
 export default function NetworkDocSettingsForm({ initialData }: { initialData: NetworkDocSettingsData }) {
     const router = useRouter();
     const [state, action, isPending] = useActionState(saveNetworkDocSettings, undefined);
+    const [testState, testAction, isTesting] = useActionState(testNetworkDocConnection, undefined);
 
     useEffect(() => {
         if (state?.success) router.refresh();
@@ -70,8 +71,17 @@ export default function NetworkDocSettingsForm({ initialData }: { initialData: N
             {envOverrides.length > 0 && (
                 <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-200">
                     Environment override aktif untuk: {envOverrides.join(", ")} — nilai dari .env menang di atas pengaturan ini.
+                    {initialData.envOverridesUrl && initialData.effectiveUrl && (
+                        <div className="mt-1 font-mono text-xs">URL yang benar-benar dipakai: {initialData.effectiveUrl}</div>
+                    )}
                 </div>
             )}
+
+            <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3 text-xs text-slate-400">
+                Catatan: jika dc-check berjalan di Docker, <span className="font-mono">localhost</span> dari dalam container
+                menunjuk ke container itu sendiri — pakai IP LAN host (mis. <span className="font-mono">http://192.168.2.3:8443</span>)
+                atau <span className="font-mono">http://host.docker.internal:8443</span>.
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-1.5 text-sm font-medium text-slate-300 md:col-span-2">
@@ -133,7 +143,14 @@ export default function NetworkDocSettingsForm({ initialData }: { initialData: N
                 <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-300">Pengaturan Network Docs disimpan.</div>
             )}
 
+            {testState && (
+                <div className={`rounded-lg border p-3 text-sm ${testState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
+                    {testState.message}
+                </div>
+            )}
+
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <ActionButton type="submit" formAction={testAction} variant="secondary" isPending={isTesting}>Test Connection</ActionButton>
                 <ActionButton type="submit" isPending={isPending}>Save Network Docs Settings</ActionButton>
             </div>
         </form>

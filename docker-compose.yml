@@ -26,6 +26,10 @@ services:
     environment:
       PORT: "3001"
       HOSTNAME: "0.0.0.0"
+    # network-doc sync: let http://host.docker.internal:8443 reach services
+    # on the host (localhost inside a container is the container itself).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - dccheck_uploads:/app/public/uploads
     healthcheck:
@@ -203,6 +207,8 @@ services:
     command: npm run network-doc:sync:loop
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

@@ -135,6 +135,14 @@ describe("fetchNetworkDoc", () => {
     await expect(fetchNetworkDoc(API_URL, API_KEY)).rejects.toThrow("401");
   });
 
+  it("includes the attempted URL when the connection fails (localhost-in-Docker is the container)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+
+    await expect(fetchNetworkDoc(API_URL, API_KEY)).rejects.toThrow(
+      `Gagal terhubung ke ${API_URL}/api/v1/network-doc`,
+    );
+  });
+
   it("tolerates parse_warnings and returns the switches", async () => {
     stubFetch([{ ...SWITCH_A, parse_warnings: ["no successful backup"] }]);
     const result = await fetchNetworkDoc(API_URL, API_KEY);
