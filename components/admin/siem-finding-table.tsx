@@ -152,7 +152,15 @@ function AiAnalysisBlock({ analysis }: { analysis: Record<string, unknown> }) {
   );
 }
 
-export default function SiemFindingTable({ findings }: { findings: SiemFindingRow[] }) {
+export default function SiemFindingTable({ findings, highlightId }: { findings: SiemFindingRow[]; highlightId?: number }) {
+  // Telegram alert deep links land on ?highlight=<id>: scroll the row into
+  // view once the server-rendered table hydrates.
+  useEffect(() => {
+    if (highlightId === undefined) return;
+    const row = document.querySelector(`tr[data-finding-id="${highlightId}"]`);
+    row?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightId]);
+
   return (
     <DataTableFrame>
       <DataTable>
@@ -171,7 +179,11 @@ export default function SiemFindingTable({ findings }: { findings: SiemFindingRo
           {findings.length === 0 ? (
             <DataTableEmpty colSpan={7} title="No SIEM findings" description="Rule worker findings appear here after parsed events match enabled rules." />
           ) : findings.map((finding) => (
-            <tr key={finding.id} className="align-top transition-colors hover:bg-ops-surface">
+            <tr
+              key={finding.id}
+              data-finding-id={finding.id}
+              className={`align-top transition-colors hover:bg-ops-surface ${finding.id === highlightId ? "bg-amber-500/10 ring-2 ring-inset ring-amber-500/60" : ""}`}
+            >
               <td className="px-4 py-3">
                 <div className="font-semibold text-ops-text">#{finding.id} {finding.title}</div>
                 <p className="mt-1 max-w-xl text-sm text-ops-muted">{finding.humanAnalysis || finding.summary}</p>

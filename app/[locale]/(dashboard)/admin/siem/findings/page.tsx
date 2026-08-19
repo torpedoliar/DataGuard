@@ -36,6 +36,10 @@ export default async function SiemFindingsPage({
 
   const params = await searchParams;
   const filters = parseFilters(params);
+  // Telegram alert deep links use ?highlight=<id> to scroll to and highlight
+  // the specific finding row (the SIEM has no per-finding detail page).
+  const highlightParam = firstParam(params.highlight);
+  const highlightId = highlightParam ? Number(highlightParam) || undefined : undefined;
   const data = await getSiemFindings(filters);
 
   return (
@@ -84,7 +88,7 @@ export default async function SiemFindingsPage({
           }
         />
       ) : (
-        <SiemFindingTable findings={data.findings} />
+        <SiemFindingTable findings={data.findings} highlightId={highlightId} />
       )}
     </main>
     <BottomNav />

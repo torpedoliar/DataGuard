@@ -32,7 +32,10 @@ function alertMessage(input: { findingId: number; title: string; severity: SiemS
     `Device: ${esc(input.deviceName, "Unmapped")}`,
     `Source: ${esc(input.sourceIp, "-")}`,
     `Finding: #${input.findingId} ${esc(input.title, "-")}`,
-    `Open: <a href="${escapeTelegramHtml(input.baseUrl + "/admin/siem/findings?severity=" + input.severity)}">Open in SIEM</a>`,
+    // Deep link into the finding row (the findings page scrolls to and
+    // highlights `highlight=<id>`); the severity filter keeps the list
+    // short enough that the row is present.
+    `Open: <a href="${escapeTelegramHtml(input.baseUrl + "/admin/siem/findings?severity=" + input.severity + "&highlight=" + input.findingId)}">Open in SIEM</a>`,
     `Summary: ${esc(input.summary, "-")}`,
     `Action: ${esc(input.recommendedAction, "Review finding in SIEM dashboard.")}`,
   ].join("\n"));

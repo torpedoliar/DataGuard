@@ -308,6 +308,9 @@ describe("queueSiemAlerts", () => {
     const message = (insertedValues[0] as { message: string }).message;
     expect(message).toContain("/admin/siem/findings?severity=Critical");
     expect(message).not.toContain("severity=High");
+    // Deep link carries the finding id so the page scrolls to this row
+    // (& is HTML-escaped to &amp; inside the href attribute).
+    expect(message).toContain("&amp;highlight=1");
   });
 
   it("HTML-escapes entity fields but keeps the SIEM deep link as an anchor (#58)", async () => {
