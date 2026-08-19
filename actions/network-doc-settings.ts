@@ -19,6 +19,7 @@ export type NetworkDocSettingsData = {
     envOverridesUrl: boolean;
     envOverridesKey: boolean;
     envOverridesSiteId: boolean;
+    envOverridesInterval: boolean;
     sites: { id: number; name: string }[];
 };
 
@@ -54,6 +55,7 @@ export async function getNetworkDocSettings(): Promise<NetworkDocSettingsData | 
             envOverridesUrl: Boolean(env.NETWORK_DOC_URL?.trim()),
             envOverridesKey: Boolean(env.NETWORK_DOC_API_KEY?.trim()),
             envOverridesSiteId: Boolean(env.NETWORK_DOC_SITE_ID?.trim()),
+            envOverridesInterval: Boolean(env.NETWORK_DOC_SYNC_INTERVAL_MS?.trim()),
             sites: siteList,
         };
     } catch (error) {
@@ -71,8 +73,16 @@ const settingsSchema = z.object({
             message: "URL harus http(s)://… atau kosong untuk menghapus.",
         }),
     networkDocApiKey: z.string().max(200).optional(),
-    networkDocSiteId: z.string().optional(),
-    networkDocIntervalMs: z.string().optional(),
+    // A fat-fingered interval (e.g. 1000) would turn the restart:always
+    // worker into a tight poll loop hammering the API and DB.
+    networkDocIntervalMs: z.string().optional().refine(
+        (value) => !value || (Number.isInteger(Number(value)) && Number(value) >= 60000),
+        { message: "Interval minimal 60.000 ms (1 menit) atau kosong." },
+    ),
+    networkDocSiteId: z.string().optional().refine(
+        (value) => !value || Number.isInteger(Number(value)),
+        { message: "Site ID harus berupa angka." },
+    ),
 });
 
 export async function saveNetworkDocSettings(prevState: unknown, formData: FormData) {

@@ -26,7 +26,31 @@ export default function NetworkDocSettingsForm({ initialData }: { initialData: N
         initialData.envOverridesUrl ? "URL" : null,
         initialData.envOverridesKey ? "API key" : null,
         initialData.envOverridesSiteId ? "Site ID" : null,
+        initialData.envOverridesInterval ? "Interval" : null,
     ].filter(Boolean);
+
+    // Fallback options so a stored value absent from the fixed lists (e.g. a
+    // site that was deleted, or a custom interval) still renders — otherwise
+    // the select submits "" and an unrelated save silently clears the config.
+    const intervalOptions = INTERVAL_OPTIONS.some(
+        (option) => option.value === String(initialData.networkDocIntervalMs),
+    )
+        ? INTERVAL_OPTIONS
+        : [
+            ...INTERVAL_OPTIONS,
+            {
+                value: String(initialData.networkDocIntervalMs),
+                label: `Custom (${Math.round((initialData.networkDocIntervalMs ?? 0) / 60_000)} menit)`,
+            },
+        ];
+    const siteOptions = initialData.sites.some((site) => site.id === initialData.networkDocSiteId)
+        ? initialData.sites
+        : initialData.networkDocSiteId !== null
+            ? [
+                { id: initialData.networkDocSiteId, name: `Site #${initialData.networkDocSiteId} (tidak ada di daftar)` },
+                ...initialData.sites,
+            ]
+            : initialData.sites;
 
     return (
         <form action={action} className="mt-6 max-w-5xl space-y-4 rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
@@ -77,7 +101,7 @@ export default function NetworkDocSettingsForm({ initialData }: { initialData: N
                         className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
                     >
                         <option value="">— Belum dipilih —</option>
-                        {initialData.sites.map((site) => (
+                        {siteOptions.map((site) => (
                             <option key={site.id} value={site.id}>{site.name}</option>
                         ))}
                     </select>
@@ -90,7 +114,7 @@ export default function NetworkDocSettingsForm({ initialData }: { initialData: N
                         defaultValue={initialData.networkDocIntervalMs?.toString() ?? ""}
                         className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
                     >
-                        {INTERVAL_OPTIONS.map((option) => (
+                        {intervalOptions.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                     </select>

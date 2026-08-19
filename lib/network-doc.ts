@@ -304,11 +304,10 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
         summary.vlansUpdated++;
     };
 
+    const seenPorts = new Set<string>(); // deviceId:portName — run-wide, so a
+    // switch listed twice (or two switches matching one device) cannot
+    // fabricate duplicate port rows.
     for (const docSwitch of doc) {
-        for (const docVlan of docSwitch.vlans) {
-            await upsertVlan(docVlan.id, docVlan.name);
-        }
-
         const device = matchDevice(docSwitch, siteDevices);
         if (!device) {
             summary.switchesUnmatched++;
@@ -319,16 +318,21 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
         }
         summary.switchesMatched++;
 
+        // VLANs are site-wide in dc-check but the API returns every backed-up
+        // switch, so only upsert VLANs of switches that actually match this
+        // site — foreign switches would pollute the site's VLAN table.
+        for (const docVlan of docSwitch.vlans) {
+            await upsertVlan(docVlan.id, docVlan.name);
+        }
+
         const existingPorts = portsByDevice.get(device.id) ?? [];
-        const seenPortNames = new Set<string>();
         for (const docPort of docSwitch.ports) {
-            // Duplicate port names in one doc: only the first occurrence is
-            // processed (creating the rest would fabricate duplicate rows).
-            if (seenPortNames.has(docPort.name)) {
+            const portKey = `${device.id}:${docPort.name}`;
+            if (seenPorts.has(portKey)) {
                 summary.warnings.push(`device ${device.name}: duplicate port "${docPort.name}" in doc — skipped`);
                 continue;
             }
-            seenPortNames.add(docPort.name);
+            seenPorts.add(portKey);
 
             const existing = existingPorts.find((p) => p.portName === docPort.name);
             if (existing && existingPorts.filter((p) => p.portName === docPort.name).length > 1) {

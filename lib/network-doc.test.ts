@@ -227,7 +227,7 @@ describe("syncNetworkDocs", () => {
     expect(new Set(portInserts.map((p) => p.deviceId))).toEqual(new Set([10, 11, 12]));
   });
 
-  it("counts an unmatched switch and warns", async () => {
+  it("counts an unmatched switch and warns (its vlans are NOT imported)", async () => {
     stubEnv({});
     stubFetch([SWITCH_A]);
     mocks.selectResults.push([], [], [], []); // no devices in site
@@ -236,7 +236,24 @@ describe("syncNetworkDocs", () => {
 
     expect(summary.switchesMatched).toBe(0);
     expect(summary.switchesUnmatched).toBe(1);
+    expect(summary.vlansCreated).toBe(0); // foreign switches must not pollute site vlans
     expect(summary.warnings.some((w) => w.includes("not matched to a device"))).toBe(true);
+  });
+
+  it("does not re-create ports when two doc entries match the same device", async () => {
+    stubEnv({});
+    // Same ip → both entries match DEVICE_IP; only the first occurrence's
+    // ports may be created.
+    stubFetch([SWITCH_A, { ...SWITCH_A, switch_id: 2 }]);
+    mocks.selectResults.push([], [DEVICE_IP], [], []);
+    mocks.insertReturning.push([{ id: 100 }], [{ id: 101 }]);
+
+    const summary = await syncNetworkDocs(7);
+
+    expect(summary.switchesMatched).toBe(2);
+    expect(summary.portsCreated).toBe(3);
+    expect(mocks.insertValues.slice(2)).toHaveLength(3);
+    expect(summary.warnings.some((w) => w.includes("duplicate port"))).toBe(true);
   });
 
   it("updates only API-provided fields, never touches MAC/speed/cabling, never deletes", async () => {

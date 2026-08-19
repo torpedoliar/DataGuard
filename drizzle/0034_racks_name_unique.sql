@@ -19,10 +19,16 @@
 UPDATE devices d
 SET rack_name = keep.name
 FROM racks dup
-JOIN racks keep
-  ON keep.site_id = dup.site_id
- AND lower(keep.name) = lower(dup.name)
- AND keep.id < dup.id
+JOIN LATERAL (
+    -- Deterministic survivor: the lowest-id rack of the case-variant group.
+    -- With three+ variants a bare `keep.id < dup.id` join would pick an
+    -- arbitrary keep and could re-spell devices to a rack that is deleted.
+    SELECT k2.id, k2.name FROM racks k2
+    WHERE k2.site_id = dup.site_id
+      AND lower(k2.name) = lower(dup.name)
+    ORDER BY k2.id
+    LIMIT 1
+) keep ON keep.id < dup.id
 WHERE d.rack_name = dup.name
   AND d.site_id = dup.site_id;
 

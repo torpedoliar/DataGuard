@@ -46,7 +46,8 @@ export async function runOnce(): Promise<void> {
 async function loop() {
   while (true) {
     const config = await resolveNetworkDocConfig();
-    const intervalMs = config.intervalMs ?? DEFAULT_INTERVAL_MS;
+    // Clamp so a typo'd stored/env interval can never tight-loop the worker.
+    const intervalMs = Math.max(config.intervalMs ?? DEFAULT_INTERVAL_MS, 60_000);
     try {
       await runOnce();
     } catch (error) {
