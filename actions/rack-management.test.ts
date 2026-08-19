@@ -130,6 +130,17 @@ describe("updateRack partial updates (finding #64)", () => {
     }));
   });
 
+  it("stores isAuditable=false when the form sends the unchecked hidden twin", async () => {
+    // Checkbox is unchecked: the hidden <input name="isAuditable" value="false">
+    // is the only value the browser submits. z.coerce.boolean() would coerce
+    // the string "false" to true, making the rack impossible to exclude.
+    await updateRack(null, rackFormData({ isAuditable: "false" }));
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({
+      isAuditable: false,
+    }));
+  });
+
   it("clears a scrubbed Zone input to null instead of ''", async () => {
     await updateRack(null, rackFormData({ zone: "" }));
 

@@ -9,13 +9,21 @@ import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "../lib/action-auth";
 
+// Form checkboxes submit "on" when checked; an unchecked checkbox submits
+// its hidden "false" twin (the browser never sends the field at all
+// otherwise). z.coerce.boolean() would coerce the string "false" to true
+// (any non-empty string is truthy), so parse the form values explicitly.
+const formBoolean = z
+    .union([z.boolean(), z.enum(["on", "true", "false"])])
+    .transform((v) => v === true || v === "on" || v === "true");
+
 // Schema
 const rackSchema = z.object({
     name: z.string().min(1, "Rack name is required"),
     zone: z.string().optional(),
     totalU: z.coerce.number().min(1).max(60).default(42),
     locationId: z.coerce.number().optional(),
-    isAuditable: z.coerce.boolean().optional(),
+    isAuditable: formBoolean.optional(),
 });
 
 // Get all racks (filtered by active site)

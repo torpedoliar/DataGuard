@@ -87,6 +87,7 @@ export default function AddRackForm({ locations }: { locations: Location[] }) {
 
                 <div className="lg:col-span-5 flex items-center gap-2">
                     <fieldset className="flex items-center gap-2">
+                        <input type="hidden" name="isAuditable" value="false" />
                         <input type="checkbox" name="isAuditable" defaultChecked value="on" />
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Include in audit</label>
                     </fieldset>

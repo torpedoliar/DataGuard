@@ -118,6 +118,10 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
                     </div>
 
                     <div className="flex items-center gap-2 mt-4">
+                        {/* Hidden twin first: an unchecked checkbox submits
+                            nothing, so "false" must be sent explicitly (and
+                            the checked twin "on" wins via last-key-wins). */}
+                        <input type="hidden" name="isAuditable" value="false" />
                         <input
                             type="checkbox"
                             name="isAuditable"
