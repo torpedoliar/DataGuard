@@ -26,7 +26,13 @@ export default function NetworkDocsButton() {
     setError(null);
     startTransition(async () => {
       try {
-        setSummary(await syncNetworkDocsAction());
+        const result = await syncNetworkDocsAction();
+        if ("message" in result) {
+          setSummary(null);
+          setError(result.message);
+          return;
+        }
+        setSummary(result);
       } catch (err) {
         setSummary(null);
         setError(err instanceof Error ? err.message : String(err));

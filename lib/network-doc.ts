@@ -11,7 +11,9 @@ import { decryptIfEncrypted } from "./crypto";
 // parse_warnings (HTTP 200) and must not fail the sync.
 
 const networkDocPortSchema = z.object({
-    name: z.string(),
+    // name/id may be null on degraded rows — the sync loop skips them with a
+    // warning instead of letting one bad port kill the whole batch parse.
+    name: z.string().nullish(),
     description: z.string().nullish(),
     enabled: z.boolean().nullish(),
     mode: z.string().nullish(), // "access" | "trunk" | (future modes tolerated)
@@ -21,12 +23,12 @@ const networkDocPortSchema = z.object({
 });
 
 const networkDocVlanSchema = z.object({
-    id: z.number().int(), // 802.1Q number
-    name: z.string(),
+    id: z.number().int().nullish(), // 802.1Q number
+    name: z.string().nullish(),
 });
 
 const networkDocSwitchSchema = z.object({
-    switch_id: z.number().int(),
+    switch_id: z.number().int().nullish(),
     name: z.string(),
     ip: z.string().nullish(),
     protocol: z.string().optional(),
@@ -39,6 +41,8 @@ const networkDocSwitchSchema = z.object({
 });
 
 const networkDocResponseSchema = z.array(networkDocSwitchSchema);
+
+export { networkDocResponseSchema };
 
 export type NetworkDocSwitch = z.infer<typeof networkDocSwitchSchema>;
 export type NetworkDocPort = z.infer<typeof networkDocPortSchema>;
@@ -331,11 +335,21 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
         // switch, so only upsert VLANs of switches that actually match this
         // site — foreign switches would pollute the site's VLAN table.
         for (const docVlan of docSwitch.vlans) {
-            await upsertVlan(docVlan.id, docVlan.name);
+            if (docVlan.id == null) {
+                summary.warnings.push(`switch ${docSwitch.name}: vlan tanpa nomor di-skip`);
+                continue;
+            }
+            // The API can emit null vlan names on degraded switches; dc-check
+            // requires a name, so fall back to an explicit label.
+            await upsertVlan(docVlan.id, docVlan.name?.trim() || `VLAN ${docVlan.id}`);
         }
 
         const existingPorts = portsByDevice.get(device.id) ?? [];
         for (const docPort of docSwitch.ports) {
+            if (!docPort.name) {
+                summary.warnings.push(`device ${device.name}: port tanpa nama di-skip`);
+                continue;
+            }
             const portKey = `${device.id}:${docPort.name}`;
             if (seenPorts.has(portKey)) {
                 summary.warnings.push(`device ${device.name}: duplicate port "${docPort.name}" in doc — skipped`);

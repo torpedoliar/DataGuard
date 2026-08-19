@@ -2,28 +2,32 @@
 
 import { revalidatePath } from "next/cache";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
-import { syncNetworkDocs } from "@/lib/network-doc";
+import { syncNetworkDocs, type NetworkDocSyncSummary } from "@/lib/network-doc";
 import { logAudit } from "@/lib/audit";
 
 /**
- * Manual "sync now" for the current active site. Returns the summary for the
- * UI to render; throws on guard/fetch/sync failure so the client shows the
- * message.
+ * Manual "sync now" for the current active site. Returns the summary on
+ * success, or `{ message }` on failure — never throws, so a connection or
+ * parse error shows the real message instead of a 500/digest wrapper.
  */
-export async function syncNetworkDocsAction() {
+export async function syncNetworkDocsAction(): Promise<NetworkDocSyncSummary | { message: string }> {
     const auth = await requireActiveSiteAdminAction();
-    if (!auth.ok) throw new Error(auth.message);
+    if (!auth.ok) return { message: auth.message };
 
-    const summary = await syncNetworkDocs(auth.activeSiteId);
+    try {
+        const summary = await syncNetworkDocs(auth.activeSiteId);
 
-    await logAudit({
-        action: "UPDATE",
-        entity: "network_port",
-        entityName: "Network Doc Sync",
-        entityId: auth.activeSiteId,
-        detail: JSON.stringify(summary),
-    });
-    revalidatePath("/admin/network-docs");
+        await logAudit({
+            action: "UPDATE",
+            entity: "network_port",
+            entityName: "Network Doc Sync",
+            entityId: auth.activeSiteId,
+            detail: JSON.stringify(summary),
+        });
+        revalidatePath("/admin/network-docs");
 
-    return summary;
+        return summary;
+    } catch (error) {
+        return { message: error instanceof Error ? error.message : String(error) };
+    }
 }

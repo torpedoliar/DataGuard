@@ -264,6 +264,31 @@ describe("syncNetworkDocs", () => {
     expect(summary.warnings.some((w) => w.includes("duplicate port"))).toBe(true);
   });
 
+  it("tolerates degraded rows: null vlan name gets a fallback label, null port name is skipped", async () => {
+    stubEnv({});
+    // Real API data has vlans with name=null and could have ports without
+    // names — one bad row must not kill the whole sync.
+    stubFetch([{
+      ...SWITCH_A,
+      vlans: [{ id: 88, name: null }],
+      ports: [
+        { name: "port1.0.1", description: null, enabled: true, mode: "access", native_vlan: null, access_vlan: 88, trunk_allowed_vlans: [] },
+        { name: null, description: null, enabled: null, mode: null, native_vlan: null, access_vlan: null, trunk_allowed_vlans: null },
+      ],
+    }]);
+    mocks.selectResults.push([], [DEVICE_IP], [], []);
+    mocks.insertReturning.push([{ id: 100 }]);
+
+    const summary = await syncNetworkDocs(7);
+
+    expect(summary.vlansCreated).toBe(1);
+    expect((mocks.insertValues[0] as Record<string, unknown>).name).toBe("VLAN 88");
+    expect(summary.portsCreated).toBe(1);
+    // only the named port was inserted; the null-name one warned and skipped
+    expect(mocks.insertValues.slice(1)).toHaveLength(1);
+    expect(summary.warnings.some((w) => w.includes("port tanpa nama"))).toBe(true);
+  });
+
   it("updates only API-provided fields, never touches MAC/speed/cabling, never deletes", async () => {
     stubEnv({});
     stubFetch([SWITCH_A]);
