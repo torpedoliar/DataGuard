@@ -1,6 +1,5 @@
 import "dotenv/config";
-import { getEnv } from "@/lib/env";
-import { syncNetworkDocs } from "@/lib/network-doc";
+import { syncNetworkDocs, resolveNetworkDocConfig } from "@/lib/network-doc";
 import { logAuditManual } from "@/lib/audit";
 
 // One-shot (--sync-once) or the scheduled loop worker. Loop mode is what the
@@ -16,17 +15,19 @@ function sleep(ms: number) {
 }
 
 export async function runOnce(): Promise<void> {
-  const env = getEnv();
-  const siteIdRaw = env.NETWORK_DOC_SITE_ID?.trim();
-  const siteId = siteIdRaw ? Number(siteIdRaw) : NaN;
-  if (!env.NETWORK_DOC_URL?.trim() || !env.NETWORK_DOC_API_KEY?.trim() || !Number.isInteger(siteId)) {
-    console.log("[network-doc] not configured (NETWORK_DOC_URL / NETWORK_DOC_API_KEY / NETWORK_DOC_SITE_ID) — skipping");
+  const config = await resolveNetworkDocConfig();
+  const siteId = config.siteId;
+  if (!config.url || !config.apiKey || siteId === null || !Number.isInteger(siteId)) {
+    console.log(
+      "[network-doc] not configured — atur di Settings › Network Docs " +
+        "(URL + API key + Site ID), atau set NETWORK_DOC_URL / NETWORK_DOC_API_KEY / NETWORK_DOC_SITE_ID di .env. Skipping.",
+    );
     return;
   }
 
   const summary = await syncNetworkDocs(siteId);
   console.log(
-    `[network-doc] site ${siteId}: ${summary.switchesMatched}/${summary.switchesTotal} switches matched, ` +
+    `[network-doc] site ${config.siteId}: ${summary.switchesMatched}/${summary.switchesTotal} switches matched, ` +
       `vlans +${summary.vlansCreated}/~${summary.vlansUpdated}, ports +${summary.portsCreated}/~${summary.portsUpdated}`,
   );
   for (const warning of summary.warnings) {
@@ -37,14 +38,15 @@ export async function runOnce(): Promise<void> {
     action: "UPDATE",
     entity: "network_port",
     entityName: "Network Doc Sync",
-    siteId,
+    siteId: config.siteId,
     detail: JSON.stringify(summary),
   });
 }
 
 async function loop() {
-  const intervalMs = Number(getEnv().NETWORK_DOC_SYNC_INTERVAL_MS ?? "") || DEFAULT_INTERVAL_MS;
   while (true) {
+    const config = await resolveNetworkDocConfig();
+    const intervalMs = config.intervalMs ?? DEFAULT_INTERVAL_MS;
     try {
       await runOnce();
     } catch (error) {

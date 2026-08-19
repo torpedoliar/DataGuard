@@ -1,8 +1,10 @@
 import { getSettings } from "@/actions/settings";
 import { getSiemAiSettings, getSiemIngestSettings } from "@/actions/siem-settings";
+import { getNetworkDocSettings } from "@/actions/network-doc-settings";
 import SettingsForm from "@/components/admin/settings-form";
 import SiemAiSettingsForm from "@/components/admin/siem-ai-settings-form";
 import SiemIngestSettingsForm from "@/components/admin/siem-ingest-settings-form";
+import NetworkDocSettingsForm from "@/components/admin/network-doc-settings-form";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -26,10 +28,11 @@ export default async function SettingsPage() {
 
     const t = await getTranslations("Settings");
 
-    const [settings, siemAiSettings, siemIngestSettings] = await Promise.all([
+    const [settings, siemAiSettings, siemIngestSettings, networkDocSettings] = await Promise.all([
         getSettings(),
         getSiemAiSettings(),
         getSiemIngestSettings(),
+        getNetworkDocSettings(),
     ]);
 
     return (
@@ -51,6 +54,7 @@ export default async function SettingsPage() {
             <SettingsForm initialData={settings} />
             {!("message" in siemIngestSettings) && <SiemIngestSettingsForm initialData={siemIngestSettings} />}
             {!("message" in siemAiSettings) && <SiemAiSettingsForm initialData={siemAiSettings} />}
+            {!("message" in networkDocSettings) && <NetworkDocSettingsForm initialData={networkDocSettings} />}
         </div>
     );
 }

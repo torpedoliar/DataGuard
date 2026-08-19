@@ -10,14 +10,19 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../db", () => {
   const select = () => ({
-    from: () => ({
-      where: () => ({
+    from: () => {
+      const thenable = {
         then: (onFulfilled: (value: unknown[]) => unknown) => {
           const result = mocks.selectResults.shift();
           return Promise.resolve(result ?? []).then(onFulfilled);
         },
-      }),
-    }),
+      };
+      return {
+        ...thenable,
+        where: () => thenable,
+        limit: () => thenable,
+      };
+    },
   });
 
   const insert = () => ({
@@ -52,6 +57,7 @@ vi.mock("../db", () => {
 });
 
 import { fetchNetworkDoc, syncNetworkDocs } from "./network-doc";
+import { encryptString } from "./crypto";
 
 const API_URL = "http://10.0.0.9:8443";
 const API_KEY = "ncr-test-key";
@@ -150,7 +156,7 @@ describe("syncNetworkDocs", () => {
     const summary = await syncNetworkDocs(7);
 
     expect(summary.switchesTotal).toBe(0);
-    expect(summary.warnings.some((w) => w.includes("not configured"))).toBe(true);
+    expect(summary.warnings.some((w) => w.includes("belum dikonfigurasi"))).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -158,7 +164,7 @@ describe("syncNetworkDocs", () => {
     stubEnv({});
     stubFetch([SWITCH_A]);
     // site context: 1 device matched by IP, no existing vlans, no ports
-    mocks.selectResults.push([DEVICE_IP], [], []);
+    mocks.selectResults.push([], [DEVICE_IP], [], []);
     // vlan inserts return ids in insertion order
     mocks.insertReturning.push([{ id: 100 }], [{ id: 101 }]);
 
@@ -201,6 +207,7 @@ describe("syncNetworkDocs", () => {
       { ...SWITCH_A, switch_id: 3, name: "OTHER", ip: null, hostname: null },        // -> device 12 by assetCode
     ]);
     mocks.selectResults.push(
+      [],
       [
         { id: 10, name: "10.10.0.50", assetCode: null, ipAddress: null },
         { id: 11, name: "lab i-2", assetCode: null, ipAddress: null },
@@ -223,7 +230,7 @@ describe("syncNetworkDocs", () => {
   it("counts an unmatched switch and warns", async () => {
     stubEnv({});
     stubFetch([SWITCH_A]);
-    mocks.selectResults.push([], [], []); // no devices in site
+    mocks.selectResults.push([], [], [], []); // no devices in site
 
     const summary = await syncNetworkDocs(7);
 
@@ -236,6 +243,7 @@ describe("syncNetworkDocs", () => {
     stubEnv({});
     stubFetch([SWITCH_A]);
     mocks.selectResults.push(
+      [],
       [DEVICE_IP],
       [{ id: 100, vlanId: 88, name: "IPH-DEVICE" }, { id: 101, vlanId: 11, name: "MGMT" }],
       // existing ports: port1.0.1 (to be updated) + port1.0.9 (absent from doc — must survive)
@@ -273,6 +281,7 @@ describe("syncNetworkDocs", () => {
     stubEnv({});
     stubFetch([SWITCH_A]);
     mocks.selectResults.push(
+      [],
       [DEVICE_IP],
       [{ id: 100, vlanId: 88, name: "IPH-DEVICE" }, { id: 101, vlanId: 11, name: "MGMT" }],
       [
@@ -287,5 +296,44 @@ describe("syncNetworkDocs", () => {
 
     expect(summary.portsUpdated).toBe(0);
     expect(mocks.updateSets).toHaveLength(0);
+  });
+
+  it("uses DB settings (decrypted API key) when env vars are absent", async () => {
+    stubEnv({ NETWORK_DOC_URL: "", NETWORK_DOC_API_KEY: "", NETWORK_DOC_SITE_ID: "" });
+    vi.stubEnv("AI_KEY_ENCRYPTION_SECRET", "test-network-doc-secret-32charsxxxx");
+    const fetchMock = stubFetch([SWITCH_A]);
+    mocks.selectResults.push(
+      [{ networkDocUrl: "http://db.example:8443", networkDocApiKey: encryptString("db-key"), networkDocSiteId: 3, networkDocIntervalMs: 7200000 }],
+      [DEVICE_IP],
+      [],
+      [],
+    );
+    mocks.insertReturning.push([{ id: 100 }], [{ id: 101 }]);
+
+    const summary = await syncNetworkDocs(7);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://db.example:8443/api/v1/network-doc");
+    expect((init.headers as Record<string, string>)["X-API-Key"]).toBe("db-key");
+    expect(summary.switchesMatched).toBe(1);
+  });
+
+  it("env vars override DB settings per field", async () => {
+    stubEnv({});
+    vi.stubEnv("AI_KEY_ENCRYPTION_SECRET", "test-network-doc-secret-32charsxxxx");
+    const fetchMock = stubFetch([SWITCH_A]);
+    mocks.selectResults.push(
+      [{ networkDocUrl: "http://db.example:8443", networkDocApiKey: encryptString("db-key"), networkDocSiteId: 3, networkDocIntervalMs: 7200000 }],
+      [DEVICE_IP],
+      [],
+      [],
+    );
+
+    const summary = await syncNetworkDocs(7);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${API_URL}/api/v1/network-doc`);
+    expect((init.headers as Record<string, string>)["X-API-Key"]).toBe(API_KEY);
+    expect(summary.switchesMatched).toBe(1);
   });
 });

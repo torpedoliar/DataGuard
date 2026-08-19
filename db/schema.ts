@@ -536,6 +536,13 @@ export const globalSettings = pgTable("global_settings", {
   telegramBotToken: text("telegram_bot_token"),
   telegramAlertTemplate: text("telegram_alert_template"),
   notificationBaseUrl: text("notification_base_url"),
+  // Network Docs sync (lib/network-doc.ts). Configured from the settings
+  // page; env NETWORK_DOC_* overrides these when set. api_key is encrypted
+  // at rest (lib/crypto.ts AES-256-GCM, same as siem_settings.ai_api_key).
+  networkDocUrl: text("network_doc_url"),
+  networkDocApiKey: text("network_doc_api_key"),
+  networkDocSiteId: integer("network_doc_site_id"),
+  networkDocIntervalMs: integer("network_doc_interval_ms"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

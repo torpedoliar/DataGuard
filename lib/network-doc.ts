@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../db";
-import { devices, vlans, networkPorts } from "../db/schema";
+import { devices, vlans, networkPorts, globalSettings } from "../db/schema";
 import { getEnv } from "./env";
+import { decryptIfEncrypted } from "./crypto";
 
 // ==================== External API types (network-doc) ====================
 // Read-only REST API of the switch-config backup app. Response per switch is
@@ -62,6 +63,59 @@ export async function fetchNetworkDoc(baseUrl: string, apiKey: string): Promise<
         throw new Error("network-doc API returned an unexpected shape (expected an array of switches)");
     }
     return networkDocResponseSchema.parse(payload);
+}
+
+// ==================== Config ====================
+// Settings are editable from the settings page (global_settings row).
+// Environment variables NETWORK_DOC_* still win per-field when set, so a
+// deployment can pin values without touching the DB.
+
+export type NetworkDocConfig = {
+    url: string | null;
+    apiKey: string | null;
+    siteId: number | null;
+    intervalMs: number | null;
+};
+
+export async function resolveNetworkDocConfig(): Promise<NetworkDocConfig> {
+    const env = getEnv();
+
+    let stored: {
+        networkDocUrl: string | null;
+        networkDocApiKey: string | null;
+        networkDocSiteId: number | null;
+        networkDocIntervalMs: number | null;
+    } | null = null;
+    try {
+        const rows = await db.select({
+            networkDocUrl: globalSettings.networkDocUrl,
+            networkDocApiKey: globalSettings.networkDocApiKey,
+            networkDocSiteId: globalSettings.networkDocSiteId,
+            networkDocIntervalMs: globalSettings.networkDocIntervalMs,
+        }).from(globalSettings).limit(1);
+        stored = rows[0] ?? null;
+    } catch {
+        // DB unreachable — env values only.
+    }
+
+    let apiKey = env.NETWORK_DOC_API_KEY?.trim() || null;
+    if (!apiKey && stored?.networkDocApiKey) {
+        try {
+            apiKey = decryptIfEncrypted(stored.networkDocApiKey);
+        } catch {
+            apiKey = null;
+        }
+    }
+
+    const envSiteId = env.NETWORK_DOC_SITE_ID?.trim();
+    const envInterval = env.NETWORK_DOC_SYNC_INTERVAL_MS?.trim();
+
+    return {
+        url: env.NETWORK_DOC_URL?.trim() || stored?.networkDocUrl?.trim() || null,
+        apiKey,
+        siteId: envSiteId ? Number(envSiteId) || null : stored?.networkDocSiteId ?? null,
+        intervalMs: envInterval ? Number(envInterval) || null : stored?.networkDocIntervalMs ?? null,
+    };
 }
 
 // ==================== Sync ====================
@@ -146,18 +200,16 @@ function mapPortFields(port: NetworkDocPort, vlanByNumber: Map<number, number>, 
 }
 
 export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSummary> {
-    const { NETWORK_DOC_URL, NETWORK_DOC_API_KEY } = getEnv();
-    const baseUrl = NETWORK_DOC_URL?.trim();
-    const apiKey = NETWORK_DOC_API_KEY?.trim();
-    if (!baseUrl || !apiKey) {
+    const config = await resolveNetworkDocConfig();
+    if (!config.url || !config.apiKey) {
         return {
             switchesTotal: 0, switchesMatched: 0, switchesUnmatched: 0,
             vlansCreated: 0, vlansUpdated: 0, portsCreated: 0, portsUpdated: 0,
-            warnings: ["NETWORK_DOC_URL / NETWORK_DOC_API_KEY not configured — sync skipped"],
+            warnings: ["Network Docs belum dikonfigurasi (atur di Settings › Network Docs, atau set NETWORK_DOC_URL/NETWORK_DOC_API_KEY) — sync dilewati"],
         };
     }
 
-    const doc = await fetchNetworkDoc(baseUrl, apiKey);
+    const doc = await fetchNetworkDoc(config.url, config.apiKey);
 
     const summary: NetworkDocSyncSummary = {
         switchesTotal: doc.length,
