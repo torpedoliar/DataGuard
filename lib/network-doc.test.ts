@@ -278,14 +278,13 @@ describe("syncNetworkDocs", () => {
 
     const summary = await syncNetworkDocs(7);
 
-    // device had no faceplate -> configured from the doc's highest slot +
-    // trunk count
-    expect(mocks.updateSets[0]).toMatchObject({ faceplatePortCount: 3, faceplateUplinkCount: 1 });
+    // device had no faceplate -> configured from the doc's highest slot
+    expect(mocks.updateSets[0]).toMatchObject({ faceplatePortCount: 3 });
+    expect(mocks.updateSets[0]).not.toHaveProperty("faceplateUplinkCount");
     const portInserts = mocks.insertValues.slice(2) as Record<string, unknown>[];
-    // trunk port lifted into the uplink band (3 access slots + 1)
-    expect(portInserts[0].portIndex).toBe(4);
-    // access port stays auto-derived (no explicit override)
-    expect(portInserts[1].portIndex).toBeNull();
+    // ports keep their physical slot (name-derived) — no lift, no explicit portIndex
+    expect(portInserts[0]).not.toHaveProperty("portIndex");
+    expect(portInserts[1]).not.toHaveProperty("portIndex");
     expect(summary.switchesMatched).toBe(1);
   });
 
@@ -341,12 +340,13 @@ describe("syncNetworkDocs", () => {
     expect(summary.vlansUpdated).toBe(0);
     expect(mocks.updateSets).toHaveLength(2);
     // the device got a faceplate auto-config (first sync of an undeclared switch)
-    expect(mocks.updateSets[0]).toMatchObject({ faceplatePortCount: 3, faceplateUplinkCount: 1 });
-    // only the changed API fields + the trunk uplink slot are written
+    expect(mocks.updateSets[0]).toMatchObject({ faceplatePortCount: 3 });
+    expect(mocks.updateSets[0]).not.toHaveProperty("faceplateUplinkCount");
+    // only the changed API fields are written — slots stay name-derived, no lift
     const update = mocks.updateSets[1] as Record<string, unknown>;
     expect(update).toMatchObject({ portMode: "Trunk", vlanId: 101, trunkVlans: "88, 11", description: "uplink" });
     expect(update.status).toBeUndefined(); // already Active, doc says enabled
-    expect(update.portIndex).toBe(4); // trunk lifted into the uplink band (3 access + 1)
+    expect(update).not.toHaveProperty("portIndex");
     expect(update).not.toHaveProperty("macAddress");
     expect(update).not.toHaveProperty("speed");
     expect(update).not.toHaveProperty("connectedToDeviceId");
