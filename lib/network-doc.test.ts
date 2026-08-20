@@ -424,6 +424,35 @@ describe("syncNetworkDocs", () => {
     expect(summary.portsUpdated).toBe(1);
   });
 
+  it("maps native VLAN on trunk ports from pvid, access_vlan or default VLAN 1 for telnet/ssh formats", async () => {
+    stubEnv({});
+    // Switch with Telnet/SSH trunk ports: one with pvid/access_vlan, one without explicit native (defaults to VLAN 1)
+    const telnetSwitch = {
+      ...SWITCH_A,
+      vlans: [{ id: 1, name: "DEFAULT" }, { id: 88, name: "DATA" }],
+      ports: [
+        { name: "port1.0.1", description: "telnet-trunk-implicit-native", enabled: true, mode: "trunk", native_vlan: null, access_vlan: null, trunk_allowed_vlans: [88, 1] },
+        { name: "port1.0.2", description: "telnet-trunk-pvid", enabled: true, mode: "trunk", pvid: 88, trunk_allowed_vlans: [88, 1] },
+      ],
+    };
+    stubFetch([telnetSwitch]);
+    mocks.selectResults.push(
+      [],
+      [DEVICE_IP],
+      [{ id: 1, vlanId: 1, name: "DEFAULT" }, { id: 88, vlanId: 88, name: "DATA" }],
+      [],
+    );
+
+    const summary = await syncNetworkDocs(7);
+
+    expect(summary.portsCreated).toBe(2);
+    const createdPorts = mocks.insertValues as Record<string, unknown>[];
+    // port1.0.1 got default native VLAN 1 (mapped to id 1)
+    expect(createdPorts[0]).toMatchObject({ portName: "port1.0.1", portMode: "Trunk", vlanId: 1 });
+    // port1.0.2 got native VLAN 88 (mapped to id 88 from pvid)
+    expect(createdPorts[1]).toMatchObject({ portName: "port1.0.2", portMode: "Trunk", vlanId: 88 });
+  });
+
   it("skips duplicate port names within one doc instead of fabricating duplicate rows", async () => {
     stubEnv({});
     const port = { name: "port1.0.1", description: "a", enabled: true, mode: "access", native_vlan: null, access_vlan: 88, trunk_allowed_vlans: [] };

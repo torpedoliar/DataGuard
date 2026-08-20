@@ -18,9 +18,11 @@ const networkDocPortSchema = z.object({
     description: z.string().nullish(),
     enabled: z.boolean().nullish(),
     mode: z.string().nullish(), // "access" | "trunk" | (future modes tolerated)
-    native_vlan: z.number().int().nullish(),
-    access_vlan: z.number().int().nullish(),
-    trunk_allowed_vlans: z.array(z.number().int()).nullish(),
+    native_vlan: z.preprocess((val) => (val === "" || val === null || val === undefined ? null : Number(val)), z.number().int().nullish()),
+    access_vlan: z.preprocess((val) => (val === "" || val === null || val === undefined ? null : Number(val)), z.number().int().nullish()),
+    pvid: z.preprocess((val) => (val === "" || val === null || val === undefined ? null : Number(val)), z.number().int().nullish()),
+    untagged_vlan: z.preprocess((val) => (val === "" || val === null || val === undefined ? null : Number(val)), z.number().int().nullish()),
+    trunk_allowed_vlans: z.array(z.preprocess((val) => Number(val), z.number().int())).nullish(),
 });
 
 const networkDocVlanSchema = z.object({
@@ -221,13 +223,19 @@ function mapPortFields(port: NetworkDocPort, vlanByNumber: Map<number, number>, 
         portMode = undefined;
     }
 
-    // Access ports: PVID is access_vlan (native_vlan is usually null); trunk
-    // ports: PVID is native_vlan. Unknown modes fall back to either field so
-    // a PVID the doc does provide is still mapped. Absent vlan fields leave
-    // the stored PVID untouched.
+    // Access ports: PVID is access_vlan -> pvid -> untagged_vlan -> native_vlan.
+    // Trunk ports: PVID is native_vlan -> pvid -> untagged_vlan -> access_vlan.
+    // Telnet/SSH CLI formats often omit native VLAN when it is the IEEE 802.1Q default (1).
     let vlanNumber: number | null | undefined;
-    if (port.mode === "trunk") vlanNumber = port.native_vlan;
-    else vlanNumber = port.access_vlan ?? port.native_vlan;
+    const explicitVlan = port.native_vlan ?? port.pvid ?? port.untagged_vlan ?? port.access_vlan;
+
+    if (port.mode === "trunk") {
+        vlanNumber = explicitVlan ?? (vlanByNumber.has(1) ? 1 : undefined);
+    } else if (port.mode === "access") {
+        vlanNumber = port.access_vlan ?? port.pvid ?? port.untagged_vlan ?? port.native_vlan;
+    } else {
+        vlanNumber = explicitVlan;
+    }
 
     let vlanId: number | null | undefined;
     if (vlanNumber != null) {
