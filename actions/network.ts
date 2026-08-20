@@ -493,7 +493,7 @@ export async function deletePort(id: number) {
     const auth = await requireActiveSiteAdminAction();
     if (!auth.ok) throw new Error(auth.message);
 
-    // Clean up bidirectional links first
+    // Fetch port and verify site access
     const port = await db
         .select({
             id: networkPorts.id,
@@ -505,22 +505,34 @@ export async function deletePort(id: number) {
         .where(and(eq(networkPorts.id, id), eq(devices.siteId, auth.activeSiteId)))
         .limit(1);
 
-    if (port.length === 0) throw new Error("Port tidak ditemukan di site aktif.");
+    if (port.length === 0) {
+        // Port already deleted or not found — return gracefully for sequential/concurrent operations
+        return { success: true };
+    }
 
     try {
+        // 1. Clean up incoming links from any other ports referencing this port
+        await db.update(networkPorts)
+            .set({ connectedToDeviceId: null, connectedToPortId: null })
+            .where(eq(networkPorts.connectedToPortId, id));
+
+        // 2. Clean up outgoing link from this port to remote port
         if (port[0].connectedToPortId) {
             await db.update(networkPorts)
                 .set({ connectedToDeviceId: null, connectedToPortId: null })
                 .where(eq(networkPorts.id, port[0].connectedToPortId));
         }
 
+        // 3. Delete the port
         await db.delete(networkPorts).where(eq(networkPorts.id, id));
         await logAudit({ action: "DELETE", entity: "network_port", entityId: id });
     } catch (error) {
+        console.error("Failed to delete network port:", error);
         throw new Error("Gagal menghapus port jaringan secara permanen.");
     }
     revalidatePath("/admin/network");
     revalidatePath(`/admin/devices/${port[0].deviceId}/network`);
+    return { success: true };
 }
 
 /**

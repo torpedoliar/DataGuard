@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deletePort } from "@/actions/network";
 import { AlertTriangle, Loader2, X } from "lucide-react";
@@ -10,12 +10,18 @@ type Port = { id: number; portName: string };
 export default function DeletePortModal({ port, onClose }: { port: Port; onClose: () => void }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
+    const [error, setError] = useState<string | null>(null);
 
     const handleDelete = () => {
+        setError(null);
         startTransition(async () => {
-            await deletePort(port.id);
-            router.refresh();
-            onClose();
+            try {
+                await deletePort(port.id);
+                router.refresh();
+                onClose();
+            } catch (err: unknown) {
+                setError(err instanceof Error ? err.message : "Gagal menghapus port.");
+            }
         });
     };
 
@@ -29,6 +35,7 @@ export default function DeletePortModal({ port, onClose }: { port: Port; onClose
                     </h2>
                     <button
                         onClick={onClose}
+                        disabled={isPending}
                         className="text-slate-400 hover:text-slate-500 dark:hover:text-slate-300 transition-colors"
                     >
                         <X className="h-5 w-5" />
@@ -40,6 +47,12 @@ export default function DeletePortModal({ port, onClose }: { port: Port; onClose
                         Are you sure you want to completely remove the configuration for physical port <span className="font-semibold text-slate-900 dark:text-white">{port.portName}</span>?
                         Any topology links terminating at this port will be severed automatically.
                     </p>
+
+                    {error && (
+                        <div className="mt-3 p-2 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
+                            {error}
+                        </div>
+                    )}
 
                     <div className="mt-6 flex justify-end gap-3">
                         <button
@@ -56,7 +69,7 @@ export default function DeletePortModal({ port, onClose }: { port: Port; onClose
                             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
                         >
                             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                            Delete Sequence
+                            Delete
                         </button>
                     </div>
                 </div>

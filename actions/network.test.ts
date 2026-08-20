@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   updateCalls: [] as { table: unknown; set: unknown; where: unknown }[],
   insertCalls: [] as unknown[],
+  deleteCalls: [] as { table: unknown; where: unknown }[],
 }));
 
 vi.mock("../lib/action-auth", () => ({
@@ -70,10 +71,20 @@ vi.mock("../db", () => ({
       };
       return chain;
     },
+    delete: (table: unknown) => {
+      const entry = { table, where: undefined as unknown };
+      mocks.deleteCalls.push(entry);
+      const chain: Record<string, (...args: unknown[]) => unknown> = {};
+      chain.where = (whereValue: unknown) => {
+        entry.where = whereValue;
+        return Promise.resolve();
+      };
+      return chain;
+    },
   },
 }));
 
-import { addPort, updatePort } from "./network";
+import { addPort, deletePort, updatePort } from "./network";
 
 const dialect = new PgDialect();
 function queryOf(condition: unknown) {
@@ -101,6 +112,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.updateCalls.length = 0;
   mocks.insertCalls.length = 0;
+  mocks.deleteCalls.length = 0;
   mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
   mocks.selectResult.mockResolvedValue([]);
   mocks.insertResult.mockResolvedValue([]);
@@ -200,5 +212,33 @@ describe("addPort bidirectional auto-link (#34)", () => {
     await addPort(data);
 
     expect(mocks.updateCalls).toHaveLength(0);
+  });
+});
+
+describe("deletePort incoming and outgoing reference cleanup", () => {
+  it("clears incoming and outgoing links before deleting the port", async () => {
+    mocks.selectResult.mockResolvedValue([{ id: 1, deviceId: 5, connectedToPortId: 9 }]);
+
+    const result = await deletePort(1);
+
+    expect(result).toEqual({ success: true });
+    // 2 update calls: 1 for incoming links pointing to port 1, 1 for outgoing link to port 9
+    expect(mocks.updateCalls).toHaveLength(2);
+    expect(mocks.updateCalls[0].set).toEqual({ connectedToDeviceId: null, connectedToPortId: null });
+    expect(queryOf(mocks.updateCalls[0].where).params).toEqual([1]); // incoming
+    expect(mocks.updateCalls[1].set).toEqual({ connectedToDeviceId: null, connectedToPortId: null });
+    expect(queryOf(mocks.updateCalls[1].where).params).toEqual([9]); // outgoing
+
+    expect(mocks.deleteCalls).toHaveLength(1);
+    expect(queryOf(mocks.deleteCalls[0].where).params).toEqual([1]);
+  });
+
+  it("handles consecutive or already-deleted port gracefully without throwing", async () => {
+    mocks.selectResult.mockResolvedValue([]); // Port already deleted
+
+    const result = await deletePort(999);
+
+    expect(result).toEqual({ success: true });
+    expect(mocks.deleteCalls).toHaveLength(0);
   });
 });
