@@ -158,12 +158,25 @@ export type NetworkDocSyncSummary = {
     warnings: string[];
 };
 
-type SiteDevice = { id: number; name: string; assetCode: string | null; ipAddress: string | null };
+type SiteDevice = { id: number; name: string; assetCode: string | null; ipAddress: string | null; faceplatePortCount: number | null; faceplateUplinkCount: number | null };
 type SitePort = typeof networkPorts.$inferSelect;
 
 function normalize(value: string | null | undefined): string | null {
     const text = value?.trim().toLowerCase();
     return text || null;
+}
+
+/**
+ * Slot number of a doc port from its name. The network-doc port names are
+ * switch-format: "port1.0.13" → 13, "g1" → 1, "19" → 19. Unlike the faceplate
+ * parser (which strips a trailing .subinterface), the doc already separates
+ * the slot as its LAST numeric group — honor that as the physical slot.
+ */
+function docSlotOf(name: string): number | null {
+    const groups = name.match(/\d+/g);
+    if (!groups || groups.length === 0) return null;
+    const value = Number.parseInt(groups[groups.length - 1], 10);
+    return Number.isFinite(value) && value >= 1 ? value : null;
 }
 
 function matchDevice(docSwitch: NetworkDocSwitch, siteDevices: SiteDevice[]): SiteDevice | null {
@@ -197,9 +210,12 @@ type MappedPortFields = {
     trunkVlans: string | null | undefined;
     status: "Active" | "Inactive" | undefined;
     description: string | null | undefined;
+    // Slot lift into the uplink band for trunk/uplink ports (null/undefined =
+    // leave portIndex auto).
+    portIndex: number | null | undefined;
 };
 
-function mapPortFields(port: NetworkDocPort, vlanByNumber: Map<number, number>, warnings: string[]): MappedPortFields {
+function mapPortFields(port: NetworkDocPort, vlanByNumber: Map<number, number>, warnings: string[], trunkSlot?: number): MappedPortFields {
     let portMode: "Access" | "Trunk" | null | undefined;
     if (port.mode === "access") portMode = "Access";
     else if (port.mode === "trunk") portMode = "Trunk";
@@ -249,7 +265,16 @@ function mapPortFields(port: NetworkDocPort, vlanByNumber: Map<number, number>, 
         description = port.description.trim() || null;
     }
 
-    return { portMode, vlanId, trunkVlans, status, description };
+    return {
+        portMode,
+        vlanId,
+        trunkVlans,
+        status,
+        description,
+        // A trunk port from the doc is lifted into the uplink band: explicit
+        // portIndex = portCount + ordinal. Access ports keep auto derivation.
+        portIndex: trunkSlot ?? undefined,
+    };
 }
 
 export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSummary> {
@@ -277,7 +302,14 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
 
     // Load site context in-memory, mirroring actions/network.ts bulk loads.
     const siteDevices: SiteDevice[] = await db
-        .select({ id: devices.id, name: devices.name, assetCode: devices.assetCode, ipAddress: devices.ipAddress })
+        .select({
+            id: devices.id,
+            name: devices.name,
+            assetCode: devices.assetCode,
+            ipAddress: devices.ipAddress,
+            faceplatePortCount: devices.faceplatePortCount,
+            faceplateUplinkCount: devices.faceplateUplinkCount,
+        })
         .from(devices)
         .where(eq(devices.siteId, siteId));
 
@@ -359,6 +391,32 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
         }
 
         const existingPorts = portsByDevice.get(device.id) ?? [];
+
+        // ---- Faceplate auto-generation from the doc ----
+        // The doc's port names carry the physical slot numbers; a switch that
+        // has no faceplate yet gets one configured so the diagram renders.
+        // Only ever RAISE — an admin-set count is respected, not shrunk.
+        let maxSlot = 0;
+        let trunkCount = 0;
+        for (const docPort of docSwitch.ports) {
+            if (!docPort.name) continue;
+            const slot = docSlotOf(docPort.name);
+            if (slot) maxSlot = Math.max(maxSlot, slot);
+            if (docPort.mode === "trunk") trunkCount++;
+        }
+        const faceConfigured = Number(device.faceplatePortCount) > 0;
+        const desiredAccess = Math.max(device.faceplatePortCount ?? 0, maxSlot);
+        const desiredUplink = Math.max(device.faceplateUplinkCount ?? 0, trunkCount);
+        if (!faceConfigured && desiredAccess > 0) {
+            await db.update(devices).set({
+                faceplatePortCount: desiredAccess,
+                faceplateUplinkCount: desiredUplink,
+            }).where(eq(devices.id, device.id));
+            device.faceplatePortCount = desiredAccess;
+            device.faceplateUplinkCount = desiredUplink;
+        }
+
+        let trunkOrdinal = 0;
         for (const docPort of docSwitch.ports) {
             if (!docPort.name) {
                 summary.warnings.push(`device ${device.name}: port tanpa nama di-skip`);
@@ -378,7 +436,16 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
                 );
             }
 
-            const mapped = mapPortFields(docPort, vlanByNumber, summary.warnings);
+            // Trunk/uplink ports are lifted into the uplink band of the
+            // faceplate (explicit portIndex); access ports stay auto-derived
+            // from their name.
+            let trunkSlot: number | undefined;
+            if (docPort.mode === "trunk" && desiredAccess > 0) {
+                trunkOrdinal++;
+                trunkSlot = desiredAccess + trunkOrdinal;
+            }
+
+            const mapped = mapPortFields(docPort, vlanByNumber, summary.warnings, trunkSlot);
 
             if (!existing) {
                 await db.insert(networkPorts).values({
@@ -389,6 +456,7 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
                     trunkVlans: mapped.trunkVlans ?? null,
                     status: mapped.status ?? "Active",
                     description: mapped.description ?? null,
+                    portIndex: mapped.portIndex ?? null,
                 });
                 summary.portsCreated++;
                 continue;
@@ -403,6 +471,7 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
             if (mapped.trunkVlans !== undefined && existing.trunkVlans !== mapped.trunkVlans) update.trunkVlans = mapped.trunkVlans;
             if (mapped.status !== undefined && existing.status !== mapped.status) update.status = mapped.status;
             if (mapped.description !== undefined && (existing.description ?? null) !== mapped.description) update.description = mapped.description;
+            if (mapped.portIndex !== undefined && existing.portIndex !== mapped.portIndex) update.portIndex = mapped.portIndex ?? null;
             if (Object.keys(update).length > 0) {
                 await db.update(networkPorts).set(update).where(eq(networkPorts.id, existing.id));
                 summary.portsUpdated++;
