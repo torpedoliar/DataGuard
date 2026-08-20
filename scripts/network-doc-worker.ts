@@ -1,11 +1,14 @@
 import "dotenv/config";
-import { syncNetworkDocs, resolveNetworkDocConfig } from "@/lib/network-doc";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { sites } from "@/db/schema";
+import { syncNetworkDocs, resolveNetworkDocConfig, resolveNetworkDocWorkerInterval } from "@/lib/network-doc";
 import { logAuditManual } from "@/lib/audit";
 
 // One-shot (--sync-once) or the scheduled loop worker. Loop mode is what the
-// docker service runs; the one-shot is the manual CLI path (and what tests
-// exercise). Never run against a site id we cannot parse: the worker has
-// restart: always, so a misconfigured interval must not crash-loop it.
+// docker service runs; the one-shot is the manual CLI path. Since each site
+// may point at its own network-doc API, every configured site is synced on
+// each pass — sites without a URL/key are skipped, never crash.
 
 const SYNC_ONCE = process.argv.includes("--sync-once");
 const DEFAULT_INTERVAL_MS = 60 * 60 * 1000; // hourly
@@ -15,39 +18,44 @@ function sleep(ms: number) {
 }
 
 export async function runOnce(): Promise<void> {
-  const config = await resolveNetworkDocConfig();
-  const siteId = config.siteId;
-  if (!config.url || !config.apiKey || siteId === null || !Number.isInteger(siteId)) {
+  const allSites = await db.select({ id: sites.id, name: sites.name }).from(sites).where(eq(sites.isActive, true));
+
+  let synced = 0;
+  for (const site of allSites) {
+    const config = await resolveNetworkDocConfig(site.id);
+    if (!config.url || !config.apiKey) continue;
+
+    const summary = await syncNetworkDocs(site.id);
+    synced++;
     console.log(
-      "[network-doc] not configured — atur di Settings › Network Docs " +
-        "(URL + API key + Site ID), atau set NETWORK_DOC_URL / NETWORK_DOC_API_KEY / NETWORK_DOC_SITE_ID di .env. Skipping.",
+      `[network-doc] site "${site.name}": ${summary.switchesMatched}/${summary.switchesTotal} switches matched, ` +
+        `vlans +${summary.vlansCreated}/~${summary.vlansUpdated}, ports +${summary.portsCreated}/~${summary.portsUpdated}`,
     );
-    return;
+    for (const warning of summary.warnings) {
+      console.log(`[network-doc] site "${site.name}" warning: ${warning}`);
+    }
+
+    await logAuditManual({
+      action: "UPDATE",
+      entity: "network_port",
+      entityName: "Network Doc Sync",
+      siteId: site.id,
+      detail: JSON.stringify(summary),
+    });
   }
 
-  const summary = await syncNetworkDocs(siteId);
-  console.log(
-    `[network-doc] site ${config.siteId}: ${summary.switchesMatched}/${summary.switchesTotal} switches matched, ` +
-      `vlans +${summary.vlansCreated}/~${summary.vlansUpdated}, ports +${summary.portsCreated}/~${summary.portsUpdated}`,
-  );
-  for (const warning of summary.warnings) {
-    console.log(`[network-doc] warning: ${warning}`);
+  if (synced === 0) {
+    console.log(
+      "[network-doc] no sites configured — atur per-site di Settings › Network Docs (URL + API key per site). Skipping.",
+    );
   }
-
-  await logAuditManual({
-    action: "UPDATE",
-    entity: "network_port",
-    entityName: "Network Doc Sync",
-    siteId: config.siteId,
-    detail: JSON.stringify(summary),
-  });
 }
 
 async function loop() {
   while (true) {
-    const config = await resolveNetworkDocConfig();
+    const storedInterval = await resolveNetworkDocWorkerInterval();
     // Clamp so a typo'd stored/env interval can never tight-loop the worker.
-    const intervalMs = Math.max(config.intervalMs ?? DEFAULT_INTERVAL_MS, 60_000);
+    const intervalMs = Math.max(storedInterval || DEFAULT_INTERVAL_MS, 60_000);
     try {
       await runOnce();
     } catch (error) {

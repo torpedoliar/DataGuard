@@ -314,6 +314,7 @@ export const sitesRelations = relations(sites, ({ many }) => ({
   telegramChats: many(siteTelegramChatIds),
   deviceGroups: many(deviceGroups),
   devicePics: many(devicePics),
+  networkDocSettings: many(networkDocSettings),
   siemSettings: many(siemSettings, { relationName: "siemSettingsSite" }),
 }));
 
@@ -526,6 +527,19 @@ export const networkPortsRelations = relations(networkPorts, ({ one }) => ({
     references: [vlans.id],
   }),
 }));
+
+// ==================== NETWORK DOC SETTINGS (PER SITE) ====================
+// Each site may point at its own network-doc API instance (multi-site sync);
+// env NETWORK_DOC_URL/NETWORK_DOC_API_KEY are the global default when a site
+// has no row. api_key is encrypted at rest (lib/crypto.ts, same as
+// siem_settings.ai_api_key).
+export const networkDocSettings = pgTable("network_doc_settings", {
+  siteId: integer("site_id").primaryKey().references(() => sites.id, { onDelete: "cascade" }),
+  url: text("url"),
+  apiKey: text("api_key"),
+  intervalMs: integer("interval_ms"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 // ==================== GLOBAL SETTINGS ====================
 export const globalSettings = pgTable("global_settings", {

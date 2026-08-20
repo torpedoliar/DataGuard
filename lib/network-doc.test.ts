@@ -386,12 +386,12 @@ describe("syncNetworkDocs", () => {
     expect(summary.warnings.some((w) => w.includes("duplicate port"))).toBe(true);
   });
 
-  it("uses DB settings (decrypted API key) when env vars are absent", async () => {
+  it("uses the per-site row (decrypted API key) when env vars are absent", async () => {
     stubEnv({ NETWORK_DOC_URL: "", NETWORK_DOC_API_KEY: "", NETWORK_DOC_SITE_ID: "" });
     vi.stubEnv("AI_KEY_ENCRYPTION_SECRET", "test-network-doc-secret-32charsxxxx");
     const fetchMock = stubFetch([SWITCH_A]);
     mocks.selectResults.push(
-      [{ networkDocUrl: "http://db.example:8443", networkDocApiKey: encryptString("db-key"), networkDocSiteId: 3, networkDocIntervalMs: 7200000 }],
+      [{ url: "http://db.example:8443", apiKey: encryptString("db-key"), intervalMs: 7200000 }],
       [DEVICE_IP],
       [],
       [],
@@ -406,16 +406,32 @@ describe("syncNetworkDocs", () => {
     expect(summary.switchesMatched).toBe(1);
   });
 
-  it("env vars override DB settings per field", async () => {
+  it("a site row wins over the env default (env fills only unset fields)", async () => {
     stubEnv({});
     vi.stubEnv("AI_KEY_ENCRYPTION_SECRET", "test-network-doc-secret-32charsxxxx");
     const fetchMock = stubFetch([SWITCH_A]);
+    // Row has url+key; env has a DIFFERENT url+key. The row must win so
+    // multi-site (one API per site) works.
     mocks.selectResults.push(
-      [{ networkDocUrl: "http://db.example:8443", networkDocApiKey: encryptString("db-key"), networkDocSiteId: 3, networkDocIntervalMs: 7200000 }],
+      [{ url: "http://db.example:8443", apiKey: encryptString("db-key"), intervalMs: null }],
       [DEVICE_IP],
       [],
       [],
     );
+
+    const summary = await syncNetworkDocs(7);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://db.example:8443/api/v1/network-doc");
+    expect((init.headers as Record<string, string>)["X-API-Key"]).toBe("db-key");
+    expect(summary.switchesMatched).toBe(1);
+  });
+
+  it("uses the env default when the site has no row", async () => {
+    stubEnv({});
+    const fetchMock = stubFetch([SWITCH_A]);
+    mocks.selectResults.push([], [DEVICE_IP], [], []); // no row for the site
+    mocks.insertReturning.push([{ id: 100 }], [{ id: 101 }]);
 
     const summary = await syncNetworkDocs(7);
 

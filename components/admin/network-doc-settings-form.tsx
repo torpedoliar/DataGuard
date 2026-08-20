@@ -2,8 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
-import { saveNetworkDocSettings, testNetworkDocConnection } from "@/actions/network-doc-settings";
-import type { NetworkDocSettingsData } from "@/actions/network-doc-settings";
+import {
+    saveNetworkDocSettings,
+    saveNetworkDocWorkerInterval,
+    testNetworkDocConnection,
+} from "@/actions/network-doc-settings";
+import type { NetworkDocSettingsData, NetworkDocSiteConfig } from "@/actions/network-doc-settings";
 import ActionButton from "@/components/ui/action-button";
 
 const INTERVAL_OPTIONS = [
@@ -14,145 +18,153 @@ const INTERVAL_OPTIONS = [
     { value: "86400000", label: "24 jam" },
 ];
 
-export default function NetworkDocSettingsForm({ initialData }: { initialData: NetworkDocSettingsData }) {
+function SiteRow({ site, envHasUrl, envHasKey }: { site: NetworkDocSiteConfig; envHasUrl: boolean; envHasKey: boolean }) {
     const router = useRouter();
-    const [state, action, isPending] = useActionState(saveNetworkDocSettings, undefined);
+    const [saveState, saveAction, isSaving] = useActionState(saveNetworkDocSettings, undefined);
     const [testState, testAction, isTesting] = useActionState(testNetworkDocConnection, undefined);
 
     useEffect(() => {
-        if (state?.success) router.refresh();
-    }, [state?.success, router]);
+        if (saveState?.success) router.refresh();
+    }, [saveState?.success, router]);
 
-    const envOverrides = [
-        initialData.envOverridesUrl ? "URL" : null,
-        initialData.envOverridesKey ? "API key" : null,
-        initialData.envOverridesSiteId ? "Site ID" : null,
-        initialData.envOverridesInterval ? "Interval" : null,
-    ].filter(Boolean);
+    const envDefaultActive = site.usesEnvDefault;
 
-    // Fallback options so a stored value absent from the fixed lists (e.g. a
-    // site that was deleted, or a custom interval) still renders — otherwise
-    // the select submits "" and an unrelated save silently clears the config.
+    return (
+        <form action={saveAction} className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <input type="hidden" name="networkDocSiteId" value={site.siteId} />
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-white">{site.siteName}</span>
+                    {site.apiKeyConfigured && (
+                        <span className="inline-flex h-6 items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 text-[11px] font-medium text-emerald-300">
+                            Terkonfigurasi
+                        </span>
+                    )}
+                </div>
+                {envDefaultActive && (
+                    <span className="text-[11px] text-amber-300">
+                        Pakai default env (NETWORK_DOC_URL) — kosongkan & simpan untuk hapus
+                    </span>
+                )}
+            </div>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <label className="space-y-1 text-sm font-medium text-slate-300">
+                    URL API <span className="text-xs font-normal text-slate-500">(kosong = tidak aktif)</span>
+                    <input
+                        name="networkDocUrl"
+                        defaultValue={site.url}
+                        placeholder={envHasUrl ? "Pakai default dari env" : "http://10.10.6.9:8443"}
+                        className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
+                    />
+                </label>
+                <label className="space-y-1 text-sm font-medium text-slate-300">
+                    API Key <span className="text-xs font-normal text-slate-500">(kosong = biarkan tersimpan)</span>
+                    <input
+                        name="networkDocApiKey"
+                        type="password"
+                        autoComplete="off"
+                        placeholder={site.apiKeyConfigured ? "Key tersimpan; isi hanya untuk mengganti" : envHasKey ? "Pakai default dari env" : "X-API-Key aplikasi dokumentasi"}
+                        className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
+                    />
+                </label>
+            </div>
+
+            {saveState?.errors && (
+                <div className="mt-3 rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">
+                    {Object.values(saveState.errors as Record<string, string[]>).flat().join(" ")}
+                </div>
+            )}
+            {saveState?.message && !saveState.success && (
+                <div className="mt-3 rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">{saveState.message}</div>
+            )}
+            {testState && (
+                <div className={`mt-3 rounded-lg border p-3 text-sm ${testState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
+                    {testState.message}
+                </div>
+            )}
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <ActionButton type="submit" formAction={testAction} variant="secondary" isPending={isTesting}>Test Connection</ActionButton>
+                <ActionButton type="submit" isPending={isSaving}>Simpan Site</ActionButton>
+            </div>
+        </form>
+    );
+}
+
+export default function NetworkDocSettingsForm({ initialData }: { initialData: NetworkDocSettingsData }) {
+    const router = useRouter();
+    const [intervalState, intervalAction, isIntervalPending] = useActionState(saveNetworkDocWorkerInterval, undefined);
+
+    useEffect(() => {
+        if (intervalState?.success) router.refresh();
+    }, [intervalState?.success, router]);
+
     const intervalOptions = INTERVAL_OPTIONS.some(
-        (option) => option.value === String(initialData.networkDocIntervalMs),
+        (option) => option.value === String(initialData.workerIntervalMs),
     )
         ? INTERVAL_OPTIONS
         : [
             ...INTERVAL_OPTIONS,
             {
-                value: String(initialData.networkDocIntervalMs),
-                label: `Custom (${Math.round((initialData.networkDocIntervalMs ?? 0) / 60_000)} menit)`,
+                value: String(initialData.workerIntervalMs),
+                label: `Custom (${Math.round((initialData.workerIntervalMs ?? 0) / 60_000)} menit)`,
             },
         ];
-    const siteOptions = initialData.sites.some((site) => site.id === initialData.networkDocSiteId)
-        ? initialData.sites
-        : initialData.networkDocSiteId !== null
-            ? [
-                { id: initialData.networkDocSiteId, name: `Site #${initialData.networkDocSiteId} (tidak ada di daftar)` },
-                ...initialData.sites,
-            ]
-            : initialData.sites;
 
     return (
-        <form action={action} className="mt-6 max-w-5xl space-y-4 rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h2 className="text-sm font-semibold text-white">Network Docs Sync</h2>
-                    <p className="mt-1 text-xs text-slate-400">
-                        Sumber dokumentasi jaringan (aplikasi backup switch). Dipakai oleh worker terjadwal dan tombol sync di{" "}
-                        <span className="font-mono">/admin/network-docs</span>. API key disimpan terenkripsi.
-                    </p>
-                </div>
-                <span className={`inline-flex h-7 w-fit items-center rounded-full border px-3 text-xs font-medium ${initialData.networkDocApiKeyConfigured ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-amber-400/25 bg-amber-400/10 text-amber-300"}`}>
-                    {initialData.networkDocApiKeyConfigured ? "Terkonfigurasi" : "Belum lengkap"}
-                </span>
+        <div className="mt-6 max-w-5xl space-y-4 rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
+            <div>
+                <h2 className="text-sm font-semibold text-white">Network Docs Sync</h2>
+                <p className="mt-1 text-xs text-slate-400">
+                    Konfigurasi per site — setiap site bisa memakai API network-doc sendiri. Worker terjadwal menyinkronkan
+                    semua site yang terkonfigurasi; tombol sync di <span className="font-mono">/admin/network-docs</span> memakai
+                    config site aktif. API key disimpan terenkripsi.
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                    Catatan Docker: <span className="font-mono">localhost</span> dari dalam container menunjuk ke container itu
+                    sendiri — pakai IP LAN host atau <span className="font-mono">http://host.docker.internal:8443</span>.
+                </p>
             </div>
 
-            {envOverrides.length > 0 && (
+            {(initialData.envHasUrl || initialData.envHasKey) && (
                 <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-200">
-                    Environment override aktif untuk: {envOverrides.join(", ")} — nilai dari .env menang di atas pengaturan ini.
-                    {initialData.envOverridesUrl && initialData.effectiveUrl && (
-                        <div className="mt-1 font-mono text-xs">URL yang benar-benar dipakai: {initialData.effectiveUrl}</div>
+                    Environment menyediakan default global (NETWORK_DOC_URL{initialData.envHasKey ? " + NETWORK_DOC_API_KEY" : ""}) — dipakai untuk site yang kolom URL/Key-nya kosong.
+                </div>
+            )}
+
+            <div className="space-y-3">
+                {initialData.sites.map((site) => (
+                    <SiteRow key={site.siteId} site={site} envHasUrl={initialData.envHasUrl} envHasKey={initialData.envHasKey} />
+                ))}
+            </div>
+
+            <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
+                <form action={intervalAction} className="flex flex-wrap items-end gap-3">
+                    <label className="space-y-1 text-sm font-medium text-slate-300">
+                        Interval worker terjadwal (semua site)
+                        <select
+                            name="networkDocIntervalMs"
+                            defaultValue={initialData.workerIntervalMs?.toString() ?? ""}
+                            className="h-9 w-full min-w-44 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+                        >
+                            {intervalOptions.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                        </select>
+                    </label>
+                    <ActionButton type="submit" variant="secondary" isPending={isIntervalPending}>Simpan Interval</ActionButton>
+                    {initialData.envOverridesInterval && (
+                        <span className="text-xs text-amber-300">Env NETWORK_DOC_SYNC_INTERVAL_MS menang bila diisi.</span>
                     )}
-                </div>
-            )}
-
-            <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3 text-xs text-slate-400">
-                Catatan: jika dc-check berjalan di Docker, <span className="font-mono">localhost</span> dari dalam container
-                menunjuk ke container itu sendiri — pakai IP LAN host (mis. <span className="font-mono">http://192.168.2.3:8443</span>)
-                atau <span className="font-mono">http://host.docker.internal:8443</span>.
+                </form>
+                {intervalState?.message && !intervalState.success && (
+                    <div className="mt-2 rounded-lg border border-red-400/20 bg-red-400/10 p-2 text-sm text-red-300">{intervalState.message}</div>
+                )}
+                {intervalState?.success && (
+                    <div className="mt-2 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-2 text-sm text-emerald-300">Interval disimpan.</div>
+                )}
             </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-                <label className="space-y-1.5 text-sm font-medium text-slate-300 md:col-span-2">
-                    URL API
-                    <input
-                        name="networkDocUrl"
-                        defaultValue={initialData.networkDocUrl}
-                        placeholder="http://10.10.6.9:8443"
-                        className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
-                    />
-                </label>
-                <label className="space-y-1.5 text-sm font-medium text-slate-300">
-                    API Key <span className="text-xs font-normal text-slate-500">(kosongkan = biarkan tersimpan)</span>
-                    <input
-                        name="networkDocApiKey"
-                        type="password"
-                        autoComplete="off"
-                        placeholder={initialData.networkDocApiKeyConfigured ? "Key tersimpan; isi hanya untuk mengganti" : "X-API-Key aplikasi dokumentasi jaringan"}
-                        className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
-                    />
-                </label>
-                <label className="space-y-1.5 text-sm font-medium text-slate-300">
-                    Site untuk sinkronisasi (worker)
-                    <select
-                        name="networkDocSiteId"
-                        defaultValue={initialData.networkDocSiteId?.toString() ?? ""}
-                        className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
-                    >
-                        <option value="">— Belum dipilih —</option>
-                        {siteOptions.map((site) => (
-                            <option key={site.id} value={site.id}>{site.name}</option>
-                        ))}
-                    </select>
-                    <span className="block text-xs font-normal text-slate-500">Tombol manual di /admin/network-docs memakai site aktif saat itu.</span>
-                </label>
-                <label className="space-y-1.5 text-sm font-medium text-slate-300">
-                    Interval worker terjadwal
-                    <select
-                        name="networkDocIntervalMs"
-                        defaultValue={initialData.networkDocIntervalMs?.toString() ?? ""}
-                        className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
-                    >
-                        {intervalOptions.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                    </select>
-                </label>
-            </div>
-
-            {state?.errors && (
-                <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">
-                    {Object.values(state.errors as Record<string, string[]>).flat().join(" ")}
-                </div>
-            )}
-            {state?.message && !state.success && (
-                <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">{state.message}</div>
-            )}
-            {state?.success && (
-                <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-300">Pengaturan Network Docs disimpan.</div>
-            )}
-
-            {testState && (
-                <div className={`rounded-lg border p-3 text-sm ${testState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
-                    {testState.message}
-                </div>
-            )}
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <ActionButton type="submit" formAction={testAction} variant="secondary" isPending={isTesting}>Test Connection</ActionButton>
-                <ActionButton type="submit" isPending={isPending}>Save Network Docs Settings</ActionButton>
-            </div>
-        </form>
+        </div>
     );
 }

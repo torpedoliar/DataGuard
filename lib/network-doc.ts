@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../db";
-import { devices, vlans, networkPorts, globalSettings } from "../db/schema";
+import { devices, vlans, networkPorts, networkDocSettings, globalSettings } from "../db/schema";
 import { getEnv } from "./env";
 import { decryptIfEncrypted } from "./crypto";
 
@@ -79,56 +79,70 @@ export async function fetchNetworkDoc(baseUrl: string, apiKey: string): Promise<
 }
 
 // ==================== Config ====================
-// Settings are editable from the settings page (global_settings row).
-// Environment variables NETWORK_DOC_* still win per-field when set, so a
-// deployment can pin values without touching the DB.
+// Per-site settings (network_doc_settings rows) with env NETWORK_DOC_* as the
+// global default: a site's row wins per-field, env fills in what the row
+// leaves unset. This is what makes multi-site (one API per site) work.
 
 export type NetworkDocConfig = {
     url: string | null;
     apiKey: string | null;
-    siteId: number | null;
     intervalMs: number | null;
 };
 
-export async function resolveNetworkDocConfig(): Promise<NetworkDocConfig> {
+export async function resolveNetworkDocConfig(siteId: number): Promise<NetworkDocConfig> {
     const env = getEnv();
 
-    let stored: {
-        networkDocUrl: string | null;
-        networkDocApiKey: string | null;
-        networkDocSiteId: number | null;
-        networkDocIntervalMs: number | null;
+    let row: {
+        url: string | null;
+        apiKey: string | null;
+        intervalMs: number | null;
     } | null = null;
     try {
         const rows = await db.select({
-            networkDocUrl: globalSettings.networkDocUrl,
-            networkDocApiKey: globalSettings.networkDocApiKey,
-            networkDocSiteId: globalSettings.networkDocSiteId,
-            networkDocIntervalMs: globalSettings.networkDocIntervalMs,
-        }).from(globalSettings).limit(1);
-        stored = rows[0] ?? null;
+            url: networkDocSettings.url,
+            apiKey: networkDocSettings.apiKey,
+            intervalMs: networkDocSettings.intervalMs,
+        }).from(networkDocSettings).where(eq(networkDocSettings.siteId, siteId));
+        row = rows[0] ?? null;
     } catch {
         // DB unreachable — env values only.
     }
 
-    let apiKey = env.NETWORK_DOC_API_KEY?.trim() || null;
-    if (!apiKey && stored?.networkDocApiKey) {
+    // Per-field precedence: the site's row wins, env fills what the row
+    // leaves unset (env is the global default for sites without a row).
+    let apiKey: string | null = null;
+    if (row?.apiKey) {
         try {
-            apiKey = decryptIfEncrypted(stored.networkDocApiKey);
+            apiKey = decryptIfEncrypted(row.apiKey);
         } catch {
             apiKey = null;
         }
     }
-
-    const envSiteId = env.NETWORK_DOC_SITE_ID?.trim();
-    const envInterval = env.NETWORK_DOC_SYNC_INTERVAL_MS?.trim();
+    if (apiKey === null) {
+        apiKey = env.NETWORK_DOC_API_KEY?.trim() || null;
+    }
 
     return {
-        url: env.NETWORK_DOC_URL?.trim() || stored?.networkDocUrl?.trim() || null,
+        url: row?.url?.trim() || env.NETWORK_DOC_URL?.trim() || null,
         apiKey,
-        siteId: envSiteId ? Number(envSiteId) || null : stored?.networkDocSiteId ?? null,
-        intervalMs: envInterval ? Number(envInterval) || null : stored?.networkDocIntervalMs ?? null,
+        intervalMs: row?.intervalMs ?? (env.NETWORK_DOC_SYNC_INTERVAL_MS?.trim() ? Number(env.NETWORK_DOC_SYNC_INTERVAL_MS) || null : null),
     };
+}
+
+/**
+ * Worker cadence shared across all sites. Global (not per-site): the row
+ * column exists for future per-site scheduling.
+ */
+export async function resolveNetworkDocWorkerInterval(): Promise<number> {
+    const env = getEnv();
+    try {
+        const rows = await db.select({ intervalMs: globalSettings.networkDocIntervalMs }).from(globalSettings).limit(1);
+        if (rows[0]?.intervalMs) return rows[0].intervalMs;
+    } catch {
+        // DB unreachable — env or default.
+    }
+    const envInterval = env.NETWORK_DOC_SYNC_INTERVAL_MS?.trim();
+    return envInterval ? Number(envInterval) || 0 : 0;
 }
 
 // ==================== Sync ====================
@@ -239,12 +253,12 @@ function mapPortFields(port: NetworkDocPort, vlanByNumber: Map<number, number>, 
 }
 
 export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSummary> {
-    const config = await resolveNetworkDocConfig();
+    const config = await resolveNetworkDocConfig(siteId);
     if (!config.url || !config.apiKey) {
         return {
             switchesTotal: 0, switchesMatched: 0, switchesUnmatched: 0,
             vlansCreated: 0, vlansUpdated: 0, portsCreated: 0, portsUpdated: 0,
-            warnings: ["Network Docs belum dikonfigurasi (atur di Settings › Network Docs, atau set NETWORK_DOC_URL/NETWORK_DOC_API_KEY) — sync dilewati"],
+            warnings: [`Site ${siteId} belum dikonfigurasi untuk Network Docs (Settings › Network Docs — isi URL + API key untuk site) — sync dilewati`],
         };
     }
 
