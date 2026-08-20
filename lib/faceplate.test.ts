@@ -55,6 +55,17 @@ describe("parsePortIndex", () => {
     expect(parsePortIndex("Te1/1/4.500")).toBe(4);
   });
 
+  it("parses multi-dot stack interface names and plain numbers", () => {
+    expect(parsePortIndex("port1.0.1")).toBe(1);
+    expect(parsePortIndex("PORT1.0.1")).toBe(1);
+    expect(parsePortIndex("port1.0.28")).toBe(28);
+    expect(parsePortIndex("PORT1.0.10")).toBe(10);
+    expect(parsePortIndex("1.0.24")).toBe(24);
+    expect(parsePortIndex("1")).toBe(1);
+    expect(parsePortIndex("52")).toBe(52);
+    expect(parsePortIndex("port1.0.2.10")).toBe(2);
+  });
+
   it("treats SVIs and link bundles as logical interfaces with no physical slot", () => {
     expect(parsePortIndex("Vlan10")).toBeNull();
     expect(parsePortIndex("Port-Channel1")).toBeNull();

@@ -4,6 +4,7 @@ import { db } from "../db";
 import { devices, vlans, networkPorts, networkDocSettings, globalSettings } from "../db/schema";
 import { getEnv } from "./env";
 import { decryptIfEncrypted } from "./crypto";
+import { parsePortIndex } from "./faceplate";
 
 // ==================== External API types (network-doc) ====================
 // Read-only REST API of the switch-config backup app. Response per switch is
@@ -173,10 +174,7 @@ function normalize(value: string | null | undefined): string | null {
  * the slot as its LAST numeric group — honor that as the physical slot.
  */
 function docSlotOf(name: string): number | null {
-    const groups = name.match(/\d+/g);
-    if (!groups || groups.length === 0) return null;
-    const value = Number.parseInt(groups[groups.length - 1], 10);
-    return Number.isFinite(value) && value >= 1 ? value : null;
+    return parsePortIndex(name);
 }
 
 function matchDevice(docSwitch: NetworkDocSwitch, siteDevices: SiteDevice[]): SiteDevice | null {
@@ -387,21 +385,28 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
         const existingPorts = portsByDevice.get(device.id) ?? [];
 
         // ---- Faceplate auto-generation from the doc ----
-        // The doc's port names carry the physical slot numbers; a switch that
-        // has no faceplate yet gets one configured so the diagram renders.
-        // Only ever RAISE — an admin-set count is respected, not shrunk.
+        // The doc's port names carry the physical slot numbers; automatically
+        // align the faceplate layout to match the doc's ports exactly so the
+        // operator doesn't have excess ports or missing slots.
         let maxSlot = 0;
         for (const docPort of docSwitch.ports) {
             if (!docPort.name) continue;
             const slot = docSlotOf(docPort.name);
             if (slot) maxSlot = Math.max(maxSlot, slot);
         }
-        const faceConfigured = Number(device.faceplatePortCount) > 0;
-        if (!faceConfigured && maxSlot > 0) {
-            await db.update(devices).set({
-                faceplatePortCount: maxSlot,
-            }).where(eq(devices.id, device.id));
-            device.faceplatePortCount = maxSlot;
+        const needsPortCountUpdate = maxSlot > 0 && device.faceplatePortCount !== maxSlot;
+        const needsUplinkReset = (device.faceplateUplinkCount ?? 0) > 0;
+        if (needsPortCountUpdate || needsUplinkReset) {
+            const updateSet: { faceplatePortCount?: number; faceplateUplinkCount?: number } = {};
+            if (needsPortCountUpdate) {
+                updateSet.faceplatePortCount = maxSlot;
+                device.faceplatePortCount = maxSlot;
+            }
+            if (needsUplinkReset) {
+                updateSet.faceplateUplinkCount = 0;
+                device.faceplateUplinkCount = 0;
+            }
+            await db.update(devices).set(updateSet).where(eq(devices.id, device.id));
         }
 
         for (const docPort of docSwitch.ports) {
@@ -448,6 +453,7 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
             if (mapped.trunkVlans !== undefined && existing.trunkVlans !== mapped.trunkVlans) update.trunkVlans = mapped.trunkVlans;
             if (mapped.status !== undefined && existing.status !== mapped.status) update.status = mapped.status;
             if (mapped.description !== undefined && (existing.description ?? null) !== mapped.description) update.description = mapped.description;
+            if (existing.portIndex !== null && existing.portIndex > maxSlot) update.portIndex = null;
             if (Object.keys(update).length > 0) {
                 await db.update(networkPorts).set(update).where(eq(networkPorts.id, existing.id));
                 summary.portsUpdated++;

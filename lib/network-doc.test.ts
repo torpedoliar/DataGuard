@@ -359,12 +359,12 @@ describe("syncNetworkDocs", () => {
     stubFetch([SWITCH_A]);
     mocks.selectResults.push(
       [],
-      [{ ...DEVICE_IP, faceplatePortCount: 3, faceplateUplinkCount: 1 }],
+      [{ ...DEVICE_IP, faceplatePortCount: 3, faceplateUplinkCount: 0 }],
       [{ id: 100, vlanId: 88, name: "IPH-DEVICE" }, { id: 101, vlanId: 11, name: "MGMT" }],
       [
         {
           id: 500, deviceId: 10, portName: "port1.0.1", portMode: "Trunk", vlanId: 101,
-          trunkVlans: "88, 11", status: "Active", description: "uplink", portIndex: 4,
+          trunkVlans: "88, 11", status: "Active", description: "uplink", portIndex: 3,
         },
       ],
     );
@@ -375,6 +375,31 @@ describe("syncNetworkDocs", () => {
     expect(mocks.updateSets).toHaveLength(0);
   });
 
+  it("automatically adjusts faceplate layout and clears excess uplinks to match doc ports", async () => {
+    stubEnv({});
+    stubFetch([SWITCH_A]); // 3 ports: maxSlot = 3
+    mocks.selectResults.push(
+      [],
+      // Device previously had 56 ports + 10 excess uplinks
+      [{ ...DEVICE_IP, faceplatePortCount: 56, faceplateUplinkCount: 10 }],
+      [{ id: 100, vlanId: 88, name: "IPH-DEVICE" }, { id: 101, vlanId: 11, name: "MGMT" }],
+      [
+        {
+          id: 500, deviceId: 10, portName: "port1.0.1", portMode: "Trunk", vlanId: 101,
+          trunkVlans: "88, 11", status: "Active", description: "uplink", portIndex: 61, // old out-of-bounds slot
+        },
+      ],
+    );
+
+    const summary = await syncNetworkDocs(7);
+
+    // Device faceplate was updated to 3 ports and 0 uplinks
+    expect(mocks.updateSets[0]).toEqual({ faceplatePortCount: 3, faceplateUplinkCount: 0 });
+    // Out-of-bounds portIndex was reset to null
+    expect(mocks.updateSets[1]).toMatchObject({ portIndex: null });
+    expect(summary.portsUpdated).toBe(1);
+  });
+
   it("leaves stored fields untouched when the doc omits them (no enabled/mode/vlans)", async () => {
     stubEnv({});
     // Only a description is provided — status "Down", portMode, vlanId and
@@ -382,7 +407,7 @@ describe("syncNetworkDocs", () => {
     stubFetch([{ ...SWITCH_A, ports: [{ name: "port1.0.1", description: "uplink" }] }]);
     mocks.selectResults.push(
       [],
-      [{ ...DEVICE_IP, faceplatePortCount: 3, faceplateUplinkCount: 1 }],
+      [{ ...DEVICE_IP, faceplatePortCount: 1, faceplateUplinkCount: 0 }],
       [{ id: 100, vlanId: 88, name: "IPH-DEVICE" }, { id: 101, vlanId: 11, name: "MGMT" }],
       [
         {

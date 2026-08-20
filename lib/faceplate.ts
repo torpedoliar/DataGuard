@@ -135,19 +135,37 @@ export function normalizeFaceplateConfig(input: FaceplateConfigInput | null | un
  * rather than a physical port. They never map to a faceplate slot on their
  * own; an admin can still pin one to a slot with an explicit portIndex.
  */
-const LOGICAL_INTERFACE_NAME = /^(vlan|port-channel|portchannel)\d*$/i;
+const LOGICAL_INTERFACE_NAME = /^(vlan|port-channel|portchannel|po)\d*(\.\d+)?$/i;
 
 /**
  * Derives a physical port number from a free-text interface name by taking its
- * last numeric group: "Gi1/0/13" -> 13, "ether5" -> 5, "Eth1" -> 1.
+ * last numeric group: "Gi1/0/13" -> 13, "ether5" -> 5, "Eth1" -> 1,
+ * "port1.0.1" -> 1, "PORT1.0.28" -> 28.
  * Subinterface suffixes are stripped first so a router subinterface maps to
- * its physical port: "Gi1/0/2.10" -> 2.
+ * its physical port: "Gi1/0/2.10" -> 2, "eth1.100" -> 1, "port1.0.2.10" -> 2.
  * Returns null when no usable number is present, including logical interfaces
  * such as "Vlan10" and "Port-Channel1" — the caller routes those to the
  * unplaced list instead of guessing a physical slot.
  */
 export function parsePortIndex(portName: string | null | undefined): number | null {
-  const physicalName = String(portName ?? "").replace(/\.\d+$/, "");
+  if (!portName) return null;
+  const raw = String(portName).trim();
+  if (LOGICAL_INTERFACE_NAME.test(raw)) return null;
+
+  // Handle subinterfaces:
+  // - Slashes present (e.g. "Gi1/0/2.10", "Te1/1/4.500"): strip trailing .\d+ subinterface
+  // - Dot-separated stack format with subinterface (e.g. "port1.0.2.100" with >= 3 dots): strip trailing .\d+
+  // - Single-dot subinterface on simple prefix (e.g. "eth1.100", "ether2.50"): strip trailing .\d+
+  // - Multi-segment dotted switch names (e.g. "port1.0.1", "PORT1.0.28", "1.0.24") are physical unit.bay.port: do NOT strip trailing .\d+
+  let physicalName = raw;
+  if (raw.includes("/")) {
+    physicalName = raw.replace(/\.\d+$/, "");
+  } else if ((raw.match(/\./g) ?? []).length >= 3) {
+    physicalName = raw.replace(/\.\d+$/, "");
+  } else if (/^[a-zA-Z_-]+\d+\.\d+$/.test(raw)) {
+    physicalName = raw.replace(/\.\d+$/, "");
+  }
+
   if (LOGICAL_INTERFACE_NAME.test(physicalName)) return null;
   const groups = physicalName.match(/\d+/g);
   if (!groups || groups.length === 0) return null;
