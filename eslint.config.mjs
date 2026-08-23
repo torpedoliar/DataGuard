@@ -14,6 +14,14 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     ".claude/**",
   ]),
+  {
+    // Diagnostic scripts copied into the container and run with bare `node`
+    // (no bundler) — CommonJS require() is the point, not an accident.
+    files: ["scripts/check-*.js", "scripts/debug-*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

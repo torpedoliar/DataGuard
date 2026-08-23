@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 
 function applyTheme(dark: boolean) {
@@ -12,22 +12,31 @@ function applyTheme(dark: boolean) {
   }
 }
 
-export function ThemeToggle() {
-  // null until mounted so SSR and first client render match (icon decided client-side)
-  const [dark, setDark] = useState<boolean | null>(null);
+// Reads the live theme off <html class> so an external writer (app-shell
+// applyTheme on load) re-renders the icon without any effect.
+const themeStore = {
+  subscribe(listener: () => void) {
+    const observer = new MutationObserver(listener);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  },
+  getSnapshot: () => document.documentElement.classList.contains("dark"),
+  // Server/first paint placeholder: renders the empty spacer until hydrated,
+  // keeping SSR and client output identical.
+  getServerSnapshot: () => null as boolean | null,
+};
 
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+export function ThemeToggle() {
+  const dark = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot, themeStore.getServerSnapshot);
 
   return (
     <button
       type="button"
       aria-label="Toggle theme"
       onClick={() => {
-        const next = !(dark ?? true);
-        setDark(next);
-        applyTheme(next);
+        // applyTheme mutates <html class>; the MutationObserver in themeStore
+        // feeds it back through useSyncExternalStore — no local state.
+        applyTheme(!(dark ?? true));
       }}
       className="p-2 rounded-md text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised transition-colors"
     >

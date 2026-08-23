@@ -34,11 +34,11 @@ function makeSelectChain(rows: unknown[], opts: { withLimit?: boolean } = {}) {
   const limit = vi.fn().mockResolvedValue(rows);
   // when awaited directly, where() resolves to rows. when chained to .limit(),
   // it returns the chain object. for the device lookup we use withLimit.
-  const where: any = opts.withLimit
+  const where: ReturnType<typeof vi.fn> = opts.withLimit
     ? vi.fn().mockReturnValue({ limit })
     : vi.fn().mockImplementation(() => {
         // Make where() thenable so awaiting it returns rows
-        const p: any = Promise.resolve(rows);
+        const p: Promise<unknown> = Promise.resolve(rows);
         return p;
       });
   const from = vi.fn().mockReturnValue({ where });

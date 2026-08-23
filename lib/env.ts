@@ -55,10 +55,10 @@ const envSchema = z.object({
 
   // network-doc sync (lib/network-doc.ts). Optional: when URL or API key are
   // absent the sync reports "not configured" and skips — it must never crash
-  // the scheduled worker (restart: always).
+  // the scheduled worker (restart: always). These are the GLOBAL default; each
+  // site can override them per-row from Settings › Network Docs.
   NETWORK_DOC_URL: z.string().optional(),
   NETWORK_DOC_API_KEY: z.string().optional(),
-  NETWORK_DOC_SITE_ID: z.string().optional(),
   NETWORK_DOC_SYNC_INTERVAL_MS: z.string().optional(),
 
   // Explicit cookie security override (lib/session.ts). Optional — secure

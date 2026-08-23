@@ -6,6 +6,7 @@ import ActionButton from "@/components/ui/action-button";
 import FormSection from "@/components/ui/form-section";
 import { Plus, Server } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type ChangeEvent } from "react";
 import clsx from "clsx";
 
@@ -189,9 +190,9 @@ export default function AddDeviceForm({
                   ))}
                 </select>
                 {racks.length === 0 && (
-                  <a href="/admin/rack-manage" className="mt-1 inline-flex text-xs font-semibold text-ops-accent hover:text-ops-accent">
+                  <Link href="/admin/rack-manage" className="mt-1 inline-flex text-xs font-semibold text-ops-accent hover:text-ops-accent">
                     Manage racks first
-                  </a>
+                  </Link>
                 )}
               </label>
 

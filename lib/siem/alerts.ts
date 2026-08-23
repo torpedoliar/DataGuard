@@ -239,9 +239,9 @@ export async function sendPendingSiemAlerts() {
         });
         success = true;
       }
-    } catch (error: any) {
+    } catch (error) {
       success = false;
-      errorMsg = error?.message || "Exception occurred";
+      errorMsg = error instanceof Error ? error.message : "Exception occurred";
     }
 
     if (success) {

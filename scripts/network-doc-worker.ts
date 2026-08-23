@@ -26,6 +26,13 @@ export async function runOnce(): Promise<void> {
     if (!config.url || !config.apiKey) continue;
 
     const summary = await syncNetworkDocs(site.id);
+    // A lock-busy skip returns switchesTotal 0 + a "sync lain sedang berjalan"
+    // warning: log it, but don't count it as synced or write an audit row —
+    // the run that holds the lock logs its own.
+    if (summary.switchesTotal === 0 && summary.warnings.some((w) => w.includes("sync lain sedang berjalan"))) {
+      console.log(`[network-doc] site "${site.name}": skipped — another sync is running`);
+      continue;
+    }
     synced++;
     console.log(
       `[network-doc] site "${site.name}": ${summary.switchesMatched}/${summary.switchesTotal} switches matched, ` +

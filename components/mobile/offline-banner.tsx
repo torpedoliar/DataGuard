@@ -4,12 +4,12 @@ import { AlertTriangle, X } from 'lucide-react';
 import { useState } from 'react';
 
 export function OfflineBanner() {
-  // null = unknown on SSR/first paint; resolved client-side in the hook.
-  // Avoids hydration mismatch + flash of banner on devices that are online.
+  // useOnlineStatus returns true on SSR/first paint (assumed online), so the
+  // banner only appears after the client actually observes an offline event.
   const isOnline = useOnlineStatus();
   const [dismissed, setDismissed] = useState(false);
 
-  if (isOnline === null || isOnline || dismissed) return null;
+  if (isOnline || dismissed) return null;
 
   return (
     <div

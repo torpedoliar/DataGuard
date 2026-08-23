@@ -17,7 +17,7 @@ export default async function NetworkDocsPage() {
         <PageHeader
           eyebrow="Admin / Network"
           title="Network Docs"
-          description="Sinkronkan perangkat switch, tabel VLAN, dan konfigurasi port dari aplikasi Dokumentasi Jaringan (network-doc API). Switch dicocokkan dengan device berdasarkan IP, lalu nama. Field yang tidak tersedia di API (cabling, faceplate, MAC, speed) tidak disentuh."
+          description="Sinkronkan perangkat switch, tabel VLAN, dan konfigurasi port dari aplikasi Dokumentasi Jaringan (network-doc API). Switch dicocokkan dengan device berdasarkan IP, lalu nama. Field yang tidak tersedia di API (cabling, MAC, speed) tidak disentuh. Catatan: jumlah port faceplate mengikuti dokumen — layout yang diatur manual di halaman Network device akan ditimpa saat sinkron."
         />
         <NetworkDocsButton />
       </main>

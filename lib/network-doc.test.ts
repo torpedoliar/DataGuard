@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   insertReturning: [] as unknown[][],
   updateSets: [] as unknown[],
   deleteCalled: 0,
+  lockAcquired: true, // advisory-lock verdict returned by the mocked tx.execute
 }));
 
 vi.mock("../db", () => {
@@ -33,6 +34,14 @@ vi.mock("../db", () => {
           const result = mocks.insertReturning.length > 0 ? mocks.insertReturning.shift() : [];
           return Promise.resolve(result);
         },
+        // ON CONFLICT chains off .values(); resolve like a plain insert.
+        onConflictDoNothing: () => ({ where: () => Promise.resolve(undefined) }),
+        onConflictDoUpdate: () => ({
+          returning: () => {
+            const result = mocks.insertReturning.length > 0 ? mocks.insertReturning.shift() : [];
+            return Promise.resolve(result);
+          },
+        }),
       };
     },
   });
@@ -46,12 +55,20 @@ vi.mock("../db", () => {
     },
   });
 
+  const mockDb = {
+    select,
+    insert,
+    update,
+    delete: () => ({ where: () => { mocks.deleteCalled++; return Promise.resolve(undefined); } }),
+    execute: async () => ({ rows: [{ acquired: mocks.lockAcquired }] }),
+  };
   return {
     db: {
-      select,
-      insert,
-      update,
-      delete: () => ({ where: () => { mocks.deleteCalled++; return Promise.resolve(undefined); } }),
+      ...mockDb,
+      // The sync runs its write phase inside one transaction; tests execute
+      // the callback against this same mock so select/insert/update stubs apply.
+      transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb),
+      execute: async () => ({ rows: [{ acquired: true }] }),
     },
   };
 });
@@ -97,7 +114,6 @@ function stubFetch(payload: unknown, ok = true, status = 200) {
 function stubEnv(overrides: Record<string, string | undefined>) {
   vi.stubEnv("NETWORK_DOC_URL", overrides.NETWORK_DOC_URL ?? API_URL);
   vi.stubEnv("NETWORK_DOC_API_KEY", overrides.NETWORK_DOC_API_KEY ?? API_KEY);
-  vi.stubEnv("NETWORK_DOC_SITE_ID", "7");
 }
 
 const DEVICE_IP = { id: 10, name: "10.10.0.50", assetCode: null, ipAddress: "10.10.0.50", faceplatePortCount: null, faceplateUplinkCount: null };
@@ -109,6 +125,7 @@ beforeEach(() => {
   mocks.insertReturning.length = 0;
   mocks.updateSets.length = 0;
   mocks.deleteCalled = 0;
+  mocks.lockAcquired = true;
   // The SUT mutates the selected device object (face config update) — reset
   // the shared fixture so later tests see the pristine "no faceplate" state.
   DEVICE_IP.faceplatePortCount = null;
@@ -468,7 +485,7 @@ describe("syncNetworkDocs", () => {
   });
 
   it("uses the per-site row (decrypted API key) when env vars are absent", async () => {
-    stubEnv({ NETWORK_DOC_URL: "", NETWORK_DOC_API_KEY: "", NETWORK_DOC_SITE_ID: "" });
+    stubEnv({ NETWORK_DOC_URL: "", NETWORK_DOC_API_KEY: "" });
     vi.stubEnv("AI_KEY_ENCRYPTION_SECRET", "test-network-doc-secret-32charsxxxx");
     const fetchMock = stubFetch([SWITCH_A]);
     mocks.selectResults.push(
@@ -520,5 +537,25 @@ describe("syncNetworkDocs", () => {
     expect(url).toBe(`${API_URL}/api/v1/network-doc`);
     expect((init.headers as Record<string, string>)["X-API-Key"]).toBe(API_KEY);
     expect(summary.switchesMatched).toBe(1);
+  });
+
+  it("skips the write phase when another sync holds the site's advisory lock", async () => {
+    stubEnv({});
+    stubFetch([SWITCH_A]);
+    mocks.selectResults.push([], [DEVICE_IP], [], []);
+    // Lock NOT acquired — a concurrent run (worker + manual click) is active.
+    mocks.lockAcquired = false;
+
+    try {
+      const summary = await syncNetworkDocs(7);
+
+      // The fetch happened (config check + doc read), but no writes were made.
+      expect(summary.switchesTotal).toBe(0);
+      expect(mocks.insertValues).toHaveLength(0);
+      expect(mocks.updateSets).toHaveLength(0);
+      expect(summary.warnings.some((w) => w.includes("sync lain sedang berjalan"))).toBe(true);
+    } finally {
+      mocks.lockAcquired = true;
+    }
   });
 });

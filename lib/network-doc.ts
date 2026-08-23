@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { devices, vlans, networkPorts, networkDocSettings, globalSettings } from "../db/schema";
 import { getEnv } from "./env";
 import { decryptIfEncrypted } from "./crypto";
-import { parsePortIndex } from "./faceplate";
+import { FACEPLATE_MAX_PORTS, parsePortIndex } from "./faceplate";
 
 // ==================== External API types (network-doc) ====================
 // Read-only REST API of the switch-config backup app. Response per switch is
@@ -277,6 +277,8 @@ function mapPortFields(port: NetworkDocPort, vlanByNumber: Map<number, number>, 
     };
 }
 
+export const NETWORK_DOC_SYNC_LOCK_ID = 0x6e646f63; // 'ndoc' — advisory xact lock key
+
 export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSummary> {
     const config = await resolveNetworkDocConfig(siteId);
     if (!config.url || !config.apiKey) {
@@ -287,7 +289,32 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
         };
     }
 
+    // The hourly worker and a manual "Sync now" click must not interleave:
+    // two in-memory snapshots of the same site produce conflicting writes
+    // (duplicate VLANs/ports, churned faceplate configs). The write phase runs
+    // inside ONE transaction holding a transaction-scoped advisory lock
+    // (pg_try_advisory_xact_lock) — auto-released on commit or rollback, tied
+    // to the same client as every query in the tx. The HTTP fetch happens
+    // BEFORE the transaction so a slow API never holds a DB client open.
+    // Skip instead of queue when busy — the next scheduled pass covers it.
     const doc = await fetchNetworkDoc(config.url, config.apiKey);
+    return db.transaction(async (tx) => {
+        const lock = await tx.execute(sql`SELECT pg_try_advisory_xact_lock(${NETWORK_DOC_SYNC_LOCK_ID}, ${siteId}) AS acquired`);
+        if (!(lock.rows[0] as { acquired: boolean } | undefined)?.acquired) {
+            return {
+                switchesTotal: 0, switchesMatched: 0, switchesUnmatched: 0,
+                vlansCreated: 0, vlansUpdated: 0, portsCreated: 0, portsUpdated: 0,
+                warnings: [`Site ${siteId}: sync lain sedang berjalan — permintaan ini dilewati, tunggu pass berikutnya`],
+            };
+        }
+        return runNetworkDocSync(tx, siteId, doc);
+    });
+}
+
+// Tx handle type as seen by db.transaction((tx) => …) callbacks.
+type SyncTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function runNetworkDocSync(db: SyncTx, siteId: number, doc: NetworkDocSwitch[]): Promise<NetworkDocSyncSummary> {
 
     const summary: NetworkDocSyncSummary = {
         switchesTotal: doc.length,
@@ -338,20 +365,25 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
     }
 
     // VLANs must exist before ports reference them (networkPorts.vlanId is an
-    // FK to vlans.id). Upsert per switch as we go — (siteId, vlanId) has no
-    // DB unique index, so this is select-first, never ON CONFLICT.
+    // FK to vlans.id). Upsert per switch as we go — (siteId, vlanId) has a
+    // unique index (0038), so ON CONFLICT is the concurrency-safe path: two
+    // runs racing on one site can no longer fabricate duplicate VLAN rows.
     const upsertVlan = async (number: number, name: string) => {
         const existingId = vlanByNumber.get(number);
         if (existingId === undefined) {
             const rows = await db.insert(vlans)
                 .values({ siteId, vlanId: number, name })
+                .onConflictDoUpdate({
+                    target: [vlans.siteId, vlans.vlanId],
+                    set: { name },
+                })
                 .returning({ id: vlans.id });
             const newId = rows[0]?.id;
             if (newId === undefined) return;
+            if (!vlanCreatedThisRun.has(number)) summary.vlansCreated++;
             vlanByNumber.set(number, newId);
             vlanNameByNumber.set(number, name);
             vlanCreatedThisRun.add(number);
-            summary.vlansCreated++;
             return;
         }
         // Skip the update when this run already inserted it with that name,
@@ -362,6 +394,11 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
         vlanNameByNumber.set(number, name);
         summary.vlansUpdated++;
     };
+
+    // First writer wins per VLAN number within one run: two switches reporting
+    // the same number with different names must not flip-flop the stored name
+    // every pass (permanent churn). Later switches just reuse the first row.
+    const vlansSeenThisRun = new Set<number>();
 
     const seenPorts = new Set<string>(); // deviceId:portName — run-wide, so a
     // switch listed twice (or two switches matching one device) cannot
@@ -385,6 +422,10 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
                 summary.warnings.push(`switch ${docSwitch.name}: vlan tanpa nomor di-skip`);
                 continue;
             }
+            // First writer wins — a later switch reporting the same number
+            // under a different name must not churn the row every pass.
+            if (vlansSeenThisRun.has(docVlan.id)) continue;
+            vlansSeenThisRun.add(docVlan.id);
             // The API can emit null vlan names on degraded switches; dc-check
             // requires a name, so fall back to an explicit label.
             await upsertVlan(docVlan.id, docVlan.name?.trim() || `VLAN ${docVlan.id}`);
@@ -395,13 +436,16 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
         // ---- Faceplate auto-generation from the doc ----
         // The doc's port names carry the physical slot numbers; automatically
         // align the faceplate layout to match the doc's ports exactly so the
-        // operator doesn't have excess ports or missing slots.
+        // operator doesn't have excess ports or missing slots. Clamp to the
+        // faceplate maximum — the doc could name more slots than the layout
+        // model can draw (components read the count unclamped).
         let maxSlot = 0;
         for (const docPort of docSwitch.ports) {
             if (!docPort.name) continue;
             const slot = docSlotOf(docPort.name);
             if (slot) maxSlot = Math.max(maxSlot, slot);
         }
+        maxSlot = Math.min(maxSlot, FACEPLATE_MAX_PORTS);
         const needsPortCountUpdate = maxSlot > 0 && device.faceplatePortCount !== maxSlot;
         const needsUplinkReset = (device.faceplateUplinkCount ?? 0) > 0;
         if (needsPortCountUpdate || needsUplinkReset) {
@@ -439,6 +483,10 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
             const mapped = mapPortFields(docPort, vlanByNumber, summary.warnings);
 
             if (!existing) {
+                // ON CONFLICT DO NOTHING: a concurrent run may have inserted
+                // this (deviceId, portName) after our snapshot load — the
+                // unique index (0038) turns that race into a no-op instead of
+                // a duplicate row.
                 await db.insert(networkPorts).values({
                     deviceId: device.id,
                     portName: docPort.name,
@@ -447,6 +495,8 @@ export async function syncNetworkDocs(siteId: number): Promise<NetworkDocSyncSum
                     trunkVlans: mapped.trunkVlans ?? null,
                     status: mapped.status ?? "Active",
                     description: mapped.description ?? null,
+                }).onConflictDoNothing({
+                    target: [networkPorts.deviceId, networkPorts.portName],
                 });
                 summary.portsCreated++;
                 continue;

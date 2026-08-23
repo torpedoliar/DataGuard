@@ -1,19 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 
-// null on server + first paint so consumers can render nothing until the
-// real value is known client-side (prevents hydration mismatch + banner flash).
-export function useOnlineStatus(): boolean | null {
-  const [isOnline, setIsOnline] = useState<boolean | null>(null);
-  useEffect(() => {
-    setIsOnline(navigator.onLine);
-    const online = () => setIsOnline(true);
-    const offline = () => setIsOnline(false);
-    window.addEventListener('online', online);
-    window.addEventListener('offline', offline);
-    return () => {
-      window.removeEventListener('online', online);
-      window.removeEventListener('offline', offline);
-    };
-  }, []);
-  return isOnline;
+// Server snapshot is `true` so the offline banner stays hidden during SSR and
+// first paint — the same no-flash guarantee the old null-based hook gave,
+// without an effect. The store API re-reads navigator.onLine on every
+// online/offline event, no state needed.
+function subscribe(callback: () => void) {
+  window.addEventListener('online', callback);
+  window.addEventListener('offline', callback);
+  return () => {
+    window.removeEventListener('online', callback);
+    window.removeEventListener('offline', callback);
+  };
+}
+
+export function useOnlineStatus(): boolean {
+  return useSyncExternalStore(subscribe, () => navigator.onLine, () => true);
 }
