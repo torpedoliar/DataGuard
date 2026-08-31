@@ -4,7 +4,7 @@ import { useActionState, useEffect, useMemo, useState, useCallback, useRef } fro
 import { submitChecklist } from "@/actions/checklist";
 import ActionButton from "@/components/ui/action-button";
 import { selectScopeDevices, sortRacksByLayout, type AuditScopeMode } from "@/lib/checklist-scope";
-import { CalendarDays, Clock3, Layers3, Server, Send, Search } from "lucide-react";
+import { CalendarDays, ChevronDown, Clock3, Layers3, Server, Send, Search } from "lucide-react";
 import clsx from "clsx";
 import FieldAuditCard from "./field-audit-card";
 
@@ -50,6 +50,8 @@ export default function ChecklistForm({
   // Multi-select: each rack tab toggles; the union of selected racks is the
   // submit scope. Empty selection = All.
   const [activeRacks, setActiveRacks] = useState<string[]>([]);
+  // <details> element for the rack dropdown — closed after picking "All racks".
+  const rackDropdown = useRef<HTMLDetailsElement | null>(null);
   const [filter, setFilter] = useState("");
   // Persist status/remarks per device so switching tabs never loses data
   const [auditData, setAuditData] = useState<Record<string, { status: string; remarks: string }>>(() =>
@@ -236,41 +238,71 @@ export default function ChecklistForm({
                 );
               })
             ) : (
-              sortedRacks.map((rack) => {
-                const count = devices.filter(
-                  (d) => (d.rackName ?? "").toLowerCase() === rack.name.toLowerCase(),
-                ).length;
-                const active = activeRacks.includes(rack.name);
-                return (
+              <details ref={rackDropdown} className="group relative w-full max-w-xs">
+                <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-md border border-ops-border bg-ops-surface-raised px-3 text-sm font-semibold text-ops-text hover:border-ops-accent/50 [&::-webkit-details-marker]:hidden">
+                  <span className="truncate">
+                    {activeRacks.length === 0
+                      ? "All racks"
+                      : activeRacks.length === 1
+                        ? activeRacks[0]
+                        : `${activeRacks.length} racks selected`}
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 text-ops-muted transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-md border border-ops-border bg-ops-bg shadow-[0_14px_40px_rgba(0,0,0,0.32)]">
                   <button
-                    key={rack.id}
                     type="button"
-                    aria-pressed={active}
-                    onClick={() =>
-                      setActiveRacks((prev) =>
-                        prev.includes(rack.name)
-                          ? prev.filter((name) => name !== rack.name)
-                          : [...prev, rack.name],
-                      )
-                    }
+                    onClick={() => {
+                      setActiveRacks([]);
+                      rackDropdown.current?.removeAttribute("open");
+                    }}
                     className={clsx(
-                      "flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors",
-                      active
-                        ? "bg-ops-accent text-slate-950"
+                      "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold transition-colors",
+                      activeRacks.length === 0
+                        ? "bg-ops-accent/15 text-ops-accent"
                         : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
                     )}
                   >
-                    {rack.name}
-                    {rack.zone && <span className="text-[11px] opacity-70">{rack.zone}</span>}
-                    <span className={clsx(
-                      "rounded-full px-2 py-0.5 text-[11px]",
-                      active ? "bg-slate-950/12 text-slate-950" : "bg-ops-bg text-ops-muted",
-                    )}>
-                      {count}
-                    </span>
+                    All racks
+                    <span className="rounded-full bg-ops-bg px-2 py-0.5 text-[11px]">{devices.length}</span>
                   </button>
-                );
-              })
+                  {sortedRacks.map((rack) => {
+                    const count = devices.filter(
+                      (d) => (d.rackName ?? "").toLowerCase() === rack.name.toLowerCase(),
+                    ).length;
+                    const active = activeRacks.includes(rack.name);
+                    return (
+                      <button
+                        key={rack.id}
+                        type="button"
+                        onClick={() =>
+                          setActiveRacks((prev) =>
+                            prev.includes(rack.name)
+                              ? prev.filter((name) => name !== rack.name)
+                              : [...prev, rack.name],
+                          )
+                        }
+                        className={clsx(
+                          "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold transition-colors",
+                          active
+                            ? "bg-ops-accent/15 text-ops-accent"
+                            : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
+                        )}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <input type="checkbox" checked={active} readOnly className="size-4 accent-[#5eead4]" tabIndex={-1} />
+                          <span className="truncate">{rack.name}</span>
+                          {rack.zone && <span className="shrink-0 text-[11px] opacity-70">{rack.zone}</span>}
+                        </span>
+                        <span className="rounded-full bg-ops-bg px-2 py-0.5 text-[11px]">{count}</span>
+                      </button>
+                    );
+                  })}
+                  {sortedRacks.length === 0 && (
+                    <p className="px-3 py-3 text-sm text-ops-muted">No racks defined for this site.</p>
+                  )}
+                </div>
+              </details>
             )}
           </nav>
         </div>

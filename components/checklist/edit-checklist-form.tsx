@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useEffect } from "react";
 import { updateChecklist } from "@/actions/checklist";
-import { Loader2, Upload, CheckCircle, XCircle, X, Trash2 } from "lucide-react";
+import { Loader2, Upload, CheckCircle, XCircle, X, Trash2, Camera } from "lucide-react";
 import clsx from "clsx";
 
 type Category = { id: number; name: string };
@@ -303,21 +303,42 @@ function DeviceRow({
 
                     {/* Upload New Photo */}
                     {(status === "NOT OK" || existingItem?.photoPath) && (
-                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                            <Upload className="h-4 w-4" />
-                            <input
-                                type="file"
-                                name={`photo-${device.id}`}
-                                accept="image/*"
-                                onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file && file.size > 10 * 1024 * 1024) {
-                                        alert("Ukuran file maksimal 10MB");
-                                        e.target.value = "";
-                                    }
-                                }}
-                                className="block w-full text-xs text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 dark:file:bg-blue-500/10 file:text-blue-700 dark:file:text-blue-400 hover:file:bg-blue-100 dark:hover:file:bg-blue-500/20"
-                            />
+                        <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-2 font-semibold hover:border-blue-400">
+                                <Camera className="h-4 w-4" />
+                                Kamera
+                                <input
+                                    type="file"
+                                    name={`photo-${device.id}`}
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="sr-only"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file && file.size > 10 * 1024 * 1024) {
+                                            alert("Ukuran file maksimal 10MB");
+                                            e.target.value = "";
+                                        }
+                                    }}
+                                />
+                            </label>
+                            <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-2 font-semibold hover:border-blue-400">
+                                <Upload className="h-4 w-4" />
+                                Galeri
+                                <input
+                                    type="file"
+                                    name={`photo-${device.id}`}
+                                    accept="image/*"
+                                    className="sr-only"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file && file.size > 10 * 1024 * 1024) {
+                                            alert("Ukuran file maksimal 10MB");
+                                            e.target.value = "";
+                                        }
+                                    }}
+                                />
+                            </label>
                         </div>
                     )}
                 </div>

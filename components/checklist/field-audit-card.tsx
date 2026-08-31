@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useImperativeHandle, forwardRef, type ComponentType } from "react";
-import { CheckCircle, MapPin, Server, Upload, XCircle } from "lucide-react";
+import { useState, useEffect, useImperativeHandle, forwardRef, useRef, type ComponentType } from "react";
+import { Camera, CheckCircle, MapPin, Server, Upload, XCircle } from "lucide-react";
 import clsx from "clsx";
 
 type AuditStatus = "OK" | "NOT OK";
@@ -69,6 +69,10 @@ const FieldAuditCard = forwardRef<HTMLDivElement, FieldAuditCardProps>(
     );
     const [remarks, setRemarks] = useState(prefillRemarks ?? "");
     const needsEvidence = status === "NOT OK";
+    // Two inputs (camera + file picker) share the form name `photo-<id>`;
+    // clearing the other one on pick keeps exactly one submitted per device.
+    const pickerRef = useRef<HTMLInputElement | null>(null);
+    const cameraRef = useRef<HTMLInputElement | null>(null);
 
     // Sync to parent whenever status or remarks changes
     useEffect(() => {
@@ -151,19 +155,48 @@ const FieldAuditCard = forwardRef<HTMLDivElement, FieldAuditCardProps>(
             </label>
 
             {needsEvidence && (
-              <label className="flex items-center gap-3 rounded-md border border-dashed border-ops-border bg-ops-bg/45 px-3 py-2 text-sm text-ops-muted">
-                <Upload className="size-4 shrink-0 text-ops-accent" />
-                <input
-                  type="file"
-                  name={`photo-${device.id}`}
-                  accept="image/*"
-                  onChange={(event) => {
-                    handleChecklistPhotoFile(event.target);
-                    onPhotoChange?.(event.target.files?.[0] ?? null);
-                  }}
-                  className="block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-xs file:font-semibold file:text-ops-text"
-                />
-              </label>
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {/* capture="environment" = native rear camera on mobile.
+                      On desktop it behaves like a normal file picker. */}
+                  <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-md border border-ops-border bg-ops-bg/45 px-2 py-2 text-sm font-semibold text-ops-muted transition-colors hover:border-ops-accent/45 hover:text-ops-text">
+                    <Camera className="size-4 shrink-0 text-ops-accent" />
+                    Kamera
+                    <input
+                      type="file"
+                      name={`photo-${device.id}`}
+                      accept="image/*"
+                      capture="environment"
+                      className="sr-only"
+                      ref={cameraRef}
+                      onChange={(event) => {
+                        handleChecklistPhotoFile(event.target);
+                        if (pickerRef.current) pickerRef.current.value = "";
+                        onPhotoChange?.(event.target.files?.[0] ?? null);
+                      }}
+                    />
+                  </label>
+                  <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-md border border-ops-border bg-ops-bg/45 px-2 py-2 text-sm font-semibold text-ops-muted transition-colors hover:border-ops-accent/45 hover:text-ops-text">
+                    <Upload className="size-4 shrink-0 text-ops-accent" />
+                    Galeri
+                    <input
+                      type="file"
+                      name={`photo-${device.id}`}
+                      accept="image/*"
+                      className="sr-only"
+                      ref={pickerRef}
+                      onChange={(inputEvent) => {
+                        handleChecklistPhotoFile(inputEvent.target);
+                        if (cameraRef.current) cameraRef.current.value = "";
+                        onPhotoChange?.(inputEvent.target.files?.[0] ?? null);
+                      }}
+                    />
+                  </label>
+                </div>
+                <p className="text-[11px] text-ops-muted">
+                  Foto evidence NOT OK — langsung dari kamera atau pilih dari galeri.
+                </p>
+              </div>
             )}
           </div>
         </div>
