@@ -1,4 +1,5 @@
 import { getCategories, getDevices } from "@/actions/master-data";
+import { getRacks } from "@/actions/rack-management";
 import ChecklistForm from "@/components/checklist/checklist-form";
 import ActionButton from "@/components/ui/action-button";
 import PageHeader from "@/components/ui/page-header";
@@ -15,6 +16,7 @@ export default async function NewAuditPage(props: { searchParams: Promise<{ devi
 
   const categories = await getCategories();
   const devices = await getDevices();
+  const racks = await getRacks();
 
   const formattedDevices = devices.map((device) => ({
     ...device,
@@ -47,7 +49,12 @@ export default async function NewAuditPage(props: { searchParams: Promise<{ devi
         }
       />
 
-      <ChecklistForm categories={categories} devices={formattedDevices} prefillDeviceId={prefillDeviceId} />
+      <ChecklistForm
+        categories={categories}
+        devices={formattedDevices}
+        racks={racks.map(({ id, name, zone }) => ({ id, name, zone }))}
+        prefillDeviceId={prefillDeviceId}
+      />
     </main>
   );
 }

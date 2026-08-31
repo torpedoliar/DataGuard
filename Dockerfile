@@ -19,7 +19,14 @@ COPY --from=postgres:15-alpine /usr/local/lib/libpq.so.5.15 /usr/local/lib/libpq
 FROM base AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+# npm ci hits the registry; a transient ECONNRESET aborts the build unless
+# npm retries harder than its 2-attempt default. Bump retries/backoff so a
+# flaky link doesn't fail a 2-5 min image rebuild.
+RUN npm ci \
+    --fetch-retries=5 \
+    --fetch-retry-mintimeout=20000 \
+    --fetch-retry-maxtimeout=120000 \
+    --no-audit --no-fund
 COPY . .
 
 # Environment flag untuk mencegah error lint/typescript saat build

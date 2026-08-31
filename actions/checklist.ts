@@ -75,6 +75,12 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 .map((id) => Number(id))
                 .filter((id) => Number.isInteger(id)),
         )];
+        // Scoped audit (per category/rack tab) submits a subset by design; an
+        // EMPTY set is the only invalid one (empty scope tab, offline replay
+        // of a queue item whose items array was lost).
+        if (deviceIds.length === 0) {
+            return { message: "No devices selected. Pick a scope tab that has devices, or use \"All\"." };
+        }
         await validateChecklistPhotos(formData, deviceIds);
 
         // Finding #44: reject device ids that do not belong to the active site
@@ -343,6 +349,9 @@ export async function updateChecklist(prevState: unknown, formData: FormData) {
                 .map((id) => Number(id))
                 .filter((id) => Number.isInteger(id)),
         )];
+        if (deviceIds.length === 0) {
+            return { message: "No devices selected." };
+        }
         await validateChecklistPhotos(formData, deviceIds);
 
         // Finding #44: same site scoping as submitChecklist — foreign device
