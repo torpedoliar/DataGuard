@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import { getAuditGridData, type DailyCheck } from "@/actions/grid";
 import GridFilters from "@/components/grid/grid-filters";
+import GridExportButton from "@/components/grid/grid-export-button";
 import PageHeader from "@/components/ui/page-header";
 import DraggableScroll from "@/components/ui/draggable-scroll";
 import { verifySession } from "@/lib/session";
@@ -65,7 +66,12 @@ export default async function AuditGridPage({
             eyebrow="Operate / Audit Grid"
             title="Audit Grid"
             description={`Sticky matrix for ${rangeLabel}. Drag horizontally to inspect daily device checks.`}
-            actions={<GridFilters />}
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
+                <GridFilters />
+                <GridExportButton />
+              </div>
+            }
           />
           <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-ops-muted">
             <LegendItem icon={<CheckCircle2 className="size-4 text-emerald-300" />} label="OK" />
