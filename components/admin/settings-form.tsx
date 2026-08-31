@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { sendTelegramTestMessage, updateSettings } from "@/actions/settings";
+import { sendEmailTestMessage, sendTelegramTestMessage, updateSettings } from "@/actions/settings";
 import Image from "next/image";
 
 type SettingsData = {
@@ -13,11 +13,13 @@ type SettingsData = {
     activeSiteName: string | null;
     activeSiteTelegramChatId: string | null;
     telegramAlertTemplate: string;
+    emailAlertTemplate: string;
     telegramBotConfigured: boolean;
 };
 
-// Keep in sync with TELEGRAM_ALERT_TEMPLATE_FIELDS in lib/telegram.ts
-// (cannot share the constant directly: that module imports the server db).
+// Keep in sync with TELEGRAM_ALERT_TEMPLATE_FIELDS in lib/telegram.ts and
+// EMAIL_ALERT_TEMPLATE_FIELDS in lib/email.ts (cannot share the constants
+// directly: those modules import the server db).
 const telegramTemplateTokens = [
     "siteName",
     "siteCode",
@@ -39,6 +41,7 @@ const telegramTemplateTokens = [
     "incidentId",
     "incidentLink",
 ];
+const emailTemplateTokens = telegramTemplateTokens;
 
 export default function SettingsForm({ initialData }: { initialData: SettingsData }) {
     const router = useRouter();
@@ -58,6 +61,33 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
     const [telegramTemplate, setTelegramTemplate] = useState(initialData.telegramAlertTemplate);
     const [telegramTestChatId, setTelegramTestChatId] = useState(initialData.activeSiteTelegramChatId || "");
     const [telegramBotToken, setTelegramBotToken] = useState("");
+    const [emailTemplate, setEmailTemplate] = useState(initialData.emailAlertTemplate);
+    const [isTestingEmail, startEmailTestTransition] = useTransition();
+    const [emailTestAddress, setEmailTestAddress] = useState("");
+    const [emailTestResult, setEmailTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+    const handleEmailTest = () => {
+        setEmailTestResult(null);
+
+        const formData = new FormData();
+        formData.set("emailTestAddress", emailTestAddress);
+        formData.set("emailAlertTemplate", emailTemplate);
+
+        startEmailTestTransition(async () => {
+            try {
+                const response = await sendEmailTestMessage(null, formData);
+                setEmailTestResult({
+                    type: response?.success ? "success" : "error",
+                    message: response?.message || "Tidak ada respons dari server email.",
+                });
+            } catch {
+                setEmailTestResult({
+                    type: "error",
+                    message: "Terjadi kesalahan sistem saat mengirim test email.",
+                });
+            }
+        });
+    };
 
     const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -141,6 +171,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
         formData.set("telegramTestChatId", telegramTestChatId);
         formData.set("telegramBotToken", telegramBotToken);
         formData.set("telegramAlertTemplate", telegramTemplate);
+        formData.set("emailAlertTemplate", emailTemplate);
 
         startTelegramTestTransition(async () => {
             try {
@@ -421,6 +452,96 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                             {telegramTestResult.type === "success" ? "check_circle" : "error"}
                         </span>
                         {telegramTestResult.message}
+                    </div>
+                )}
+            </div>
+
+            <div className="pt-6 border-t border-slate-700/50 space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h2 className="text-sm font-semibold text-white">Email Alert</h2>
+                        <p className="mt-1 text-xs text-slate-400">
+                            Template email PIC saat perangkat berstatus NOT OK — sintaks {"{field}"} sama dengan template Telegram. Butuh SMTP_URL di .env server.
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        Template Email Perangkat (HTML)
+                    </label>
+                    <textarea
+                        name="emailAlertTemplate"
+                        value={emailTemplate}
+                        onChange={(event) => setEmailTemplate(event.target.value)}
+                        rows={13}
+                        maxLength={4000}
+                        className="w-full resize-y rounded-lg bg-slate-950 border border-slate-700 px-3 py-3 font-mono text-xs leading-relaxed text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                        <span>HTML sederhana didukung (&lt;b&gt;, &lt;br&gt;); nilai field otomatis di-escape.</span>
+                        <span>{emailTemplate.length}/4000</span>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                    {emailTemplateTokens.map((token) => (
+                        <button
+                            key={token}
+                            type="button"
+                            onClick={() => setEmailTemplate((current) => `${current}${current && !current.endsWith("\n") ? " " : ""}{${token}}`)}
+                            className="h-7 rounded-md border border-slate-700 bg-slate-900 px-2.5 font-mono text-[11px] text-slate-300 hover:border-blue-400/60 hover:text-white transition-colors"
+                        >
+                            {`{${token}}`}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Alamat Email Test
+                        </label>
+                        <input
+                            type="email"
+                            value={emailTestAddress}
+                            onChange={(event) => setEmailTestAddress(event.target.value)}
+                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            placeholder="pic@perusahaan.co.id"
+                        />
+                        <p className="text-xs text-slate-500 mt-1.5">
+                            Mengirim template dengan data sample device site aktif ke alamat ini.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleEmailTest}
+                        disabled={isTestingEmail}
+                        className="h-10 px-4 rounded-lg border border-slate-600 text-sm font-medium text-slate-100 hover:border-blue-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {isTestingEmail ? (
+                            <>
+                                <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                                Mengirim...
+                            </>
+                        ) : (
+                            <>
+                                <span className="material-symbols-outlined text-[18px]">mail</span>
+                                Kirim Test Email
+                            </>
+                        )}
+                    </button>
+                </div>
+
+                {emailTestResult && (
+                    <div className={`p-3 text-sm rounded-lg border flex items-center gap-2 ${emailTestResult.type === "success"
+                        ? "text-emerald-300 bg-emerald-400/10 border-emerald-400/20"
+                        : "text-red-300 bg-red-400/10 border-red-400/20"
+                        }`}>
+                        <span className="material-symbols-outlined text-[18px]">
+                            {emailTestResult.type === "success" ? "check_circle" : "error"}
+                        </span>
+                        {emailTestResult.message}
                     </div>
                 )}
             </div>

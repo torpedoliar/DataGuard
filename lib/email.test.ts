@@ -17,7 +17,8 @@ vi.mock("nodemailer", () => ({
 const { db } = await import("../db");
 const { default: nodemailer } = await import("nodemailer");
 const {
-  buildChecklistPicEmail,
+  DEFAULT_EMAIL_ALERT_TEMPLATE,
+  renderEmailTemplate,
   resolveChecklistPicRecipients,
   sendChecklistPicEmail,
   isEmailConfigured,
@@ -38,68 +39,63 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("buildChecklistPicEmail", () => {
-  const devices = [
-    {
-      id: 1,
-      name: "sw-core",
-      assetCode: "AST-001",
-      rackName: "R1",
-      rackPosition: 5,
-      categoryName: "Network",
-      remarks: "Fan LED blinking",
-      incidentId: 12,
-    },
-    {
-      id: 2,
-      name: "ups-a",
-      assetCode: null,
-      rackName: null,
-      rackPosition: null,
-      categoryName: null,
-      remarks: "",
-      incidentId: null,
-    },
-  ];
+describe("renderEmailTemplate", () => {
+  const context = {
+    siteName: "DC Jakarta",
+    siteCode: "JKT",
+    checker: "budi",
+    shift: "Pagi",
+    checkDate: "2026-08-31",
+    checkTime: "09:30",
+    deviceName: "sw-core",
+    deviceAssetCode: "AST-001",
+    deviceStatus: "NOT OK",
+    deviceLocation: "Room 1",
+    deviceCategory: "Network",
+    deviceRack: "R1 U5",
+    deviceIp: "10.0.0.5",
+    deviceRemarks: "Fan <blinking> & hot",
+    incidentId: "#12",
+    incidentLink: "[Open incident #12](https://dc.example.test/admin/incidents/12)",
+  };
 
-  it("builds subject with total count, site code, date and shift", () => {
-    const { subject } = buildChecklistPicEmail({
-      siteName: "DC Jakarta",
-      siteCode: "JKT",
-      checkDate: "2026-08-31",
-      checkTime: "09:30",
-      shift: "Pagi",
-      checker: "budi",
-      groups: [{ groupName: "Network", emails: ["pic@x.test"], devices }],
-      baseUrl: "https://dc.example.test",
-    });
-    expect(subject).toContain("2 devices NOT OK");
-    expect(subject).toContain("JKT");
-    expect(subject).toContain("2026-08-31");
-    expect(subject).toContain("Pagi");
+  it("renders the default template with context values", () => {
+    const html = renderEmailTemplate(null, context);
+
+    expect(html).toContain("Data Center Audit Alert");
+    expect(html).toContain("Site: DC Jakarta (JKT)");
+    expect(html).toContain("<b>Device: sw-core</b>");
+    expect(html).toContain("Rack: R1 U5");
+    expect(html).toContain("2026-08-31 09:30");
   });
 
-  it("lists each device with rack, remarks and incident link, and exposes summary", () => {
-    const { text, deviceCount, deviceSummary } = buildChecklistPicEmail({
-      siteName: "DC Jakarta",
-      siteCode: "JKT",
-      checkDate: "2026-08-31",
-      checkTime: "09:30",
-      shift: "Pagi",
-      checker: "budi",
-      groups: [{ groupName: "Network", emails: ["pic@x.test"], devices }],
-      baseUrl: "https://dc.example.test",
+  it("escapes entity-supplied values and converts newlines to <br>", () => {
+    const html = renderEmailTemplate("Remarks: {deviceRemarks}", context);
+
+    // The angle brackets and ampersand are escaped; no raw injection.
+    expect(html).toContain("Fan &lt;blinking&gt; &amp; hot");
+    expect(html).not.toContain("<blinking>");
+  });
+
+  it("renders trusted incidentLink as an anchor, other fields escaped", () => {
+    const html = renderEmailTemplate("Open: {incidentLink}", context, { trustedLinkFields: ["incidentLink"] });
+    expect(html).toContain('<a href="https://dc.example.test/admin/incidents/12">Open incident #12</a>');
+
+    // Without the trusted option (plain-text twin), it stays escaped text.
+    const plain = renderEmailTemplate("Open: {incidentLink}", context);
+    expect(plain).toContain("[Open incident #12](https://dc.example.test/admin/incidents/12)");
+  });
+
+  it("substitutes '-' for empty fields and keeps unknown placeholders intact", () => {
+    const html = renderEmailTemplate("IP: {deviceIp} | {unknownField}", {
+      deviceIp: null,
     });
 
-    expect(text).toContain("• sw-core (AST-001) — R1 U5 — Network — Remarks: Fan LED blinking (Incident #12)");
-    expect(text).toContain("• ups-a — Remarks: -");
-    expect(text).toContain("https://dc.example.test/admin/incidents");
-    expect(text).toContain("shift Pagi");
-    expect(text).toContain("by budi");
-    expect(deviceCount).toBe(2);
-    // Summary snapshot is the device lines only (no greeting/link).
-    expect(deviceSummary).not.toContain("Hello");
-    expect(deviceSummary).toContain("sw-core");
+    expect(html).toContain("IP: - | {unknownField}");
+  });
+
+  it("falls back to the default template for an empty template", () => {
+    expect(renderEmailTemplate("   ", { deviceName: "x" })).toContain(DEFAULT_EMAIL_ALERT_TEMPLATE.slice(0, 30));
   });
 });
 
@@ -163,7 +159,7 @@ describe("sendChecklistPicEmail", () => {
     const sendMail = vi.fn().mockResolvedValue({});
     mockedCreateTransport.mockReturnValue({ sendMail });
 
-    const result = await sendChecklistPicEmail(["budi@x.test", "sari@x.test"], "Subject", "Body");
+    const result = await sendChecklistPicEmail(["budi@x.test", "sari@x.test"], "Subject", "<b>Body</b>", "Body");
 
     expect(result).toEqual({ success: true });
     expect(sendMail).toHaveBeenCalledWith({
@@ -171,6 +167,7 @@ describe("sendChecklistPicEmail", () => {
       to: "budi@x.test, sari@x.test",
       subject: "Subject",
       text: "Body",
+      html: "<b>Body</b>",
     });
   });
 
@@ -181,7 +178,7 @@ describe("sendChecklistPicEmail", () => {
     const sendMail = vi.fn().mockRejectedValue(new Error("relay down"));
     mockedCreateTransport.mockReturnValue({ sendMail });
 
-    const result = await sendChecklistPicEmail(["pic@x.test"], "Subject", "Body");
+    const result = await sendChecklistPicEmail(["pic@x.test"], "Subject", "<b>Body</b>", "Body");
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("relay down");

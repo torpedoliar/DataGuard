@@ -7,7 +7,8 @@ import { createIncidentsForChecklistItems } from "@/actions/incidents";
 import { getTelegramAlertTemplate } from "@/actions/settings";
 import { renderTelegramTemplate, sendTelegramAlert, splitTelegramChunks } from "@/lib/telegram";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
-import { buildChecklistPicEmail, isEmailConfigured, resolveChecklistPicRecipients, sendChecklistPicEmail } from "@/lib/email";
+import { isEmailConfigured, renderEmailTemplate, resolveChecklistPicRecipients, sendChecklistPicEmail } from "@/lib/email";
+import { getEmailAlertTemplate } from "@/actions/settings";
 import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
 import { logAudit } from "../lib/audit";
@@ -284,49 +285,79 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 }
 
                 // PIC email alerts: each device group bound to a NOT-OK device
-                // gets ONE email addressed to all of its owner users. Skipped
-                // entirely (no rows, one warn) when SMTP is unset so
-                // deployments without email don't accumulate log rows.
+                // gets ONE email addressed to all of its owner users. Body is
+                // rendered from the editable template (Settings, same {field}
+                // syntax as Telegram) once per device, blocks joined with a
+                // separator. Skipped entirely when SMTP is unset.
                 if (isEmailConfigured() && site) {
                     try {
                         const picGroups = await resolveChecklistPicRecipients(failedIds, auth.activeSiteId);
+                        const emailTemplate = await getEmailAlertTemplate();
 
                         for (const [, group] of picGroups) {
-                            const { subject, text, deviceCount, deviceSummary } = buildChecklistPicEmail({
-                                siteName: site.name,
-                                siteCode: site.code,
-                                checkDate,
-                                checkTime,
-                                shift,
-                                checker: user?.username || "Unknown",
-                                groups: [{
-                                    groupName: group.groupName,
-                                    emails: group.emails,
-                                    devices: group.deviceIds.map((deviceId) => {
-                                        const dev = devicesInfo.find(d => d.id === deviceId);
-                                        const incident = incidentByChecklistItemId.get(
-                                            alertItems.find((a) => a.deviceId === deviceId)?.checklistItemId ?? 0,
-                                        );
-                                        return {
-                                            id: deviceId,
-                                            name: dev?.name || `Device #${deviceId}`,
-                                            assetCode: dev?.assetCode ?? null,
-                                            rackName: dev?.rackName ?? null,
-                                            rackPosition: dev?.rackPosition ?? null,
-                                            categoryName: dev?.category?.name ?? null,
-                                            remarks: alertItems.find((a) => a.deviceId === deviceId)?.remarks || "",
-                                            incidentId: incident?.id ?? null,
-                                        };
-                                    }),
-                                }],
-                                baseUrl,
-                            });
+                            const deviceBlocks: { html: string; text: string; deviceName: string }[] = [];
+
+                            for (const deviceId of group.deviceIds) {
+                                const dev = devicesInfo.find(d => d.id === deviceId);
+                                const alert = alertItems.find((a) => a.deviceId === deviceId);
+                                const incident = incidentByChecklistItemId.get(alert?.checklistItemId ?? 0);
+                                const rack = [dev?.rackName, dev?.rackPosition ? `U${dev.rackPosition}` : null].filter(Boolean).join(" ");
+
+                                const context = {
+                                    siteName: site.name,
+                                    siteCode: site.code,
+                                    checker: user?.username || "Unknown",
+                                    shift,
+                                    checkDate,
+                                    checkTime,
+                                    deviceName: dev?.name || `Device #${deviceId}`,
+                                    deviceAssetCode: dev?.assetCode,
+                                    deviceStatus: alert?.status ?? "NOT OK",
+                                    deviceLocation: dev?.location?.name,
+                                    deviceCategory: dev?.category?.name,
+                                    deviceBrand: dev?.brand?.name,
+                                    deviceZone: dev?.zone,
+                                    deviceRack: rack,
+                                    deviceIp: dev?.ipAddress,
+                                    deviceDescription: dev?.description,
+                                    deviceRemarks: alert?.remarks,
+                                    incidentId: incident?.id ? `#${incident.id}` : "-",
+                                    incidentLink: incident?.id
+                                        ? `[Open incident #${incident.id}](${baseUrl}/admin/incidents/${incident.id})`
+                                        : "-",
+                                };
+
+                                deviceBlocks.push({
+                                    html: renderEmailTemplate(emailTemplate, context, { trustedLinkFields: ["incidentLink"] }),
+                                    // Plain-text twin: same template, tags stripped
+                                    // (regex is fine — only our own <b>/<a>/<br> tags
+                                    // ever appear in the rendered output).
+                                    text: renderEmailTemplate(emailTemplate, context, { trustedLinkFields: [] })
+                                        .replace(/<br\s*\/?>/gi, "\n")
+                                        .replace(/<[^>]+>/g, "")
+                                        .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'"),
+                                    deviceName: context.deviceName,
+                                });
+                            }
+
+                            const subject = `[DataGuard] ${deviceBlocks.length} device${deviceBlocks.length === 1 ? "" : "s"} NOT OK — ${site.code || site.name} — ${checkDate} ${shift}`;
+                            const htmlBody = [
+                                ...deviceBlocks.map((block) => block.html),
+                                `<br><a href="${baseUrl}/admin/incidents">Details &amp; follow-up</a>`,
+                            ].join("<br><br>");
+                            const textBody = [
+                                ...deviceBlocks.map((block) => block.text),
+                                `Details & follow-up: ${baseUrl}/admin/incidents`,
+                            ].join("\n\n");
+                            const deviceSummary = deviceBlocks
+                                .map((block) => `• ${block.deviceName}`)
+                                .join("\n");
 
                             // Fire-and-forget like Telegram; the history row is
                             // written once with a terminal status. recipient
                             // stores the group's full To line; recipientName
                             // the group name.
-                            void sendChecklistPicEmail(group.emails, subject, text)
+                            void sendChecklistPicEmail(group.emails, subject, htmlBody, textBody)
                                 .then((result) => {
                                     void db.insert(emailAlerts).values({
                                         siteId: auth.activeSiteId,
@@ -334,7 +365,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                         recipient: group.emails.join(", "),
                                         recipientName: group.groupName,
                                         subject,
-                                        deviceCount,
+                                        deviceCount: deviceBlocks.length,
                                         deviceSummary,
                                         status: result.success ? "sent" : "failed",
                                         error: result.error ?? null,
@@ -354,7 +385,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                         recipient: group.emails.join(", "),
                                         recipientName: group.groupName,
                                         subject,
-                                        deviceCount,
+                                        deviceCount: deviceBlocks.length,
                                         deviceSummary,
                                         status: "failed",
                                         error: String(error),

@@ -550,6 +550,9 @@ export const globalSettings = pgTable("global_settings", {
   faviconPath: text("favicon_path"),
   telegramBotToken: text("telegram_bot_token"),
   telegramAlertTemplate: text("telegram_alert_template"),
+  // Editable PIC email alert template (lib/email.ts), same {field} syntax as
+  // the Telegram template; null → DEFAULT_EMAIL_ALERT_TEMPLATE.
+  emailAlertTemplate: text("email_alert_template"),
   notificationBaseUrl: text("notification_base_url"),
   // Network Docs sync (lib/network-doc.ts). Configured from the settings
   // page; env NETWORK_DOC_* overrides these when set. api_key is encrypted

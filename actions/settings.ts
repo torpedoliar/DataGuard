@@ -13,6 +13,7 @@ import {
     renderTelegramTemplate,
     sendTelegramAlert,
 } from "../lib/telegram";
+import { DEFAULT_EMAIL_ALERT_TEMPLATE, renderEmailTemplate, sendChecklistPicEmail } from "../lib/email";
 import { resolveNotificationBaseUrl } from "../lib/notification-url";
 import { saveUploadFile } from "../lib/upload";
 import { formatWibDate, formatWibTime } from "../lib/ui/datetime";
@@ -22,6 +23,7 @@ const settingsSchema = z.object({
     activeSiteTelegramChatId: z.string().max(120, "Chat ID Telegram maksimal 120 karakter").optional(),
     telegramBotToken: z.string().max(200, "Token bot Telegram maksimal 200 karakter").optional(),
     telegramAlertTemplate: z.string().max(4000, "Template Telegram maksimal 4000 karakter").optional(),
+    emailAlertTemplate: z.string().max(4000, "Template Email maksimal 4000 karakter").optional(),
 });
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -44,6 +46,7 @@ function defaultSettings() {
         activeSiteName: null,
         activeSiteTelegramChatId: null,
         telegramAlertTemplate: DEFAULT_TELEGRAM_ALERT_TEMPLATE,
+        emailAlertTemplate: DEFAULT_EMAIL_ALERT_TEMPLATE,
         telegramBotConfigured: isTelegramBotConfigured(),
     };
 }
@@ -93,6 +96,7 @@ export async function getSettings() {
                 faviconPath: settingsList[0].faviconPath,
                 ...activeSiteTelegram,
                 telegramAlertTemplate: settingsList[0].telegramAlertTemplate || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
+                emailAlertTemplate: settingsList[0].emailAlertTemplate || DEFAULT_EMAIL_ALERT_TEMPLATE,
                 telegramBotConfigured: isTelegramBotConfigured(settingsList[0].telegramBotToken),
             };
         }
@@ -121,6 +125,22 @@ export async function getTelegramAlertTemplate() {
     }
 }
 
+export async function getEmailAlertTemplate() {
+    if (process.env.npm_lifecycle_event === 'build') {
+        return DEFAULT_EMAIL_ALERT_TEMPLATE;
+    }
+
+    try {
+        const settingsList = await db.select({
+            emailAlertTemplate: globalSettings.emailAlertTemplate,
+        }).from(globalSettings).limit(1);
+
+        return settingsList[0]?.emailAlertTemplate || DEFAULT_EMAIL_ALERT_TEMPLATE;
+    } catch {
+        return DEFAULT_EMAIL_ALERT_TEMPLATE;
+    }
+}
+
 export async function updateSettings(prevState: unknown, formData: FormData) {
     const session = await verifySession();
     if (!session || !["admin", "superadmin"].includes(session.role)) {
@@ -132,6 +152,7 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
         activeSiteTelegramChatId: String(formData.get("activeSiteTelegramChatId") ?? ""),
         telegramBotToken: String(formData.get("telegramBotToken") ?? ""),
         telegramAlertTemplate: String(formData.get("telegramAlertTemplate") ?? ""),
+        emailAlertTemplate: String(formData.get("emailAlertTemplate") ?? ""),
     });
     if (!parsed.success) {
         const firstIssue = parsed.error.issues[0]?.message ?? "Data pengaturan tidak valid.";
@@ -177,6 +198,7 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
         const upsertData: Partial<typeof globalSettings.$inferInsert> = {
             appName: parsed.data.appName,
             telegramAlertTemplate: parsed.data.telegramAlertTemplate?.trim() || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
+            emailAlertTemplate: parsed.data.emailAlertTemplate?.trim() || DEFAULT_EMAIL_ALERT_TEMPLATE,
             updatedAt: new Date(),
         };
         if (parsed.data.telegramBotToken?.trim()) upsertData.telegramBotToken = parsed.data.telegramBotToken.trim();
@@ -300,4 +322,94 @@ export async function sendTelegramTestMessage(prevState: unknown, formData: Form
     });
 
     return { success: true, message: "Pesan test Telegram berhasil dikirim." };
+}
+
+// Test-send the email alert template to one address. Mirrors
+// sendTelegramTestMessage: sample device + recent incident context, rendered
+// through the same code path as the real checklist submit (renderEmailTemplate).
+export async function sendEmailTestMessage(prevState: unknown, formData: FormData) {
+    void prevState;
+
+    const session = await verifySession();
+    if (!session || !["admin", "superadmin"].includes(session.role)) {
+        return { message: "Unauthorized. Only admin can test email settings." };
+    }
+
+    const to = String(formData.get("emailTestAddress") ?? "").trim();
+    if (!to || !to.includes("@")) return { message: "Alamat email tujuan test wajib diisi." };
+
+    const template = String(formData.get("emailAlertTemplate") ?? "").trim() || DEFAULT_EMAIL_ALERT_TEMPLATE;
+    const activeSite = session.activeSiteId
+        ? await db.query.sites.findFirst({
+            where: eq(sites.id, session.activeSiteId),
+            columns: { name: true, code: true },
+        })
+        : null;
+    const sampleDevice = session.activeSiteId
+        ? await db.query.devices.findFirst({
+            where: eq(devices.siteId, session.activeSiteId),
+            with: { brand: true, category: true, location: true },
+        })
+        : null;
+    const rack = [sampleDevice?.rackName, sampleDevice?.rackPosition ? `U${sampleDevice.rackPosition}` : null].filter(Boolean).join(" ");
+    const now = new Date();
+
+    const recentIncident = session.activeSiteId
+        ? await db.query.incidents.findFirst({
+            where: and(
+                eq(incidents.siteId, session.activeSiteId),
+                gte(incidents.createdAt, new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)),
+            ),
+            orderBy: (rows, { desc }) => [desc(rows.createdAt)],
+            columns: { id: true },
+        })
+        : null;
+    const baseUrl = await resolveNotificationBaseUrl();
+    const incidentContext = recentIncident
+        ? {
+            incidentId: `#${recentIncident.id}`,
+            incidentLink: `[Open incident #${recentIncident.id}](${baseUrl}/admin/incidents/${recentIncident.id})`,
+        }
+        : { incidentId: null, incidentLink: null };
+
+    const context = {
+        siteName: activeSite?.name ?? session.activeSiteName,
+        siteCode: activeSite?.code,
+        checker: session.username,
+        shift: "Test",
+        checkDate: formatWibDate(now),
+        checkTime: formatWibTime(now),
+        deviceName: sampleDevice?.name ?? "TEST",
+        deviceAssetCode: sampleDevice?.assetCode,
+        deviceStatus: "Test",
+        deviceLocation: sampleDevice?.location?.name ?? sampleDevice?.location,
+        deviceCategory: sampleDevice?.category?.name,
+        deviceBrand: sampleDevice?.brand?.name,
+        deviceZone: sampleDevice?.zone,
+        deviceRack: rack,
+        deviceIp: sampleDevice?.ipAddress,
+        deviceDescription: sampleDevice?.description,
+        deviceRemarks: "Test email dari halaman pengaturan",
+        ...incidentContext,
+    };
+
+    const html = renderEmailTemplate(template, context, { trustedLinkFields: ["incidentLink"] });
+    const text = renderEmailTemplate(template, context)
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'");
+
+    const result = await sendChecklistPicEmail([to], "[DataGuard] TEST — Email Alert Template", html, text);
+    if (!result.success) {
+        return { message: result.error || "Gagal mengirim email test. Pastikan SMTP_URL sudah dikonfigurasi." };
+    }
+
+    await logAudit({
+        action: "TEST",
+        entity: "settings",
+        entityName: "Email",
+        detail: `Email test message sent to ${to}`,
+    });
+
+    return { success: true, message: "Email test berhasil dikirim." };
 }

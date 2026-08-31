@@ -95,56 +95,102 @@ export type PicEmailDevice = {
   incidentId: number | null;
 };
 
-export type PicEmailInput = {
-  siteName: string;
-  siteCode: string | null;
-  checkDate: string;
-  checkTime: string;
-  shift: string;
-  checker: string;
-  /** One entry per PIC group — the To line is the group's member emails. */
-  groups: {
-    groupName: string;
-    emails: string[];
-    devices: PicEmailDevice[];
-  }[];
-  baseUrl: string;
-};
+// ---- Editable email template (mirrors lib/telegram.ts) ----
+//
+// Admins customize the PIC alert email from Settings with the same {field}
+// placeholder syntax as the Telegram template. The template renders ONE
+// device per block — the checklist submit renders it per NOT-OK device of
+// the group and joins the blocks. Body is HTML (nodemailer `html` field).
 
-/** Pure email builder: subject, body, and the summary snapshot for history. */
-export function buildChecklistPicEmail(input: PicEmailInput) {
-  const count = input.groups.reduce((sum, g) => sum + g.devices.length, 0);
-  const subject = `[DataGuard] ${count} device${count === 1 ? "" : "s"} NOT OK — ${input.siteCode || input.siteName} — ${input.checkDate} ${input.shift}`;
+export const DEFAULT_EMAIL_ALERT_TEMPLATE = [
+  "<b>Data Center Audit Alert</b>",
+  "Site: {siteName} ({siteCode})",
+  "Auditor: {checker}",
+  "Shift: {shift}",
+  "Time: {checkDate} {checkTime}",
+  "",
+  "<b>Device: {deviceName}</b>",
+  "Asset Code: {deviceAssetCode}",
+  "Status: {deviceStatus}",
+  "Location: {deviceLocation}",
+  "Category: {deviceCategory}",
+  "Rack: {deviceRack}",
+  "IP: {deviceIp}",
+  "Remarks: {deviceRemarks}",
+  "Open: {incidentLink}",
+].join("\n");
 
-  const files = input.groups.flatMap((group) =>
-    group.devices.map((device) => {
-      const rack = [device.rackName, device.rackPosition ? `U${device.rackPosition}` : null]
-        .filter(Boolean).join(" ");
-      const parts = [
-        `• ${device.name}`,
-        device.assetCode ? `(${device.assetCode})` : null,
-        rack ? `— ${rack}` : null,
-        device.categoryName ? `— ${device.categoryName}` : null,
-        `— Remarks: ${device.remarks || "-"}`,
-        device.incidentId ? `(Incident #${device.incidentId})` : null,
-      ].filter(Boolean);
-      return parts.join(" ");
-    }),
-  );
+// Same field set as TELEGRAM_ALERT_TEMPLATE_FIELDS — one shared context feeds
+// both renderers from the checklist submit.
+export const EMAIL_ALERT_TEMPLATE_FIELDS = [
+  "siteName",
+  "siteCode",
+  "checker",
+  "shift",
+  "checkDate",
+  "checkTime",
+  "deviceName",
+  "deviceAssetCode",
+  "deviceStatus",
+  "deviceLocation",
+  "deviceCategory",
+  "deviceBrand",
+  "deviceZone",
+  "deviceRack",
+  "deviceIp",
+  "deviceDescription",
+  "deviceRemarks",
+  "incidentId",
+  "incidentLink",
+] as const;
 
-  const text = [
-    `Hello,`,
-    ``,
-    `The following ${count} device${count === 1 ? " was" : "s were"} reported NOT OK in the checklist submitted at ${input.siteName} on ${input.checkDate} ${input.checkTime} (shift ${input.shift}) by ${input.checker}:`,
-    ``,
-    ...files,
-    ``,
-    `Details & follow-up: ${input.baseUrl}/admin/incidents`,
-    ``,
-    `This is an automated notification from DataGuard.`,
-  ].join("\n");
+export type EmailAlertTemplateField = typeof EMAIL_ALERT_TEMPLATE_FIELDS[number];
+export type EmailAlertTemplateContext = Partial<Record<EmailAlertTemplateField, string | number | null | undefined>>;
 
-  return { subject, text, deviceCount: count, deviceSummary: files.join("\n") };
+// Email bodies are HTML. Escape entity-supplied values, then convert
+// newlines to <br> so multi-line remarks keep their shape.
+function escapeEmailHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function normalizeEmailValue(value: string | number | null | undefined) {
+  const text = String(value ?? "").trim();
+  if (!text) return "-";
+  return escapeEmailHtml(text).replace(/\n/g, "<br>");
+}
+
+/**
+ * Render a trusted, server-generated Markdown link (`[label](url)`) into an
+ * HTML anchor — same discipline as renderTelegramTemplate's trusted link:
+ * only http(s) URLs pass; anything else is escaped as plain text.
+ */
+function renderTrustedEmailLink(value: string): string {
+  const match = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/.exec(value.trim());
+  if (!match) return escapeEmailHtml(value);
+  const [, label, url] = match;
+  return `<a href="${escapeEmailHtml(url)}">${escapeEmailHtml(label)}</a>`;
+}
+
+export function renderEmailTemplate(
+  template: string | null | undefined,
+  context: EmailAlertTemplateContext,
+  options: { trustedLinkFields?: readonly ["incidentLink"] | readonly ("incidentLink")[] } = {},
+) {
+  const source = template?.trim() || DEFAULT_EMAIL_ALERT_TEMPLATE;
+  const trustedLinkFields = new Set(options.trustedLinkFields ?? []);
+
+  return source.replace(/\{([a-zA-Z0-9]+)\}/g, (match, key: string) => {
+    if (!EMAIL_ALERT_TEMPLATE_FIELDS.includes(key as EmailAlertTemplateField)) return match;
+    if (key === "incidentLink" && trustedLinkFields.has("incidentLink")) {
+      return renderTrustedEmailLink(String(context.incidentLink ?? ""));
+    }
+    return normalizeEmailValue(context[key as EmailAlertTemplateField]);
+  });
 }
 
 // Lazy singleton keyed on the SMTP URL: created once per distinct relay, so
@@ -170,15 +216,17 @@ export function isEmailConfigured(): boolean {
 
 export type EmailSendResult = { success: boolean; error?: string };
 
-/** Send one email (to = one or more recipient addresses). Never throws
- *  (same contract as sendTelegramAlert). */
-export async function sendChecklistPicEmail(to: string[], subject: string, text: string): Promise<EmailSendResult> {
+/** Send one HTML email (to = one or more recipient addresses). Never throws
+ *  (same contract as sendTelegramAlert). textBody is the plain-text fallback
+ *  for clients that block HTML. */
+export async function sendChecklistPicEmail(to: string[], subject: string, htmlBody: string, textBody: string): Promise<EmailSendResult> {
   try {
     await getTransporter().sendMail({
       from: getEnv().SMTP_FROM ?? "siem@dc-check.local",
       to: to.join(", "),
       subject,
-      text,
+      text: textBody,
+      html: htmlBody,
     });
     return { success: true };
   } catch (error) {
