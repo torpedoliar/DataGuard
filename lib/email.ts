@@ -7,30 +7,40 @@ import { getEnv } from "./env";
 import nodemailer from "nodemailer";
 
 // PIC alert emails: when a field audit (checklist submit) finds a device
-// NOT OK, the responsible PIC users — owners of the device groups bound to
-// that device (device_pics → users.responsible_for_groups) — each get one
-// email listing all their affected devices.
+// NOT OK, each device group bound to that device gets ONE email addressed
+// to all of its owner users (device_pics → users.responsible_for_groups),
+// listing the group's NOT-OK devices. A user owning two affected groups
+// receives one email per group.
 
-export type PicRecipient = { userId: number; name: string; deviceIds: number[] };
+export type PicGroupRecipient = {
+  groupId: number;
+  groupName: string;
+  /** Owner emails (deduped) — the To line of the group's single email. */
+  emails: string[];
+  /** Display names per email, keyed by email (for the history label). */
+  memberNames: string[];
+  deviceIds: number[];
+};
 
 /**
- * Resolve PIC recipients for the given NOT-OK device ids: device → bound
- * group (active) → owner users (active, has an email) whose
+ * Resolve PIC group recipients for the given NOT-OK device ids: device →
+ * bound group (active) → owner users (active, has an email) whose
  * responsible_for_groups jsonb contains the group id (stored as strings by
- * bindGroup). Returns one entry per distinct email, with the deduped device
- * ids that user is responsible for.
+ * bindGroup). Returns one entry per distinct group with its deduped member
+ * emails and affected device ids.
  */
 export async function resolveChecklistPicRecipients(
   deviceIds: number[],
   siteId: number,
-): Promise<Map<string, PicRecipient>> {
-  const byEmail = new Map<string, PicRecipient>();
-  if (deviceIds.length === 0) return byEmail;
+): Promise<Map<number, PicGroupRecipient>> {
+  const byGroup = new Map<number, PicGroupRecipient>();
+  if (deviceIds.length === 0) return byGroup;
 
   const rows = await db
     .select({
       deviceId: devicePics.deviceId,
       groupId: deviceGroups.id,
+      groupName: deviceGroups.name,
       userId: users.id,
       email: users.email,
       username: users.username,
@@ -54,18 +64,24 @@ export async function resolveChecklistPicRecipients(
 
   for (const row of rows) {
     const email = row.email!;
-    const entry = byEmail.get(email);
-    if (entry) {
-      if (!entry.deviceIds.includes(row.deviceId)) entry.deviceIds.push(row.deviceId);
-    } else {
-      byEmail.set(email, {
-        userId: row.userId,
-        name: row.username,
-        deviceIds: [row.deviceId],
-      });
+    let entry = byGroup.get(row.groupId);
+    if (!entry) {
+      entry = {
+        groupId: row.groupId,
+        groupName: row.groupName,
+        emails: [],
+        memberNames: [],
+        deviceIds: [],
+      };
+      byGroup.set(row.groupId, entry);
     }
+    if (!entry.emails.includes(email)) {
+      entry.emails.push(email);
+      entry.memberNames.push(row.username);
+    }
+    if (!entry.deviceIds.includes(row.deviceId)) entry.deviceIds.push(row.deviceId);
   }
-  return byEmail;
+  return byGroup;
 }
 
 export type PicEmailDevice = {
@@ -86,42 +102,49 @@ export type PicEmailInput = {
   checkTime: string;
   shift: string;
   checker: string;
-  devices: PicEmailDevice[];
+  /** One entry per PIC group — the To line is the group's member emails. */
+  groups: {
+    groupName: string;
+    emails: string[];
+    devices: PicEmailDevice[];
+  }[];
   baseUrl: string;
 };
 
 /** Pure email builder: subject, body, and the summary snapshot for history. */
 export function buildChecklistPicEmail(input: PicEmailInput) {
-  const count = input.devices.length;
+  const count = input.groups.reduce((sum, g) => sum + g.devices.length, 0);
   const subject = `[DataGuard] ${count} device${count === 1 ? "" : "s"} NOT OK — ${input.siteCode || input.siteName} — ${input.checkDate} ${input.shift}`;
 
-  const lines = input.devices.map((device, index) => {
-    const rack = [device.rackName, device.rackPosition ? `U${device.rackPosition}` : null]
-      .filter(Boolean).join(" ");
-    const parts = [
-      `${index + 1}. ${device.name}`,
-      device.assetCode ? `(${device.assetCode})` : null,
-      rack ? `— ${rack}` : null,
-      device.categoryName ? `— ${device.categoryName}` : null,
-      `— Remarks: ${device.remarks || "-"}`,
-      device.incidentId ? `(Incident #${device.incidentId})` : null,
-    ].filter(Boolean);
-    return parts.join(" ");
-  });
+  const files = input.groups.flatMap((group) =>
+    group.devices.map((device) => {
+      const rack = [device.rackName, device.rackPosition ? `U${device.rackPosition}` : null]
+        .filter(Boolean).join(" ");
+      const parts = [
+        `• ${device.name}`,
+        device.assetCode ? `(${device.assetCode})` : null,
+        rack ? `— ${rack}` : null,
+        device.categoryName ? `— ${device.categoryName}` : null,
+        `— Remarks: ${device.remarks || "-"}`,
+        device.incidentId ? `(Incident #${device.incidentId})` : null,
+      ].filter(Boolean);
+      return parts.join(" ");
+    }),
+  );
 
   const text = [
     `Hello,`,
     ``,
     `The following ${count} device${count === 1 ? " was" : "s were"} reported NOT OK in the checklist submitted at ${input.siteName} on ${input.checkDate} ${input.checkTime} (shift ${input.shift}) by ${input.checker}:`,
     ``,
-    ...lines,
+    ...files,
     ``,
     `Details & follow-up: ${input.baseUrl}/admin/incidents`,
     ``,
     `This is an automated notification from DataGuard.`,
   ].join("\n");
 
-  return { subject, text, deviceCount: count, deviceSummary: lines.join("\n") };
+  return { subject, text, deviceCount: count, deviceSummary: files.join("\n") };
 }
 
 // Lazy singleton keyed on the SMTP URL: created once per distinct relay, so
@@ -147,12 +170,13 @@ export function isEmailConfigured(): boolean {
 
 export type EmailSendResult = { success: boolean; error?: string };
 
-/** Send one email. Never throws (same contract as sendTelegramAlert). */
-export async function sendChecklistPicEmail(to: string, subject: string, text: string): Promise<EmailSendResult> {
+/** Send one email (to = one or more recipient addresses). Never throws
+ *  (same contract as sendTelegramAlert). */
+export async function sendChecklistPicEmail(to: string[], subject: string, text: string): Promise<EmailSendResult> {
   try {
     await getTransporter().sendMail({
       from: getEnv().SMTP_FROM ?? "siem@dc-check.local",
-      to,
+      to: to.join(", "),
       subject,
       text,
     });

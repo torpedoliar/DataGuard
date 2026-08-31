@@ -283,15 +283,15 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                     }
                 }
 
-                // PIC email alerts: every owner of a group bound to a NOT-OK
-                // device gets one email listing their affected devices.
-                // Skipped entirely (no rows, one warn) when SMTP is unset so
+                // PIC email alerts: each device group bound to a NOT-OK device
+                // gets ONE email addressed to all of its owner users. Skipped
+                // entirely (no rows, one warn) when SMTP is unset so
                 // deployments without email don't accumulate log rows.
                 if (isEmailConfigured() && site) {
                     try {
-                        const picRecipients = await resolveChecklistPicRecipients(failedIds, auth.activeSiteId);
+                        const picGroups = await resolveChecklistPicRecipients(failedIds, auth.activeSiteId);
 
-                        for (const [recipientEmail, info] of picRecipients) {
+                        for (const [, group] of picGroups) {
                             const { subject, text, deviceCount, deviceSummary } = buildChecklistPicEmail({
                                 siteName: site.name,
                                 siteCode: site.code,
@@ -299,34 +299,40 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                 checkTime,
                                 shift,
                                 checker: user?.username || "Unknown",
-                                devices: info.deviceIds.map((deviceId) => {
-                                    const dev = devicesInfo.find(d => d.id === deviceId);
-                                    const incident = incidentByChecklistItemId.get(
-                                        alertItems.find((a) => a.deviceId === deviceId)?.checklistItemId ?? 0,
-                                    );
-                                    return {
-                                        id: deviceId,
-                                        name: dev?.name || `Device #${deviceId}`,
-                                        assetCode: dev?.assetCode ?? null,
-                                        rackName: dev?.rackName ?? null,
-                                        rackPosition: dev?.rackPosition ?? null,
-                                        categoryName: dev?.category?.name ?? null,
-                                        remarks: alertItems.find((a) => a.deviceId === deviceId)?.remarks || "",
-                                        incidentId: incident?.id ?? null,
-                                    };
-                                }),
+                                groups: [{
+                                    groupName: group.groupName,
+                                    emails: group.emails,
+                                    devices: group.deviceIds.map((deviceId) => {
+                                        const dev = devicesInfo.find(d => d.id === deviceId);
+                                        const incident = incidentByChecklistItemId.get(
+                                            alertItems.find((a) => a.deviceId === deviceId)?.checklistItemId ?? 0,
+                                        );
+                                        return {
+                                            id: deviceId,
+                                            name: dev?.name || `Device #${deviceId}`,
+                                            assetCode: dev?.assetCode ?? null,
+                                            rackName: dev?.rackName ?? null,
+                                            rackPosition: dev?.rackPosition ?? null,
+                                            categoryName: dev?.category?.name ?? null,
+                                            remarks: alertItems.find((a) => a.deviceId === deviceId)?.remarks || "",
+                                            incidentId: incident?.id ?? null,
+                                        };
+                                    }),
+                                }],
                                 baseUrl,
                             });
 
                             // Fire-and-forget like Telegram; the history row is
-                            // written once with a terminal status.
-                            void sendChecklistPicEmail(recipientEmail, subject, text)
+                            // written once with a terminal status. recipient
+                            // stores the group's full To line; recipientName
+                            // the group name.
+                            void sendChecklistPicEmail(group.emails, subject, text)
                                 .then((result) => {
                                     void db.insert(emailAlerts).values({
                                         siteId: auth.activeSiteId,
                                         entryId,
-                                        recipient: recipientEmail,
-                                        recipientName: info.name,
+                                        recipient: group.emails.join(", "),
+                                        recipientName: group.groupName,
                                         subject,
                                         deviceCount,
                                         deviceSummary,
@@ -337,7 +343,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                         console.error("Failed to record email_alerts row:", insertError);
                                     });
                                     if (!result.success) {
-                                        console.error(`PIC email send failed for ${recipientEmail}:`, result.error);
+                                        console.error(`PIC email send failed for group ${group.groupName}:`, result.error);
                                     }
                                 })
                                 .catch((error) => {
@@ -345,8 +351,8 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                     void db.insert(emailAlerts).values({
                                         siteId: auth.activeSiteId,
                                         entryId,
-                                        recipient: recipientEmail,
-                                        recipientName: info.name,
+                                        recipient: group.emails.join(", "),
+                                        recipientName: group.groupName,
                                         subject,
                                         deviceCount,
                                         deviceSummary,

@@ -62,7 +62,7 @@ describe("buildChecklistPicEmail", () => {
     },
   ];
 
-  it("builds subject with count, site code, date and shift", () => {
+  it("builds subject with total count, site code, date and shift", () => {
     const { subject } = buildChecklistPicEmail({
       siteName: "DC Jakarta",
       siteCode: "JKT",
@@ -70,7 +70,7 @@ describe("buildChecklistPicEmail", () => {
       checkTime: "09:30",
       shift: "Pagi",
       checker: "budi",
-      devices,
+      groups: [{ groupName: "Network", emails: ["pic@x.test"], devices }],
       baseUrl: "https://dc.example.test",
     });
     expect(subject).toContain("2 devices NOT OK");
@@ -87,17 +87,17 @@ describe("buildChecklistPicEmail", () => {
       checkTime: "09:30",
       shift: "Pagi",
       checker: "budi",
-      devices,
+      groups: [{ groupName: "Network", emails: ["pic@x.test"], devices }],
       baseUrl: "https://dc.example.test",
     });
 
-    expect(text).toContain("1. sw-core (AST-001) — R1 U5 — Network — Remarks: Fan LED blinking (Incident #12)");
-    expect(text).toContain("2. ups-a — Remarks: -");
+    expect(text).toContain("• sw-core (AST-001) — R1 U5 — Network — Remarks: Fan LED blinking (Incident #12)");
+    expect(text).toContain("• ups-a — Remarks: -");
     expect(text).toContain("https://dc.example.test/admin/incidents");
     expect(text).toContain("shift Pagi");
     expect(text).toContain("by budi");
     expect(deviceCount).toBe(2);
-    // Summary snapshot is the numbered device lines only (no greeting/link).
+    // Summary snapshot is the device lines only (no greeting/link).
     expect(deviceSummary).not.toContain("Hello");
     expect(deviceSummary).toContain("sw-core");
   });
@@ -107,6 +107,7 @@ describe("resolveChecklistPicRecipients", () => {
   function mockQueryRows(rows: Array<{
     deviceId: number;
     groupId: number;
+    groupName: string;
     userId: number;
     email: string | null;
     username: string;
@@ -122,32 +123,32 @@ describe("resolveChecklistPicRecipients", () => {
     });
   }
 
-  it("groups devices per recipient email and dedupes devices", async () => {
+  it("returns one entry per group with deduped member emails and devices", async () => {
     mockQueryRows([
-      { deviceId: 1, groupId: 10, userId: 7, email: "pic@x.test", username: "budi" },
-      { deviceId: 2, groupId: 11, userId: 7, email: "pic@x.test", username: "budi" },
-      { deviceId: 2, groupId: 12, userId: 8, email: "sari@x.test", username: "sari" },
-      { deviceId: 1, groupId: 10, userId: 7, email: "pic@x.test", username: "budi" }, // duplicate row
+      { deviceId: 1, groupId: 10, groupName: "Network", userId: 7, email: "budi@x.test", username: "budi" },
+      { deviceId: 1, groupId: 10, groupName: "Network", userId: 8, email: "sari@x.test", username: "sari" },
+      { deviceId: 2, groupId: 10, groupName: "Network", userId: 7, email: "budi@x.test", username: "budi" },
+      { deviceId: 2, groupId: 11, groupName: "Power", userId: 9, email: "andre@x.test", username: "andre" },
+      { deviceId: 2, groupId: 11, groupName: "Power", userId: 7, email: "budi@x.test", username: "budi" }, // second group
     ]);
 
     const map = await resolveChecklistPicRecipients([1, 2], 1);
 
     expect(map.size).toBe(2);
-    const budi = map.get("pic@x.test");
-    expect(budi).toEqual({ userId: 7, name: "budi", deviceIds: [1, 2] });
-    expect(map.get("sari@x.test")).toEqual({ userId: 8, name: "sari", deviceIds: [2] });
-  });
-
-  it("dedupes a device when one user owns two groups bound to it", async () => {
-    mockQueryRows([
-      { deviceId: 1, groupId: 10, userId: 7, email: "pic@x.test", username: "budi" },
-      { deviceId: 1, groupId: 11, userId: 7, email: "pic@x.test", username: "budi" },
-    ]);
-
-    const map = await resolveChecklistPicRecipients([1], 1);
-
-    expect(map.size).toBe(1);
-    expect(map.get("pic@x.test")).toEqual({ userId: 7, name: "budi", deviceIds: [1] });
+    expect(map.get(10)).toEqual({
+      groupId: 10,
+      groupName: "Network",
+      emails: ["budi@x.test", "sari@x.test"],
+      memberNames: ["budi", "sari"],
+      deviceIds: [1, 2],
+    });
+    expect(map.get(11)).toEqual({
+      groupId: 11,
+      groupName: "Power",
+      emails: ["andre@x.test", "budi@x.test"],
+      memberNames: ["andre", "budi"],
+      deviceIds: [2],
+    });
   });
 
   it("returns an empty map for no device ids without querying", async () => {
@@ -158,16 +159,16 @@ describe("resolveChecklistPicRecipients", () => {
 });
 
 describe("sendChecklistPicEmail", () => {
-  it("sends via the configured transporter and returns success", async () => {
+  it("sends via the configured transporter with a multi-recipient To line", async () => {
     const sendMail = vi.fn().mockResolvedValue({});
     mockedCreateTransport.mockReturnValue({ sendMail });
 
-    const result = await sendChecklistPicEmail("pic@x.test", "Subject", "Body");
+    const result = await sendChecklistPicEmail(["budi@x.test", "sari@x.test"], "Subject", "Body");
 
     expect(result).toEqual({ success: true });
     expect(sendMail).toHaveBeenCalledWith({
       from: "alerts@test",
-      to: "pic@x.test",
+      to: "budi@x.test, sari@x.test",
       subject: "Subject",
       text: "Body",
     });
@@ -180,7 +181,7 @@ describe("sendChecklistPicEmail", () => {
     const sendMail = vi.fn().mockRejectedValue(new Error("relay down"));
     mockedCreateTransport.mockReturnValue({ sendMail });
 
-    const result = await sendChecklistPicEmail("pic@x.test", "Subject", "Body");
+    const result = await sendChecklistPicEmail(["pic@x.test"], "Subject", "Body");
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("relay down");
