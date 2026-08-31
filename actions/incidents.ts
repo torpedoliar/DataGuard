@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { devices, incidentUpdates, incidents, sites, siteTelegramChatIds, userSites, users } from "@/db/schema";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "@/lib/action-auth";
-import { logAudit } from "@/lib/audit";
+import { logAudit, logAuditManual } from "@/lib/audit";
 import {
   calculateIncidentDueDate,
   canTransitionIncidentStatus,
@@ -23,7 +23,7 @@ import { hasAdminAccess } from "@/lib/site-access";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
 import { escapeTelegramHtml, sendTelegramAlert } from "@/lib/telegram";
 import { saveUploadFile, UploadValidationError } from "@/lib/upload";
-import { and, asc, desc, eq, gte, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 type IncidentRecord = typeof incidents.$inferSelect;
@@ -124,85 +124,99 @@ async function resolveIncidentRecipients(siteId: number, severity: IncidentSever
     .map((row) => ({ chatId: row.chatId }));
 }
 
-// Fire-and-forget so a Telegram outage can never fail the action after
-// the incident row is committed (a thrown error here made callers report
-// failure and get resubmitted → duplicate incidents/checklist entries).
-// Each send result is audited (finding #59) with chatId + success/failure;
-// logAudit never throws and the send still never blocks the caller.
-function sendIncidentAlertFireAndForget(chatId: string, message: string, audit: Parameters<typeof logAudit>[0]) {
-  sendTelegramAlert(chatId, message)
-    .then((result) => {
-      void logAudit({
+// Fire-and-forget so a Telegram outage or slow network can never block
+// the server action response or fail the action after committing to DB.
+// Detached via setImmediate; each result is audited via logAuditManual.
+function sendIncidentAlertFireAndForget(
+  chatId: string,
+  message: string,
+  audit: {
+    action: "TELEGRAM_SEND";
+    entity?: "incident";
+    entityId?: number;
+    entityName?: string;
+    detail?: string;
+  },
+) {
+  setImmediate(async () => {
+    try {
+      const result = await sendTelegramAlert(chatId, message);
+      await logAuditManual({
         ...audit,
         detail: `chatId=${chatId} success=${result.success}${result.message ? `: ${result.message}` : ""} ${audit.detail ?? ""}`.trim(),
       });
       if (!result.success) {
         console.error(`Telegram alert send failed for chatId=${chatId}:`, result.message);
       }
-    })
-    .catch((error) => {
+    } catch (error) {
       console.error("Failed to send telegram alert:", error);
-      void logAudit({
+      await logAuditManual({
         ...audit,
         detail: `chatId=${chatId} error=${String(error)} ${audit.detail ?? ""}`.trim(),
       });
-    });
+    }
+  });
 }
 
 async function notifyCriticalIncidents(siteId: number, criticalIncidents: IncidentRecord[]) {
   if (criticalIncidents.length === 0) return;
 
-  const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId) });
-  if (!site) return;
+  try {
+    const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId) });
+    if (!site) return;
 
-  const recipients = await resolveIncidentRecipients(siteId, "Critical", site.telegramChatId);
-  if (recipients.length === 0) return;
+    const recipients = await resolveIncidentRecipients(siteId, "Critical", site.telegramChatId);
+    if (recipients.length === 0) return;
 
-  const baseUrl = await resolveNotificationBaseUrl();
-  // parse_mode=HTML (#58): bold via <b>, incident links as anchors, and
-  // entity-supplied site/incident fields HTML-escaped (previously raw
-  // Markdown interpolation was an injection vector, #75).
-  const message = [
-    "<b>Critical Incident Opened</b>",
-    `Site: ${escapeTelegramHtml(site.name)}`,
-    ...criticalIncidents.map(
-      (incident) =>
-        `<a href="${escapeTelegramHtml(`${baseUrl}/admin/incidents/${incident.id}`)}">#${incident.id} ${escapeTelegramHtml(incident.title)}</a>`,
-    ),
-  ].join("\n");
+    const baseUrl = await resolveNotificationBaseUrl();
+    // parse_mode=HTML (#58): bold via <b>, incident links as anchors, and
+    // entity-supplied site/incident fields HTML-escaped (previously raw
+    // Markdown interpolation was an injection vector, #75).
+    const message = [
+      "<b>Critical Incident Opened</b>",
+      `Site: ${escapeTelegramHtml(site.name)}`,
+      ...criticalIncidents.map(
+        (incident) =>
+          `<a href="${escapeTelegramHtml(`${baseUrl}/admin/incidents/${incident.id}`)}">#${incident.id} ${escapeTelegramHtml(incident.title)}</a>`,
+      ),
+    ].join("\n");
 
-  for (const recipient of recipients) {
-    sendIncidentAlertFireAndForget(recipient.chatId, message, {
-      action: "TELEGRAM_SEND",
-      entity: "incident",
-      entityId: criticalIncidents[0].id,
-      entityName: criticalIncidents.map((incident) => `#${incident.id}`).join(", "),
-      detail: `critical incident alert (${criticalIncidents.length} incident(s))`,
-    });
+    for (const recipient of recipients) {
+      sendIncidentAlertFireAndForget(recipient.chatId, message, {
+        action: "TELEGRAM_SEND",
+        entity: "incident",
+        entityId: criticalIncidents[0].id,
+        entityName: criticalIncidents.map((incident) => `#${incident.id}`).join(", "),
+        detail: `critical incident alert (${criticalIncidents.length} incident(s))`,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to dispatch critical incident alerts:", error);
   }
 }
 
 async function notifyResolvedWaitingVerification(siteId: number, incidentId: number, title: string) {
-  const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId) });
-  if (!site) return;
+  try {
+    const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId) });
+    if (!site) return;
 
-  // Resolved is treated as Low-severity for filter purposes.
-  const recipients = await resolveIncidentRecipients(siteId, "Low", site.telegramChatId);
-  if (recipients.length === 0) return;
+    // Resolved is treated as Low-severity for filter purposes.
+    const recipients = await resolveIncidentRecipients(siteId, "Low", site.telegramChatId);
+    if (recipients.length === 0) return;
 
-  const baseUrl = await resolveNotificationBaseUrl();
-  const message = `<b>Incident Resolved</b>\nSite: ${escapeTelegramHtml(site.name)}\n<a href="${escapeTelegramHtml(`${baseUrl}/admin/incidents/${incidentId}`)}">#${incidentId} ${escapeTelegramHtml(title)}</a>\nWaiting for admin verification.`;
-  // Fire-and-forget so a Telegram outage can never fail the action after
-  // the incident row is committed (a thrown error here made callers report
-  // failure and get resubmitted → duplicate incidents/checklist entries).
-  for (const recipient of recipients) {
-    sendIncidentAlertFireAndForget(recipient.chatId, message, {
-      action: "TELEGRAM_SEND",
-      entity: "incident",
-      entityId: incidentId,
-      entityName: `#${incidentId} ${title}`,
-      detail: "resolved-waiting-verification alert",
-    });
+    const baseUrl = await resolveNotificationBaseUrl();
+    const message = `<b>Incident Resolved</b>\nSite: ${escapeTelegramHtml(site.name)}\n<a href="${escapeTelegramHtml(`${baseUrl}/admin/incidents/${incidentId}`)}">#${incidentId} ${escapeTelegramHtml(title)}</a>\nWaiting for admin verification.`;
+    for (const recipient of recipients) {
+      sendIncidentAlertFireAndForget(recipient.chatId, message, {
+        action: "TELEGRAM_SEND",
+        entity: "incident",
+        entityId: incidentId,
+        entityName: `#${incidentId} ${title}`,
+        detail: "resolved-waiting-verification alert",
+      });
+    }
+  } catch (error) {
+    console.error("Failed to dispatch resolved incident alert:", error);
   }
 }
 
