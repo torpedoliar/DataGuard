@@ -6,6 +6,9 @@ import { checklistEntries, devices, checklistItems, categories, users, locations
 import { eq, and, gte, lte, or, isNull, sql } from "drizzle-orm";
 import { requireActiveSiteAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
+// Pure helpers live in their own module: every export of a "use server" file
+// must be async, so buildGridExportRows cannot stay here.
+import { buildGridExportRows } from "@/lib/grid-export";
 // xlsx-js-style is a superset of the SheetJS community build (same utils API)
 // with cell styling support; it replaces the plain xlsx import for the grid
 // export so status cells carry the on-screen colors.
@@ -117,52 +120,6 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
     });
 
     return { dates, gridData };
-}
-
-export type GridExportRow = {
-    category: string;
-    device: string;
-    location: string | null;
-    [date: string]: string | number | null | undefined;
-};
-
-/**
- * Pure matrix builder for the grid export: one row per device, one column
- * per date, mirroring the on-screen Audit Grid. Multiple checks on one day
- * collapse to "OK; NOT OK (budi 08:15)" style summary text; no checks →
- * empty cell. Exported separately from getAuditGridData so tests can cover
- * it without a DB.
- */
-export function buildGridExportRows(
-    dates: string[],
-    gridData: Array<{
-        name: string;
-        locationName: string | null;
-        categoryName: string | null;
-        statusHistory: Record<string, DailyCheck[]>;
-    }>,
-): GridExportRow[] {
-    return gridData.map((device) => {
-        const row: GridExportRow = {
-            category: device.categoryName || "Uncategorized",
-            device: device.name,
-            location: device.locationName,
-        };
-        for (const date of dates) {
-            const checks = device.statusHistory[date] || [];
-            if (checks.length === 0) {
-                row[date] = "";
-            } else if (checks.length === 1) {
-                const check = checks[0];
-                row[date] = check.status === "OK" ? "OK" : `NOT OK (${check.username} ${check.time})`;
-            } else {
-                row[date] = checks
-                    .map((c) => `${c.status} (${c.username} ${c.time})`)
-                    .join("; ");
-            }
-        }
-        return row;
-    });
 }
 
 /**

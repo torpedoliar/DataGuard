@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildGridExportRows, type DailyCheck } from "./grid";
+import { buildGridExportRows } from "@/lib/grid-export";
+import type { DailyCheck } from "./grid";
 
 const dates = ["2026-08-30", "2026-08-31"];
 
