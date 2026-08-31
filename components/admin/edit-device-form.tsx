@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { getCategories, updateDevice } from "@/actions/master-data";
 import { getOccupiedSlots, getRacks } from "@/actions/rack-management";
+import { getDeviceGroupOptions } from "@/actions/device-groups";
 import ActionButton from "@/components/ui/action-button";
 import FormSection from "@/components/ui/form-section";
-import { Server, X } from "lucide-react";
+import { Server, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 import DeviceHealthTrend from "./device-health-trend";
@@ -45,6 +47,12 @@ type Location = {
   name: string;
 };
 
+type PicGroup = {
+  id: number;
+  name: string;
+  color: string | null;
+};
+
 interface EditDeviceFormProps {
   device: Device;
   onClose: () => void;
@@ -71,13 +79,19 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
   const [selectedCategory, setSelectedCategory] = useState<string>(device.categoryId?.toString() || "");
   const [selectedRack, setSelectedRack] = useState<string>(device.rackName || "");
   const [selectedPosition, setSelectedPosition] = useState<string>(device.rackPosition?.toString() || "");
+  const [picGroups, setPicGroups] = useState<PicGroup[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<number>>(new Set());
   const [state, action, isPending] = useActionState(updateDevice, undefined);
   const router = useRouter();
 
   useEffect(() => {
     getCategories().then(setCategories);
     getRacks().then(setRacks);
-  }, []);
+    getDeviceGroupOptions(device.id).then(({ groups, boundGroupIds }) => {
+      setPicGroups(groups);
+      setSelectedGroupIds(new Set(boundGroupIds));
+    });
+  }, [device.id]);
 
   useEffect(() => {
     if (selectedRack) {
@@ -260,6 +274,46 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                     </select>
                   </label>
                 </div>
+              </div>
+
+              <div className="border-t border-ops-border pt-5 md:col-span-2">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-ops-text">
+                  <Users className="size-4 text-ops-accent" />
+                  PIC Groups
+                </h3>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {picGroups.length === 0 && (
+                    <p className="text-sm text-ops-muted">
+                      No PIC groups yet — create them in <Link href="/admin/device-groups" className="text-ops-accent underline">PIC Groups</Link>.
+                    </p>
+                  )}
+                  {picGroups.map((group) => {
+                    const checked = selectedGroupIds.has(group.id);
+                    return (
+                      <label key={group.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-ops-border bg-ops-bg/40 px-3 py-2 text-sm hover:border-ops-accent/40">
+                        <input
+                          type="checkbox"
+                          name="groupIds"
+                          value={group.id}
+                          checked={checked}
+                          onChange={() =>
+                            setSelectedGroupIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(group.id)) next.delete(group.id); else next.add(group.id);
+                              return next;
+                            })
+                          }
+                          className="accent-ops-accent"
+                        />
+                        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: group.color ?? "#3b82f6" }} />
+                        <span className="truncate font-medium text-ops-text">{group.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-ops-muted">
+                  Group PIC bertanggung jawab atas device ini — dipakai untuk alert &amp; notifikasi email saat audit menemukan masalah.
+                </p>
               </div>
 
               <div className="border-t border-ops-border pt-5 md:col-span-2">

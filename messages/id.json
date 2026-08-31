@@ -65,6 +65,7 @@
     "vlans": "VLAN",
     "network": "Jaringan",
     "auditLog": "Log Audit",
+    "emailLog": "Log Email",
     "users": "Pengguna",
     "sites": "Situs",
     "siteManagement": "Manajemen Situs",

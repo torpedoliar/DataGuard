@@ -158,8 +158,11 @@ export default function ChecklistForm({
       {/* Scope tabs — the active tab defines WHICH devices get submitted.
           Category mode filters by device category; Rack mode walks racks in
           layout order (zone → name) and U position within a rack. */}
-      <section className="ops-panel overflow-hidden">
-        <div className="border-b border-ops-border bg-ops-surface px-5 py-4">
+      {/* No overflow-hidden here: the By Rack dropdown opens downward and
+          would otherwise be clipped by the panel. The header advertises its
+          own rounded top corner in place of the panel clip. */}
+      <section className="ops-panel">
+        <div className="rounded-t-[16px] border-b border-ops-border bg-ops-surface px-5 py-4">
           <h2 className="text-base font-bold text-ops-text">Audit Scope</h2>
           <p className="mt-1 text-sm text-ops-muted">
             Only devices in the active tab are submitted. &quot;All&quot; submits every device.

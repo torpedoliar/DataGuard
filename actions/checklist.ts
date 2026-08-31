@@ -2,11 +2,12 @@
 "use server";
 
 import { db } from "../db";
-import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds, incidents, incidentUpdates } from "../db/schema";
+import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds, incidents, incidentUpdates, emailAlerts } from "../db/schema";
 import { createIncidentsForChecklistItems } from "@/actions/incidents";
 import { getTelegramAlertTemplate } from "@/actions/settings";
 import { renderTelegramTemplate, sendTelegramAlert, splitTelegramChunks } from "@/lib/telegram";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
+import { buildChecklistPicEmail, isEmailConfigured, resolveChecklistPicRecipients, sendChecklistPicEmail } from "@/lib/email";
 import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
 import { logAudit } from "../lib/audit";
@@ -169,6 +170,9 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
             }, tx);
         });
 
+        // Audit row is written before dispatch (which is fire-and-forget), so
+        // it can't report email/telegram send counts — those live in
+        // email_alerts / TELEGRAM_SEND audit rows instead.
         await logAudit({
             action: "CREATE",
             entity: "checklist",
@@ -198,17 +202,19 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                     site?.telegramChatId,
                 );
 
-                if (site && recipients.length > 0) {
-                    const failedIds = alertItems.map(a => a.deviceId);
-                    const devicesInfo = await db.query.devices.findMany({
-                        where: inArray(devices.id, failedIds),
-                        with: { brand: true, category: true, location: true }
-                    });
-                    const incidentByChecklistItemId = new Map(
-                        createdIncidents.map((incident) => [incident.checklistItemId, incident]),
-                    );
-                    const baseUrl = await resolveNotificationBaseUrl();
+                // Shared by the Telegram render below and the PIC email body —
+                // one query for the NOT-OK devices.
+                const failedIds = alertItems.map(a => a.deviceId);
+                const devicesInfo = await db.query.devices.findMany({
+                    where: inArray(devices.id, failedIds),
+                    with: { brand: true, category: true, location: true }
+                });
+                const incidentByChecklistItemId = new Map(
+                    createdIncidents.map((incident) => [incident.checklistItemId, incident]),
+                );
+                const baseUrl = await resolveNotificationBaseUrl();
 
+                if (site && recipients.length > 0) {
                     const messages = alertItems.map((alert) => {
                         const dev = devicesInfo.find(d => d.id === alert.deviceId);
                         const rack = [dev?.rackName, dev?.rackPosition ? `U${dev.rackPosition}` : null].filter(Boolean).join(" ");
@@ -274,6 +280,83 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                     });
                                 });
                         }
+                    }
+                }
+
+                // PIC email alerts: every owner of a group bound to a NOT-OK
+                // device gets one email listing their affected devices.
+                // Skipped entirely (no rows, one warn) when SMTP is unset so
+                // deployments without email don't accumulate log rows.
+                if (isEmailConfigured() && site) {
+                    try {
+                        const picRecipients = await resolveChecklistPicRecipients(failedIds, auth.activeSiteId);
+
+                        for (const [recipientEmail, info] of picRecipients) {
+                            const { subject, text, deviceCount, deviceSummary } = buildChecklistPicEmail({
+                                siteName: site.name,
+                                siteCode: site.code,
+                                checkDate,
+                                checkTime,
+                                shift,
+                                checker: user?.username || "Unknown",
+                                devices: info.deviceIds.map((deviceId) => {
+                                    const dev = devicesInfo.find(d => d.id === deviceId);
+                                    const incident = incidentByChecklistItemId.get(
+                                        alertItems.find((a) => a.deviceId === deviceId)?.checklistItemId ?? 0,
+                                    );
+                                    return {
+                                        id: deviceId,
+                                        name: dev?.name || `Device #${deviceId}`,
+                                        assetCode: dev?.assetCode ?? null,
+                                        rackName: dev?.rackName ?? null,
+                                        rackPosition: dev?.rackPosition ?? null,
+                                        categoryName: dev?.category?.name ?? null,
+                                        remarks: alertItems.find((a) => a.deviceId === deviceId)?.remarks || "",
+                                        incidentId: incident?.id ?? null,
+                                    };
+                                }),
+                                baseUrl,
+                            });
+
+                            // Fire-and-forget like Telegram; the history row is
+                            // written once with a terminal status.
+                            void sendChecklistPicEmail(recipientEmail, subject, text)
+                                .then((result) => {
+                                    void db.insert(emailAlerts).values({
+                                        siteId: auth.activeSiteId,
+                                        entryId,
+                                        recipient: recipientEmail,
+                                        recipientName: info.name,
+                                        subject,
+                                        deviceCount,
+                                        deviceSummary,
+                                        status: result.success ? "sent" : "failed",
+                                        error: result.error ?? null,
+                                        sentAt: result.success ? new Date() : null,
+                                    }).catch((insertError) => {
+                                        console.error("Failed to record email_alerts row:", insertError);
+                                    });
+                                    if (!result.success) {
+                                        console.error(`PIC email send failed for ${recipientEmail}:`, result.error);
+                                    }
+                                })
+                                .catch((error) => {
+                                    console.error("Failed to send PIC email:", error);
+                                    void db.insert(emailAlerts).values({
+                                        siteId: auth.activeSiteId,
+                                        entryId,
+                                        recipient: recipientEmail,
+                                        recipientName: info.name,
+                                        subject,
+                                        deviceCount,
+                                        deviceSummary,
+                                        status: "failed",
+                                        error: String(error),
+                                    }).catch(() => { /* history is best-effort */ });
+                                });
+                        }
+                    } catch (emailError) {
+                        console.error("Failed to dispatch PIC emails:", emailError);
                     }
                 }
             } catch (e) {

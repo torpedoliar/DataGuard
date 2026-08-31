@@ -16,8 +16,9 @@ import {
     siemFindings,
     siemEvidenceEvents,
     devicePics,
+    deviceGroups,
 } from "../db/schema";
-import { and, eq, or, isNull, sql } from "drizzle-orm";
+import { and, eq, or, isNull, sql, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
@@ -328,9 +329,32 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
             photoPath,
         }).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)));
 
+        // PIC group binding from the device side: the form submits one
+        // groupId checkbox per selected group; re-sync device_pics for this
+        // device. Groups are validated against the active site (a group id
+        // from another site must never bind). Empty selection = unbind all.
+        const groupIds = (formData.getAll("groupIds") as string[]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+        const validGroups = groupIds.length > 0
+            ? await db.select({ id: deviceGroups.id }).from(deviceGroups)
+                .where(and(inArray(deviceGroups.id, groupIds), eq(deviceGroups.siteId, auth.activeSiteId)))
+            : [];
+        await db.delete(devicePics).where(eq(devicePics.deviceId, id));
+        if (validGroups.length > 0) {
+            await db.insert(devicePics).values(
+                validGroups.map((g) => ({ deviceId: id, groupId: g.id, siteId: auth.activeSiteId })),
+            );
+        }
+
         revalidatePath("/admin");
         revalidatePath("/admin/rack");
-        await logAudit({ action: "UPDATE", entity: "device", entityId: id, entityName: parsed.data.name, detail: `IP: ${parsed.data.ipAddress ?? '-'}, Rack: ${parsed.data.rackName ?? '-'}` });
+        revalidatePath("/admin/device-groups");
+        await logAudit({
+            action: "UPDATE",
+            entity: "device",
+            entityId: id,
+            entityName: parsed.data.name,
+            detail: `IP: ${parsed.data.ipAddress ?? '-'}, Rack: ${parsed.data.rackName ?? '-'}, PIC groups: ${validGroups.map((g) => g.id).join(",") || "none"}`,
+        });
         return { success: true, message: "Device updated successfully" };
     } catch (error) {
         console.error("Update device error:", error);

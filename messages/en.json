@@ -65,6 +65,7 @@
     "vlans": "VLANs",
     "network": "Network",
     "auditLog": "Audit Log",
+    "emailLog": "Email Log",
     "users": "Users",
     "sites": "Sites",
     "siteManagement": "Site Management",

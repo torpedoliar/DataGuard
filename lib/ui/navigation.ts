@@ -43,6 +43,7 @@ const adminItems: NavItem[] = [
   { href: "/admin/categories", label: "Categories", labelKey: "categories", ns: "AdminMenu", icon: "folder-tree" },
   { href: "/admin/locations", label: "Locations", labelKey: "locations", ns: "AdminMenu", icon: "map-pin" },
   { href: "/admin/audit-log", label: "Audit Log", labelKey: "auditLog", ns: "AdminMenu", icon: "history" },
+  { href: "/admin/email-log", label: "Email Log", labelKey: "emailLog", ns: "AdminMenu", icon: "mail" },
 ];
 
 const superadminItems: NavItem[] = [

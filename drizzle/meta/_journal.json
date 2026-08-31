@@ -267,6 +267,13 @@
       "when": 1787073695124,
       "tag": "0038_sync_concurrency_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1787073695125,
+      "tag": "0039_email_alerts",
+      "breakpoints": true
     }
   ]
 }

@@ -33,6 +33,7 @@ import {
   Shield,
   Terminal,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 import { Fragment, useState, useTransition, type ReactNode } from "react";
@@ -255,6 +256,9 @@ export default function DeviceTable({
                   Reset
                 </ActionButton>
               )}
+              <ActionButton href="/admin/device-groups" variant="secondary" size="sm" icon={<Users className="size-3.5" />}>
+                PIC Groups
+              </ActionButton>
             </div>
           </div>
         </DataToolbar>

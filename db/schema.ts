@@ -26,6 +26,7 @@ export const siemFindingStatusEnum = pgEnum("siem_finding_status", ["Open", "Ack
 export const siemAlertChannelEnum = pgEnum("siem_alert_channel", ["telegram", "webhook", "email"]);
 export const siemAlertStatusEnum = pgEnum("siem_alert_status", ["pending", "sent", "failed"]);
 export const siemAiJobStatusEnum = pgEnum("siem_ai_job_status", ["pending", "running", "completed", "failed"]);
+export const emailAlertStatusEnum = pgEnum("email_alert_status", ["pending", "sent", "failed"]);
 
 // ==================== SITES ====================
 export const sites = pgTable("sites", {
@@ -763,6 +764,29 @@ export const siemAlerts = pgTable("siem_alerts", {
 }, (table) => ({
   findingIdx: index("siem_alerts_finding_idx").on(table.findingId),
   statusCreatedIdx: index("siem_alerts_status_created_idx").on(table.status, table.createdAt),
+}));
+
+// PIC alert email history (lib/email.ts): one row per email sent from a
+// checklist submit. device_count + device_summary snapshot the NOT-OK devices
+// in that email (one PIC gets one email listing all their devices), so there
+// is no per-device FK. Written once by the inline sender (sent/failed);
+// 'pending' exists only for a future retry worker.
+export const emailAlerts = pgTable("email_alerts", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "cascade" }).notNull(),
+  entryId: integer("entry_id").references(() => checklistEntries.id, { onDelete: "set null" }),
+  recipient: text("recipient").notNull(),
+  recipientName: text("recipient_name"),
+  subject: text("subject").notNull(),
+  deviceCount: integer("device_count").notNull().default(0),
+  deviceSummary: text("device_summary"),
+  status: emailAlertStatusEnum("status").notNull().default("pending"),
+  error: text("error"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  siteCreatedIdx: index("email_alerts_site_created_idx").on(table.siteId, table.createdAt),
+  statusCreatedIdx: index("email_alerts_status_created_idx").on(table.status, table.createdAt),
 }));
 
 export const siemAiJobs = pgTable("siem_ai_jobs", {

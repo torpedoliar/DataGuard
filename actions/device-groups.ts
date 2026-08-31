@@ -309,3 +309,27 @@ export async function getGroupDevices() {
     .where(and(eq(devices.siteId, auth.activeSiteId), eq(devices.isActive, true)))
     .orderBy(asc(devices.name));
 }
+
+// PIC group picker data for the device edit form: all groups of the active
+// site, plus the subset bound to one device (or null when deviceId is absent).
+export async function getDeviceGroupOptions(deviceId?: number) {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { groups: [], boundGroupIds: [] as number[] };
+
+  const groups = await db
+    .select({ id: deviceGroups.id, name: deviceGroups.name, color: deviceGroups.color })
+    .from(deviceGroups)
+    .where(and(eq(deviceGroups.siteId, auth.activeSiteId), eq(deviceGroups.isActive, true)))
+    .orderBy(asc(deviceGroups.name));
+
+  let boundGroupIds: number[] = [];
+  if (deviceId) {
+    const rows = await db
+      .select({ groupId: devicePics.groupId })
+      .from(devicePics)
+      .where(eq(devicePics.deviceId, deviceId));
+    boundGroupIds = rows.map((r) => r.groupId);
+  }
+
+  return { groups, boundGroupIds };
+}
