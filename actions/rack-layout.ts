@@ -66,8 +66,13 @@ export async function getRackLayout() {
     const latestStatuses: Record<number, "OK" | "NOT OK" | "Pending"> = {};
 
     if (deviceIds.length > 0) {
-        // Fetch all checks for these devices to find the latest one per device
-        // Sorting by date desc, time desc ensures the first one we encounter per device is the latest
+        // Latest status per device, scoped to TODAY's audit: a device checked
+        // on an earlier day must not display as already audited today — the
+        // daily run is the audit unit (same "today" rule as the dashboard),
+        // and unsubmitted racks would otherwise show stale OK forever.
+        // Sorting by date desc, time desc still picks each device's latest
+        // check within the day (e.g. a re-audit on a later shift).
+        const today = new Date().toISOString().split("T")[0];
         const checks = await db
             .select({
                 deviceId: checklistItems.deviceId,
@@ -75,7 +80,10 @@ export async function getRackLayout() {
             })
             .from(checklistItems)
             .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
-            .where(inArray(checklistItems.deviceId, deviceIds))
+            .where(and(
+                inArray(checklistItems.deviceId, deviceIds),
+                eq(checklistEntries.checkDate, today),
+            ))
             .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime));
 
         for (const check of checks) {
