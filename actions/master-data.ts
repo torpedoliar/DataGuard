@@ -333,17 +333,23 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
         // groupId checkbox per selected group; re-sync device_pics for this
         // device. Groups are validated against the active site (a group id
         // from another site must never bind). Empty selection = unbind all.
+        // Device update + binding re-sync run in one transaction (finding #26
+        // discipline) so a mid-way failure can't strand the device without its
+        // just-saved groups — or leave stale ones.
         const groupIds = (formData.getAll("groupIds") as string[]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
-        const validGroups = groupIds.length > 0
-            ? await db.select({ id: deviceGroups.id }).from(deviceGroups)
-                .where(and(inArray(deviceGroups.id, groupIds), eq(deviceGroups.siteId, auth.activeSiteId)))
-            : [];
-        await db.delete(devicePics).where(eq(devicePics.deviceId, id));
-        if (validGroups.length > 0) {
-            await db.insert(devicePics).values(
-                validGroups.map((g) => ({ deviceId: id, groupId: g.id, siteId: auth.activeSiteId })),
-            );
-        }
+        const boundGroupIds = await db.transaction(async (tx) => {
+            const validGroups = groupIds.length > 0
+                ? await tx.select({ id: deviceGroups.id }).from(deviceGroups)
+                    .where(and(inArray(deviceGroups.id, groupIds), eq(deviceGroups.siteId, auth.activeSiteId)))
+                : [];
+            await tx.delete(devicePics).where(eq(devicePics.deviceId, id));
+            if (validGroups.length > 0) {
+                await tx.insert(devicePics).values(
+                    validGroups.map((g) => ({ deviceId: id, groupId: g.id, siteId: auth.activeSiteId })),
+                );
+            }
+            return validGroups.map((g) => g.id);
+        });
 
         revalidatePath("/admin");
         revalidatePath("/admin/rack");
@@ -353,7 +359,7 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
             entity: "device",
             entityId: id,
             entityName: parsed.data.name,
-            detail: `IP: ${parsed.data.ipAddress ?? '-'}, Rack: ${parsed.data.rackName ?? '-'}, PIC groups: ${validGroups.map((g) => g.id).join(",") || "none"}`,
+            detail: `IP: ${parsed.data.ipAddress ?? '-'}, Rack: ${parsed.data.rackName ?? '-'}, PIC groups: ${boundGroupIds.join(",") || "none"}`,
         });
         return { success: true, message: "Device updated successfully" };
     } catch (error) {

@@ -138,6 +138,18 @@ describe("resolveChecklistPicRecipients", () => {
     expect(map.get("sari@x.test")).toEqual({ userId: 8, name: "sari", deviceIds: [2] });
   });
 
+  it("dedupes a device when one user owns two groups bound to it", async () => {
+    mockQueryRows([
+      { deviceId: 1, groupId: 10, userId: 7, email: "pic@x.test", username: "budi" },
+      { deviceId: 1, groupId: 11, userId: 7, email: "pic@x.test", username: "budi" },
+    ]);
+
+    const map = await resolveChecklistPicRecipients([1], 1);
+
+    expect(map.size).toBe(1);
+    expect(map.get("pic@x.test")).toEqual({ userId: 7, name: "budi", deviceIds: [1] });
+  });
+
   it("returns an empty map for no device ids without querying", async () => {
     const map = await resolveChecklistPicRecipients([], 1);
     expect(map.size).toBe(0);

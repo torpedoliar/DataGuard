@@ -26,6 +26,11 @@ export async function getEmailAlerts(options?: {
     const offset = options?.offset ?? 0;
 
     const conditions: ReturnType<typeof sql>[] = [];
+    // Site scoping (finding #27/#44 discipline): non-superadmins only see
+    // their active site's email history; superadmin sees all sites.
+    if (session.role !== "superadmin" && session.activeSiteId) {
+        conditions.push(sql`site_id = ${session.activeSiteId}`);
+    }
     if (options?.status === "sent" || options?.status === "failed") {
         conditions.push(sql`status = ${options.status}`);
     }
