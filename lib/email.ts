@@ -216,10 +216,19 @@ export function isEmailConfigured(): boolean {
 
 export type EmailSendResult = { success: boolean; error?: string };
 
-/** Send one HTML email (to = one or more recipient addresses). Never throws
- *  (same contract as sendTelegramAlert). textBody is the plain-text fallback
- *  for clients that block HTML. */
-export async function sendChecklistPicEmail(to: string[], subject: string, htmlBody: string, textBody: string): Promise<EmailSendResult> {
+export type EmailAttachment = { filename: string; content: Buffer; contentType: string };
+
+/** Send one HTML email (to = one or more recipient addresses) with optional
+ *  evidence-photo attachments. Never throws (same contract as
+ *  sendTelegramAlert). textBody is the plain-text fallback for clients that
+ *  block HTML. */
+export async function sendChecklistPicEmail(
+  to: string[],
+  subject: string,
+  htmlBody: string,
+  textBody: string,
+  attachments: EmailAttachment[] = [],
+): Promise<EmailSendResult> {
   try {
     await getTransporter().sendMail({
       from: getEnv().SMTP_FROM ?? "siem@dc-check.local",
@@ -227,6 +236,11 @@ export async function sendChecklistPicEmail(to: string[], subject: string, htmlB
       subject,
       text: textBody,
       html: htmlBody,
+      attachments: attachments.map(({ filename, content, contentType }) => ({
+        filename,
+        content,
+        contentType,
+      })),
     });
     return { success: true };
   } catch (error) {

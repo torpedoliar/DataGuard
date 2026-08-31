@@ -45,6 +45,17 @@ vi.mock("@/db", () => ({
       },
     }),
     delete: (..._args: unknown[]) => ({ where: (..._args: unknown[]) => deleteWhereMock(..._args) }),
+    // tx shares the update/delete chain with db in this mock — the SUT runs
+    // its detaches + delete inside one transaction.
+    transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({
+      update: () => ({
+        set: (...s: unknown[]) => {
+          updateSetMock(...s);
+          return { where: (..._w: unknown[]) => updateWhereMock(..._w) };
+        },
+      }),
+      delete: () => ({ where: (..._w: unknown[]) => deleteWhereMock(..._w) }),
+    }),
   },
 }));
 
@@ -79,9 +90,11 @@ describe("deleteSiemSource", () => {
     const result = await deleteSiemSource(undefined, makeFormData({ id: "42" }));
 
     expect(result).toMatchObject({ success: true });
-    expect(eventCountSelectFrom).toHaveBeenCalledTimes(1);
+    // Two count queries: syslog_events + siem_findings.
+    expect(eventCountSelectFrom).toHaveBeenCalledTimes(2);
+    // syslog_events AND siem_findings AND siem_evidence_events all detached.
     expect(updateSetMock).toHaveBeenCalledWith({ sourceId: null });
-    expect(updateWhereMock).toHaveBeenCalledTimes(1);
+    expect(updateWhereMock).toHaveBeenCalledTimes(3);
     expect(deleteWhereMock).toHaveBeenCalledTimes(1);
     expect(logAuditMock).toHaveBeenCalledWith(
       expect.objectContaining({

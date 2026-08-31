@@ -4,20 +4,37 @@
 import { db } from "../db";
 import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds, incidents, incidentUpdates, emailAlerts } from "../db/schema";
 import { createIncidentsForChecklistItems } from "@/actions/incidents";
-import { getTelegramAlertTemplate } from "@/actions/settings";
-import { renderTelegramTemplate, sendTelegramAlert, splitTelegramChunks } from "@/lib/telegram";
+import { getTelegramAlertTemplate, getEmailAlertTemplate } from "@/actions/settings";
+import { escapeTelegramHtml, renderTelegramTemplate, sendTelegramAlert, sendTelegramPhoto, splitTelegramChunks } from "@/lib/telegram";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
-import { isEmailConfigured, renderEmailTemplate, resolveChecklistPicRecipients, sendChecklistPicEmail } from "@/lib/email";
-import { getEmailAlertTemplate } from "@/actions/settings";
+import { isEmailConfigured, renderEmailTemplate, resolveChecklistPicRecipients, sendChecklistPicEmail, type EmailAttachment } from "@/lib/email";
 import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
 import { logAudit } from "../lib/audit";
 import { revalidatePath } from "next/cache";
-import { deleteUploadFile, saveUploadFile, UploadValidationError, validateUpload } from "../lib/upload";
+import { deleteUploadFile, resolveStoredUploadPath, saveUploadFile, UploadValidationError, validateUpload } from "../lib/upload";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
+import fs from "node:fs/promises";
 
 const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3, Critical: 4 } as const;
 type ChecklistSeverity = keyof typeof SEVERITY_RANK;
+
+/**
+ * Load a NOT-OK device's evidence photo from the upload dir (server-side
+ * path via resolveStoredUploadPath — the public URL is internal-only, so
+ * Telegram must receive raw bytes, and email wants a Buffer attachment).
+ * Returns null when the item has no photo or the file is gone.
+ */
+async function loadEvidencePhoto(photoPath: string | null | undefined): Promise<Buffer | null> {
+    if (!photoPath) return null;
+    const filePath = resolveStoredUploadPath(photoPath);
+    if (!filePath) return null;
+    try {
+        return await fs.readFile(filePath);
+    } catch {
+        return null; // missing/unreadable file — send the alert without it
+    }
+}
 
 async function validateChecklistPhotos(formData: FormData, deviceIds: number[]) {
     for (const deviceId of deviceIds) {
@@ -100,7 +117,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
         //    a mid-loop failure rolls back the whole submit, and a retry is
         //    idempotent (unique (entry_id, device_id) index + onConflictDoNothing
         //    on items; incidents dedupe on the unique checklist_item_id).
-        const alertItems: { checklistItemId: number; deviceId: number; status: "NOT OK"; remarks: string }[] = [];
+        const alertItems: { checklistItemId: number; deviceId: number; status: "NOT OK"; remarks: string; photoPath: string | null }[] = [];
         const incidentItems: {
             checklistItemId: number;
             deviceId: number;
@@ -153,7 +170,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 if (!item) continue;
 
                 if (normalizedStatus === "NOT OK") {
-                    alertItems.push({ checklistItemId: item.id, deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided" });
+                    alertItems.push({ checklistItemId: item.id, deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided", photoPath });
                     incidentItems.push({
                         checklistItemId: item.id,
                         deviceId,
@@ -251,6 +268,18 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                     // device-block separators (finding #22).
                     const chunks = splitTelegramChunks(messages);
 
+                    // Evidence photos for the NOT-OK devices that have one:
+                    // loaded eagerly (small, capped) so the async dispatch
+                    // below never touches the filesystem after the action
+                    // returns. Each photo is sent as a captioned follow-up
+                    // message per recipient.
+                    const photoByDevice = new Map<number, Buffer>();
+                    for (const alert of alertItems) {
+                        if (!alert.photoPath || photoByDevice.has(alert.deviceId)) continue;
+                        const buffer = await loadEvidencePhoto(alert.photoPath);
+                        if (buffer) photoByDevice.set(alert.deviceId, buffer);
+                    }
+
                     // Async dispatch so we don't block the UI response. Each chunk send is
                     // audited (finding #59) — chatId + success/failure — so
                     // outbound notifications leave a trail; logAudit never
@@ -279,6 +308,34 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                         entityName: `${checkDate} ${shift}`,
                                         detail: `chatId=${recipient.chatId} error=${String(error)}`,
                                     });
+                                });
+                        }
+                        // Photo follow-ups (only devices whose evidence file
+                        // loaded) — same fire-and-forget contract.
+                        for (const alert of alertItems) {
+                            const photo = photoByDevice.get(alert.deviceId);
+                            if (!photo) continue;
+                            const dev = devicesInfo.find(d => d.id === alert.deviceId);
+                            sendTelegramPhoto(
+                                recipient.chatId,
+                                photo,
+                                `evidence-${alert.deviceId}.jpg`,
+                                `<b>${escapeTelegramHtml(dev?.name || `Device #${alert.deviceId}`)}</b> — evidence photo`,
+                            )
+                                .then((result) => {
+                                    if (!result.success) {
+                                        console.error(`Telegram photo send failed for chatId=${recipient.chatId}:`, result.message);
+                                        void logAudit({
+                                            action: "TELEGRAM_SEND",
+                                            entity: "checklist",
+                                            entityId: entryId,
+                                            entityName: `${checkDate} ${shift}`,
+                                            detail: `chatId=${recipient.chatId} photo device=${alert.deviceId} failed: ${result.message ?? "unknown"}`,
+                                        });
+                                    }
+                                })
+                                .catch((error) => {
+                                    console.error("Failed to send telegram photo:", error);
                                 });
                         }
                     }
@@ -353,11 +410,29 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                 .map((block) => `• ${block.deviceName}`)
                                 .join("\n");
 
+                            // Evidence photos of the group's NOT-OK devices as
+                            // email attachments (photo shared once per group).
+                            const attachments: EmailAttachment[] = [];
+                            for (const alert of alertItems.filter((a) => group.deviceIds.includes(a.deviceId))) {
+                                if (!alert.photoPath) continue;
+                                const buffer = await loadEvidencePhoto(alert.photoPath);
+                                if (!buffer) continue;
+                                const extension = alert.photoPath.split(".").pop()?.toLowerCase() || "jpg";
+                                attachments.push({
+                                    filename: `evidence-device-${alert.deviceId}.${extension}`,
+                                    content: buffer,
+                                    contentType: extension === "png" ? "image/png"
+                                        : extension === "webp" ? "image/webp"
+                                        : extension === "gif" ? "image/gif"
+                                        : "image/jpeg",
+                                });
+                            }
+
                             // Fire-and-forget like Telegram; the history row is
                             // written once with a terminal status. recipient
                             // stores the group's full To line; recipientName
                             // the group name.
-                            void sendChecklistPicEmail(group.emails, subject, htmlBody, textBody)
+                            void sendChecklistPicEmail(group.emails, subject, htmlBody, textBody, attachments)
                                 .then((result) => {
                                     void db.insert(emailAlerts).values({
                                         siteId: auth.activeSiteId,

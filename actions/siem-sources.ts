@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { devices, sites, syslogEvents, syslogSources } from "@/db/schema";
+import { devices, siemEvidenceEvents, siemFindings, sites, syslogEvents, syslogSources } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -139,9 +139,25 @@ export async function deleteSiemSource(prevState: unknown, formData: FormData) {
     .where(and(eq(syslogEvents.sourceId, id), eq(syslogEvents.siteId, auth.activeSiteId)));
   const detachedCount = eventCountRows[0]?.count ?? 0;
 
-  // Detach events (set sourceId = null) but don't delete them — audit trail.
-  await db.update(syslogEvents).set({ sourceId: null }).where(and(eq(syslogEvents.sourceId, id), eq(syslogEvents.siteId, auth.activeSiteId)));
-  await db.delete(syslogSources).where(eq(syslogSources.id, id));
+  // Findings + evidence rows also reference the source (both FKs are NO
+  // ACTION, so a plain DELETE fails with a foreign-key violation as soon as
+  // one exists). Detach them like syslog_events — set sourceId = null and
+  // keep the rows, they are the SIEM audit trail.
+  const findingCountRows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(siemFindings)
+    .where(and(eq(siemFindings.sourceId, id), eq(siemFindings.siteId, auth.activeSiteId)));
+  const detachedFindings = findingCountRows[0]?.count ?? 0;
+
+  await db.transaction(async (tx) => {
+    // Detach events (set sourceId = null) but don't delete them — audit trail.
+    await tx.update(syslogEvents).set({ sourceId: null }).where(and(eq(syslogEvents.sourceId, id), eq(syslogEvents.siteId, auth.activeSiteId)));
+    await tx.update(siemFindings).set({ sourceId: null }).where(and(eq(siemFindings.sourceId, id), eq(siemFindings.siteId, auth.activeSiteId)));
+    // Evidence snapshots are keyed to their finding; only their source
+    // pointer needs clearing (no site column here — finding site covers it).
+    await tx.update(siemEvidenceEvents).set({ sourceId: null }).where(eq(siemEvidenceEvents.sourceId, id));
+    await tx.delete(syslogSources).where(eq(syslogSources.id, id));
+  });
 
   revalidatePath("/admin/siem/sources");
   await logAudit({
@@ -149,7 +165,7 @@ export async function deleteSiemSource(prevState: unknown, formData: FormData) {
     entity: "syslog_source",
     entityId: id,
     entityName: existing.displayName,
-    detail: `Detached ${detachedCount} events`,
+    detail: `Detached ${detachedCount} events, ${detachedFindings} findings (evidence retained)`,
   });
-  return { success: true, message: "Source deleted. Events retained with sourceId=null." };
+  return { success: true, message: `Source deleted. ${detachedCount} events and ${detachedFindings} findings retained with sourceId=null.` };
 }

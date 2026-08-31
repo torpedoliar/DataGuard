@@ -188,6 +188,61 @@ export async function sendTelegramAlert(chatId: string | null | undefined, messa
 export const TELEGRAM_CHUNK_SEPARATOR = "\n\n---\n\n";
 export const TELEGRAM_CHUNK_MAX_LENGTH = 4000;
 
+/**
+ * Send a photo via sendPhoto (multipart upload), captioned. Evidence photos
+ * for checklist alerts: only https (public) URLs and raw Buffers are
+ * accepted — the app's own base URL is usually internal, so the caller
+ * passes the file bytes instead of a link Telegram's servers can't fetch.
+ * Never throws (same contract as sendTelegramAlert).
+ */
+export async function sendTelegramPhoto(
+  chatId: string | null | undefined,
+  photo: Buffer,
+  filename: string,
+  caption: string,
+  botTokenOverride?: string | null,
+): Promise<{ success: boolean; message?: string }> {
+  if (!chatId) return { success: false, message: "No chat ID provided" };
+
+  const botToken = await getTelegramBotToken(botTokenOverride);
+  if (!botToken) {
+    return { success: false, message: "Telegram bot token missing" };
+  }
+
+  try {
+    const form = new FormData();
+    form.append("chat_id", chatId);
+    form.append("caption", caption.slice(0, 1024)); // Telegram caption cap
+    form.append("parse_mode", "HTML");
+    form.append("photo", new Blob([new Uint8Array(photo)]), filename);
+
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(TELEGRAM_FETCH_TIMEOUT_MS * 3), // upload is slower
+    });
+
+    if (!response.ok) {
+      const rawBody = await response.text();
+      let detail = rawBody.trim();
+      try {
+        const parsed = JSON.parse(rawBody) as { description?: unknown; error_data?: { description?: unknown } };
+        const apiDescription = parsed.description ?? parsed.error_data?.description;
+        if (typeof apiDescription === "string" && apiDescription.trim()) {
+          detail = apiDescription.trim();
+        }
+      } catch {
+        // Non-JSON body — keep the raw text as the detail.
+      }
+      return { success: false, message: detail || "Gateway rejected request" };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Network error" };
+  }
+}
+
 export function splitTelegramChunks(messages: string[], maxLength: number = TELEGRAM_CHUNK_MAX_LENGTH): string[] {
     const chunks: string[] = [];
     let current = "";

@@ -168,6 +168,7 @@ describe("sendChecklistPicEmail", () => {
       subject: "Subject",
       text: "Body",
       html: "<b>Body</b>",
+      attachments: [],
     });
   });
 
