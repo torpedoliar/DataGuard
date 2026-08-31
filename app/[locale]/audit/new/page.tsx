@@ -16,7 +16,9 @@ export default async function NewAuditPage(props: { searchParams: Promise<{ devi
 
   const categories = await getCategories();
   const devices = await getDevices();
-  const racks = await getRacks();
+  // getRacks returns every rack; audit tabs only cover racks the audit flow
+  // includes (is_auditable), matching getDevices()' rack filter.
+  const racks = (await getRacks()).filter((rack) => rack.isAuditable);
 
   const formattedDevices = devices.map((device) => ({
     ...device,
