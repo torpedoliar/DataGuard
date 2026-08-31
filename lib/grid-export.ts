@@ -37,7 +37,9 @@ export function buildGridExportRows(
                 row[date] = "";
             } else if (checks.length === 1) {
                 const check = checks[0];
-                row[date] = check.status === "OK" ? "OK" : `NOT OK (${check.username} ${check.time})`;
+                // Auditor name rides along for every status (user request:
+                // OK cells also show who audited).
+                row[date] = `${check.status} (${check.username} ${check.time})`;
             } else {
                 row[date] = checks
                     .map((c) => `${c.status} (${c.username} ${c.time})`)

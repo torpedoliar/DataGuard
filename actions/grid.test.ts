@@ -38,7 +38,7 @@ describe("buildGridExportRows", () => {
         expect(rows[0].category).toBe("Network");
         expect(rows[0].device).toBe("sw-core");
         expect(rows[0].location).toBe("Room 1");
-        expect(rows[0]["2026-08-30"]).toBe("OK");
+        expect(rows[0]["2026-08-30"]).toBe("OK (budi 08:15)");
         // Multiple checks on one day collapse to a "; "-joined summary.
         expect(rows[0]["2026-08-31"]).toBe("OK (budi 08:20); NOT OK (sari 14:00)");
     });

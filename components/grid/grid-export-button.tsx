@@ -11,8 +11,25 @@ import autoTable from "jspdf-autotable";
 // Export the on-screen Audit Grid (Device × Date matrix) for the
 // currently-applied date range and status filter. Reads the same
 // searchParams the grid page uses, so exports always match what's shown.
-// Excel = styled spreadsheet (xlsx-js-style). PDF = printable colored report
-// with KPI summary + category breakdown (jsPDF, already a dependency).
+//
+// PDF design follows the dataviz method: status colors (good/critical) only
+// ever color marks — every value and label stays in ink tokens; marks are
+// thin with 2px surface gaps; gridlines are recessive hairlines; labels are
+// selective. Colors are the validated reference status palette
+// (good #0ca30c · critical #d03b3b; neutral gray for absence), mitigated by
+// text labels in every cell (status never rides on color alone).
+const INK = { primary: [11, 11, 11] as [number, number, number], secondary: [82, 81, 78] as [number, number, number], muted: [137, 135, 129] as [number, number, number] };
+const GRID: [number, number, number] = [225, 224, 217]; // hairline #e1e0d9
+const TILE: [number, number, number] = [252, 252, 251]; // chart surface #fcfcfb
+const STATUS = {
+    good: [12, 163, 12] as [number, number, number],           // #0ca30c
+    goodWash: [220, 252, 231] as [number, number, number],     // emerald-50
+    critical: [208, 59, 59] as [number, number, number],       // #d03b3b
+    criticalWash: [254, 226, 226] as [number, number, number], // red-50
+    warning: [250, 178, 25] as [number, number, number],       // #fab219
+    absence: [195, 194, 183] as [number, number, number],      // baseline gray — "nothing"
+};
+
 export default function GridExportButton() {
     const searchParams = useSearchParams();
     const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -57,53 +74,64 @@ export default function GridExportButton() {
                 return;
             }
 
-            const doc = new jsPDF({ orientation: "landscape" });
+            const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
             const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const left = 14;
+            const usable = pageWidth - left * 2;
 
             // ---- Title block ----
-            doc.setFontSize(18);
-            doc.setTextColor(15, 23, 42);
-            doc.text("Data Center Audit Grid Report", 14, 20);
-            doc.setFontSize(10);
-            doc.setTextColor(100);
-            doc.text(`Period: ${data.dates[0]} to ${data.dates[data.dates.length - 1]}  ·  Status filter: ${statusFilter && statusFilter !== "All" ? statusFilter : "All"}`, 14, 27);
-
-            // ---- KPI cards (simple filled boxes) ----
-            const kpis = [
-                { label: "Devices", value: String(data.kpis.totalDevices), color: [41, 128, 185] as const },
-                { label: "Total Checks", value: String(data.kpis.totalChecks), color: [100, 116, 139] as const },
-                { label: "OK", value: String(data.kpis.okChecks), color: [22, 163, 74] as const },
-                { label: "NOT OK", value: String(data.kpis.notOkChecks), color: [220, 38, 38] as const },
-                { label: "Coverage", value: `${data.kpis.coveragePct}%`, color: [5, 150, 105] as const },
-                { label: "Devices w/ Issue", value: String(data.kpis.devicesWithIssue), color: [217, 119, 6] as const },
-            ];
-            const cardWidth = 42;
-            const cardHeight = 18;
-            const gap = 5;
-            let cardX = 14;
-            const cardY = 33;
-            for (const kpi of kpis) {
-                doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
-                doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 2, 2, "F");
-                doc.setFontSize(14);
-                doc.setTextColor(255);
-                doc.text(kpi.value, cardX + 4, cardY + 8);
-                doc.setFontSize(7);
-                doc.setTextColor(230);
-                doc.text(kpi.label.toUpperCase(), cardX + 4, cardY + 14);
-                cardX += cardWidth + gap;
-            }
-
-            // ---- Category breakdown ----
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(17);
+            doc.setTextColor(...INK.primary);
+            doc.text("Data Center Audit Grid Report", left, 16);
+            doc.setFont("helvetica", "normal");
             doc.setFontSize(9);
-            doc.setTextColor(60);
-            const categoryText = data.categories
-                .map((c) => `${c.category}: ${c.total} checks, ${c.notOk} NOT OK`)
-                .join("   ·   ");
-            doc.text(doc.splitTextToSize(categoryText, pageWidth - 28), 14, 60);
+            doc.setTextColor(...INK.secondary);
+            doc.text(
+                `Period ${data.dates[0]} — ${data.dates[data.dates.length - 1]}   ·   Status filter: ${statusFilter && statusFilter !== "All" ? statusFilter : "All"}   ·   ${data.gridData.length} devices`,
+                left, 22,
+            );
+            // Hairline under the title block.
+            doc.setDrawColor(...GRID);
+            doc.setLineWidth(0.2);
+            doc.line(left, 25.5, pageWidth - left, 25.5);
 
-            // ---- Per-date summary table (the generated period, day by day) ----
-            const summaryRows = data.dates.map((date) => {
+            // ---- KPI stat tiles (label + value in ink; a small status dot
+            // beside the label carries identity — text never wears data color) ----
+            const tiles = [
+                { label: "Devices", value: String(data.kpis.totalDevices) },
+                { label: "Total checks", value: String(data.kpis.totalChecks) },
+                { label: "OK checks", value: String(data.kpis.okChecks), dot: STATUS.good },
+                { label: "NOT OK checks", value: String(data.kpis.notOkChecks), dot: STATUS.critical },
+                { label: "Coverage", value: `${data.kpis.coveragePct}%` },
+                { label: "Devices w/ issue", value: String(data.kpis.devicesWithIssue), dot: STATUS.warning },
+            ];
+            const tileW = (usable - 5 * 4) / 6; // 4mm gaps
+            const tileH = 17;
+            const tileY = 29;
+            tiles.forEach((tile, i) => {
+                const x = left + i * (tileW + 4);
+                doc.setFillColor(...TILE);
+                doc.setDrawColor(...GRID);
+                doc.setLineWidth(0.2);
+                doc.roundedRect(x, tileY, tileW, tileH, 1.5, 1.5, "FD");
+                doc.setFontSize(5.8);
+                doc.setTextColor(...INK.muted);
+                doc.text(tile.label.toUpperCase(), x + 3.5, tileY + 6);
+                if (tile.dot) {
+                    doc.setFillColor(...tile.dot);
+                    doc.circle(x + tileW - 5, tileY + 4.4, 1.1, "F");
+                }
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(15);
+                doc.setTextColor(...INK.primary);
+                doc.text(tile.value, x + 3.5, tileY + 13);
+                doc.setFont("helvetica", "normal");
+            });
+
+            // ---- Per-day counts (shared by chart + summary table) ----
+            const perDay = data.dates.map((date) => {
                 let ok = 0;
                 let notOk = 0;
                 let noCheck = 0;
@@ -113,92 +141,195 @@ export default function GridExportButton() {
                     else if (checks.some((c) => c.status === "NOT OK")) notOk++;
                     else ok++;
                 }
-                const dt = new Date(date + "T00:00:00");
-                return [
-                    `${dt.toLocaleDateString("en-US", { weekday: "short" })} ${date}`,
-                    String(ok),
-                    String(notOk),
-                    String(noCheck),
-                    data.gridData.length ? `${Math.round(((ok + notOk) / data.gridData.length) * 100)}%` : "0%",
-                ];
+                return { date, ok, notOk, noCheck };
             });
-            autoTable(doc, {
-                startY: 66,
-                head: [["Date", "OK", "NOT OK", "No Check", "Checked"]],
-                body: summaryRows,
-                theme: "striped",
-                styles: { fontSize: 7.5, cellPadding: 1.5 },
-                headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 7.5 },
-                columnStyles: {
-                    0: { cellWidth: 70, fontStyle: "bold" },
-                    1: { halign: "center", textColor: [21, 128, 61] },
-                    2: { halign: "center", textColor: [153, 27, 27] },
-                    3: { halign: "center", textColor: [100, 116, 139] },
-                    4: { halign: "center", fontStyle: "bold" },
-                },
-                didParseCell: (hookData) => {
-                    if (hookData.section !== "body" || hookData.column.index !== 2) return;
-                    if (Number(hookData.cell.raw) > 0) hookData.cell.styles.fillColor = [254, 226, 226];
-                },
+            const maxChecked = Math.max(1, ...perDay.map((d) => d.ok + d.notOk));
+
+            // ---- Daily compliance chart: bar height = devices checked that
+            // day; green portion OK, red portion NOT OK; unfilled remainder is
+            // the not-yet-checked share (the summary table lists it exactly). ----
+            const chartTop = 52;
+            const chartHeight = 38;
+            const chartBottom = chartTop + chartHeight;
+            const dayLabelY = chartBottom + 5;
+            const labelEvery = data.dates.length > 21 ? 3 : data.dates.length > 12 ? 2 : 1;
+
+            // Clean y ticks: 0..maxChecked in 1/2/5 steps.
+            const rawStep = maxChecked / 4;
+            const step = rawStep <= 1 ? 1 : rawStep <= 2 ? 2 : rawStep <= 5 ? 5 : Math.ceil(rawStep / 5) * 5;
+            doc.setFontSize(6.5);
+            doc.setTextColor(...INK.muted);
+            for (let v = 0; v <= maxChecked; v += step) {
+                const y = chartBottom - (v / maxChecked) * chartHeight;
+                if (v > 0) {
+                    doc.setDrawColor(...GRID);
+                    doc.setLineWidth(0.15);
+                    doc.line(left + 8, y, pageWidth - left, y); // recessive hairline
+                }
+                doc.text(String(v), left + 6.5, y + 1, { align: "right" });
+            }
+            // Baseline.
+            doc.setDrawColor(...INK.secondary);
+            doc.setLineWidth(0.3);
+            doc.line(left + 8, chartBottom, pageWidth - left, chartBottom);
+
+            // Bars: thin (never fill the slot), 2px surface gaps between segments.
+            const chartLeft = left + 8;
+            const chartWidth = pageWidth - left - chartLeft;
+            const slot = chartWidth / data.dates.length;
+            const barW = Math.min(8, slot * 0.6);
+            const gap = 0.6; // ≈2px surface gap
+            perDay.forEach((day, i) => {
+                const checked = day.ok + day.notOk;
+                if (checked === 0) return; // no bar: absence reads as the surface
+                const x = chartLeft + slot * i + (slot - barW) / 2;
+                const okH = (day.ok / maxChecked) * chartHeight;
+                const notOkH = (day.notOk / maxChecked) * chartHeight;
+                if (day.ok > 0) {
+                    doc.setFillColor(...STATUS.good);
+                    doc.rect(x, chartBottom - okH, barW, okH, "F");
+                }
+                if (day.notOk > 0) {
+                    doc.setFillColor(...STATUS.critical);
+                    doc.rect(x, chartBottom - okH - notOkH - gap, barW, notOkH, "F");
+                }
+                // Selective direct label: only problem days get a count above
+                // the bar (the story), in ink.
+                if (day.notOk > 0) {
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(6.5);
+                    doc.setTextColor(...INK.primary);
+                    doc.text(String(day.notOk), x + barW / 2, chartBottom - okH - notOkH - gap - 1.5, { align: "center" });
+                    doc.setFont("helvetica", "normal");
+                }
             });
 
-            // ---- Matrix table ----
-            const matrixStartY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 66;
+            // Day labels (thinned when crowded), muted.
+            doc.setFontSize(6.5);
+            doc.setTextColor(...INK.muted);
+            data.dates.forEach((date, i) => {
+                if (i % labelEvery !== 0 && i !== data.dates.length - 1) return;
+                const [, m, d] = date.split("-");
+                doc.text(`${d}/${m}`, chartLeft + slot * i + slot / 2, dayLabelY, { align: "center" });
+            });
+
+            // Legend (always present: 2 series) — swatch + ink label.
+            const legendY = chartTop - 4;
+            let legendX = chartLeft;
+            const legendItems = [
+                { label: "OK", color: STATUS.good },
+                { label: "NOT OK", color: STATUS.critical },
+            ];
+            doc.setFontSize(7);
+            for (const item of legendItems) {
+                doc.setFillColor(...item.color);
+                doc.rect(legendX, legendY - 2.4, 2.6, 2.6, "F");
+                doc.setTextColor(...INK.secondary);
+                doc.text(item.label, legendX + 3.8, legendY - 0.4);
+                legendX += 3.8 + doc.getTextWidth(item.label) + 6;
+            }
+
+            // ---- Summary table (the exact per-day numbers behind the chart) ----
+            autoTable(doc, {
+                startY: dayLabelY + 3,
+                margin: { left, right: left },
+                head: [["Date", "OK", "NOT OK", "No check", "Checked"]],
+                body: perDay.map((day) => [
+                    day.date,
+                    String(day.ok),
+                    String(day.notOk),
+                    String(day.noCheck),
+                    `${Math.round(((day.ok + day.notOk) / data.gridData.length) * 100)}%`,
+                ]),
+                theme: "plain",
+                styles: { fontSize: 7, cellPadding: { top: 1.1, bottom: 1.1, left: 2, right: 2 }, textColor: INK.primary, lineColor: GRID, lineWidth: { bottom: 0.15 } },
+                headStyles: { fontSize: 6.5, textColor: INK.muted, fontStyle: "bold", lineWidth: { bottom: 0.3 }, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } },
+                columnStyles: {
+                    0: { cellWidth: 34, fontStyle: "bold" },
+                    1: { halign: "center", cellWidth: 20 },
+                    2: { halign: "center", cellWidth: 22 },
+                    3: { halign: "center", cellWidth: 22, textColor: INK.secondary },
+                    4: { halign: "center", cellWidth: 20, fontStyle: "bold" },
+                },
+                didParseCell: (hookData) => {
+                    // Status wash under the NOT OK count; text stays ink.
+                    if (hookData.section === "body" && hookData.column.index === 2 && Number(hookData.cell.raw) > 0) {
+                        hookData.cell.styles.fillColor = STATUS.criticalWash;
+                        hookData.cell.styles.textColor = INK.primary;
+                    }
+                },
+                // Compact layout: summary rows share the page width in two columns.
+                didDrawPage: () => { /* page hook reserved */ },
+            });
+
+            // ---- Category breakdown (one quiet line) ----
+            const summaryEndY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 100;
+            doc.setFontSize(7.5);
+            doc.setTextColor(...INK.secondary);
+            const categoryText = `By category — ${data.categories.map((c) => `${c.category}: ${c.total} checks, ${c.notOk} NOT OK`).join("   ·   ")}`;
+            doc.text(doc.splitTextToSize(categoryText, usable), left, summaryEndY + 5);
+
+            // ---- Device × Date matrix (colored status cells; auditor shown
+            // for every check, OK included) ----
             const head = [["Device", "Category", ...data.dates.map((d) => {
                 const dt = new Date(d + "T00:00:00");
                 return `${dt.toLocaleDateString("en-US", { weekday: "short" })} ${dt.getDate()}/${dt.getMonth() + 1}`;
             })]];
-
             const body = data.gridData.map((device) => [
                 device.name + (device.locationName ? `\n${device.locationName}` : ""),
                 device.categoryName || "-",
                 ...data.dates.map((date) => {
                     const checks: DailyCheck[] = device.statusHistory[date] || [];
                     if (checks.length === 0) return "";
-                    if (checks.length === 1) return checks[0].status === "OK" ? "OK" : `NOT OK (${checks[0].username})`;
-                    return checks.map((c) => `${c.status} (${c.username})`).join("\n");
+                    return checks
+                        .map((c) => `${c.status} (${c.username} ${c.time})`)
+                        .join("\n");
                 }),
             ]);
 
             autoTable(doc, {
-                startY: matrixStartY + 8,
+                startY: summaryEndY + 9,
+                margin: { left, right: left },
                 head,
                 body,
                 theme: "grid",
-                styles: { fontSize: 6.5, cellPadding: 1.5, lineColor: [226, 232, 240], lineWidth: 0.2, valign: "middle" },
-                headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 6, halign: "center" },
+                styles: { fontSize: 6, cellPadding: 1.2, lineColor: GRID, lineWidth: 0.15, valign: "middle", textColor: INK.primary },
+                headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 5.8, halign: "center" },
+                // Date columns shrink to fit the page; the matrix can span
+                // multiple pages horizontally for long periods (autoTable
+                // splits it — the first two columns repeat via horizontal
+                // page break, which autoTable handles natively).
                 columnStyles: {
-                    0: { cellWidth: 42, fontStyle: "bold" },
-                    1: { cellWidth: 24, textColor: [100, 116, 139] },
+                    0: { cellWidth: 38, fontStyle: "bold" },
+                    1: { cellWidth: 20, textColor: INK.secondary },
                 },
-                // Color the status cells like the on-screen grid.
+                horizontalPageBreak: true,
                 didParseCell: (hookData) => {
                     if (hookData.section !== "body" || hookData.column.index < 2) return;
                     const raw = String(hookData.cell.raw ?? "");
                     if (!raw) {
                         hookData.cell.styles.fillColor = [248, 250, 252];
+                        hookData.cell.styles.textColor = INK.muted;
                         return;
                     }
+                    // Status washes carry the state; cell text stays ink.
                     if (raw.includes("NOT OK")) {
-                        hookData.cell.styles.fillColor = [254, 226, 226];
-                        hookData.cell.styles.textColor = [153, 27, 27];
+                        hookData.cell.styles.fillColor = STATUS.criticalWash;
                     } else if (raw.includes("OK")) {
-                        hookData.cell.styles.fillColor = [220, 252, 231];
-                        hookData.cell.styles.textColor = [21, 128, 61];
+                        hookData.cell.styles.fillColor = STATUS.goodWash;
                     }
                 },
-                didDrawPage: () => {
-                    // Highlight today's column header when it lands on a page.
-                    doc.setFontSize(7);
-                    doc.setTextColor(150);
-                    doc.text(
-                        `Generated ${new Date().toLocaleString("en-GB")} · DataGuard`,
-                        pageWidth - 14,
-                        doc.internal.pageSize.getHeight() - 6,
-                        { align: "right" },
-                    );
-                },
             });
+
+            // ---- Footers: page numbers + generation stamp ----
+            const pageCount = doc.getNumberOfPages();
+            for (let p = 1; p <= pageCount; p++) {
+                doc.setPage(p);
+                doc.setFontSize(6.5);
+                doc.setTextColor(...INK.muted);
+                doc.text(`Generated ${new Date().toLocaleString("en-GB")} · DataGuard`, pageWidth - left, pageHeight - 6, { align: "right" });
+                doc.text(`Page ${p}/${pageCount}`, left, pageHeight - 6);
+            }
 
             doc.save(`DC_Grid_${data.dates[0]}_to_${data.dates[data.dates.length - 1]}.pdf`);
         } catch (error) {
