@@ -13,7 +13,7 @@ import {
     renderTelegramTemplate,
     sendTelegramAlert,
 } from "../lib/telegram";
-import { DEFAULT_EMAIL_ALERT_TEMPLATE, renderEmailTemplate, resetEmailTransporter, sendTestEmail } from "../lib/email";
+import { DEFAULT_EMAIL_ALERT_TEMPLATE, DEFAULT_EMAIL_ALERT_SUBJECT, renderEmailTemplate, renderEmailSubject, resetEmailTransporter, sendTestEmail } from "../lib/email";
 import { decryptIfEncrypted, encryptString } from "../lib/crypto";
 import { resolveNotificationBaseUrl } from "../lib/notification-url";
 import { saveUploadFile } from "../lib/upload";
@@ -25,6 +25,7 @@ const settingsSchema = z.object({
     telegramBotToken: z.string().max(200, "Token bot Telegram maksimal 200 karakter").optional(),
     telegramAlertTemplate: z.string().max(4000, "Template Telegram maksimal 4000 karakter").optional(),
     emailAlertTemplate: z.string().max(4000, "Template Email maksimal 4000 karakter").optional(),
+    emailAlertSubject: z.string().max(500, "Subject Email maksimal 500 karakter").optional(),
 });
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -48,6 +49,7 @@ function defaultSettings() {
         activeSiteTelegramChatId: null,
         telegramAlertTemplate: DEFAULT_TELEGRAM_ALERT_TEMPLATE,
         emailAlertTemplate: DEFAULT_EMAIL_ALERT_TEMPLATE,
+        emailAlertSubject: DEFAULT_EMAIL_ALERT_SUBJECT,
         telegramBotConfigured: isTelegramBotConfigured(),
         smtpConfigured: Boolean(process.env.SMTP_URL?.trim()),
         smtpUsingEnv: false,
@@ -113,6 +115,7 @@ export async function getSettings() {
                 ...activeSiteTelegram,
                 telegramAlertTemplate: settingsList[0].telegramAlertTemplate || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
                 emailAlertTemplate: settingsList[0].emailAlertTemplate || DEFAULT_EMAIL_ALERT_TEMPLATE,
+                emailAlertSubject: settingsList[0].emailAlertSubject || DEFAULT_EMAIL_ALERT_SUBJECT,
                 telegramBotConfigured: isTelegramBotConfigured(settingsList[0].telegramBotToken),
                 smtpConfigured: Boolean(
                     smtpUrlEnv
@@ -129,7 +132,7 @@ export async function getSettings() {
                 smtpFromEnvOnly: Boolean(smtpFromEnv) && !settingsList[0].smtpFrom,
             };
         }
-    } catch (error) {
+    } catch {
         // Hanya warning silent (jangan crash) karena bisa terjadi saat DB sedang booting
         console.warn("Soft fail: Could not fetch global settings from DB. Using defaults.");
     }
@@ -170,6 +173,22 @@ export async function getEmailAlertTemplate() {
     }
 }
 
+export async function getEmailAlertSubject() {
+    if (process.env.npm_lifecycle_event === 'build') {
+        return DEFAULT_EMAIL_ALERT_SUBJECT;
+    }
+
+    try {
+        const settingsList = await db.select({
+            emailAlertSubject: globalSettings.emailAlertSubject,
+        }).from(globalSettings).limit(1);
+
+        return settingsList[0]?.emailAlertSubject || DEFAULT_EMAIL_ALERT_SUBJECT;
+    } catch {
+        return DEFAULT_EMAIL_ALERT_SUBJECT;
+    }
+}
+
 export async function updateSettings(prevState: unknown, formData: FormData) {
     const session = await verifySession();
     if (!session || !["admin", "superadmin"].includes(session.role)) {
@@ -182,6 +201,7 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
         telegramBotToken: String(formData.get("telegramBotToken") ?? ""),
         telegramAlertTemplate: String(formData.get("telegramAlertTemplate") ?? ""),
         emailAlertTemplate: String(formData.get("emailAlertTemplate") ?? ""),
+        emailAlertSubject: String(formData.get("emailAlertSubject") ?? ""),
     });
     if (!parsed.success) {
         const firstIssue = parsed.error.issues[0]?.message ?? "Data pengaturan tidak valid.";
@@ -228,6 +248,7 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
             appName: parsed.data.appName,
             telegramAlertTemplate: parsed.data.telegramAlertTemplate?.trim() || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
             emailAlertTemplate: parsed.data.emailAlertTemplate?.trim() || DEFAULT_EMAIL_ALERT_TEMPLATE,
+            emailAlertSubject: parsed.data.emailAlertSubject?.trim() || DEFAULT_EMAIL_ALERT_SUBJECT,
             updatedAt: new Date(),
         };
         if (parsed.data.telegramBotToken?.trim()) upsertData.telegramBotToken = parsed.data.telegramBotToken.trim();
@@ -403,6 +424,7 @@ export async function sendEmailTestMessage(prevState: unknown, formData: FormDat
     if (!to || !to.includes("@")) return { message: "Alamat email tujuan test wajib diisi." };
 
     const template = String(formData.get("emailAlertTemplate") ?? "").trim() || DEFAULT_EMAIL_ALERT_TEMPLATE;
+    const subjectTemplate = String(formData.get("emailAlertSubject") ?? "").trim() || DEFAULT_EMAIL_ALERT_SUBJECT;
     const activeSite = session.activeSiteId
         ? await db.query.sites.findFirst({
             where: eq(sites.id, session.activeSiteId),
@@ -463,6 +485,13 @@ export async function sendEmailTestMessage(prevState: unknown, formData: FormDat
         .replace(/<[^>]+>/g, "")
         .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'");
 
+    const testSubject = `[TEST] ${renderEmailSubject(subjectTemplate, {
+        ...context,
+        groupName: "PIC Test Group",
+        deviceCount: 1,
+        deviceNames: sampleDevice?.name ?? "TEST",
+    })}`;
+
     // Probe with the SMTP account exactly as typed in the form — the test
     // must reflect what's on screen, not a previously-saved config (the real
     // alerts use the saved one; save when the test passes).
@@ -485,7 +514,7 @@ export async function sendEmailTestMessage(prevState: unknown, formData: FormDat
         }
     }
 
-    const result = await sendTestEmail(to, "[DataGuard] TEST — Email Alert Template", html, text, formAccount);
+    const result = await sendTestEmail(to, testSubject, html, text, formAccount);
     if (!result.success) {
         const raw = result.error || "";
         // 550 5.7.0 Authentication rejected is almost always a server-side

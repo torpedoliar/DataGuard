@@ -194,6 +194,47 @@ export function renderEmailTemplate(
   });
 }
 
+// Editable PIC email alert subject: admins customize the subject line sent
+// to PIC groups per NOT-OK findings. Supports group name, device counts, etc.
+export const DEFAULT_EMAIL_ALERT_SUBJECT =
+  "[DataGuard] {deviceCount} device(s) NOT OK — {siteName} — {checkDate} {shift}";
+
+export const EMAIL_ALERT_SUBJECT_FIELDS = [
+  "siteName",
+  "siteCode",
+  "checker",
+  "shift",
+  "checkDate",
+  "checkTime",
+  "groupName",
+  "deviceCount",
+  "deviceNames",
+  "deviceName",
+  "deviceStatus",
+  "deviceLocation",
+  "deviceCategory",
+  "deviceBrand",
+  "deviceZone",
+  "deviceRack",
+  "incidentId",
+] as const;
+
+export type EmailAlertSubjectField = typeof EMAIL_ALERT_SUBJECT_FIELDS[number];
+export type EmailAlertSubjectContext = Partial<Record<EmailAlertSubjectField, string | number | null | undefined>>;
+
+export function renderEmailSubject(
+  template: string | null | undefined,
+  context: EmailAlertSubjectContext,
+): string {
+  const source = template?.trim() || DEFAULT_EMAIL_ALERT_SUBJECT;
+  return source.replace(/\{([a-zA-Z0-9]+)\}/g, (match, key: string) => {
+    if (!EMAIL_ALERT_SUBJECT_FIELDS.includes(key as EmailAlertSubjectField)) return match;
+    const val = context[key as EmailAlertSubjectField];
+    if (val === undefined || val === null || val === "") return "-";
+    return String(val);
+  });
+}
+
 // SMTP resolution order: env SMTP_URL first (existing deployments, headless
 // workers), then the structured Settings-UI fields (host/port/security/
 // user/pass — Outlook-style form), then the legacy smtp_url column, then the

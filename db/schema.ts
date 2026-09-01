@@ -570,6 +570,9 @@ export const globalSettings = pgTable("global_settings", {
   // Editable PIC email alert template (lib/email.ts), same {field} syntax as
   // the Telegram template; null → DEFAULT_EMAIL_ALERT_TEMPLATE.
   emailAlertTemplate: text("email_alert_template"),
+  // Editable PIC email alert subject (lib/email.ts), same {field} syntax;
+  // null → DEFAULT_EMAIL_ALERT_SUBJECT.
+  emailAlertSubject: text("email_alert_subject"),
   // SMTP relay config from Settings (UI). smtp_pass stored encrypted at rest
   // (lib/crypto.ts, same as siem_settings.ai_api_key); lib/email.ts resolves
   // env SMTP_URL first, then these structured fields (Outlook-style form),

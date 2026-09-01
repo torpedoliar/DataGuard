@@ -4,10 +4,10 @@
 import { db } from "../db";
 import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds, incidents, incidentUpdates, emailAlerts, locations } from "../db/schema";
 import { createIncidentsForChecklistItems } from "@/actions/incidents";
-import { getTelegramAlertTemplate, getEmailAlertTemplate } from "@/actions/settings";
+import { getTelegramAlertTemplate, getEmailAlertTemplate, getEmailAlertSubject } from "@/actions/settings";
 import { escapeTelegramHtml, renderTelegramTemplate, sendTelegramAlert, sendTelegramPhoto, splitTelegramChunks } from "@/lib/telegram";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
-import { isEmailConfigured, renderEmailTemplate, resolveChecklistPicRecipients, sendChecklistPicEmail, type EmailAttachment } from "@/lib/email";
+import { isEmailConfigured, renderEmailTemplate, renderEmailSubject, resolveChecklistPicRecipients, sendChecklistPicEmail, type EmailAttachment } from "@/lib/email";
 import { hasAdminAccess } from "../lib/site-access";
 import { requireActiveSiteAction } from "../lib/action-auth";
 import { logAudit } from "../lib/audit";
@@ -455,7 +455,10 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 if (await isEmailConfigured() && site) {
                     try {
                         const picGroups = await resolveChecklistPicRecipients(failedIds, auth.activeSiteId);
-                        const emailTemplate = await getEmailAlertTemplate();
+                        const [emailTemplate, emailSubjectTemplate] = await Promise.all([
+                            getEmailAlertTemplate(),
+                            getEmailAlertSubject(),
+                        ]);
 
                         for (const [, group] of picGroups) {
                             const deviceBlocks: { html: string; text: string; deviceName: string }[] = [];
@@ -503,7 +506,25 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                 });
                             }
 
-                            const subject = `[DataGuard] ${deviceBlocks.length} device${deviceBlocks.length === 1 ? "" : "s"} NOT OK — ${site.code || site.name} — ${checkDate} ${shift}`;
+                            const firstDev = devicesInfo.find((d) => group.deviceIds.includes(d.id));
+                            const subject = renderEmailSubject(emailSubjectTemplate, {
+                                siteName: site.name,
+                                siteCode: site.code,
+                                checker: user?.username || "Unknown",
+                                shift,
+                                checkDate,
+                                checkTime,
+                                groupName: group.groupName,
+                                deviceCount: deviceBlocks.length,
+                                deviceNames: deviceBlocks.map((b) => b.deviceName).join(", "),
+                                deviceName: deviceBlocks[0]?.deviceName ?? "",
+                                deviceStatus: "NOT OK",
+                                deviceLocation: firstDev?.location?.name,
+                                deviceCategory: firstDev?.category?.name,
+                                deviceBrand: firstDev?.brand?.name,
+                                deviceZone: firstDev?.zone,
+                                deviceRack: [firstDev?.rackName, firstDev?.rackPosition ? `U${firstDev.rackPosition}` : null].filter(Boolean).join(" "),
+                            });
                             const htmlBody = [
                                 ...deviceBlocks.map((block) => block.html),
                                 `<br><a href="${baseUrl}/admin/incidents">Details &amp; follow-up</a>`,

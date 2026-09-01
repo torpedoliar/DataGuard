@@ -18,7 +18,9 @@ const { db } = await import("../db");
 const { default: nodemailer } = await import("nodemailer");
 const {
   DEFAULT_EMAIL_ALERT_TEMPLATE,
+  DEFAULT_EMAIL_ALERT_SUBJECT,
   renderEmailTemplate,
+  renderEmailSubject,
   resolveChecklistPicRecipients,
   sendChecklistPicEmail,
   isEmailConfigured,
@@ -103,6 +105,38 @@ describe("renderEmailTemplate", () => {
 
   it("falls back to the default template for an empty template", () => {
     expect(renderEmailTemplate("   ", { deviceName: "x" })).toContain(DEFAULT_EMAIL_ALERT_TEMPLATE.slice(0, 30));
+  });
+});
+
+describe("renderEmailSubject", () => {
+  const subjectContext = {
+    siteName: "DC Jakarta",
+    siteCode: "JKT",
+    checker: "budi",
+    shift: "Pagi",
+    checkDate: "2026-08-31",
+    checkTime: "09:30",
+    groupName: "Network Operations",
+    deviceCount: 3,
+    deviceNames: "sw-core-01, sw-core-02, rtr-edge",
+  };
+
+  it("renders default subject when template is null or empty", () => {
+    const subject = renderEmailSubject(null, subjectContext);
+    expect(subject).toBe("[DataGuard] 3 device(s) NOT OK — DC Jakarta — 2026-08-31 Pagi");
+    expect(renderEmailSubject("", subjectContext)).toBe(renderEmailSubject(DEFAULT_EMAIL_ALERT_SUBJECT, subjectContext));
+  });
+
+  it("renders custom subject template with dynamic tokens", () => {
+    const template = "[ALERT PIC {groupName}] {deviceCount} Perangkat Bermasalah ({siteName} - {shift})";
+    const subject = renderEmailSubject(template, subjectContext);
+    expect(subject).toBe("[ALERT PIC Network Operations] 3 Perangkat Bermasalah (DC Jakarta - Pagi)");
+  });
+
+  it("substitutes '-' for missing tokens and keeps unknown placeholders", () => {
+    const template = "{groupName}: {deviceCount} alert in {siteName} - {unknownToken}";
+    const subject = renderEmailSubject(template, { groupName: "DevOps" });
+    expect(subject).toBe("DevOps: - alert in - - {unknownToken}");
   });
 });
 

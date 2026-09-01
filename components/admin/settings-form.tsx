@@ -14,6 +14,7 @@ type SettingsData = {
     activeSiteTelegramChatId: string | null;
     telegramAlertTemplate: string;
     emailAlertTemplate: string;
+    emailAlertSubject?: string;
     telegramBotConfigured: boolean;
     smtpConfigured: boolean;
     smtpUsingEnv: boolean;
@@ -51,6 +52,21 @@ const telegramTemplateTokens = [
     "incidentLink",
 ];
 const emailTemplateTokens = telegramTemplateTokens;
+const emailSubjectTokens = [
+    "groupName",
+    "deviceCount",
+    "deviceNames",
+    "siteName",
+    "siteCode",
+    "checker",
+    "shift",
+    "checkDate",
+    "checkTime",
+    "deviceName",
+    "deviceLocation",
+    "deviceCategory",
+    "deviceRack",
+];
 
 export default function SettingsForm({ initialData }: { initialData: SettingsData }) {
     const router = useRouter();
@@ -71,6 +87,9 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
     const [telegramTestChatId, setTelegramTestChatId] = useState(initialData.activeSiteTelegramChatId || "");
     const [telegramBotToken, setTelegramBotToken] = useState("");
     const [emailTemplate, setEmailTemplate] = useState(initialData.emailAlertTemplate);
+    const [emailSubject, setEmailSubject] = useState(
+        initialData.emailAlertSubject || "[DataGuard] {deviceCount} device(s) NOT OK — {siteName} — {checkDate} {shift}"
+    );
     const [isTestingEmail, startEmailTestTransition] = useTransition();
     const [emailTestAddress, setEmailTestAddress] = useState("");
     const [emailTestResult, setEmailTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -81,6 +100,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
         const formData = new FormData();
         formData.set("emailTestAddress", emailTestAddress);
         formData.set("emailAlertTemplate", emailTemplate);
+        formData.set("emailAlertSubject", emailSubject);
 
         startEmailTestTransition(async () => {
             try {
@@ -181,6 +201,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
         formData.set("telegramBotToken", telegramBotToken);
         formData.set("telegramAlertTemplate", telegramTemplate);
         formData.set("emailAlertTemplate", emailTemplate);
+        formData.set("emailAlertSubject", emailSubject);
 
         startTelegramTestTransition(async () => {
             try {
@@ -578,6 +599,37 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                                 : "Nama/alamat yang muncul sebagai pengirim email. Kosongkan server (Host) untuk menghapus akun SMTP."}
                         </p>
                     </label>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        Subject Email Alert
+                    </label>
+                    <input
+                        type="text"
+                        name="emailAlertSubject"
+                        value={emailSubject}
+                        onChange={(event) => setEmailSubject(event.target.value)}
+                        maxLength={500}
+                        className="w-full h-10 px-3 rounded-lg bg-slate-950 border border-slate-700 font-mono text-xs text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        placeholder="[DataGuard] {deviceCount} device(s) NOT OK — {siteName} — {checkDate} {shift}"
+                    />
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                        {emailSubjectTokens.map((token) => (
+                            <button
+                                key={token}
+                                type="button"
+                                onClick={() => setEmailSubject((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}{${token}}`)}
+                                className="h-6 rounded border border-slate-700 bg-slate-900 px-2 font-mono text-[10px] text-slate-300 hover:border-blue-400/60 hover:text-white transition-colors"
+                            >
+                                {`{${token}}`}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                        <span>Subject pesan email per PIC group sesuai temuan audit. Variabel dinamis didukung.</span>
+                        <span>{emailSubject.length}/500</span>
+                    </div>
                 </div>
 
                 <div>
