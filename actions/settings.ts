@@ -523,7 +523,7 @@ export async function sendEmailTestMessage(prevState: unknown, formData: FormDat
         const hint = /5\.7\.0|authentication rejected|535|530/i.test(raw)
             ? " — Penyebab umum: (1) pengirim (From) harus sama dengan akun SMTP/Username, (2) Gmail/365 memakai App Password bukan password login, (3) relay server menolak akun Anda (cek ke admin email)."
             : "";
-        return { message: `Gagal: ${raw}${hint}` || "Gagal mengirim email test. Isi konfigurasi SMTP di bawah, atau set SMTP_URL di .env server." };
+        return { success: false, message: `Gagal: ${raw}${hint}` || "Gagal mengirim email test. Isi konfigurasi SMTP di bawah, atau set SMTP_URL di .env server." };
     }
 
     await logAudit({
@@ -543,11 +543,11 @@ export async function sendEmailTestMessage(prevState: unknown, formData: FormDat
     return {
         success: true,
         message: [
-            `Diterima server SMTP (${transportDesc}).`,
+            `Diterima server SMTP (${transportDesc}) dari pengirim <${result.fromUsed || formAccount.from || formAccount.user || "SMTP"}>.`,
             result.response ? `Respons: ${result.response}` : null,
             result.messageId ? `Message-ID: ${result.messageId}` : null,
             queueId ? `Queue ID: ${queueId} — cari ID ini di log mail server kalau email tidak sampai (spam/quarantine/relay routing).` : null,
-            "Email belum muncul? Cek folder Spam/Junk dulu, lalu log mail server — penerimaan SMTP sukses bukan jaminan inbox.",
+            "Email belum muncul? Cek folder Spam/Junk/Quarantine, atau pastikan akun pengirim memiliki izin kirim ke domain tujuan.",
         ].filter(Boolean).join(" "),
     };
 }

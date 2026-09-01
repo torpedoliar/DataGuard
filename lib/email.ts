@@ -312,7 +312,11 @@ async function resolveSmtpFrom(): Promise<string> {
   if (envFrom) return envFrom;
 
   const stored = await loadStoredSmtp();
-  return stored?.from || "siem@dc-check.local";
+  return (
+    stored?.from ||
+    (stored?.user?.includes("@") ? stored.user : null) ||
+    "siem@dc-check.local"
+  );
 }
 
 async function getTransporter(): Promise<nodemailer.Transporter> {
@@ -359,6 +363,8 @@ export type EmailSendResult = {
   response?: string;
   /** Message-ID assigned by the client/server for mail-log searches. */
   messageId?: string;
+  /** Actual envelope/header From address used for sending. */
+  fromUsed?: string;
 };
 
 /**
@@ -396,14 +402,18 @@ export async function sendTestEmail(
       tls: { rejectUnauthorized: false },
       requireTLS: requireTls,
     });
+    const fromAddress =
+      account.from?.trim() ||
+      (account.user?.includes("@") ? account.user.trim() : null) ||
+      (await resolveSmtpFrom());
     const info = await transport.sendMail({
-      from: account.from?.trim() || (await resolveSmtpFrom()),
+      from: fromAddress,
       to,
       subject,
       text: textBody,
       html: htmlBody,
     });
-    return { success: true, response: info.response, messageId: info.messageId };
+    return { success: true, response: info.response, messageId: info.messageId, fromUsed: fromAddress };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }

@@ -94,10 +94,11 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
     const [emailTestAddress, setEmailTestAddress] = useState("");
     const [emailTestResult, setEmailTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-    const handleEmailTest = () => {
+    const handleEmailTest = (e: React.MouseEvent<HTMLButtonElement>) => {
         setEmailTestResult(null);
 
-        const formData = new FormData();
+        const form = e.currentTarget.closest("form");
+        const formData = form ? new FormData(form) : new FormData();
         formData.set("emailTestAddress", emailTestAddress);
         formData.set("emailAlertTemplate", emailTemplate);
         formData.set("emailAlertSubject", emailSubject);
