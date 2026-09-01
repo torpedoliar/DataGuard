@@ -279,10 +279,10 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
   if (!transporter || transporterUrl !== url) {
     transporter = nodemailer.createTransport({
       url,
-      // STARTTLS mode: upgrade the connection before sending (Outlook's
-      // "STARTTLS" setting); "none" keeps requireTLS off; implicit-SSL (smtps
-      // scheme) already TLS-wraps the socket.
-      tls: requireTls ? undefined : { rejectUnauthorized: false },
+      // Internal DC relays routinely present self-signed certificates; strict
+      // verification breaks them ("works in Outlook, fails here"). STARTTLS
+      // still upgrades the connection before AUTH (requireTLS).
+      tls: { rejectUnauthorized: false },
       requireTLS: requireTls,
     });
     transporterUrl = url;
@@ -299,7 +299,67 @@ export async function isEmailConfigured(): Promise<boolean> {
   return Boolean(stored && (smtpUrlFromFields(stored) || stored.legacyUrl?.trim()));
 }
 
+/**
+ * Drop the cached transporter so the next send rebuilds it from the current
+ * stored config. Called after the Settings form saves SMTP fields — the
+ * singleton is keyed on the resolved URL, but a same-URL password change
+ * (URL identical, credentials different) would otherwise keep authenticating
+ * with the old password.
+ */
+export function resetEmailTransporter() {
+  transporter = null;
+  transporterUrl = null;
+}
+
 export type EmailSendResult = { success: boolean; error?: string };
+
+/**
+ * Probe an SMTP account exactly as the user typed it in the Settings form —
+ * before anything is saved. Used by the "Kirim Test Email" button so a failed
+ * test reflects the config on screen, not a stale saved one. Builds its own
+ * transporter (never touches the cached singleton). Mapping mirrors
+ * smtpUrlFromFields + getTransporter.
+ */
+export async function sendTestEmail(
+  to: string,
+  subject: string,
+  htmlBody: string,
+  textBody: string,
+  account: { host?: string; port?: number | null; secure?: string | null; user?: string | null; pass?: string | null; from?: string | null },
+): Promise<EmailSendResult> {
+  const host = account.host?.trim();
+  // No host in the form → fall back to whatever is already configured
+  // (env or previously-saved settings).
+  if (!host) {
+    return sendChecklistPicEmail([to], subject, htmlBody, textBody);
+  }
+
+  const scheme = account.secure === "ssl" ? "smtps" : "smtp";
+  const port = account.port ?? (account.secure === "ssl" ? 465 : account.secure === "none" ? 25 : 587);
+  const auth = account.user
+    ? `${encodeURIComponent(account.user)}:${encodeURIComponent(account.pass ?? "")}@`
+    : "";
+  const url = `${scheme}://${auth}${host}:${port}`;
+  const requireTls = account.secure !== "ssl" && account.secure !== "none";
+
+  try {
+    const transport = nodemailer.createTransport({
+      url,
+      tls: { rejectUnauthorized: false },
+      requireTLS: requireTls,
+    });
+    await transport.sendMail({
+      from: account.from?.trim() || (await resolveSmtpFrom()),
+      to,
+      subject,
+      text: textBody,
+      html: htmlBody,
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
 
 export type EmailAttachment = { filename: string; content: Buffer; contentType: string };
 

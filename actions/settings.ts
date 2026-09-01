@@ -13,7 +13,7 @@ import {
     renderTelegramTemplate,
     sendTelegramAlert,
 } from "../lib/telegram";
-import { DEFAULT_EMAIL_ALERT_TEMPLATE, renderEmailTemplate, sendChecklistPicEmail } from "../lib/email";
+import { DEFAULT_EMAIL_ALERT_TEMPLATE, renderEmailTemplate, resetEmailTransporter, sendTestEmail } from "../lib/email";
 import { decryptIfEncrypted, encryptString } from "../lib/crypto";
 import { resolveNotificationBaseUrl } from "../lib/notification-url";
 import { saveUploadFile } from "../lib/upload";
@@ -288,6 +288,10 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
 
         await logAudit({ action: "UPDATE", entity: "settings", entityName: parsed.data.appName, detail: "Settings updated" });
 
+        // SMTP fields may have changed — drop the cached mail transporter so
+        // the next send re-reads the saved credentials.
+        resetEmailTransporter();
+
         return { success: true, message: "Settings saved successfully" };
     } catch (error) {
         console.error("Update settings error:", error);
@@ -459,9 +463,38 @@ export async function sendEmailTestMessage(prevState: unknown, formData: FormDat
         .replace(/<[^>]+>/g, "")
         .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'");
 
-    const result = await sendChecklistPicEmail([to], "[DataGuard] TEST — Email Alert Template", html, text);
+    // Probe with the SMTP account exactly as typed in the form — the test
+    // must reflect what's on screen, not a previously-saved config (the real
+    // alerts use the saved one; save when the test passes).
+    const formAccount = {
+        host: String(formData.get("smtpHost") ?? "").trim(),
+        port: Number(formData.get("smtpPort")) || null,
+        secure: String(formData.get("smtpSecure") ?? "starttls").trim(),
+        user: String(formData.get("smtpUser") ?? "").trim(),
+        pass: String(formData.get("smtpPass") ?? "").trim(),
+        from: String(formData.get("smtpFrom") ?? "").trim(),
+    };
+    // Empty password field = the stored one (set-only contract), unless the
+    // user is setting up a brand-new host.
+    if (!formAccount.pass && formAccount.host) {
+        const rows = await db.select({ smtpPass: globalSettings.smtpPass, smtpUser: globalSettings.smtpUser, smtpHost: globalSettings.smtpHost }).from(globalSettings).limit(1);
+        const row = rows[0];
+        if (row && row.smtpHost === formAccount.host) {
+            formAccount.pass = decryptIfEncrypted(row.smtpPass) ?? "";
+            if (!formAccount.user) formAccount.user = row.smtpUser ?? "";
+        }
+    }
+
+    const result = await sendTestEmail(to, "[DataGuard] TEST — Email Alert Template", html, text, formAccount);
     if (!result.success) {
-        return { message: result.error || "Gagal mengirim email test. Isi konfigurasi SMTP di bawah, atau set SMTP_URL di .env server." };
+        const raw = result.error || "";
+        // 550 5.7.0 Authentication rejected is almost always a server-side
+        // policy rejection, not a wrong password per se — surface the usual
+        // suspects so the operator can self-diagnose.
+        const hint = /5\.7\.0|authentication rejected|535|530/i.test(raw)
+            ? " — Penyebab umum: (1) pengirim (From) harus sama dengan akun SMTP/Username, (2) Gmail/365 memakai App Password bukan password login, (3) relay server menolak akun Anda (cek ke admin email)."
+            : "";
+        return { message: `Gagal: ${raw}${hint}` || "Gagal mengirim email test. Isi konfigurasi SMTP di bawah, atau set SMTP_URL di .env server." };
     }
 
     await logAudit({
