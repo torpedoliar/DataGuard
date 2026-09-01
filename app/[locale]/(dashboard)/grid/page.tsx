@@ -5,7 +5,7 @@ import GridExportButton from "@/components/grid/grid-export-button";
 import PageHeader from "@/components/ui/page-header";
 import DraggableScroll from "@/components/ui/draggable-scroll";
 import { verifySession } from "@/lib/session";
-import { CheckCircle2, Circle, Grid3X3, XCircle } from "lucide-react";
+import { CheckCircle2, Circle, Grid3X3, Thermometer, XCircle } from "lucide-react";
 import { redirect } from "next/navigation";
 import clsx from "clsx";
 import { OfflineBanner } from "@/components/mobile/offline-banner";
@@ -24,7 +24,7 @@ export default async function AuditGridPage({
   const endDate = params.endDate as string | undefined;
   const statusFilter = params.status as string | undefined;
 
-  const { dates, gridData } = await getAuditGridData(startDate, endDate);
+  const { dates, gridData, roomTempByDate } = await getAuditGridData(startDate, endDate);
   const todayIso = new Date().toISOString().split("T")[0];
   const rangeLabel = dates.length > 0 ? `${dates[0]} to ${dates[dates.length - 1]}` : "No date range";
 
@@ -177,6 +177,42 @@ export default async function AuditGridPage({
                     ))}
                   </Fragment>
                 ))
+              )}
+              {Object.keys(roomTempByDate ?? {}).length > 0 && (
+                <tr className="border-t-2 border-ops-border bg-ops-surface-raised font-medium">
+                  <td className="sticky left-0 z-20 border-r border-ops-border bg-ops-surface-raised py-2 pl-5 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)]">
+                    <div className="flex items-center gap-2">
+                      <Thermometer className="size-4 text-ops-accent" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-ops-text">Suhu Ruangan</span>
+                    </div>
+                  </td>
+                  {dates.map((date) => {
+                    const temps = roomTempByDate?.[date] || [];
+                    return (
+                      <td key={date} className="border-r border-ops-border/45 px-2 py-2 text-center text-xs">
+                        {temps.length === 0 ? (
+                          <span className="text-ops-muted">-</span>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {temps.map((t, idx) => (
+                              <span
+                                key={idx}
+                                className={clsx(
+                                  "rounded px-1.5 py-0.5 text-[10px] font-mono",
+                                  t.includes("⚠")
+                                    ? "bg-amber-400/15 text-amber-300 font-semibold"
+                                    : "bg-ops-bg text-ops-text"
+                                )}
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
               )}
             </tbody>
           </table>

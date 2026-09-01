@@ -214,6 +214,54 @@ export async function getRawExportData(startDate: string, endDate: string, incid
         .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime));
 }
 
+export async function getRawRoomTempExportData(startDate: string, endDate: string) {
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
+
+    const siteLocations = await db
+        .select({ id: locations.id, name: locations.name })
+        .from(locations)
+        .where(eq(locations.siteId, auth.activeSiteId));
+    const locNameMap = new Map(siteLocations.map((l) => [String(l.id), l.name]));
+
+    const entriesWithTemps = await db
+        .select({
+            checkDate: checklistEntries.checkDate,
+            checkTime: checklistEntries.checkTime,
+            shift: checklistEntries.shift,
+            locationTemps: checklistEntries.locationTemps,
+            checker: sql<string>`(select username from users where id = ${checklistEntries.userId})`,
+        })
+        .from(checklistEntries)
+        .where(
+            and(
+                gte(checklistEntries.checkDate, startDate),
+                lte(checklistEntries.checkDate, endDate),
+                eq(checklistEntries.siteId, auth.activeSiteId),
+            )
+        )
+        .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime));
+
+    const tempRows: { date: string; time: string; shift: string; location: string; tempC: number; thresholdC: number; isOver: boolean; checker: string }[] = [];
+    for (const entry of entriesWithTemps) {
+        for (const [locId, temp] of Object.entries(entry.locationTemps ?? {})) {
+            const locName = (temp as { locationName?: string }).locationName || locNameMap.get(String(locId)) || `Ruangan ${locId}`;
+            const isOver = temp.tempC > temp.thresholdC;
+            tempRows.push({
+                date: entry.checkDate,
+                time: entry.checkTime,
+                shift: entry.shift,
+                location: locName,
+                tempC: temp.tempC,
+                thresholdC: temp.thresholdC,
+                isOver,
+                checker: entry.checker || "-",
+            });
+        }
+    }
+    return tempRows;
+}
+
 export async function exportToExcel(startDate: string, endDate: string, incidentStatus?: IncidentStatus) {
     // Get all data (no pagination for export)
     const data = await getRawExportData(startDate, endDate, incidentStatus);
@@ -239,6 +287,23 @@ export async function exportToExcel(startDate: string, endDate: string, incident
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
+
+    // Include Room Temperature sheet if readings exist
+    const roomTemps = await getRawRoomTempExportData(startDate, endDate);
+    if (roomTemps && roomTemps.length > 0) {
+        const tempExcelData = roomTemps.map((item) => ({
+            Date: item.date,
+            Time: item.time,
+            Shift: item.shift,
+            "Ruangan / Location": item.location,
+            "Suhu (°C)": item.tempC,
+            "Batas Normal (°C)": item.thresholdC,
+            Status: item.isOver ? "OVER THRESHOLD" : "NORMAL",
+            Checker: item.checker,
+        }));
+        const tempSheet = XLSX.utils.json_to_sheet(tempExcelData);
+        XLSX.utils.book_append_sheet(workbook, tempSheet, "Suhu Ruangan");
+    }
 
     // Generate buffer
     const buffer = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });

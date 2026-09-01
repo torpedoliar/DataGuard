@@ -134,14 +134,21 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
             eq(checklistEntries.siteId, siteId),
         ))
         .orderBy(checklistEntries.checkDate, checklistEntries.checkTime);
+    const siteLocations = await db
+        .select({ id: locations.id, name: locations.name })
+        .from(locations)
+        .where(eq(locations.siteId, siteId));
+    const locNameMap = new Map(siteLocations.map((l) => [String(l.id), l.name]));
+
     const roomTempByDate: Record<string, string[]> = {};
     for (const row of tempRows) {
         if (!row.checkDate) continue;
-        for (const [, temp] of Object.entries(row.locationTemps ?? {})) {
+        for (const [locId, temp] of Object.entries(row.locationTemps ?? {})) {
+            const locName = (temp as { locationName?: string }).locationName || locNameMap.get(String(locId)) || `Ruangan ${locId}`;
             const overThreshold = temp.tempC > temp.thresholdC;
             const line = overThreshold
-                ? `${temp.tempC}°C ⚠ (batas ${temp.thresholdC}°C)`
-                : `${temp.tempC}°C`;
+                ? `${locName}: ${temp.tempC}°C ⚠ (batas ${temp.thresholdC}°C)`
+                : `${locName}: ${temp.tempC}°C`;
             (roomTempByDate[row.checkDate] ??= []).push(line);
         }
     }

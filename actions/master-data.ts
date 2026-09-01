@@ -44,10 +44,11 @@ const deviceSchema = z.object({
     ipAddress: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
     // Checkbox present with "on"/"true" when checked, absent when unchecked →
-    // false. UpdateDevice reads this directly from formData (not the schema,
-    // since .partial() would drop it); declared here so the schema accepts the
-    // field when a payload carries it.
-    excludeChecklist: z.boolean().optional(),
+    // false. Preprocessed so HTML form string "on" coerces to boolean.
+    excludeChecklist: z.preprocess(
+        (val) => val === undefined ? undefined : val === "on" || val === "true" || val === true || val === 1 || val === "1",
+        z.boolean().optional(),
+    ),
 });
 
 const categorySchema = z.object({
@@ -244,6 +245,7 @@ export async function addDevice(prevState: unknown, formData: FormData) {
             ipAddress: parsed.data.ipAddress || null,
             description: parsed.data.description || null,
             photoPath,
+            excludeChecklist: parsed.data.excludeChecklist ?? false,
         });
         revalidatePath("/admin");
         revalidatePath("/admin/rack");

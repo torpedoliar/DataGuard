@@ -228,7 +228,7 @@ export const checklistEntries = pgTable("checklist_entries", {
   // thresholdC} } for every measured room touched by the audit. Reports
   // read this instead of the mutable locations.temp_c (which always holds
   // the latest reading).
-  locationTemps: jsonb("location_temps").$type<Record<string, { tempC: number; thresholdC: number }>>().notNull().default(sql`'{}'::jsonb`),
+  locationTemps: jsonb("location_temps").$type<Record<string, { tempC: number; thresholdC: number; locationName?: string }>>().notNull().default(sql`'{}'::jsonb`),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

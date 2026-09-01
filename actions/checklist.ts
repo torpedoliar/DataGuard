@@ -162,18 +162,23 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 eq(locations.siteId, auth.activeSiteId),
             ))
             : [];
-        const locationTempsSnapshot: Record<string, { tempC: number; thresholdC: number }> = {};
+        const locationTempsSnapshot: Record<string, { tempC: number; thresholdC: number; locationName: string }> = {};
         const tempIncidentItems: { locationId: number; locationName: string; tempC: number; thresholdC: number }[] = [];
         for (const location of measuredLocations) {
             const tempC = tempInputs.get(location.id)!;
             const thresholdC = location.tempThresholdC ?? 27;
-            locationTempsSnapshot[String(location.id)] = { tempC, thresholdC };
+            locationTempsSnapshot[String(location.id)] = { tempC, thresholdC, locationName: location.name };
             if (tempC > thresholdC + 3) {
                 tempIncidentItems.push({ locationId: location.id, locationName: location.name, tempC, thresholdC });
             }
         }
 
         await db.transaction(async (tx) => {
+            for (const location of measuredLocations) {
+                const tempC = tempInputs.get(location.id)!;
+                await tx.update(locations).set({ tempC }).where(eq(locations.id, location.id));
+            }
+
             const [entry] = await tx.insert(checklistEntries).values({
                 siteId: auth.activeSiteId,
                 userId: session.userId,

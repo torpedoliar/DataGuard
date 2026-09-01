@@ -1,8 +1,7 @@
-
 "use client";
 
 import ActionButton from "@/components/ui/action-button";
-import { getRawExportData, exportToExcel } from "@/actions/report";
+import { getRawExportData, exportToExcel, getRawRoomTempExportData } from "@/actions/report";
 import { incidentStatuses, type IncidentStatus } from "@/lib/incidents";
 import { Download, FileText } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -30,6 +29,10 @@ export default function ExportButton() {
         setIsExportingExcel(true);
         try {
             const base64 = await exportToExcel(startDate, endDate, incidentStatus);
+            if (!base64) {
+                alert("No data available to export.");
+                return;
+            }
 
             // Convert base64 to blob
             const byteCharacters = atob(base64);
@@ -103,6 +106,45 @@ export default function ExportButton() {
                     11: { cellWidth: 40 } // Give remarks column more space
                 }
             });
+
+            // Include Room Temperatures table if readings exist
+            const roomTemps = await getRawRoomTempExportData(startDate, endDate);
+            if (roomTemps && roomTemps.length > 0) {
+                const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 150;
+                let tempStartY = finalY + 14;
+                if (tempStartY > 165) {
+                    doc.addPage();
+                    tempStartY = 22;
+                }
+
+                doc.setFontSize(14);
+                doc.setTextColor(30);
+                doc.text("Room Temperatures / Suhu Ruangan", 14, tempStartY);
+
+                autoTable(doc, {
+                    startY: tempStartY + 5,
+                    head: [["Date", "Time", "Shift", "Room / Location", "Temperature", "Threshold", "Status", "Checker"]],
+                    body: roomTemps.map((r) => [
+                        r.date,
+                        r.time,
+                        r.shift,
+                        r.location,
+                        `${r.tempC}°C`,
+                        `${r.thresholdC}°C`,
+                        r.isOver ? "OVER THRESHOLD" : "NORMAL",
+                        r.checker,
+                    ]),
+                    theme: "striped",
+                    headStyles: { fillColor: [13, 148, 136] }, // teal accent
+                    styles: { fontSize: 8 },
+                    didParseCell: (hookData) => {
+                        if (hookData.section === "body" && hookData.column.index === 6 && hookData.cell.raw === "OVER THRESHOLD") {
+                            hookData.cell.styles.textColor = [220, 38, 38];
+                            hookData.cell.styles.fontStyle = "bold";
+                        }
+                    },
+                });
+            }
 
             doc.save(`DC_Checklist_${startDate}_to_${endDate}.pdf`);
 
