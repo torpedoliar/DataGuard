@@ -70,6 +70,17 @@ export default function ChecklistForm({
     writePartialDevices(auditData);
   }, [auditData]);
 
+  // Close rack dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (rackDropdown.current && !rackDropdown.current.contains(event.target as Node)) {
+        rackDropdown.current.removeAttribute("open");
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, []);
+
   const updateDeviceStatus = useCallback((deviceId: number, status: string, remarks?: string) => {
     setAuditData((prev) => {
       const entry = prev[deviceId];
@@ -250,31 +261,30 @@ export default function ChecklistForm({
             </button>
           ))}
         </div>
-        <div className="overflow-x-auto p-2">
-          <nav
-            className="flex min-w-max gap-1"
-            aria-label={scopeMode === "category" ? "Device categories" : "Racks"}
-          >
-            <button
-              type="button"
-              onClick={() => (scopeMode === "category" ? setActiveTab(undefined) : setActiveRacks([]))}
-              className={clsx(
-                "flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors",
-                (scopeMode === "category" ? activeTab === undefined : activeRacks.length === 0)
-                  ? "bg-ops-accent text-slate-950"
-                  : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
-              )}
-            >
-              All
-              <span className={clsx(
-                "rounded-full px-2 py-0.5 text-[11px]",
-                (scopeMode === "category" ? activeTab === undefined : activeRacks.length === 0) ? "bg-slate-950/12 text-slate-950" : "bg-ops-bg text-ops-muted",
-              )}>
-                {devices.length}
-              </span>
-            </button>
-            {scopeMode === "category" ? (
-              categories.map((category) => {
+        {scopeMode === "category" ? (
+          <div className="overflow-x-auto p-2">
+            <nav className="flex min-w-max gap-1" aria-label="Device categories">
+              <button
+                type="button"
+                onClick={() => setActiveTab(undefined)}
+                className={clsx(
+                  "flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors",
+                  activeTab === undefined
+                    ? "bg-ops-accent text-slate-950"
+                    : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
+                )}
+              >
+                All
+                <span
+                  className={clsx(
+                    "rounded-full px-2 py-0.5 text-[11px]",
+                    activeTab === undefined ? "bg-slate-950/12 text-slate-950" : "bg-ops-bg text-ops-muted",
+                  )}
+                >
+                  {devices.length}
+                </span>
+              </button>
+              {categories.map((category) => {
                 const count = devices.filter((d) => d.categoryId === category.id).length;
                 const active = activeTab === category.id;
                 return (
@@ -290,28 +300,37 @@ export default function ChecklistForm({
                     )}
                   >
                     {category.name}
-                    <span className={clsx(
-                      "rounded-full px-2 py-0.5 text-[11px]",
-                      active ? "bg-slate-950/12 text-slate-950" : "bg-ops-bg text-ops-muted",
-                    )}>
+                    <span
+                      className={clsx(
+                        "rounded-full px-2 py-0.5 text-[11px]",
+                        active ? "bg-slate-950/12 text-slate-950" : "bg-ops-bg text-ops-muted",
+                      )}
+                    >
                       {count}
                     </span>
                   </button>
                 );
-              })
-            ) : (
-              <details ref={rackDropdown} className="group relative w-full max-w-xs">
+              })}
+            </nav>
+          </div>
+        ) : (
+          <div className="relative px-5 py-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <details ref={rackDropdown} className="group relative w-full max-w-md">
                 <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-md border border-ops-border bg-ops-surface-raised px-3 text-sm font-semibold text-ops-text hover:border-ops-accent/50 [&::-webkit-details-marker]:hidden">
-                  <span className="truncate">
-                    {activeRacks.length === 0
-                      ? "All racks"
-                      : activeRacks.length === 1
-                        ? activeRacks[0]
-                        : `${activeRacks.length} racks selected`}
-                  </span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Server className="size-4 shrink-0 text-ops-accent" />
+                    <span className="truncate">
+                      {activeRacks.length === 0
+                        ? `All racks (${devices.length} devices)`
+                        : activeRacks.length === 1
+                          ? `${activeRacks[0]} (${devices.filter((d) => (d.rackName ?? "").toLowerCase() === activeRacks[0].toLowerCase()).length} devices)`
+                          : `${activeRacks.length} racks selected`}
+                    </span>
+                  </div>
                   <ChevronDown className="size-4 shrink-0 text-ops-muted transition-transform group-open:rotate-180" />
                 </summary>
-                <div className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-md border border-ops-border bg-ops-bg shadow-[0_14px_40px_rgba(0,0,0,0.32)]">
+                <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-72 overflow-y-auto rounded-md border border-ops-border bg-ops-surface shadow-[0_16px_48px_rgba(0,0,0,0.5)] divide-y divide-ops-border/40">
                   <button
                     type="button"
                     onClick={() => {
@@ -321,53 +340,77 @@ export default function ChecklistForm({
                     className={clsx(
                       "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold transition-colors",
                       activeRacks.length === 0
-                        ? "bg-ops-accent/15 text-ops-accent"
+                        ? "bg-ops-accent/15 text-ops-accent font-bold"
                         : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
                     )}
                   >
-                    All racks
-                    <span className="rounded-full bg-ops-bg px-2 py-0.5 text-[11px]">{devices.length}</span>
+                    <span>All racks</span>
+                    <span className="rounded-full bg-ops-bg px-2 py-0.5 text-[11px] font-mono">{devices.length}</span>
                   </button>
-                  {sortedRacks.map((rack) => {
-                    const count = devices.filter(
-                      (d) => (d.rackName ?? "").toLowerCase() === rack.name.toLowerCase(),
-                    ).length;
-                    const active = activeRacks.includes(rack.name);
-                    return (
-                      <button
-                        key={rack.id}
-                        type="button"
-                        onClick={() =>
-                          setActiveRacks((prev) =>
-                            prev.includes(rack.name)
-                              ? prev.filter((name) => name !== rack.name)
-                              : [...prev, rack.name],
-                          )
-                        }
-                        className={clsx(
-                          "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold transition-colors",
-                          active
-                            ? "bg-ops-accent/15 text-ops-accent"
-                            : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
-                        )}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <input type="checkbox" checked={active} readOnly className="size-4 accent-[#5eead4]" tabIndex={-1} />
-                          <span className="truncate">{rack.name}</span>
-                          {rack.zone && <span className="shrink-0 text-[11px] opacity-70">{rack.zone}</span>}
-                        </span>
-                        <span className="rounded-full bg-ops-bg px-2 py-0.5 text-[11px]">{count}</span>
-                      </button>
-                    );
-                  })}
+                  <div className="p-1 space-y-0.5">
+                    {sortedRacks.map((rack) => {
+                      const count = devices.filter(
+                        (d) => (d.rackName ?? "").toLowerCase() === rack.name.toLowerCase(),
+                      ).length;
+                      const active = activeRacks.includes(rack.name);
+                      return (
+                        <button
+                          key={rack.id}
+                          type="button"
+                          onClick={() =>
+                            setActiveRacks((prev) =>
+                              prev.includes(rack.name)
+                                ? prev.filter((name) => name !== rack.name)
+                                : [...prev, rack.name],
+                            )
+                          }
+                          className={clsx(
+                            "flex w-full items-center justify-between gap-2 rounded px-2.5 py-2 text-sm transition-colors",
+                            active
+                              ? "bg-ops-accent/15 text-ops-accent font-semibold"
+                              : "text-ops-text hover:bg-ops-surface-raised",
+                          )}
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={active}
+                              readOnly
+                              className="size-4 rounded border-ops-border accent-[#5eead4] pointer-events-none"
+                              tabIndex={-1}
+                            />
+                            <span className="truncate">{rack.name}</span>
+                            {rack.zone && (
+                              <span className="shrink-0 rounded bg-ops-bg px-1.5 py-0.5 text-[10px] font-semibold text-ops-muted">
+                                {rack.zone}
+                              </span>
+                            )}
+                          </span>
+                          <span className="rounded-full bg-ops-bg px-2 py-0.5 text-[11px] font-mono text-ops-muted">
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                   {sortedRacks.length === 0 && (
                     <p className="px-3 py-3 text-sm text-ops-muted">No racks defined for this site.</p>
                   )}
                 </div>
               </details>
-            )}
-          </nav>
-        </div>
+
+              {activeRacks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveRacks([])}
+                  className="rounded-md border border-ops-border bg-ops-surface-raised px-2.5 py-1.5 text-xs font-semibold text-ops-muted hover:border-ops-accent/50 hover:text-ops-accent transition-colors"
+                >
+                  Reset ({activeRacks.length} selected)
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {/* Search */}
         <div className="border-b border-ops-border px-5 py-3">
           <div className="relative">
