@@ -15,6 +15,9 @@ type SettingsData = {
     telegramAlertTemplate: string;
     emailAlertTemplate: string;
     telegramBotConfigured: boolean;
+    smtpConfigured: boolean;
+    smtpFrom: string | null;
+    smtpFromEnvOnly: boolean;
 };
 
 // Keep in sync with TELEGRAM_ALERT_TEMPLATE_FIELDS in lib/telegram.ts and
@@ -461,9 +464,55 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                     <div>
                         <h2 className="text-sm font-semibold text-white">Email Alert</h2>
                         <p className="mt-1 text-xs text-slate-400">
-                            Template email PIC saat perangkat berstatus NOT OK — sintaks {"{field}"} sama dengan template Telegram. Butuh SMTP_URL di .env server.
+                            Template email PIC saat perangkat berstatus NOT OK — sintaks {"{field}"} sama dengan template Telegram.
                         </p>
                     </div>
+                    <span className={`inline-flex h-7 w-fit items-center gap-2 rounded-full border px-3 text-xs font-medium ${initialData.smtpConfigured
+                        ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                        : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                        }`}>
+                        <span className="material-symbols-outlined text-[16px]">
+                            {initialData.smtpConfigured ? "check_circle" : "warning"}
+                        </span>
+                        {initialData.smtpConfigured ? "SMTP aktif" : "SMTP belum aktif"}
+                    </span>
+                </div>
+
+                {/* SMTP relay — kredensial tersimpan terenkripsi di DB (AES-256-GCM).
+                    Env SMTP_URL tetap menang bila diisi (deployment server/headless). */}
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    <label>
+                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                            SMTP URL
+                        </span>
+                        <input
+                            type="password"
+                            name="smtpUrl"
+                            autoComplete="off"
+                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            placeholder={initialData.smtpConfigured ? "SMTP tersimpan; isi hanya untuk mengganti" : "smtp://user:pass@smtp.host.com:587"}
+                        />
+                        <p className="text-xs text-slate-500 mt-1.5">
+                            Format: smtp://user:pass@host:port (port 465 pakai smtps://). Kosongkan untuk memakai nilai tersimpan / env SMTP_URL.
+                        </p>
+                    </label>
+                    <label>
+                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Pengirim (From)
+                        </span>
+                        <input
+                            type="text"
+                            name="smtpFrom"
+                            defaultValue={initialData.smtpFrom ?? ""}
+                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            placeholder="DataGuard &lt;noreply@perusahaan.co.id&gt;"
+                        />
+                        <p className="text-xs text-slate-500 mt-1.5">
+                            {initialData.smtpFromEnvOnly
+                                ? "Saat ini dipakai SMTP_FROM dari .env (menang atas nilai di sini bila kosong)."
+                                : "Nama/alamat yang muncul sebagai pengirim email."}
+                        </p>
+                    </label>
                 </div>
 
                 <div>

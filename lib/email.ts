@@ -1,9 +1,10 @@
 import "server-only";
 
 import { db } from "../db";
-import { deviceGroups, devicePics, users } from "../db/schema";
+import { deviceGroups, devicePics, globalSettings, users } from "../db/schema";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getEnv } from "./env";
+import { decryptIfEncrypted } from "./crypto";
 import nodemailer from "nodemailer";
 
 // PIC alert emails: when a field audit (checklist submit) finds a device
@@ -193,15 +194,42 @@ export function renderEmailTemplate(
   });
 }
 
-// Lazy singleton keyed on the SMTP URL: created once per distinct relay, so
-// a changed SMTP_URL env rebuilds instead of silently reusing the old client.
-// nodemailer import is already proven safe in this bundle (lib/siem/alerts.ts
-// uses the same pattern).
+// SMTP resolution order: env SMTP_URL first (existing deployments, headless
+// workers), then the Settings-UI value from global_settings (stored encrypted,
+// decrypted here). Falls back to localhost:1025 only when neither is set.
 let transporter: nodemailer.Transporter | null = null;
 let transporterUrl: string | null = null;
 
-function getTransporter(): nodemailer.Transporter {
-  const url = getEnv().SMTP_URL ?? "smtp://localhost:1025";
+async function resolveSmtpUrl(): Promise<string> {
+  const envUrl = getEnv().SMTP_URL?.trim();
+  if (envUrl) return envUrl;
+
+  try {
+    const rows = await db.select({ smtpUrl: globalSettings.smtpUrl }).from(globalSettings).limit(1);
+    const stored = decryptIfEncrypted(rows[0]?.smtpUrl ?? null);
+    if (stored?.trim()) return stored.trim();
+  } catch {
+    // DB unavailable or secret unset — fall through to the localhost default.
+  }
+  return "smtp://localhost:1025";
+}
+
+async function resolveSmtpFrom(): Promise<string> {
+  const envFrom = getEnv().SMTP_FROM?.trim();
+  if (envFrom) return envFrom;
+
+  try {
+    const rows = await db.select({ smtpFrom: globalSettings.smtpFrom }).from(globalSettings).limit(1);
+    const stored = rows[0]?.smtpFrom?.trim();
+    if (stored) return stored;
+  } catch {
+    // DB unavailable — fall through to the default sender.
+  }
+  return "siem@dc-check.local";
+}
+
+async function getTransporter(): Promise<nodemailer.Transporter> {
+  const url = await resolveSmtpUrl();
   if (!transporter || transporterUrl !== url) {
     transporter = nodemailer.createTransport(url);
     transporterUrl = url;
@@ -209,9 +237,18 @@ function getTransporter(): nodemailer.Transporter {
   return transporter;
 }
 
-/** True when SMTP is configured — submissions skip PIC emails entirely otherwise. */
-export function isEmailConfigured(): boolean {
-  return Boolean(getEnv().SMTP_URL);
+/** True when SMTP is configured (env or Settings UI) — submissions skip PIC
+ *  emails entirely otherwise. */
+export async function isEmailConfigured(): Promise<boolean> {
+  const envUrl = getEnv().SMTP_URL?.trim();
+  if (envUrl) return true;
+
+  try {
+    const rows = await db.select({ smtpUrl: globalSettings.smtpUrl }).from(globalSettings).limit(1);
+    return Boolean(decryptIfEncrypted(rows[0]?.smtpUrl ?? null)?.trim());
+  } catch {
+    return false;
+  }
 }
 
 export type EmailSendResult = { success: boolean; error?: string };
@@ -230,8 +267,9 @@ export async function sendChecklistPicEmail(
   attachments: EmailAttachment[] = [],
 ): Promise<EmailSendResult> {
   try {
-    await getTransporter().sendMail({
-      from: getEnv().SMTP_FROM ?? "siem@dc-check.local",
+    const [transporter, from] = await Promise.all([getTransporter(), resolveSmtpFrom()]);
+    await transporter.sendMail({
+      from,
       to: to.join(", "),
       subject,
       text: textBody,

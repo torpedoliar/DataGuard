@@ -14,6 +14,7 @@ import {
     sendTelegramAlert,
 } from "../lib/telegram";
 import { DEFAULT_EMAIL_ALERT_TEMPLATE, renderEmailTemplate, sendChecklistPicEmail } from "../lib/email";
+import { decryptIfEncrypted, encryptString } from "../lib/crypto";
 import { resolveNotificationBaseUrl } from "../lib/notification-url";
 import { saveUploadFile } from "../lib/upload";
 import { formatWibDate, formatWibTime } from "../lib/ui/datetime";
@@ -48,6 +49,9 @@ function defaultSettings() {
         telegramAlertTemplate: DEFAULT_TELEGRAM_ALERT_TEMPLATE,
         emailAlertTemplate: DEFAULT_EMAIL_ALERT_TEMPLATE,
         telegramBotConfigured: isTelegramBotConfigured(),
+        smtpConfigured: Boolean(process.env.SMTP_URL?.trim()),
+        smtpFrom: null,
+        smtpFromEnvOnly: false,
     };
 }
 
@@ -89,6 +93,11 @@ export async function getSettings() {
         const settingsList = await db.select().from(globalSettings).limit(1);
         const activeSiteTelegram = await getActiveSiteTelegramSettings();
         if (settingsList.length > 0) {
+            // SMTP config is masked: the UI only learns WHETHER a relay is
+            // set (env or DB), never the credential itself.
+            const smtpUrlEnv = (process.env.SMTP_URL ?? "").trim();
+            const smtpFromEnv = (process.env.SMTP_FROM ?? "").trim();
+            const smtpUrlStored = settingsList[0].smtpUrl;
             return {
                 id: settingsList[0].id,
                 appName: settingsList[0].appName,
@@ -98,6 +107,9 @@ export async function getSettings() {
                 telegramAlertTemplate: settingsList[0].telegramAlertTemplate || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
                 emailAlertTemplate: settingsList[0].emailAlertTemplate || DEFAULT_EMAIL_ALERT_TEMPLATE,
                 telegramBotConfigured: isTelegramBotConfigured(settingsList[0].telegramBotToken),
+                smtpConfigured: Boolean(smtpUrlEnv || decryptIfEncrypted(smtpUrlStored)),
+                smtpFrom: smtpFromEnv || settingsList[0].smtpFrom || null,
+                smtpFromEnvOnly: Boolean(smtpFromEnv) && !settingsList[0].smtpFrom,
             };
         }
     } catch (error) {
@@ -202,6 +214,22 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
             updatedAt: new Date(),
         };
         if (parsed.data.telegramBotToken?.trim()) upsertData.telegramBotToken = parsed.data.telegramBotToken.trim();
+
+        // SMTP relay from the UI: stored encrypted at rest. Empty field +
+        // checked "remove" clears it; empty field alone leaves the stored
+        // value untouched (same contract as the Telegram bot token).
+        const smtpUrlInput = String(formData.get("smtpUrl") ?? "").trim();
+        if (smtpUrlInput) {
+            upsertData.smtpUrl = encryptString(smtpUrlInput);
+        } else if (formData.get("removeSmtpUrl") === "true") {
+            upsertData.smtpUrl = null;
+        }
+        const smtpFromInput = String(formData.get("smtpFrom") ?? "").trim();
+        if (smtpFromInput) {
+            upsertData.smtpFrom = smtpFromInput; // sender label, not a secret
+        } else if (formData.get("removeSmtpUrl") === "true") {
+            upsertData.smtpFrom = null;
+        }
         if (logoPath !== undefined) upsertData.logoPath = logoPath;
         if (faviconPath !== undefined) upsertData.faviconPath = faviconPath;
 
@@ -401,7 +429,7 @@ export async function sendEmailTestMessage(prevState: unknown, formData: FormDat
 
     const result = await sendChecklistPicEmail([to], "[DataGuard] TEST — Email Alert Template", html, text);
     if (!result.success) {
-        return { message: result.error || "Gagal mengirim email test. Pastikan SMTP_URL sudah dikonfigurasi." };
+        return { message: result.error || "Gagal mengirim email test. Isi konfigurasi SMTP di bawah, atau set SMTP_URL di .env server." };
     }
 
     await logAudit({

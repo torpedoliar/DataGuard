@@ -27,6 +27,13 @@ const {
 const mockedDb = db as unknown as {
   select: ReturnType<typeof vi.fn>;
 };
+// SMTP-settings lookup chain: select().from().limit() → rows. Undefined rows
+// = "not configured in DB", so env SMTP_URL alone drives the config checks.
+mockedDb.select.mockReturnValue({
+  from: () => ({
+    limit: () => Promise.resolve([]),
+  }),
+});
 const mockedCreateTransport = nodemailer.createTransport as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -185,10 +192,11 @@ describe("sendChecklistPicEmail", () => {
     expect(result.error).toBe("relay down");
   });
 
-  it("isEmailConfigured reflects SMTP_URL", () => {
-    expect(isEmailConfigured()).toBe(true);
+  it("isEmailConfigured reflects SMTP_URL (env wins, DB consulted as fallback)", async () => {
+    // The mocked db resolves to undefined rows → DB path returns false.
+    expect(await isEmailConfigured()).toBe(true);
     vi.stubEnv("SMTP_URL", "");
-    // Empty string is still falsy → unconfigured.
-    expect(isEmailConfigured()).toBe(false);
+    // Empty string env → DB path consulted; mock db returns no row → false.
+    expect(await isEmailConfigured()).toBe(false);
   });
 });

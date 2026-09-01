@@ -346,7 +346,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 // rendered from the editable template (Settings, same {field}
                 // syntax as Telegram) once per device, blocks joined with a
                 // separator. Skipped entirely when SMTP is unset.
-                if (isEmailConfigured() && site) {
+                if (await isEmailConfigured() && site) {
                     try {
                         const picGroups = await resolveChecklistPicRecipients(failedIds, auth.activeSiteId);
                         const emailTemplate = await getEmailAlertTemplate();
