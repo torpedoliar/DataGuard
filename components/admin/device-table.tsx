@@ -62,6 +62,7 @@ type Device = {
   ipAddress: string | null;
   description: string | null;
   isActive: boolean | null;
+  excludeChecklist?: boolean;
 };
 
 type Brand = {
@@ -311,6 +312,11 @@ export default function DeviceTable({
                           <div className="flex items-center gap-2">
                             {!isActive && <span className="size-2 rounded-full bg-red-400" title="Inactive" />}
                             <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
+                            {device.excludeChecklist && (
+                              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300" title="Excluded from checklist audit — stays in rack layout">
+                                Excluded
+                              </span>
+                            )}
                             {device.photoPath && <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />}
                           </div>
                         </td>

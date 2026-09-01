@@ -20,6 +20,7 @@ type Location = {
   name: string;
   description: string | null;
   tempThresholdC: number | null;
+  excludeTempCheck?: boolean | null;
   createdAt: Date | null;
 };
 
@@ -126,7 +127,14 @@ export default function LocationTable({ locations }: { locations: Location[] }) 
                 <tr key={location.id} className="transition-colors hover:bg-ops-surface">
                   <td className="px-5 py-3 font-semibold text-ops-text">{location.name}</td>
                   <td className="px-5 py-3 text-ops-muted">{location.description || "-"}</td>
-                  <td className="px-5 py-3 font-mono text-ops-text">{location.tempThresholdC != null ? `${location.tempThresholdC}°C` : "-"}</td>
+                  <td className="px-5 py-3 font-mono text-ops-text">
+                    {location.tempThresholdC != null ? `${location.tempThresholdC}°C` : "-"}
+                    {location.excludeTempCheck && (
+                      <span className="ml-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                        Audit suhu off
+                      </span>
+                    )}
+                  </td>
                   <td className="px-5 py-3 text-ops-muted">{location.createdAt ? new Date(location.createdAt).toLocaleDateString("id-ID") : "-"}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
