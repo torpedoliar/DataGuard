@@ -35,12 +35,18 @@ export default function EditChecklistForm({
     devices,
     items,
 }: EditChecklistFormProps) {
-    const [state, action, isPending] = useActionState(updateChecklist, undefined);
-    const [activeTab, setActiveTab] = useState(categories[0]?.id);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
     // Create a map of existing items by device ID
     const itemsByDevice = new Map(items.map(item => [item.deviceId, item]));
+
+    // Only render devices that were ACTUALLY audited in this entry.
+    // Un-audited devices must never be submitted as "OK" or injected into the entry!
+    const auditedDevices = devices.filter(d => itemsByDevice.has(d.id));
+    const relevantCategories = categories.filter(cat => auditedDevices.some(d => d.categoryId === cat.id));
+    const displayCategories = relevantCategories.length > 0 ? relevantCategories : [{ id: 0, name: "Audited Devices" }];
+
+    const [state, action, isPending] = useActionState(updateChecklist, undefined);
+    const [activeTab, setActiveTab] = useState(displayCategories[0]?.id);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (formData: FormData) => {
         formData.set("entryId", String(entryId));
@@ -120,49 +126,57 @@ export default function EditChecklistForm({
                         </div>
                     </div>
 
-                    {/* Categories Tabs */}
-                    <div className="border-b border-slate-200 dark:border-slate-700">
-                        <nav className="flex -mb-px overflow-x-auto" aria-label="Tabs">
-                            {categories.map((category) => (
-                                <button
-                                    key={category.id}
-                                    type="button"
-                                    onClick={() => setActiveTab(category.id)}
-                                    className={clsx(
-                                        activeTab === category.id
-                                            ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                                            : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300",
-                                        "whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-colors"
-                                    )}
-                                >
-                                    {category.name}
-                                </button>
-                            ))}
-                        </nav>
-                    </div>
+                    {/* Categories Tabs — only show categories containing devices in this entry */}
+                    {displayCategories.length > 1 && (
+                        <div className="border-b border-slate-200 dark:border-slate-700">
+                            <nav className="flex -mb-px overflow-x-auto" aria-label="Tabs">
+                                {displayCategories.map((category) => (
+                                    <button
+                                        key={category.id}
+                                        type="button"
+                                        onClick={() => setActiveTab(category.id)}
+                                        className={clsx(
+                                            activeTab === category.id
+                                                ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                                                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300",
+                                            "whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-colors"
+                                        )}
+                                    >
+                                        {category.name}
+                                    </button>
+                                ))}
+                            </nav>
+                        </div>
+                    )}
 
-                    {/* Devices List */}
+                    {/* Devices List — only render devices that belong to this audit entry */}
                     <div className="p-6 space-y-8">
-                        {categories.map((category) => (
-                            <div key={category.id} className={clsx(activeTab === category.id ? "block" : "hidden")}>
-                                <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4">{category.name} Devices</h3>
-                                <div className="space-y-6">
-                                    {devices.filter(d => d.categoryId === category.id).map((device) => {
-                                        const existingItem = itemsByDevice.get(device.id);
-                                        return (
-                                            <DeviceRow
-                                                key={device.id}
-                                                device={device}
-                                                existingItem={existingItem}
-                                            />
-                                        );
-                                    })}
-                                    {devices.filter(d => d.categoryId === category.id).length === 0 && (
-                                        <p className="text-slate-500 dark:text-slate-400 italic">No devices in this category.</p>
-                                    )}
+                        {displayCategories.map((category) => {
+                            const catDevices = displayCategories.length <= 1
+                                ? auditedDevices
+                                : auditedDevices.filter(d => d.categoryId === category.id);
+
+                            return (
+                                <div key={category.id} className={clsx(activeTab === category.id || displayCategories.length <= 1 ? "block" : "hidden")}>
+                                    <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4">{category.name} Devices ({catDevices.length})</h3>
+                                    <div className="space-y-6">
+                                        {catDevices.map((device) => {
+                                            const existingItem = itemsByDevice.get(device.id);
+                                            return (
+                                                <DeviceRow
+                                                    key={device.id}
+                                                    device={device}
+                                                    existingItem={existingItem}
+                                                />
+                                            );
+                                        })}
+                                        {catDevices.length === 0 && (
+                                            <p className="text-slate-500 dark:text-slate-400 italic">No audited devices in this category.</p>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     {/* Footer Actions */}

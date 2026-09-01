@@ -173,21 +173,46 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
             }
         }
 
+        // Check if an entry already exists for this site and date.
+        // Audit should only be once a day per site: if an audit already exists for checkDate,
+        // merge/update into it rather than creating a duplicate entry with multiple auditors.
+        const existingEntry = await db.query.checklistEntries.findFirst({
+            where: and(
+                eq(checklistEntries.siteId, auth.activeSiteId),
+                eq(checklistEntries.checkDate, checkDate),
+            ),
+        });
+
         await db.transaction(async (tx) => {
             for (const location of measuredLocations) {
                 const tempC = tempInputs.get(location.id)!;
                 await tx.update(locations).set({ tempC }).where(eq(locations.id, location.id));
             }
 
-            const [entry] = await tx.insert(checklistEntries).values({
-                siteId: auth.activeSiteId,
-                userId: session.userId,
-                checkDate,
-                checkTime,
-                shift,
-                locationTemps: locationTempsSnapshot,
-            }).returning();
-            entryId = entry.id;
+            if (existingEntry) {
+                entryId = existingEntry.id;
+                await tx.update(checklistEntries).set({
+                    checkTime,
+                    shift,
+                    locationTemps: { ...(existingEntry.locationTemps || {}), ...locationTempsSnapshot },
+                }).where(eq(checklistEntries.id, entryId));
+            } else {
+                const [entry] = await tx.insert(checklistEntries).values({
+                    siteId: auth.activeSiteId,
+                    userId: session.userId,
+                    checkDate,
+                    checkTime,
+                    shift,
+                    locationTemps: locationTempsSnapshot,
+                }).returning();
+                entryId = entry.id;
+            }
+
+            // If updating an existing entry, query existing items to update in-place
+            const existingItems = existingEntry
+                ? await tx.query.checklistItems.findMany({ where: eq(checklistItems.entryId, entryId) })
+                : [];
+            const existingItemByDevice = new Map(existingItems.map((item) => [item.deviceId, item]));
 
             // Room over threshold+3: synthetic NOT-OK item. deviceId is
             // NOT NULL on checklist_items/incidents, so rooms without a
@@ -221,33 +246,43 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 if (photoFile && photoFile.size > 0 && photoFile.name !== "undefined") {
                     photoPath = await saveUploadFile(
                         photoFile,
-                        `${entry.id}-${deviceId}`,
+                        `${entryId}-${deviceId}`,
                         { kind: "photo", directory: "root" },
                     );
                 }
 
                 const normalizedStatus = (status || "OK") as "OK" | "NOT OK";
-                const [item] = await tx.insert(checklistItems).values({
-                    entryId: entry.id,
-                    deviceId,
-                    status: normalizedStatus,
-                    remarks: remarks || "",
-                    photoPath,
-                }).onConflictDoNothing({ target: [checklistItems.entryId, checklistItems.deviceId] }).returning();
+                const existing = existingItemByDevice.get(deviceId);
+                let itemId: number | null = null;
 
-                // Conflict = a concurrent duplicate insert of the same
-                // entry+device already created the row: the first insert wins
-                // and the alert/incident sub-flow must not run again for it.
-                if (!item) continue;
+                if (existing) {
+                    itemId = existing.id;
+                    await tx.update(checklistItems).set({
+                        status: normalizedStatus,
+                        remarks: remarks || "",
+                        photoPath: photoPath ?? existing.photoPath,
+                    }).where(eq(checklistItems.id, existing.id));
+                } else {
+                    const [item] = await tx.insert(checklistItems).values({
+                        entryId,
+                        deviceId,
+                        status: normalizedStatus,
+                        remarks: remarks || "",
+                        photoPath,
+                    }).onConflictDoNothing({ target: [checklistItems.entryId, checklistItems.deviceId] }).returning();
+                    if (item) itemId = item.id;
+                }
+
+                if (!itemId) continue;
 
                 if (normalizedStatus === "NOT OK") {
-                    alertItems.push({ checklistItemId: item.id, deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided", photoPath });
+                    alertItems.push({ checklistItemId: itemId, deviceId, status: normalizedStatus, remarks: remarks || "No remarks provided", photoPath: photoPath ?? existing?.photoPath ?? null });
                     incidentItems.push({
-                        checklistItemId: item.id,
+                        checklistItemId: itemId,
                         deviceId,
                         status: normalizedStatus,
                         remarks: remarks || "No remarks provided",
-                        photoPath,
+                        photoPath: photoPath ?? existing?.photoPath ?? null,
                     });
                 }
             }

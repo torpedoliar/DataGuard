@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   logAudit: vi.fn(),
   hasAdminAccess: vi.fn(),
   findFirst: vi.fn(),
+  entryFindFirst: vi.fn(),
   findMany: vi.fn(),
   createIncidentsForChecklistItems: vi.fn(),
   getTelegramAlertTemplate: vi.fn(),
@@ -156,7 +157,7 @@ vi.mock("../db", () => {
       delete: del,
       transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
       query: {
-        checklistEntries: { findFirst: mocks.findFirst, findMany: mocks.findMany },
+        checklistEntries: { findFirst: mocks.entryFindFirst, findMany: mocks.findMany },
         checklistItems: { findFirst: mocks.findFirst, findMany: mocks.findMany },
         devices: { findFirst: mocks.findFirst, findMany: mocks.findMany },
         sites: { findFirst: mocks.findFirst },
@@ -217,6 +218,7 @@ beforeEach(() => {
   mocks.updateSets.length = 0;
   mocks.requireActiveSiteAction.mockResolvedValue({ ok: false, message: "No active site selected." });
   mocks.hasAdminAccess.mockResolvedValue(false);
+  mocks.entryFindFirst.mockReset().mockResolvedValue(null);
   mocks.createIncidentsForChecklistItems.mockResolvedValue([]);
   mocks.getTelegramAlertTemplate.mockResolvedValue(null);
   mocks.validateUpload.mockResolvedValue(null);
@@ -319,7 +321,7 @@ describe("updateChecklist (finding #23 — keep rows, reconcile incidents)", () 
   function stubOwnership() {
     mocks.requireActiveSiteAction.mockResolvedValue(auth);
     mocks.hasAdminAccess.mockResolvedValue(true);
-    mocks.findFirst.mockResolvedValueOnce({ id: 9, userId: 1, checkDate: "2026-08-18", shift: "Siang" });
+    mocks.entryFindFirst.mockResolvedValueOnce({ id: 9, userId: 1, checkDate: "2026-08-18", shift: "Siang" });
   }
 
   it("updates existing item rows in place, creates incidents for new NOT-OK, auto-resolves flipped devices", async () => {

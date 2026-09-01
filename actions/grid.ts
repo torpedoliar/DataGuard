@@ -104,14 +104,21 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
             deviceStatus[date] = [];
         });
 
-        // Fill in actual status
+        // Fill in actual status (deduplicated by date: keep latest check so
+        // re-auditing or editing never displays duplicate double auditors)
+        const latestByDate = new Map<string, DailyCheck>();
         items.filter(i => i.deviceId === device.id).forEach(i => {
-            deviceStatus[i.date].push({
+            latestByDate.set(i.date, {
                 status: i.status,
                 username: i.username,
                 shift: i.shift,
                 time: i.time
             });
+        });
+        latestByDate.forEach((check, date) => {
+            if (deviceStatus[date]) {
+                deviceStatus[date].push(check);
+            }
         });
 
         return {

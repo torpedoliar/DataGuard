@@ -5,6 +5,7 @@ import { submitChecklist } from "@/actions/checklist";
 import ActionButton from "@/components/ui/action-button";
 import { selectScopeDevices, sortRacksByLayout, type AuditScopeMode } from "@/lib/checklist-scope";
 import { CalendarDays, ChevronDown, Clock3, Layers3, Server, Send, Search, Thermometer } from "lucide-react";
+import Link from "next/link";
 import clsx from "clsx";
 import FieldAuditCard from "./field-audit-card";
 
@@ -39,12 +40,14 @@ export default function ChecklistForm({
   racks,
   measuredLocations,
   prefillDeviceId,
+  existingTodayEntry,
 }: {
   categories: Category[];
   devices: Device[];
   racks: Rack[];
   measuredLocations: MeasuredLocation[];
   prefillDeviceId?: number;
+  existingTodayEntry?: { id: number; checkDate: string; checkTime: string; shift: string; checker: string } | null;
 }) {
   // Scope mode: "category" tab filters the view AND the submit; "rack" adds
   // a rack-walk tab set. "All" submits every device.
@@ -69,6 +72,15 @@ export default function ChecklistForm({
   useEffect(() => {
     writePartialDevices(auditData);
   }, [auditData]);
+
+  // Clear partial audit data upon successful submit
+  useEffect(() => {
+    if (state?.success) {
+      try {
+        if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY);
+      } catch { /* skip */ }
+    }
+  }, [state?.success]);
 
   // Close rack dropdown on outside click
   useEffect(() => {
@@ -137,6 +149,27 @@ export default function ChecklistForm({
 
   return (
     <form action={action} className="flex flex-col gap-5" suppressHydrationWarning>
+      {existingTodayEntry && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-amber-100">
+                Audit hari ini ({existingTodayEntry.checkDate}) sudah tercatat oleh <span className="underline">{existingTodayEntry.checker}</span> ({existingTodayEntry.checkTime}, Shift {existingTodayEntry.shift}).
+              </p>
+              <p className="mt-1 text-xs text-amber-200/80">
+                Submisi perangkat di bawah akan otomatis memperbarui audit hari ini tanpa menghasilkan auditor ganda.
+              </p>
+            </div>
+            <Link
+              href={`/report/edit/${existingTodayEntry.id}`}
+              className="inline-flex shrink-0 items-center justify-center rounded-md border border-amber-400/50 bg-amber-400/20 px-3 py-1.5 text-xs font-bold text-amber-100 hover:bg-amber-400/30 transition-colors"
+            >
+              Edit Form Audit Hari Ini
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Run metadata */}
       <section className="ops-panel overflow-hidden">
         <div className="border-b border-ops-border bg-ops-surface px-5 py-4">
@@ -247,7 +280,11 @@ export default function ChecklistForm({
               onClick={() => {
                 setScopeMode(mode);
                 setActiveTab(undefined);
-                setActiveRacks([]);
+                if (mode === "rack" && sortedRacks.length > 0) {
+                  setActiveRacks([sortedRacks[0].name]);
+                } else {
+                  setActiveRacks([]);
+                }
               }}
               className={clsx(
                 "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors",
@@ -535,7 +572,11 @@ export default function ChecklistForm({
               disabled={!hasDevices || scopedDevices.length === 0}
               icon={<Send className="size-4" />}
             >
-              Submit {activeCategory?.name ?? (activeRacks.length === 1 ? activeRacks[0] : activeRacks.length > 1 ? `${activeRacks.length} racks` : "All")} Devices
+              Submit {scopedDevices.length} Devices ({
+                scopeMode === "category"
+                  ? (activeCategory?.name ?? "All Categories")
+                  : (activeRacks.length === 1 ? `Rack: ${activeRacks[0]}` : activeRacks.length > 1 ? `${activeRacks.length} Racks` : "All Racks")
+              })
             </ActionButton>
           </div>
         </div>

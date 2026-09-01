@@ -5,6 +5,9 @@ import ChecklistForm from "@/components/checklist/checklist-form";
 import ActionButton from "@/components/ui/action-button";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
+import { db } from "@/db";
+import { checklistEntries } from "@/db/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { ArrowLeft, QrCode } from "lucide-react";
 import { redirect } from "next/navigation";
 
@@ -35,12 +38,29 @@ export default async function NewAuditPage(props: { searchParams: Promise<{ devi
   }));
 
   const today = new Date();
+  const todayIso = today.toISOString().split("T")[0];
   const formattedDate = today.toLocaleDateString("en-GB", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  const existingTodayEntry = session.activeSiteId
+    ? await db.select({
+        id: checklistEntries.id,
+        checkDate: checklistEntries.checkDate,
+        checkTime: checklistEntries.checkTime,
+        shift: checklistEntries.shift,
+        checker: sql<string>`(select username from users where id = ${checklistEntries.userId})`,
+      })
+      .from(checklistEntries)
+      .where(and(
+        eq(checklistEntries.siteId, session.activeSiteId),
+        eq(checklistEntries.checkDate, todayIso),
+      ))
+      .then((res) => res[0] ?? null)
+    : null;
 
   return (
     <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 py-5 lg:px-6">
@@ -66,6 +86,7 @@ export default async function NewAuditPage(props: { searchParams: Promise<{ devi
         racks={racks.map(({ id, name, zone }) => ({ id, name, zone }))}
         measuredLocations={measuredLocations}
         prefillDeviceId={prefillDeviceId}
+        existingTodayEntry={existingTodayEntry}
       />
     </main>
   );
