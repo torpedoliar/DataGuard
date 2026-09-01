@@ -195,43 +195,96 @@ export function renderEmailTemplate(
 }
 
 // SMTP resolution order: env SMTP_URL first (existing deployments, headless
-// workers), then the Settings-UI value from global_settings (stored encrypted,
-// decrypted here). Falls back to localhost:1025 only when neither is set.
+// workers), then the structured Settings-UI fields (host/port/security/
+// user/pass — Outlook-style form), then the legacy smtp_url column, then the
+// localhost dev default. Transporters are cached per resolved config.
 let transporter: nodemailer.Transporter | null = null;
 let transporterUrl: string | null = null;
 
-async function resolveSmtpUrl(): Promise<string> {
-  const envUrl = getEnv().SMTP_URL?.trim();
-  if (envUrl) return envUrl;
+type StoredSmtp = {
+  host: string | null;
+  port: number | null;
+  secure: "none" | "ssl" | "starttls" | null;
+  user: string | null;
+  pass: string | null; // decrypted
+  legacyUrl: string | null; // decrypted legacy smtp_url
+  from: string | null;
+};
 
+async function loadStoredSmtp(): Promise<StoredSmtp | null> {
   try {
-    const rows = await db.select({ smtpUrl: globalSettings.smtpUrl }).from(globalSettings).limit(1);
-    const stored = decryptIfEncrypted(rows[0]?.smtpUrl ?? null);
-    if (stored?.trim()) return stored.trim();
+    const rows = await db.select({
+      smtpHost: globalSettings.smtpHost,
+      smtpPort: globalSettings.smtpPort,
+      smtpSecure: globalSettings.smtpSecure,
+      smtpUser: globalSettings.smtpUser,
+      smtpPass: globalSettings.smtpPass,
+      smtpUrl: globalSettings.smtpUrl,
+      smtpFrom: globalSettings.smtpFrom,
+    }).from(globalSettings).limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      host: row.smtpHost?.trim() || null,
+      port: row.smtpPort ?? null,
+      secure: (row.smtpSecure as StoredSmtp["secure"]) ?? null,
+      user: row.smtpUser?.trim() || null,
+      pass: decryptIfEncrypted(row.smtpPass),
+      legacyUrl: decryptIfEncrypted(row.smtpUrl),
+      from: row.smtpFrom?.trim() || null,
+    };
   } catch {
-    // DB unavailable or secret unset — fall through to the localhost default.
+    return null; // DB unavailable or secret unset
   }
-  return "smtp://localhost:1025";
+}
+
+/** Build a nodemailer URL from the structured fields (SSL/STARTTLS/none). */
+function smtpUrlFromFields(stored: StoredSmtp): string | null {
+  if (!stored.host) return null;
+  const auth = stored.user
+    ? `${encodeURIComponent(stored.user)}:${encodeURIComponent(stored.pass ?? "")}@`
+    : "";
+  // ssl = implicit TLS (smtps), starttls/none = plain smtp + requireTLS flag.
+  const scheme = stored.secure === "ssl" ? "smtps" : "smtp";
+  const port = stored.port ?? (stored.secure === "ssl" ? 465 : stored.secure === "none" ? 25 : 587);
+  return `${scheme}://${auth}${stored.host}:${port}`;
+}
+
+async function resolveSmtpUrl(): Promise<{ url: string; requireTls: boolean }> {
+  const envUrl = getEnv().SMTP_URL?.trim();
+  if (envUrl) return { url: envUrl, requireTls: false };
+
+  const stored = await loadStoredSmtp();
+
+  const structured = stored ? smtpUrlFromFields(stored) : null;
+  if (structured) {
+    return { url: structured, requireTls: stored!.secure === "starttls" };
+  }
+  if (stored?.legacyUrl?.trim()) {
+    return { url: stored.legacyUrl.trim(), requireTls: false };
+  }
+  return { url: "smtp://localhost:1025", requireTls: false };
 }
 
 async function resolveSmtpFrom(): Promise<string> {
   const envFrom = getEnv().SMTP_FROM?.trim();
   if (envFrom) return envFrom;
 
-  try {
-    const rows = await db.select({ smtpFrom: globalSettings.smtpFrom }).from(globalSettings).limit(1);
-    const stored = rows[0]?.smtpFrom?.trim();
-    if (stored) return stored;
-  } catch {
-    // DB unavailable — fall through to the default sender.
-  }
-  return "siem@dc-check.local";
+  const stored = await loadStoredSmtp();
+  return stored?.from || "siem@dc-check.local";
 }
 
 async function getTransporter(): Promise<nodemailer.Transporter> {
-  const url = await resolveSmtpUrl();
+  const { url, requireTls } = await resolveSmtpUrl();
   if (!transporter || transporterUrl !== url) {
-    transporter = nodemailer.createTransport(url);
+    transporter = nodemailer.createTransport({
+      url,
+      // STARTTLS mode: upgrade the connection before sending (Outlook's
+      // "STARTTLS" setting); "none" keeps requireTLS off; implicit-SSL (smtps
+      // scheme) already TLS-wraps the socket.
+      tls: requireTls ? undefined : { rejectUnauthorized: false },
+      requireTLS: requireTls,
+    });
     transporterUrl = url;
   }
   return transporter;
@@ -240,15 +293,10 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
 /** True when SMTP is configured (env or Settings UI) — submissions skip PIC
  *  emails entirely otherwise. */
 export async function isEmailConfigured(): Promise<boolean> {
-  const envUrl = getEnv().SMTP_URL?.trim();
-  if (envUrl) return true;
+  if (getEnv().SMTP_URL?.trim()) return true;
 
-  try {
-    const rows = await db.select({ smtpUrl: globalSettings.smtpUrl }).from(globalSettings).limit(1);
-    return Boolean(decryptIfEncrypted(rows[0]?.smtpUrl ?? null)?.trim());
-  } catch {
-    return false;
-  }
+  const stored = await loadStoredSmtp();
+  return Boolean(stored && (smtpUrlFromFields(stored) || stored.legacyUrl?.trim()));
 }
 
 export type EmailSendResult = { success: boolean; error?: string };

@@ -16,6 +16,12 @@ type SettingsData = {
     emailAlertTemplate: string;
     telegramBotConfigured: boolean;
     smtpConfigured: boolean;
+    smtpUsingEnv: boolean;
+    smtpHost: string | null;
+    smtpPort: number | null;
+    smtpSecure: string | null;
+    smtpUser: string | null;
+    smtpPassSet: boolean;
     smtpFrom: string | null;
     smtpFromEnvOnly: boolean;
 };
@@ -478,24 +484,83 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                     </span>
                 </div>
 
-                {/* SMTP relay — kredensial tersimpan terenkripsi di DB (AES-256-GCM).
-                    Env SMTP_URL tetap menang bila diisi (deployment server/headless). */}
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {/* SMTP relay — form akun gaya Outlook. Password tersimpan
+                    terenkripsi di DB (AES-256-GCM); env SMTP_URL tetap menang
+                    bila diisi (deployment server/headless). */}
+                {initialData.smtpUsingEnv && (
+                    <div className="p-3 text-sm rounded-lg border border-blue-400/25 bg-blue-400/10 text-blue-200">
+                        SMTP saat ini diambil dari SMTP_URL di .env server (menang atas pengaturan di bawah). Kosongkan env tersebut agar pengaturan UI dipakai.
+                    </div>
+                )}
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    <label className="lg:col-span-2">
+                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Server (Host)
+                        </span>
+                        <input
+                            type="text"
+                            name="smtpHost"
+                            defaultValue={initialData.smtpHost ?? ""}
+                            autoComplete="off"
+                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            placeholder="smtp.office365.com"
+                        />
+                    </label>
                     <label>
                         <span className="block text-sm font-medium text-slate-300 mb-1.5">
-                            SMTP URL
+                            Port
+                        </span>
+                        <input
+                            type="number"
+                            name="smtpPort"
+                            min={1}
+                            max={65535}
+                            defaultValue={initialData.smtpPort ?? ""}
+                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            placeholder="587"
+                        />
+                    </label>
+                    <label>
+                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Enkripsi
+                        </span>
+                        <select
+                            name="smtpSecure"
+                            defaultValue={initialData.smtpSecure ?? "starttls"}
+                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        >
+                            <option value="starttls">STARTTLS (port 587)</option>
+                            <option value="ssl">SSL/TLS (port 465)</option>
+                            <option value="none">Tanpa enkripsi (port 25)</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Username
+                        </span>
+                        <input
+                            type="text"
+                            name="smtpUser"
+                            defaultValue={initialData.smtpUser ?? ""}
+                            autoComplete="off"
+                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            placeholder="noreply@perusahaan.co.id"
+                        />
+                    </label>
+                    <label>
+                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Password
                         </span>
                         <input
                             type="password"
-                            name="smtpUrl"
-                            autoComplete="off"
+                            name="smtpPass"
+                            autoComplete="new-password"
                             className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                            placeholder={initialData.smtpConfigured ? "SMTP tersimpan; isi hanya untuk mengganti" : "smtp://user:pass@smtp.host.com:587"}
+                            placeholder={initialData.smtpPassSet ? "Tersimpan — isi hanya untuk mengganti" : "••••••••"}
                         />
-                        <p className="text-xs text-slate-500 mt-1.5">
-                            Format: smtp://user:pass@host:port (port 465 pakai smtps://). Kosongkan untuk memakai nilai tersimpan / env SMTP_URL.
-                        </p>
                     </label>
+                </div>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
                     <label>
                         <span className="block text-sm font-medium text-slate-300 mb-1.5">
                             Pengirim (From)
@@ -510,7 +575,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         <p className="text-xs text-slate-500 mt-1.5">
                             {initialData.smtpFromEnvOnly
                                 ? "Saat ini dipakai SMTP_FROM dari .env (menang atas nilai di sini bila kosong)."
-                                : "Nama/alamat yang muncul sebagai pengirim email."}
+                                : "Nama/alamat yang muncul sebagai pengirim email. Kosongkan server (Host) untuk menghapus akun SMTP."}
                         </p>
                     </label>
                 </div>

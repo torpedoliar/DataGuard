@@ -288,6 +288,13 @@
       "when": 1787073695127,
       "tag": "0041_smtp_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1787073695128,
+      "tag": "0042_smtp_structured",
+      "breakpoints": true
     }
   ]
 }

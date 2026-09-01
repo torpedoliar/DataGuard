@@ -50,6 +50,12 @@ function defaultSettings() {
         emailAlertTemplate: DEFAULT_EMAIL_ALERT_TEMPLATE,
         telegramBotConfigured: isTelegramBotConfigured(),
         smtpConfigured: Boolean(process.env.SMTP_URL?.trim()),
+        smtpUsingEnv: false,
+        smtpHost: null,
+        smtpPort: null,
+        smtpSecure: null,
+        smtpUser: null,
+        smtpPassSet: false,
         smtpFrom: null,
         smtpFromEnvOnly: false,
     };
@@ -93,11 +99,12 @@ export async function getSettings() {
         const settingsList = await db.select().from(globalSettings).limit(1);
         const activeSiteTelegram = await getActiveSiteTelegramSettings();
         if (settingsList.length > 0) {
-            // SMTP config is masked: the UI only learns WHETHER a relay is
-            // set (env or DB), never the credential itself.
+            // SMTP config is masked: the UI learns whether a relay is set and
+            // its non-secret fields (host/port/security/user) — never the
+            // password itself.
             const smtpUrlEnv = (process.env.SMTP_URL ?? "").trim();
             const smtpFromEnv = (process.env.SMTP_FROM ?? "").trim();
-            const smtpUrlStored = settingsList[0].smtpUrl;
+            const storedPass = decryptIfEncrypted(settingsList[0].smtpPass);
             return {
                 id: settingsList[0].id,
                 appName: settingsList[0].appName,
@@ -107,7 +114,17 @@ export async function getSettings() {
                 telegramAlertTemplate: settingsList[0].telegramAlertTemplate || DEFAULT_TELEGRAM_ALERT_TEMPLATE,
                 emailAlertTemplate: settingsList[0].emailAlertTemplate || DEFAULT_EMAIL_ALERT_TEMPLATE,
                 telegramBotConfigured: isTelegramBotConfigured(settingsList[0].telegramBotToken),
-                smtpConfigured: Boolean(smtpUrlEnv || decryptIfEncrypted(smtpUrlStored)),
+                smtpConfigured: Boolean(
+                    smtpUrlEnv
+                    || settingsList[0].smtpHost
+                    || decryptIfEncrypted(settingsList[0].smtpUrl),
+                ),
+                smtpUsingEnv: Boolean(smtpUrlEnv),
+                smtpHost: settingsList[0].smtpHost || null,
+                smtpPort: settingsList[0].smtpPort ?? null,
+                smtpSecure: settingsList[0].smtpSecure ?? null,
+                smtpUser: settingsList[0].smtpUser || null,
+                smtpPassSet: Boolean(storedPass),
                 smtpFrom: smtpFromEnv || settingsList[0].smtpFrom || null,
                 smtpFromEnvOnly: Boolean(smtpFromEnv) && !settingsList[0].smtpFrom,
             };
@@ -215,19 +232,34 @@ export async function updateSettings(prevState: unknown, formData: FormData) {
         };
         if (parsed.data.telegramBotToken?.trim()) upsertData.telegramBotToken = parsed.data.telegramBotToken.trim();
 
-        // SMTP relay from the UI: stored encrypted at rest. Empty field +
-        // checked "remove" clears it; empty field alone leaves the stored
-        // value untouched (same contract as the Telegram bot token).
-        const smtpUrlInput = String(formData.get("smtpUrl") ?? "").trim();
-        if (smtpUrlInput) {
-            upsertData.smtpUrl = encryptString(smtpUrlInput);
-        } else if (formData.get("removeSmtpUrl") === "true") {
-            upsertData.smtpUrl = null;
+        // SMTP relay from the UI (Outlook-style structured fields). Password
+        // stored encrypted at rest; set-only (empty field keeps the stored
+        // one). "Remove SMTP" clears the whole account.
+        const smtpHostInput = String(formData.get("smtpHost") ?? "").trim();
+        const smtpPortInput = String(formData.get("smtpPort") ?? "").trim();
+        const smtpSecureInput = String(formData.get("smtpSecure") ?? "").trim();
+        const smtpUserInput = String(formData.get("smtpUser") ?? "").trim();
+        const smtpPassInput = String(formData.get("smtpPass") ?? "").trim();
+        const removeSmtp = formData.get("removeSmtpUrl") === "true";
+
+        if (smtpHostInput) {
+            upsertData.smtpHost = smtpHostInput;
+            const port = Number(smtpPortInput);
+            upsertData.smtpPort = Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
+            upsertData.smtpSecure = ["none", "ssl", "starttls"].includes(smtpSecureInput) ? smtpSecureInput : "starttls";
+            upsertData.smtpUser = smtpUserInput || null;
+            if (smtpPassInput) upsertData.smtpPass = encryptString(smtpPassInput);
+        } else if (removeSmtp) {
+            upsertData.smtpHost = null;
+            upsertData.smtpPort = null;
+            upsertData.smtpSecure = null;
+            upsertData.smtpUser = null;
+            upsertData.smtpPass = null;
         }
         const smtpFromInput = String(formData.get("smtpFrom") ?? "").trim();
         if (smtpFromInput) {
             upsertData.smtpFrom = smtpFromInput; // sender label, not a secret
-        } else if (formData.get("removeSmtpUrl") === "true") {
+        } else if (removeSmtp) {
             upsertData.smtpFrom = null;
         }
         if (logoPath !== undefined) upsertData.logoPath = logoPath;

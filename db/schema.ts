@@ -553,11 +553,18 @@ export const globalSettings = pgTable("global_settings", {
   // Editable PIC email alert template (lib/email.ts), same {field} syntax as
   // the Telegram template; null → DEFAULT_EMAIL_ALERT_TEMPLATE.
   emailAlertTemplate: text("email_alert_template"),
-  // SMTP relay config from Settings (UI). Stored encrypted at rest
+  // SMTP relay config from Settings (UI). smtp_pass stored encrypted at rest
   // (lib/crypto.ts, same as siem_settings.ai_api_key); lib/email.ts resolves
-  // env SMTP_URL first, then this DB value.
+  // env SMTP_URL first, then these structured fields (Outlook-style form),
+  // then the legacy smtp_url column.
   smtpUrl: text("smtp_url"),
   smtpFrom: text("smtp_from"),
+  smtpHost: text("smtp_host"),
+  smtpPort: integer("smtp_port"),
+  // "none" | "ssl" (implicit TLS, 465) | "starttls" (587) — null = starttls.
+  smtpSecure: text("smtp_secure"),
+  smtpUser: text("smtp_user"),
+  smtpPass: text("smtp_pass"),
   notificationBaseUrl: text("notification_base_url"),
   // Network Docs sync (lib/network-doc.ts). Configured from the settings
   // page; env NETWORK_DOC_* overrides these when set. api_key is encrypted
