@@ -107,10 +107,19 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
         // devices, so unchecked ids would leave checklist rows with no derived
         // incidents; rejecting the whole submit keeps records and incidents
         // aligned.
+        // Finding #44 extension: a device excluded from the checklist (form
+        // open before the admin flipped the flag) also must not be submitted —
+        // including it would count it against the population and break the
+        // ≤100% invariant.
         const siteDevices = await db.select({ id: devices.id }).from(devices)
             .where(and(inArray(devices.id, deviceIds), eq(devices.siteId, auth.activeSiteId)));
         if (siteDevices.length !== deviceIds.length) {
             return { message: "Some devices are not valid for the active site. Reload the page and try again." };
+        }
+        const excludedCount = await db.select({ count: sql<number>`count(*)::int` }).from(devices)
+            .where(and(inArray(devices.id, deviceIds), eq(devices.siteId, auth.activeSiteId), eq(devices.excludeChecklist, true)));
+        if ((excludedCount[0]?.count ?? 0) > 0) {
+            return { message: "Sebagian perangkat telah dikecualikan dari checklist. Muat ulang halaman untuk daftar terbaru." };
         }
 
         // 2. Create entry + per-device items + incidents atomically (finding #08):

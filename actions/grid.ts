@@ -71,6 +71,7 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
         .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
         .where(and(
             eq(devices.siteId, siteId),
+            eq(devices.excludeChecklist, false),
             or(eq(racks.isAuditable, true), isNull(racks.id)),
         ))
         .orderBy(categories.name, devices.name);

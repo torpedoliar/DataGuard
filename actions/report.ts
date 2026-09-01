@@ -110,11 +110,16 @@ export async function getReportData(
 
     const siteId = auth.activeSiteId;
 
-    // Build where clause
+    // Build where clause. Same population as the dashboard/grid: auditable
+    // rack (or no rack) AND not excluded from the checklist — so report
+    // listings, totals, and pagination all agree with every other surface.
+    // (Aggregates like getAnalyticsStats count checklist ITEMS and are not a
+    // population, so they correctly stay unfiltered here.)
     const whereClause = and(
         gte(checklistEntries.checkDate, startDate),
         lte(checklistEntries.checkDate, endDate),
         eq(checklistEntries.siteId, siteId),
+        eq(devices.excludeChecklist, false),
         incidentStatus ? eq(incidents.status, incidentStatus) : undefined,
         or(eq(racks.isAuditable, true), isNull(racks.id)),
     );
@@ -201,6 +206,7 @@ export async function getRawExportData(startDate: string, endDate: string, incid
                 gte(checklistEntries.checkDate, startDate),
                 lte(checklistEntries.checkDate, endDate),
                 eq(checklistEntries.siteId, siteId),
+                eq(devices.excludeChecklist, false),
                 incidentStatus ? eq(incidents.status, incidentStatus) : undefined,
                 or(eq(racks.isAuditable, true), isNull(racks.id)),
             )

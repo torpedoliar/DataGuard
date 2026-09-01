@@ -40,6 +40,7 @@ type Device = {
   uHeight: number | null;
   ipAddress: string | null;
   description: string | null;
+  excludeChecklist?: boolean;
 };
 
 type Location = {
@@ -361,6 +362,21 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                   placeholder="Catatan atau keterangan tambahan..."
                   className={fieldClass}
                 />
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border border-ops-border bg-ops-bg/40 px-3 py-2.5 md:col-span-2">
+                <input
+                  type="checkbox"
+                  name="excludeChecklist"
+                  defaultChecked={device.excludeChecklist}
+                  className="size-4 accent-[#5eead4]"
+                />
+                <span className="text-sm font-medium text-ops-text">
+                  Exclude dari checklist audit
+                  <span className="mt-0.5 block text-xs font-normal text-ops-muted">
+                    Hilang dari form audit, Audit Grid, dan laporan — tapi tetap tampil di rack layout & daftar device.
+                  </span>
+                </span>
               </label>
             </div>
           </FormSection>

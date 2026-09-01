@@ -130,6 +130,9 @@ export const locations = pgTable("locations", {
   // snapshot per audit; readings above threshold+3 auto-open an incident.
   tempC: real("temp_c"),
   tempThresholdC: real("temp_threshold_c"),
+  // Exclude this room's temperature input from the audit form even when it
+  // has a threshold (e.g. measured elsewhere, noise, already flagged).
+  excludeTempCheck: boolean("exclude_temp_check").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -189,6 +192,10 @@ export const devices = pgTable("devices", {
   description: text("description"),
   photoPath: text("photo_path"),
   isActive: boolean("is_active").default(true),
+  // Exclude from the checklist audit population (form, grid, dashboard,
+  // reports) while staying in the device inventory and the rack layout —
+  // e.g. PDU / blade chassis that are not field-audited daily.
+  excludeChecklist: boolean("exclude_checklist").notNull().default(false),
   responsibleGroups: jsonb("responsible_groups").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   // Faceplate layout for switch/router port diagrams. Null port count = no faceplate.
   faceplatePortCount: integer("faceplate_port_count"),

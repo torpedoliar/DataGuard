@@ -11,6 +11,7 @@ interface EditLocationModalProps {
         name: string;
         description: string | null;
         tempThresholdC?: number | null;
+        excludeTempCheck?: boolean | null;
     };
     onClose: () => void;
 }
@@ -82,6 +83,18 @@ export default function EditLocationModal({ location, onClose }: EditLocationMod
                             <p className="mt-1 text-xs text-slate-500">
                                 Suhu lebih dari batas +3°C saat audit otomatis membuat incident.
                             </p>
+                        </div>
+
+                        <div>
+                            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    name="excludeTempCheck"
+                                    defaultChecked={location.excludeTempCheck ?? false}
+                                    className="size-4 rounded border-slate-300 dark:border-slate-600"
+                                />
+                                Kecualikan dari audit suhu
+                            </label>
                         </div>
                     </div>
 

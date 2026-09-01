@@ -43,6 +43,11 @@ const deviceSchema = z.object({
     uHeight: z.preprocess((val) => val === "" || val === null || val === undefined ? 1 : Number(val), z.number().int("U height harus bilangan bulat (mis. 1U, 2U).").default(1)),
     ipAddress: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
+    // Checkbox present with "on"/"true" when checked, absent when unchecked →
+    // false. UpdateDevice reads this directly from formData (not the schema,
+    // since .partial() would drop it); declared here so the schema accepts the
+    // field when a payload carries it.
+    excludeChecklist: z.boolean().optional(),
 });
 
 const categorySchema = z.object({
@@ -169,6 +174,7 @@ export async function getDevices() {
             description: devices.description,
             photoPath: devices.photoPath,
             isActive: devices.isActive,
+            excludeChecklist: devices.excludeChecklist,
         })
         .from(devices)
         .leftJoin(categories, eq(devices.categoryId, categories.id))
@@ -327,6 +333,8 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
             ipAddress: parsed.data.ipAddress,
             description: parsed.data.description,
             photoPath,
+            // Checkbox fully determines the value (absent = unchecked).
+            excludeChecklist: formData.get("excludeChecklist") === "on",
         }).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)));
 
         // PIC group binding from the device side: the form submits one

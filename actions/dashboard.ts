@@ -31,28 +31,37 @@ export async function getDashboardStats() {
     weekStart.setDate(weekStart.getDate() - 6);
     const sevenDaysAgo = toDateString(weekStart);
 
+    // Population for every count below = auditable rack (or no rack) AND not
+    // excluded from the checklist. Denominator and numerator share this exact
+    // predicate, so checkedToday can never exceed totalDevices (>100% bug).
+    const IN_POPULATION = and(
+        eq(devices.siteId, siteId),
+        eq(devices.excludeChecklist, false),
+        or(eq(racks.isAuditable, true), isNull(racks.id)),
+    );
+
     // 1. Overall Completion
     const totalDevices = await db.select({ count: sql<number>`count(*)` }).from(devices)
         .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
+        .where(IN_POPULATION)
+        .then(res => Number(res[0].count));
+
+    // Count devices checked today (same population → same rack + exclude
+    // filter as the denominator, so the ratio is always ≤ 100%).
+    const checkedToday = await db.select({ count: sql<number>`count(distinct ${checklistItems.deviceId})` })
+        .from(checklistItems)
+        .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
+        .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
         .where(and(
-            eq(devices.siteId, siteId),
+            eq(checklistEntries.checkDate, today),
+            eq(checklistEntries.siteId, siteId),
+            eq(devices.excludeChecklist, false),
             or(eq(racks.isAuditable, true), isNull(racks.id)),
         ))
         .then(res => Number(res[0].count));
 
-    // Count devices checked today
-    const checkedToday = await db.select({ count: sql<number>`count(distinct ${checklistItems.deviceId})` })
-        .from(checklistItems)
-        .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
-        .where(
-            and(
-                eq(checklistEntries.checkDate, today),
-                eq(checklistEntries.siteId, siteId)
-            )
-        )
-        .then(res => Number(res[0].count));
-
-    const overallCompletion = totalDevices > 0 ? Math.round((checkedToday / totalDevices) * 100) : 0;
+    const overallCompletion = totalDevices > 0 ? Math.min(100, Math.round((checkedToday / totalDevices) * 100)) : 0;
 
     // 2. Completion by Category
     const allCategories = await db.select().from(categories);
@@ -65,6 +74,7 @@ export async function getDashboardStats() {
             .where(and(
                 eq(devices.categoryId, cat.id),
                 eq(devices.siteId, siteId),
+                eq(devices.excludeChecklist, false),
                 or(eq(racks.isAuditable, true), isNull(racks.id)),
             ))
             .then(res => Number(res[0].count));
@@ -78,6 +88,7 @@ export async function getDashboardStats() {
                 eq(checklistEntries.checkDate, today),
                 eq(devices.categoryId, cat.id),
                 eq(checklistEntries.siteId, siteId),
+                eq(devices.excludeChecklist, false),
                 or(eq(racks.isAuditable, true), isNull(racks.id)),
             ))
             .then(res => Number(res[0].count));
@@ -87,7 +98,7 @@ export async function getDashboardStats() {
             name: cat.name,
             total: catDevices,
             checked: catChecked,
-            percentage: catDevices > 0 ? Math.round((catChecked / catDevices) * 100) : 0
+            percentage: catDevices > 0 ? Math.min(100, Math.round((catChecked / catDevices) * 100)) : 0
         });
     }
 
@@ -124,17 +135,23 @@ export async function getDashboardStats() {
             overdue: Number(res[0]?.overdue ?? 0),
         }));
 
-    // 4. Daily completion over the last 7 days
+    // 4. Daily completion over the last 7 days (same population filter, so
+    //    each day's checked count is scoped to auditable, non-excluded
+    //    devices — percentages stay ≤ 100% across the whole trend).
     const dailyRows = await db.select({
         date: checklistEntries.checkDate,
         checked: sql<number>`count(distinct ${checklistItems.deviceId})`,
     })
         .from(checklistItems)
         .innerJoin(checklistEntries, eq(checklistItems.entryId, checklistEntries.id))
+        .innerJoin(devices, eq(checklistItems.deviceId, devices.id))
+        .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
         .where(
             and(
                 gte(checklistEntries.checkDate, sevenDaysAgo),
-                eq(checklistEntries.siteId, siteId)
+                eq(checklistEntries.siteId, siteId),
+                eq(devices.excludeChecklist, false),
+                or(eq(racks.isAuditable, true), isNull(racks.id)),
             )
         )
         .groupBy(checklistEntries.checkDate)

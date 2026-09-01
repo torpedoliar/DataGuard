@@ -40,6 +40,7 @@ export async function addLocation(prevState: unknown, formData: FormData) {
             description,
             siteId: session.activeSiteId,
             tempThresholdC: tempThreshold ?? 27,
+            excludeTempCheck: formData.get("excludeTempCheck") === "on",
         });
         revalidatePath("/admin/locations");
         await logAudit({ action: "CREATE", entity: "location", entityName: name, detail: description });
@@ -74,6 +75,8 @@ export async function updateLocation(prevState: unknown, formData: FormData) {
                 description,
                 // Empty field keeps the stored threshold.
                 ...(tempThreshold !== null ? { tempThresholdC: tempThreshold } : {}),
+                // Checkbox fully determines the value (absent = unchecked).
+                excludeTempCheck: formData.get("excludeTempCheck") === "on",
             })
             .where(eq(locations.id, id));
 

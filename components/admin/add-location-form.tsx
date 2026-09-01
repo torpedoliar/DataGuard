@@ -63,6 +63,13 @@ export default function AddLocationForm() {
                     />
                 </div>
 
+                <div className="lg:col-span-1">
+                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer py-2">
+                        <input type="checkbox" name="excludeTempCheck" className="size-4 rounded border-slate-300 dark:border-slate-600" />
+                        Kecualikan dari audit suhu
+                    </label>
+                </div>
+
                 <button
                     type="submit"
                     disabled={isPending}
