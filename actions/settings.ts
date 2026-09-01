@@ -24,7 +24,7 @@ const settingsSchema = z.object({
     activeSiteTelegramChatId: z.string().max(120, "Chat ID Telegram maksimal 120 karakter").optional(),
     telegramBotToken: z.string().max(200, "Token bot Telegram maksimal 200 karakter").optional(),
     telegramAlertTemplate: z.string().max(4000, "Template Telegram maksimal 4000 karakter").optional(),
-    emailAlertTemplate: z.string().max(4000, "Template Email maksimal 4000 karakter").optional(),
+    emailAlertTemplate: z.string().max(50000, "Template Email maksimal 50000 karakter").optional(),
     emailAlertSubject: z.string().max(500, "Subject Email maksimal 500 karakter").optional(),
 });
 

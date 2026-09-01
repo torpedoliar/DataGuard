@@ -642,12 +642,12 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         value={emailTemplate}
                         onChange={(event) => setEmailTemplate(event.target.value)}
                         rows={13}
-                        maxLength={4000}
+                        maxLength={50000}
                         className="w-full resize-y rounded-lg bg-slate-950 border border-slate-700 px-3 py-3 font-mono text-xs leading-relaxed text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                     />
                     <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-500">
-                        <span>HTML sederhana didukung (&lt;b&gt;, &lt;br&gt;); nilai field otomatis di-escape.</span>
-                        <span>{emailTemplate.length}/4000</span>
+                        <span>Format HTML penuh didukung; nilai variabel otomatis di-escape untuk keamanan.</span>
+                        <span>{emailTemplate.length}/50000</span>
                     </div>
                 </div>
 
