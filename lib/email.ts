@@ -311,7 +311,14 @@ export function resetEmailTransporter() {
   transporterUrl = null;
 }
 
-export type EmailSendResult = { success: boolean; error?: string };
+export type EmailSendResult = {
+  success: boolean;
+  error?: string;
+  /** Server's final DATA response (e.g. "250 2.0.0 Queued as ABC123"). */
+  response?: string;
+  /** Message-ID assigned by the client/server for mail-log searches. */
+  messageId?: string;
+};
 
 /**
  * Probe an SMTP account exactly as the user typed it in the Settings form —
@@ -348,14 +355,14 @@ export async function sendTestEmail(
       tls: { rejectUnauthorized: false },
       requireTLS: requireTls,
     });
-    await transport.sendMail({
+    const info = await transport.sendMail({
       from: account.from?.trim() || (await resolveSmtpFrom()),
       to,
       subject,
       text: textBody,
       html: htmlBody,
     });
-    return { success: true };
+    return { success: true, response: info.response, messageId: info.messageId };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }

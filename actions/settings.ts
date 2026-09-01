@@ -501,8 +501,24 @@ export async function sendEmailTestMessage(prevState: unknown, formData: FormDat
         action: "TEST",
         entity: "settings",
         entityName: "Email",
-        detail: `Email test message sent to ${to}`,
+        detail: `Email test sent to ${to} via ${formAccount.host || "saved/env SMTP"} — ${result.response ?? "accepted"}`,
     });
 
-    return { success: true, message: "Email test berhasil dikirim." };
+    // Success at the SMTP layer is NOT delivery — spam filtering, relay
+    // routing, and quarantine happen after the server says 250. Show the
+    // operator exactly what was accepted, where, and how to trace it.
+    const transportDesc = formAccount.host
+        ? `${formAccount.host}:${formAccount.port ?? (formAccount.secure === "ssl" ? 465 : formAccount.secure === "none" ? 25 : 587)}`
+        : "SMTP tersimpan / env";
+    const queueId = result.response?.match(/queued as (\S+)/i)?.[1];
+    return {
+        success: true,
+        message: [
+            `Diterima server SMTP (${transportDesc}).`,
+            result.response ? `Respons: ${result.response}` : null,
+            result.messageId ? `Message-ID: ${result.messageId}` : null,
+            queueId ? `Queue ID: ${queueId} — cari ID ini di log mail server kalau email tidak sampai (spam/quarantine/relay routing).` : null,
+            "Email belum muncul? Cek folder Spam/Junk dulu, lalu log mail server — penerimaan SMTP sukses bukan jaminan inbox.",
+        ].filter(Boolean).join(" "),
+    };
 }
