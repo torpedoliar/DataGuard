@@ -70,6 +70,33 @@ async function resolveChecklistRecipients(siteId: number, severity: ChecklistSev
         .map((row) => ({ chatId: row.chatId }));
 }
 
+export async function getAuditEntryByDate(checkDate: string) {
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return null;
+    if (!checkDate || typeof checkDate !== "string") return null;
+
+    try {
+        const rows = await db.select({
+            id: checklistEntries.id,
+            checkDate: checklistEntries.checkDate,
+            checkTime: checklistEntries.checkTime,
+            shift: checklistEntries.shift,
+            checker: sql<string>`(select username from users where id = ${checklistEntries.userId})`,
+        })
+        .from(checklistEntries)
+        .where(and(
+            eq(checklistEntries.siteId, auth.activeSiteId),
+            eq(checklistEntries.checkDate, checkDate.trim()),
+        ))
+        .orderBy(desc(checklistEntries.id))
+        .limit(1);
+
+        return rows[0] || null;
+    } catch {
+        return null;
+    }
+}
+
 export async function submitChecklist(prevState: unknown, formData: FormData) {
     const auth = await requireActiveSiteAction();
     if (!auth.ok) return { message: auth.message };

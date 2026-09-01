@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { submitChecklist } from "@/actions/checklist";
+import { useActionState, useEffect, useMemo, useState, useCallback, useRef, useTransition } from "react";
+import { submitChecklist, getAuditEntryByDate } from "@/actions/checklist";
 import ActionButton from "@/components/ui/action-button";
 import { selectScopeDevices, sortRacksByLayout, type AuditScopeMode } from "@/lib/checklist-scope";
 import { CalendarDays, ChevronDown, Clock3, Layers3, Server, Send, Search, Thermometer } from "lucide-react";
@@ -144,27 +144,44 @@ export default function ChecklistForm({
   const sortedRacks = useMemo(() => sortRacksByLayout(racks), [racks]);
   const today = new Date().toISOString().split("T")[0];
   const now = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const [checkDate, setCheckDate] = useState(today);
+  const [existingDateEntry, setExistingDateEntry] = useState(existingTodayEntry);
+  const [, startCheckDateTransition] = useTransition();
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = e.target.value;
+    setCheckDate(newDate);
+    if (!newDate) {
+      setExistingDateEntry(null);
+      return;
+    }
+    startCheckDateTransition(async () => {
+      const entry = await getAuditEntryByDate(newDate);
+      setExistingDateEntry(entry);
+    });
+  };
+
   const activeCategory = scopeMode === "category" && activeTab ? categories.find((c) => c.id === activeTab) : null;
   const hasDevices = devices.length > 0;
 
   return (
     <form action={action} className="flex flex-col gap-5" suppressHydrationWarning>
-      {existingTodayEntry && (
+      {existingDateEntry && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-200 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-amber-100">
-                Audit hari ini ({existingTodayEntry.checkDate}) sudah tercatat oleh <span className="underline">{existingTodayEntry.checker}</span> ({existingTodayEntry.checkTime}, Shift {existingTodayEntry.shift}).
+                Audit tanggal ({existingDateEntry.checkDate}) sudah tercatat oleh <span className="underline">{existingDateEntry.checker}</span> ({existingDateEntry.checkTime}, Shift {existingDateEntry.shift}).
               </p>
               <p className="mt-1 text-xs text-amber-200/80">
-                Submisi perangkat di bawah akan otomatis memperbarui audit hari ini tanpa menghasilkan auditor ganda.
+                Submisi perangkat di bawah akan otomatis memperbarui audit tanggal ini tanpa menghasilkan auditor ganda.
               </p>
             </div>
             <Link
-              href={`/report/edit/${existingTodayEntry.id}`}
+              href={`/report/edit/${existingDateEntry.id}`}
               className="inline-flex shrink-0 items-center justify-center rounded-md border border-amber-400/50 bg-amber-400/20 px-3 py-1.5 text-xs font-bold text-amber-100 hover:bg-amber-400/30 transition-colors"
             >
-              Edit Form Audit Hari Ini
+              Edit Form Audit ({existingDateEntry.checkDate})
             </Link>
           </div>
         </div>
@@ -181,7 +198,14 @@ export default function ChecklistForm({
             <span className={labelClass}>Date</span>
             <div className="relative">
               <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
-              <input type="date" name="checkDate" defaultValue={today} required className={clsx(fieldClass, "pl-9")} />
+              <input
+                type="date"
+                name="checkDate"
+                value={checkDate}
+                onChange={handleDateChange}
+                required
+                className={clsx(fieldClass, "pl-9")}
+              />
             </div>
           </label>
           <label>
