@@ -28,7 +28,9 @@
     "siem:ai": "tsx scripts/siem-ai-worker.ts",
     "siem:snapshot": "tsx scripts/siem-snapshot-worker.ts",
     "backup:scheduler": "tsx scripts/scheduled-backup.ts",
-    "backup:restore": "tsx scripts/restore-from-file.ts"
+    "backup:restore": "tsx scripts/restore-from-file.ts",
+    "reports:scheduler": "tsx scripts/report-scheduler-worker.ts",
+    "reports:scheduler:run-once": "tsx scripts/report-scheduler-worker.ts --run-once"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

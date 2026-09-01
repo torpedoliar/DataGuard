@@ -596,6 +596,39 @@ export const globalSettings = pgTable("global_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ==================== REPORT SCHEDULES ====================
+export const reportSchedules = pgTable("report_schedules", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  reportType: text("report_type").notNull().default("audit_grid"), // "audit_grid" | "incidents" | "daily_checklist"
+  frequency: text("frequency").notNull().default("weekly"), // "daily" | "weekly" | "monthly"
+  dayOfWeek: integer("day_of_week").default(1), // 0=Sun, 1=Mon, ..., 6=Sat
+  dayOfMonth: integer("day_of_month").default(1), // 1-31
+  runTime: text("run_time").notNull().default("08:00"), // HH:mm (WIB)
+  recipients: text("recipients").notNull(),
+  emailSubject: text("email_subject"),
+  includePdf: boolean("include_pdf").notNull().default(true),
+  includeSummaryHtml: boolean("include_summary_html").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+  nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+  lastRunStatus: text("last_run_status"),
+  lastRunError: text("last_run_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  nextRunIdx: index("report_schedules_next_run_idx").on(table.nextRunAt),
+  siteIdIdx: index("report_schedules_site_id_idx").on(table.siteId),
+}));
+
+export const reportSchedulesRelations = relations(reportSchedules, ({ one }) => ({
+  site: one(sites, {
+    fields: [reportSchedules.siteId],
+    references: [sites.id],
+  }),
+}));
+
 // ==================== AUDIT LOGS ====================
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),

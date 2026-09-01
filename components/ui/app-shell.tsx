@@ -10,6 +10,7 @@ import {
   Bell,
   Building2,
   Cable,
+  CalendarClock,
   ChartColumn,
   ChevronDown,
   CircleAlert,
@@ -72,6 +73,7 @@ const iconMap: Record<string, LucideIcon> = {
   settings: Settings,
   "shield-alert": ShieldAlert,
   download: Download,
+  "calendar-clock": CalendarClock,
 };
 
 function getInitials(username: string) {

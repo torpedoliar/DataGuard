@@ -2,7 +2,7 @@
 "use server";
 
 import { db } from "@/db";
-import { checklistEntries, devices, checklistItems, categories, users, locations, racks } from "@/db/schema";
+import { checklistEntries, devices, checklistItems, categories, users, locations, racks, sites } from "@/db/schema";
 import { eq, and, gte, lte, or, isNull, sql } from "drizzle-orm";
 import { requireActiveSiteAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
@@ -24,9 +24,10 @@ export type DailyCheck = {
 export async function getAuditGridData(startDateStr?: string, endDateStr?: string) {
     const auth = await requireActiveSiteAction();
     if (!auth.ok) return { dates: [] as string[], gridData: [], roomTempByDate: {} as Record<string, string[]> };
+    return fetchAuditGridDataForSite(auth.activeSiteId, startDateStr, endDateStr);
+}
 
-    const siteId = auth.activeSiteId;
-
+export async function fetchAuditGridDataForSite(siteId: number, startDateStr?: string, endDateStr?: string) {
     // Determine bounds
     const today = new Date();
     const endDateObj = endDateStr ? new Date(endDateStr) : today;
@@ -169,7 +170,19 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
  * KPI numbers for the report header.
  */
 export async function getRawGridExportData(startDateStr?: string, endDateStr?: string, statusFilter?: string) {
-    const { dates, gridData, roomTempByDate } = await getAuditGridData(startDateStr, endDateStr);
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return null;
+    return fetchRawGridExportDataForSite(auth.activeSiteId, startDateStr, endDateStr, statusFilter);
+}
+
+export async function fetchRawGridExportDataForSite(siteId: number, startDateStr?: string, endDateStr?: string, statusFilter?: string) {
+    const [{ dates, gridData, roomTempByDate }, site] = await Promise.all([
+        fetchAuditGridDataForSite(siteId, startDateStr, endDateStr),
+        db.query.sites.findFirst({
+            where: eq(sites.id, siteId),
+            columns: { name: true, code: true },
+        }),
+    ]);
 
     const filteredGridData = statusFilter && statusFilter !== "All"
         ? gridData.filter((device) =>
@@ -227,6 +240,8 @@ export async function getRawGridExportData(startDateStr?: string, endDateStr?: s
             .map(([category, { total, notOk }]) => ({ category, total, notOk }))
             .sort((a, b) => b.notOk - a.notOk || b.total - a.total),
         roomTempByDate,
+        siteName: site?.name ?? "Data Center",
+        siteCode: site?.code ?? "DC",
     };
 }
 

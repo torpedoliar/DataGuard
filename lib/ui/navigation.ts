@@ -27,6 +27,7 @@ const operateItems: NavItem[] = [
 const resolveItems: NavItem[] = [
   { href: "/admin/incidents", label: "Incidents", labelKey: "incidents", ns: "Nav", icon: "circle-alert" },
   { href: "/report", label: "Reports", labelKey: "reports", ns: "Nav", icon: "chart-column" },
+  { href: "/report/schedules", label: "Report Schedules", icon: "calendar-clock" },
 ];
 
 const siemItems: NavItem[] = [
