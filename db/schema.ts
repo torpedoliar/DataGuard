@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, jsonb, index } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, jsonb, index, real } from "drizzle-orm/pg-core";
 import { AnyPgColumn } from "drizzle-orm/pg-core";
 
 // ==================== ENUMS ====================
@@ -125,6 +125,11 @@ export const locations = pgTable("locations", {
   siteId: integer("site_id").references(() => sites.id),
   name: text("name").notNull(),
   description: text("description"),
+  // Room temperature (°C): current reading + alert threshold. Optional —
+  // null = this room's temperature is not measured. The checklist records a
+  // snapshot per audit; readings above threshold+3 auto-open an incident.
+  tempC: real("temp_c"),
+  tempThresholdC: real("temp_threshold_c"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -212,6 +217,11 @@ export const checklistEntries = pgTable("checklist_entries", {
   checkDate: text("check_date").notNull(),
   checkTime: text("check_time").notNull(),
   shift: shiftEnum("shift").notNull(),
+  // Room-temperature snapshot for this audit: { [locationId]: {tempC,
+  // thresholdC} } for every measured room touched by the audit. Reports
+  // read this instead of the mutable locations.temp_c (which always holds
+  // the latest reading).
+  locationTemps: jsonb("location_temps").$type<Record<string, { tempC: number; thresholdC: number }>>().notNull().default(sql`'{}'::jsonb`),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

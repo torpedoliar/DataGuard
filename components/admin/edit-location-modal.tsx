@@ -10,6 +10,7 @@ interface EditLocationModalProps {
         id: number;
         name: string;
         description: string | null;
+        tempThresholdC?: number | null;
     };
     onClose: () => void;
 }
@@ -63,6 +64,24 @@ export default function EditLocationModal({ location, onClose }: EditLocationMod
                                 defaultValue={location.description || ""}
                                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                Batas Suhu Ruangan (°C)
+                            </label>
+                            <input
+                                name="tempThresholdC"
+                                type="number"
+                                step="0.5"
+                                min={10}
+                                max={60}
+                                defaultValue={location.tempThresholdC ?? 27}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <p className="mt-1 text-xs text-slate-500">
+                                Suhu lebih dari batas +3°C saat audit otomatis membuat incident.
+                            </p>
                         </div>
                     </div>
 

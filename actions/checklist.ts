@@ -2,7 +2,7 @@
 "use server";
 
 import { db } from "../db";
-import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds, incidents, incidentUpdates, emailAlerts } from "../db/schema";
+import { checklistEntries, checklistItems, users, sites, devices, siteTelegramChatIds, incidents, incidentUpdates, emailAlerts, locations } from "../db/schema";
 import { createIncidentsForChecklistItems } from "@/actions/incidents";
 import { getTelegramAlertTemplate, getEmailAlertTemplate } from "@/actions/settings";
 import { escapeTelegramHtml, renderTelegramTemplate, sendTelegramAlert, sendTelegramPhoto, splitTelegramChunks } from "@/lib/telegram";
@@ -128,6 +128,42 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
         let entryId = 0;
         let createdIncidents: Awaited<ReturnType<typeof createIncidentsForChecklistItems>> = [];
 
+        // Room-temperature readings from the form: { roomTemp-<locationId> }.
+        // Only rooms the admin configured with a threshold accept input;
+        // readings are validated against that location's site + threshold.
+        // Over threshold+3 → a synthetic NOT-OK "device" (the room) joins the
+        // normal alert/incident/notification flow so nothing downstream
+        // changes.
+        const tempInputs = new Map<number, number>();
+        for (const [key, value] of formData.entries()) {
+            if (!key.startsWith("roomTemp-") || typeof value !== "string" || !value.trim()) continue;
+            const locationId = Number(key.slice("roomTemp-".length));
+            const parsed = Number(value);
+            if (Number.isInteger(locationId) && Number.isFinite(parsed)) {
+                tempInputs.set(locationId, parsed);
+            }
+        }
+        const measuredLocations = tempInputs.size > 0
+            ? await db.select({
+                id: locations.id,
+                name: locations.name,
+                tempThresholdC: locations.tempThresholdC,
+            }).from(locations).where(and(
+                inArray(locations.id, [...tempInputs.keys()]),
+                eq(locations.siteId, auth.activeSiteId),
+            ))
+            : [];
+        const locationTempsSnapshot: Record<string, { tempC: number; thresholdC: number }> = {};
+        const tempIncidentItems: { locationId: number; locationName: string; tempC: number; thresholdC: number }[] = [];
+        for (const location of measuredLocations) {
+            const tempC = tempInputs.get(location.id)!;
+            const thresholdC = location.tempThresholdC ?? 27;
+            locationTempsSnapshot[String(location.id)] = { tempC, thresholdC };
+            if (tempC > thresholdC + 3) {
+                tempIncidentItems.push({ locationId: location.id, locationName: location.name, tempC, thresholdC });
+            }
+        }
+
         await db.transaction(async (tx) => {
             const [entry] = await tx.insert(checklistEntries).values({
                 siteId: auth.activeSiteId,
@@ -135,8 +171,29 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                 checkDate,
                 checkTime,
                 shift,
+                locationTemps: locationTempsSnapshot,
             }).returning();
             entryId = entry.id;
+
+            // Room over threshold+3: synthetic NOT-OK item. deviceId is
+            // NOT NULL on checklist_items/incidents, so rooms without a
+            // device in this audit can't anchor a row — the breach is
+            // recorded in entry.locationTemps (above) and, for rooms that
+            // DO have audited devices, folded into that device's remarks
+            // below so it still reaches notifications.
+            if (tempIncidentItems.length > 0) {
+                for (const temp of tempIncidentItems) {
+                    const anchorDeviceId = deviceIds.find((deviceId) => {
+                        const device = siteDevices.find((s) => s.id === deviceId);
+                        return Boolean(device);
+                    });
+                    const anchorAlert = alertItems.find((a) => a.deviceId === anchorDeviceId);
+                    const note = `[SUHU RUANGAN] ${temp.locationName}: ${temp.tempC}°C (batas ${temp.thresholdC}°C)`;
+                    if (anchorAlert && !anchorAlert.remarks.includes("[SUHU RUANGAN]")) {
+                        anchorAlert.remarks = `${note}\n${anchorAlert.remarks}`;
+                    }
+                }
+            }
 
             for (const deviceId of deviceIds) {
                 const status = formData.get(`status-${deviceId}`) as "OK" | "NOT OK";

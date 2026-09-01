@@ -23,7 +23,7 @@ export type DailyCheck = {
 
 export async function getAuditGridData(startDateStr?: string, endDateStr?: string) {
     const auth = await requireActiveSiteAction();
-    if (!auth.ok) return { dates: [], gridData: [] };
+    if (!auth.ok) return { dates: [] as string[], gridData: [], roomTempByDate: {} as Record<string, string[]> };
 
     const siteId = auth.activeSiteId;
 
@@ -119,7 +119,33 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
         };
     });
 
-    return { dates, gridData };
+    // Room-temperature readings per date (from the per-entry snapshot):
+    // { [date]: "Room A 26.5°C (≤27)" / "Room B 31°C ⚠" } — only rooms with
+    // a recorded reading that day.
+    const tempRows = await db.select({
+        checkDate: checklistEntries.checkDate,
+        locationTemps: checklistEntries.locationTemps,
+    })
+        .from(checklistEntries)
+        .where(and(
+            gte(checklistEntries.checkDate, startBoundary),
+            lte(checklistEntries.checkDate, endBoundary),
+            eq(checklistEntries.siteId, siteId),
+        ))
+        .orderBy(checklistEntries.checkDate, checklistEntries.checkTime);
+    const roomTempByDate: Record<string, string[]> = {};
+    for (const row of tempRows) {
+        if (!row.checkDate) continue;
+        for (const [, temp] of Object.entries(row.locationTemps ?? {})) {
+            const overThreshold = temp.tempC > temp.thresholdC;
+            const line = overThreshold
+                ? `${temp.tempC}°C ⚠ (batas ${temp.thresholdC}°C)`
+                : `${temp.tempC}°C`;
+            (roomTempByDate[row.checkDate] ??= []).push(line);
+        }
+    }
+
+    return { dates, gridData, roomTempByDate };
 }
 
 /**
@@ -128,7 +154,7 @@ export async function getAuditGridData(startDateStr?: string, endDateStr?: strin
  * KPI numbers for the report header.
  */
 export async function getRawGridExportData(startDateStr?: string, endDateStr?: string, statusFilter?: string) {
-    const { dates, gridData } = await getAuditGridData(startDateStr, endDateStr);
+    const { dates, gridData, roomTempByDate } = await getAuditGridData(startDateStr, endDateStr);
 
     const filteredGridData = statusFilter && statusFilter !== "All"
         ? gridData.filter((device) =>
@@ -185,8 +211,10 @@ export async function getRawGridExportData(startDateStr?: string, endDateStr?: s
         categories: Array.from(byCategory.entries())
             .map(([category, { total, notOk }]) => ({ category, total, notOk }))
             .sort((a, b) => b.notOk - a.notOk || b.total - a.total),
+        roomTempByDate,
     };
 }
+
 
 /**
  * Server-side styled Excel export of the Audit Grid: matrix Device × Date
@@ -195,7 +223,7 @@ export async function getRawGridExportData(startDateStr?: string, endDateStr?: s
  * dark with white text; device column frozen. Returns a base64 xlsx.
  */
 export async function exportGridToExcel(startDateStr?: string, endDateStr?: string, statusFilter?: string) {
-    const { dates, gridData } = await getAuditGridData(startDateStr, endDateStr);
+    const { dates, gridData, roomTempByDate } = await getAuditGridData(startDateStr, endDateStr);
 
     const filteredGridData = statusFilter && statusFilter !== "All"
         ? gridData.filter((device) =>
@@ -214,6 +242,16 @@ export async function exportGridToExcel(startDateStr?: string, endDateStr?: stri
             row.location ?? "",
             ...dates.map((date) => (row[date] as string | number | null | undefined) ?? ""),
         ]);
+    }
+
+    // Room-temperature rows below the matrix (when any room was measured).
+    if (Object.keys(roomTempByDate ?? {}).length > 0) {
+        aoa.push([]); // spacer row
+        const tempRow: (string | null)[] = ["Suhu Ruangan", "", ""];
+        for (const date of dates) {
+            tempRow.push((roomTempByDate?.[date] ?? []).join("; ") || null);
+        }
+        aoa.push(tempRow);
     }
 
     const worksheet = XLSX.utils.aoa_to_sheet(aoa);

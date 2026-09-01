@@ -4,13 +4,14 @@ import { useActionState, useEffect, useMemo, useState, useCallback, useRef } fro
 import { submitChecklist } from "@/actions/checklist";
 import ActionButton from "@/components/ui/action-button";
 import { selectScopeDevices, sortRacksByLayout, type AuditScopeMode } from "@/lib/checklist-scope";
-import { CalendarDays, ChevronDown, Clock3, Layers3, Server, Send, Search } from "lucide-react";
+import { CalendarDays, ChevronDown, Clock3, Layers3, Server, Send, Search, Thermometer } from "lucide-react";
 import clsx from "clsx";
 import FieldAuditCard from "./field-audit-card";
 
 type Category = { id: number; name: string };
-type Device = { id: number; name: string; locationName: string | null; categoryId: number; rackName: string | null; rackPosition: number | null };
+type Device = { id: number; name: string; locationName: string | null; categoryId: number; rackName: string | null; rackPosition: number | null; locationId: number | null };
 type Rack = { id: number; name: string; zone: string | null };
+export type MeasuredLocation = { id: number; name: string; tempC: number | null; tempThresholdC: number | null };
 
 const STORAGE_KEY = "checklist-audit-partial";
 
@@ -36,11 +37,13 @@ export default function ChecklistForm({
   categories,
   devices,
   racks,
+  measuredLocations,
   prefillDeviceId,
 }: {
   categories: Category[];
   devices: Device[];
   racks: Rack[];
+  measuredLocations: MeasuredLocation[];
   prefillDeviceId?: number;
 }) {
   // Scope mode: "category" tab filters the view AND the submit; "rack" adds
@@ -52,6 +55,9 @@ export default function ChecklistForm({
   const [activeRacks, setActiveRacks] = useState<string[]>([]);
   // <details> element for the rack dropdown — closed after picking "All racks".
   const rackDropdown = useRef<HTMLDetailsElement | null>(null);
+  // Room temperature readings (°C) keyed by location id, for rooms the admin
+  // configured with a threshold. Submitted with the checklist.
+  const [roomTemps, setRoomTemps] = useState<Record<number, string>>({});
   const [filter, setFilter] = useState("");
   // Persist status/remarks per device so switching tabs never loses data
   const [auditData, setAuditData] = useState<Record<string, { status: string; remarks: string }>>(() =>
@@ -153,6 +159,59 @@ export default function ChecklistForm({
             </div>
           </label>
         </div>
+
+        {/* Room temperature inputs — for rooms the admin configured with a
+            threshold. Optional per reading; readings above threshold+3 are
+            flagged server-side as a NOT-OK item ("Ruangan <name>") that joins
+            the normal alert/incident flow. */}
+        {measuredLocations.length > 0 && (
+          <div className="border-t border-ops-border p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Thermometer className="size-4 text-ops-accent" />
+              <h3 className="text-sm font-bold text-ops-text">Suhu Ruangan (°C)</h3>
+              <span className="text-xs text-ops-muted">— opsional; batas normal tiap ruang di tanda kurung</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {measuredLocations.map((location) => {
+                const value = roomTemps[location.id] ?? "";
+                const threshold = location.tempThresholdC ?? 27;
+                const overThreshold = value !== "" && Number(value) > threshold;
+                const overIncident = value !== "" && Number(value) > threshold + 3;
+                return (
+                  <label key={location.id} className="block">
+                    <span className="mb-1 block truncate text-xs font-semibold text-ops-muted" title={location.name}>
+                      {location.name} <span className="font-normal opacity-70">(≤ {threshold}°C)</span>
+                    </span>
+                    <div className="relative">
+                      <Thermometer className={clsx(
+                        "pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2",
+                        overIncident ? "text-red-400" : overThreshold ? "text-amber-400" : "text-ops-muted",
+                      )} />
+                      <input
+                        type="number"
+                        step="0.1"
+                        inputMode="decimal"
+                        name={`roomTemp-${location.id}`}
+                        value={value}
+                        onChange={(event) =>
+                          setRoomTemps((prev) => ({ ...prev, [location.id]: event.target.value }))
+                        }
+                        placeholder="—"
+                        className={clsx(
+                          fieldClass,
+                          "pl-9 pr-8",
+                          overIncident && "border-red-400/60 ring-1 ring-red-400/40",
+                          overThreshold && !overIncident && "border-amber-400/60",
+                        )}
+                      />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ops-muted">°C</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Scope tabs — the active tab defines WHICH devices get submitted.

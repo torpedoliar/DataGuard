@@ -295,6 +295,13 @@
       "when": 1787073695128,
       "tag": "0042_smtp_structured",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1787073695129,
+      "tag": "0043_location_temperature",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,7 @@ type Location = {
   id: number;
   name: string;
   description: string | null;
+  tempThresholdC: number | null;
   createdAt: Date | null;
 };
 
@@ -112,18 +113,20 @@ export default function LocationTable({ locations }: { locations: Location[] }) 
             <tr>
               <SortableHead label="Location Name" onClick={() => handleSort("name")} icon={renderSortIcon("name")} />
               <SortableHead label="Description" onClick={() => handleSort("description")} icon={renderSortIcon("description")} />
+              <th className="px-5 py-3 text-left">Batas Suhu</th>
               <SortableHead label="Created At" onClick={() => handleSort("createdAt")} icon={renderSortIcon("createdAt")} />
               <th className="px-5 py-3 text-right">Actions</th>
             </tr>
           </DataTableHead>
           <DataTableBody>
             {filtered.length === 0 ? (
-              <DataTableEmpty colSpan={4} title={search ? "No locations match your search" : "No locations found"} description="Add one location to start mapping devices to rooms." />
+              <DataTableEmpty colSpan={5} title={search ? "No locations match your search" : "No locations found"} description="Add one location to start mapping devices to rooms." />
             ) : (
               filtered.map((location) => (
                 <tr key={location.id} className="transition-colors hover:bg-ops-surface">
                   <td className="px-5 py-3 font-semibold text-ops-text">{location.name}</td>
                   <td className="px-5 py-3 text-ops-muted">{location.description || "-"}</td>
+                  <td className="px-5 py-3 font-mono text-ops-text">{location.tempThresholdC != null ? `${location.tempThresholdC}°C` : "-"}</td>
                   <td className="px-5 py-3 text-ops-muted">{location.createdAt ? new Date(location.createdAt).toLocaleDateString("id-ID") : "-"}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">

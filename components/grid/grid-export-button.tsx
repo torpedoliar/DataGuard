@@ -269,6 +269,28 @@ export default function GridExportButton() {
             const categoryText = `By category — ${data.categories.map((c) => `${c.category}: ${c.total} checks, ${c.notOk} NOT OK`).join("   ·   ")}`;
             doc.text(doc.splitTextToSize(categoryText, usable), left, summaryEndY + 5);
 
+            // ---- Room temperature line (when measured): per-day readings
+            // from the audit snapshot; ⚠ marks threshold breaches. ----
+            const roomTempLines = data.roomTempByDate
+                ? data.dates
+                    .filter((date) => (data.roomTempByDate?.[date] ?? []).length > 0)
+                    .map((date) => `${date}: ${data.roomTempByDate![date].join("; ")}`)
+                : [];
+            let afterTempY = summaryEndY;
+            if (roomTempLines.length > 0) {
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(7.5);
+                doc.setTextColor(...INK.primary);
+                doc.text("Suhu Ruangan (°C)", left, summaryEndY + 12);
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(...INK.secondary);
+                doc.setFontSize(7);
+                const tempText = roomTempLines.join("   ·   ");
+                const tempWrapped = doc.splitTextToSize(tempText, usable) as string[];
+                doc.text(tempWrapped, left, summaryEndY + 18);
+                afterTempY = summaryEndY + 18 + tempWrapped.length * 3.2;
+            }
+
             // ---- Device × Date matrix (colored status cells; auditor shown
             // for every check, OK included) ----
             const head = [["Device", "Category", ...data.dates.map((d) => {
@@ -288,7 +310,7 @@ export default function GridExportButton() {
             ]);
 
             autoTable(doc, {
-                startY: summaryEndY + 9,
+                startY: afterTempY + 9,
                 margin: { left, right: left },
                 head,
                 body,

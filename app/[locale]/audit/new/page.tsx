@@ -1,5 +1,6 @@
 import { getCategories, getDevices } from "@/actions/master-data";
 import { getRacks } from "@/actions/rack-management";
+import { getLocations } from "@/actions/locations";
 import ChecklistForm from "@/components/checklist/checklist-form";
 import ActionButton from "@/components/ui/action-button";
 import PageHeader from "@/components/ui/page-header";
@@ -19,6 +20,10 @@ export default async function NewAuditPage(props: { searchParams: Promise<{ devi
   // getRacks returns every rack; audit tabs only cover racks the audit flow
   // includes (is_auditable), matching getDevices()' rack filter.
   const racks = (await getRacks()).filter((rack) => rack.isAuditable);
+  // Rooms with a temperature threshold show a temp input on the audit form.
+  const measuredLocations = (await getLocations())
+    .filter((loc) => loc.tempThresholdC !== null)
+    .map(({ id, name, tempC, tempThresholdC }) => ({ id, name, tempC, tempThresholdC }));
 
   const formattedDevices = devices.map((device) => ({
     ...device,
@@ -55,6 +60,7 @@ export default async function NewAuditPage(props: { searchParams: Promise<{ devi
         categories={categories}
         devices={formattedDevices}
         racks={racks.map(({ id, name, zone }) => ({ id, name, zone }))}
+        measuredLocations={measuredLocations}
         prefillDeviceId={prefillDeviceId}
       />
     </main>

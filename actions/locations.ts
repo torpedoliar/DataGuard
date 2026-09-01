@@ -30,6 +30,7 @@ export async function addLocation(prevState: unknown, formData: FormData) {
 
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
+    const tempThreshold = parseTemp(formData.get("tempThresholdC"));
 
     if (!name) return { success: false, message: "Location name is required" };
 
@@ -38,6 +39,7 @@ export async function addLocation(prevState: unknown, formData: FormData) {
             name,
             description,
             siteId: session.activeSiteId,
+            tempThresholdC: tempThreshold ?? 27,
         });
         revalidatePath("/admin/locations");
         await logAudit({ action: "CREATE", entity: "location", entityName: name, detail: description });
@@ -57,6 +59,7 @@ export async function updateLocation(prevState: unknown, formData: FormData) {
     const id = parseInt(formData.get("id") as string, 10);
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
+    const tempThreshold = parseTemp(formData.get("tempThresholdC"));
 
     if (!id || !name) return { success: false, message: "ID and name are required" };
 
@@ -66,7 +69,12 @@ export async function updateLocation(prevState: unknown, formData: FormData) {
         if (existing.length === 0) return { success: false, message: "Location not found or unauthorized" };
 
         await db.update(locations)
-            .set({ name, description })
+            .set({
+                name,
+                description,
+                // Empty field keeps the stored threshold.
+                ...(tempThreshold !== null ? { tempThresholdC: tempThreshold } : {}),
+            })
             .where(eq(locations.id, id));
 
         revalidatePath("/admin/locations");
@@ -76,6 +84,13 @@ export async function updateLocation(prevState: unknown, formData: FormData) {
         console.error("Failed to update location:", error);
         return { success: false, message: "Failed to update location" };
     }
+}
+
+// Parse an optional °C number from the form; invalid/empty → null.
+function parseTemp(value: FormDataEntryValue | null): number | null {
+    if (value === null) return null;
+    const parsed = Number(String(value).trim());
+    return Number.isFinite(parsed) ? parsed : null;
 }
 
 export async function deleteLocation(formData: FormData) {

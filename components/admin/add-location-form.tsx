@@ -24,7 +24,7 @@ export default function AddLocationForm() {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Add New Location</h3>
             </div>
 
-            <form ref={formRef} action={action} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <form ref={formRef} action={action} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
                 <div className="lg:col-span-1">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Location Name *
@@ -37,13 +37,28 @@ export default function AddLocationForm() {
                     />
                 </div>
 
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-1">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Description
                     </label>
                     <input
                         name="description"
                         placeholder="Optional description"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
+
+                <div className="lg:col-span-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Batas Suhu (°C)
+                    </label>
+                    <input
+                        name="tempThresholdC"
+                        type="number"
+                        step="0.5"
+                        min={10}
+                        max={60}
+                        defaultValue={27}
                         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                 </div>
