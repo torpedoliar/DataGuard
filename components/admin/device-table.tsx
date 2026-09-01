@@ -269,15 +269,20 @@ export default function DeviceTable({
         <DataTable className="whitespace-nowrap">
           <DataTableHead>
             <tr>
-              <SortableHead label="Device Name" onClick={() => handleSort("name")} icon={getSortIcon("name")} />
+              <SortableHead
+                label="Device Name"
+                onClick={() => handleSort("name")}
+                icon={getSortIcon("name")}
+                className="sticky left-0 z-20 bg-ops-surface border-r border-ops-border/60 shadow-[3px_0_6px_rgba(0,0,0,0.08)] px-3"
+              />
               <SortableHead label="Asset Code" onClick={() => handleSort("assetCode")} icon={getSortIcon("assetCode")} />
               <SortableHead label="Brand" onClick={() => handleSort("brandName")} icon={getSortIcon("brandName")} />
               <SortableHead label="Category" onClick={() => handleSort("categoryName")} icon={getSortIcon("categoryName")} />
               <SortableHead label="Location" onClick={() => handleSort("locationName")} icon={getSortIcon("locationName")} />
               <SortableHead label="Rack" onClick={() => handleSort("rackName")} icon={getSortIcon("rackName")} />
               <SortableHead label="IP Address" onClick={() => handleSort("ipAddress")} icon={getSortIcon("ipAddress")} />
-              <th className="px-5 py-3 text-center">Status</th>
-              <th className="px-5 py-3 text-right">Actions</th>
+              <th className="px-2.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-ops-muted">Status</th>
+              <th className="sticky right-0 z-20 bg-ops-surface px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-ops-muted border-l border-ops-border/70 shadow-[-4px_0_8px_rgba(0,0,0,0.12)]">Actions</th>
             </tr>
           </DataTableHead>
           <DataTableBody>
@@ -291,8 +296,8 @@ export default function DeviceTable({
               paginatedGroupEntries.map(([rackName, rackDevices]) => (
                 <Fragment key={rackName}>
                   <tr className="bg-ops-surface">
-                    <td colSpan={9} className="px-5 py-2">
-                      <div className="flex items-center gap-2">
+                    <td colSpan={9} className="px-3 py-2">
+                      <div className="sticky left-3 inline-flex items-center gap-2">
                         <span className="flex size-6 items-center justify-center rounded-md bg-blue-400/12 text-blue-200">
                           <PackageOpen className="size-3.5" />
                         </span>
@@ -307,31 +312,31 @@ export default function DeviceTable({
                     const showTakeout = !isActive && isInRack;
 
                     return (
-                      <tr key={device.id} className={clsx("transition-colors hover:bg-ops-surface", !isActive && "opacity-65")}>
-                        <td className="px-5 py-3 font-semibold text-ops-text">
+                      <tr key={device.id} className={clsx("group transition-colors hover:bg-ops-surface", !isActive && "opacity-65")}>
+                        <td className="sticky left-0 z-10 bg-ops-surface-raised dark:bg-[#0e1626] group-hover:bg-ops-surface transition-colors border-r border-ops-border/60 shadow-[3px_0_6px_rgba(0,0,0,0.08)] px-3 py-2 font-semibold text-ops-text">
                           <div className="flex items-center gap-2">
-                            {!isActive && <span className="size-2 rounded-full bg-red-400" title="Inactive" />}
+                            {!isActive && <span className="size-2 rounded-full bg-red-400 shrink-0" title="Inactive" />}
                             <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
                             {device.excludeChecklist && (
-                              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300" title="Excluded from checklist audit — stays in rack layout">
+                              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 shrink-0" title="Excluded from checklist audit — stays in rack layout">
                                 Excluded
                               </span>
                             )}
                             {device.photoPath && <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />}
                           </div>
                         </td>
-                        <td className="px-5 py-3">
+                        <td className="px-2.5 py-2">
                           {device.assetCode ? (
                             <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">{device.assetCode}</span>
                           ) : (
                             <span className="text-ops-muted">-</span>
                           )}
                         </td>
-                        <td className="px-5 py-3 text-muted">
+                        <td className="px-2.5 py-2 text-xs text-muted">
                           {device.brandLogo ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-5 w-auto rounded bg-white p-0.5 object-contain" />
+                              <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-4.5 w-auto rounded bg-white p-0.5 object-contain" />
                               <span>{device.brandName}</span>
                             </div>
                           ) : device.brandName ? (
@@ -340,11 +345,11 @@ export default function DeviceTable({
                             <span className="text-ops-muted">-</span>
                           )}
                         </td>
-                        <td className="px-5 py-3 text-ops-muted">{device.categoryName || "-"}</td>
-                        <td className="px-5 py-3 text-ops-muted">{device.locationName || "-"}</td>
-                        <td className="px-5 py-3 text-ops-muted">
+                        <td className="px-2.5 py-2 text-xs text-ops-muted">{device.categoryName || "-"}</td>
+                        <td className="px-2.5 py-2 text-xs text-ops-muted">{device.locationName || "-"}</td>
+                        <td className="px-2.5 py-2 text-xs text-ops-muted">
                           {device.rackName ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                               <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">
                                 U{device.rackPosition}
                               </span>
@@ -357,8 +362,9 @@ export default function DeviceTable({
                                   disabled={isPending}
                                   aria-label="Take out from rack"
                                   title="Take out from rack"
+                                  className="!size-7 p-0"
                                 >
-                                  <PackageOpen aria-hidden="true" className="size-4 text-amber-300" />
+                                  <PackageOpen aria-hidden="true" className="size-3.5 text-amber-300" />
                                 </ActionButton>
                               )}
                             </div>
@@ -366,14 +372,22 @@ export default function DeviceTable({
                             <span className="text-ops-muted">-</span>
                           )}
                         </td>
-                        <td className="px-5 py-3">
+                        <td className="px-2.5 py-2">
                           {device.ipAddress ? (
-                            <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">{device.ipAddress}</span>
+                            <button
+                              type="button"
+                              onClick={() => setManageDevice(device)}
+                              className="group/ip inline-flex items-center gap-1.5 rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted transition-colors hover:border-indigo-400/50 hover:bg-indigo-500/10 hover:text-indigo-300 focus:outline-none"
+                              title="Click to manage device remotely"
+                            >
+                              <MonitorPlay className="size-3 text-indigo-400 transition-transform group-hover/ip:scale-110 shrink-0" />
+                              <span>{device.ipAddress}</span>
+                            </button>
                           ) : (
                             <span className="text-ops-muted">-</span>
                           )}
                         </td>
-                        <td className="px-5 py-3 text-center">
+                        <td className="px-2.5 py-2 text-center">
                           <button type="button" onClick={() => handleToggleStatus(device.id)} disabled={isPending} aria-label={`${isActive ? "Deactivate" : "Activate"} ${device.name}`} title={`Click to ${isActive ? "deactivate" : "activate"}`}>
                             <StatusBadge tone={getActiveTone(isActive)} dot>
                               <Power className="size-3" />
@@ -381,23 +395,23 @@ export default function DeviceTable({
                             </StatusBadge>
                           </button>
                         </td>
-                        <td className="px-5 py-3 text-right">
+                        <td className="sticky right-0 z-10 bg-ops-surface-raised dark:bg-[#0e1626] group-hover:bg-ops-surface transition-colors border-l border-ops-border/70 shadow-[-4px_0_8px_rgba(0,0,0,0.12)] px-3 py-2 text-right">
                           <div className="inline-flex items-center justify-end gap-1">
                             {device.ipAddress && (
-                              <ActionButton type="button" variant="ghost" size="icon" onClick={() => setManageDevice(device)} aria-label="Manage device remotely" title="Manage device remotely">
+                              <ActionButton type="button" variant="ghost" size="icon" onClick={() => setManageDevice(device)} aria-label="Manage device remotely" title="Manage device remotely" className="!size-8 p-0">
                                 <MonitorPlay aria-hidden="true" className="size-4 text-indigo-300" />
                               </ActionButton>
                             )}
-                            <ActionButton href={`/admin/devices/${device.id}/network`} variant="ghost" size="icon" aria-label="Network ports" title="Network ports">
+                            <ActionButton href={`/admin/devices/${device.id}/network`} variant="ghost" size="icon" aria-label="Network ports" title="Network ports" className="!size-8 p-0">
                               <Network aria-hidden="true" className="size-4 text-teal-300" />
                             </ActionButton>
-                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setPrintingDevice(device)} aria-label="Print QR" title="Print QR">
+                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setPrintingDevice(device)} aria-label="Print QR" title="Print QR" className="!size-8 p-0">
                               <QrCode aria-hidden="true" className="size-4" />
                             </ActionButton>
-                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingDevice(device)} aria-label="Edit" title="Edit">
+                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingDevice(device)} aria-label="Edit" title="Edit" className="!size-8 p-0">
                               <Edit aria-hidden="true" className="size-4 text-blue-300" />
                             </ActionButton>
-                            <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingDevice(device)} aria-label="Delete" title="Delete">
+                            <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingDevice(device)} aria-label="Delete" title="Delete" className="!size-8 p-0">
                               <Trash2 aria-hidden="true" className="size-4" />
                             </ActionButton>
                           </div>
@@ -493,10 +507,20 @@ export default function DeviceTable({
   );
 }
 
-function SortableHead({ label, onClick, icon }: { label: string; onClick: () => void; icon: ReactNode }) {
+function SortableHead({
+  label,
+  onClick,
+  icon,
+  className,
+}: {
+  label: string;
+  onClick: () => void;
+  icon: ReactNode;
+  className?: string;
+}) {
   return (
-    <th className="px-5 py-3 text-left">
-      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5 focus:outline-none">
+    <th className={clsx("px-2.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-ops-muted", className)}>
+      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5 focus:outline-none hover:text-ops-text">
         {label}
         {icon}
       </button>
