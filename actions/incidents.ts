@@ -225,6 +225,7 @@ async function notifyIncidentProgressToPic(input: {
   siteId: number;
   incidentId: number;
   title: string;
+  severity?: IncidentSeverity;
   previousStatus?: string;
   newStatus?: string;
   updateType: "status_changed" | "comment" | "evidence";
@@ -235,7 +236,10 @@ async function notifyIncidentProgressToPic(input: {
   try {
     const [picMap, site, device, baseUrl] = await Promise.all([
       resolveChecklistPicRecipients([input.deviceId], input.siteId),
-      db.query.sites.findFirst({ where: eq(sites.id, input.siteId), columns: { name: true } }),
+      db.query.sites.findFirst({
+        where: eq(sites.id, input.siteId),
+        columns: { name: true, telegramChatId: true },
+      }),
       db.query.devices.findFirst({
         where: eq(devices.id, input.deviceId),
         with: { location: true },
@@ -243,14 +247,50 @@ async function notifyIncidentProgressToPic(input: {
       resolveNotificationBaseUrl(),
     ]);
 
-    if (picMap.size === 0) return;
-
     const siteName = site?.name ?? "Data Center";
     const deviceName = device?.name ?? "Device";
     const locationName = device?.location?.name ?? device?.rackName ?? "-";
     const incidentUrl = `${baseUrl}/admin/incidents/${input.incidentId}`;
-
     const isStatusChange = input.updateType === "status_changed";
+
+    // 1. Dispatch Telegram notification
+    try {
+      const tgRecipients = await resolveIncidentRecipients(
+        input.siteId,
+        input.severity ?? "Medium",
+        site?.telegramChatId,
+      );
+
+      if (tgRecipients.length > 0) {
+        const tgHeader = isStatusChange
+          ? `<b>Incident Progress: ${escapeTelegramHtml(input.previousStatus ?? "Status")} ➔ ${escapeTelegramHtml(input.newStatus ?? "Updated")}</b>`
+          : `<b>Incident Note Added</b>`;
+
+        const tgMessage = [
+          tgHeader,
+          `Site: ${escapeTelegramHtml(siteName)}`,
+          `Device: ${escapeTelegramHtml(deviceName)} (${escapeTelegramHtml(locationName)})`,
+          `Updated by: ${escapeTelegramHtml(input.updatedBy)}`,
+          ...(input.note ? [`Note: <i>${escapeTelegramHtml(input.note)}</i>`] : []),
+          `<a href="${escapeTelegramHtml(incidentUrl)}">#${input.incidentId} ${escapeTelegramHtml(input.title)}</a>`,
+        ].join("\n");
+
+        for (const recipient of tgRecipients) {
+          sendIncidentAlertFireAndForget(recipient.chatId, tgMessage, {
+            action: "TELEGRAM_SEND",
+            entity: "incident",
+            entityId: input.incidentId,
+            entityName: `#${input.incidentId} ${input.title}`,
+            detail: `incident-progress alert (${input.newStatus ?? "update"})`,
+          });
+        }
+      }
+    } catch (tgErr) {
+      console.error("Failed to dispatch incident progress Telegram alert:", tgErr);
+    }
+
+    // 2. Dispatch Email to PIC Group
+    if (picMap.size === 0) return;
     const subject = isStatusChange
       ? `[Incident Progress #${input.incidentId}] ${input.previousStatus ?? "Status"} ➔ ${input.newStatus}: ${input.title} — ${deviceName}`
       : `[Incident Update #${input.incidentId}] Update Catatan: ${input.title} — ${deviceName}`;
@@ -678,6 +718,7 @@ export async function addIncidentUpdate(prevState: unknown, formData: FormData) 
     siteId: auth.activeSiteId,
     incidentId,
     title: existing.title,
+    severity: existing.severity,
     newStatus: existing.status,
     updateType: photoPath ? "evidence" : "comment",
     note,
@@ -775,6 +816,7 @@ export async function changeIncidentStatus(prevState: unknown, formData: FormDat
     siteId: auth.activeSiteId,
     incidentId,
     title: existing.title,
+    severity: existing.severity,
     previousStatus: existing.status,
     newStatus: next,
     updateType: "status_changed",
