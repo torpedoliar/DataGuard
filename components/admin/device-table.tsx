@@ -18,11 +18,13 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Boxes,
   ChevronLeft,
   ChevronRight,
   Edit,
   Filter,
   Globe,
+  MapPin,
   MonitorPlay,
   Network,
   PackageOpen,
@@ -30,6 +32,7 @@ import {
   Power,
   QrCode,
   Search,
+  Server,
   Shield,
   Terminal,
   Trash2,
@@ -84,6 +87,158 @@ const fieldClass = "ops-input h-9 px-3 text-sm";
 
 function getActiveTone(isActive: boolean): UiTone {
   return isActive ? "success" : "danger";
+}
+
+type RackTheme = {
+  headerBg: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  leftBorder: string;
+  iconBg: string;
+  iconText: string;
+  pillBg: string;
+  pillText: string;
+  pillBorder: string;
+  dotColor: string;
+};
+
+const RACK_PALETTES: RackTheme[] = [
+  {
+    // Blue
+    headerBg: "bg-blue-500/10 dark:bg-blue-950/40 border-y border-blue-500/25",
+    badgeBg: "bg-blue-500/15",
+    badgeText: "text-blue-700 dark:text-blue-300",
+    badgeBorder: "border-blue-500/30",
+    leftBorder: "border-l-blue-500",
+    iconBg: "bg-blue-500/20",
+    iconText: "text-blue-600 dark:text-blue-400",
+    pillBg: "bg-blue-500/15",
+    pillText: "text-blue-700 dark:text-blue-300",
+    pillBorder: "border-blue-500/30",
+    dotColor: "bg-blue-500",
+  },
+  {
+    // Emerald
+    headerBg: "bg-emerald-500/10 dark:bg-emerald-950/40 border-y border-emerald-500/25",
+    badgeBg: "bg-emerald-500/15",
+    badgeText: "text-emerald-700 dark:text-emerald-300",
+    badgeBorder: "border-emerald-500/30",
+    leftBorder: "border-l-emerald-500",
+    iconBg: "bg-emerald-500/20",
+    iconText: "text-emerald-600 dark:text-emerald-400",
+    pillBg: "bg-emerald-500/15",
+    pillText: "text-emerald-700 dark:text-emerald-300",
+    pillBorder: "border-emerald-500/30",
+    dotColor: "bg-emerald-500",
+  },
+  {
+    // Purple
+    headerBg: "bg-purple-500/10 dark:bg-purple-950/40 border-y border-purple-500/25",
+    badgeBg: "bg-purple-500/15",
+    badgeText: "text-purple-700 dark:text-purple-300",
+    badgeBorder: "border-purple-500/30",
+    leftBorder: "border-l-purple-500",
+    iconBg: "bg-purple-500/20",
+    iconText: "text-purple-600 dark:text-purple-400",
+    pillBg: "bg-purple-500/15",
+    pillText: "text-purple-700 dark:text-purple-300",
+    pillBorder: "border-purple-500/30",
+    dotColor: "bg-purple-500",
+  },
+  {
+    // Amber
+    headerBg: "bg-amber-500/10 dark:bg-amber-950/40 border-y border-amber-500/25",
+    badgeBg: "bg-amber-500/15",
+    badgeText: "text-amber-700 dark:text-amber-300",
+    badgeBorder: "border-amber-500/30",
+    leftBorder: "border-l-amber-500",
+    iconBg: "bg-amber-500/20",
+    iconText: "text-amber-600 dark:text-amber-400",
+    pillBg: "bg-amber-500/15",
+    pillText: "text-amber-700 dark:text-amber-300",
+    pillBorder: "border-amber-500/30",
+    dotColor: "bg-amber-500",
+  },
+  {
+    // Cyan
+    headerBg: "bg-cyan-500/10 dark:bg-cyan-950/40 border-y border-cyan-500/25",
+    badgeBg: "bg-cyan-500/15",
+    badgeText: "text-cyan-700 dark:text-cyan-300",
+    badgeBorder: "border-cyan-500/30",
+    leftBorder: "border-l-cyan-500",
+    iconBg: "bg-cyan-500/20",
+    iconText: "text-cyan-600 dark:text-cyan-400",
+    pillBg: "bg-cyan-500/15",
+    pillText: "text-cyan-700 dark:text-cyan-300",
+    pillBorder: "border-cyan-500/30",
+    dotColor: "bg-cyan-500",
+  },
+  {
+    // Rose
+    headerBg: "bg-rose-500/10 dark:bg-rose-950/40 border-y border-rose-500/25",
+    badgeBg: "bg-rose-500/15",
+    badgeText: "text-rose-700 dark:text-rose-300",
+    badgeBorder: "border-rose-500/30",
+    leftBorder: "border-l-rose-500",
+    iconBg: "bg-rose-500/20",
+    iconText: "text-rose-600 dark:text-rose-400",
+    pillBg: "bg-rose-500/15",
+    pillText: "text-rose-700 dark:text-rose-300",
+    pillBorder: "border-rose-500/30",
+    dotColor: "bg-rose-500",
+  },
+  {
+    // Indigo
+    headerBg: "bg-indigo-500/10 dark:bg-indigo-950/40 border-y border-indigo-500/25",
+    badgeBg: "bg-indigo-500/15",
+    badgeText: "text-indigo-700 dark:text-indigo-300",
+    badgeBorder: "border-indigo-500/30",
+    leftBorder: "border-l-indigo-500",
+    iconBg: "bg-indigo-500/20",
+    iconText: "text-indigo-600 dark:text-indigo-400",
+    pillBg: "bg-indigo-500/15",
+    pillText: "text-indigo-700 dark:text-indigo-300",
+    pillBorder: "border-indigo-500/30",
+    dotColor: "bg-indigo-500",
+  },
+  {
+    // Teal
+    headerBg: "bg-teal-500/10 dark:bg-teal-950/40 border-y border-teal-500/25",
+    badgeBg: "bg-teal-500/15",
+    badgeText: "text-teal-700 dark:text-teal-300",
+    badgeBorder: "border-teal-500/30",
+    leftBorder: "border-l-teal-500",
+    iconBg: "bg-teal-500/20",
+    iconText: "text-teal-600 dark:text-teal-400",
+    pillBg: "bg-teal-500/15",
+    pillText: "text-teal-700 dark:text-teal-300",
+    pillBorder: "border-teal-500/30",
+    dotColor: "bg-teal-500",
+  },
+];
+
+const UNASSIGNED_THEME: RackTheme = {
+  headerBg: "bg-slate-500/10 dark:bg-slate-900/60 border-y border-slate-500/20",
+  badgeBg: "bg-slate-500/15",
+  badgeText: "text-slate-600 dark:text-slate-400",
+  badgeBorder: "border-slate-500/30",
+  leftBorder: "border-l-slate-400",
+  iconBg: "bg-slate-500/20",
+  iconText: "text-slate-400",
+  pillBg: "bg-slate-500/10",
+  pillText: "text-slate-600 dark:text-slate-400",
+  pillBorder: "border-slate-500/20",
+  dotColor: "bg-slate-400",
+};
+
+function getRackTheme(rackName: string, fallbackIndex = 0): RackTheme {
+  if (!rackName || rackName === "Unassigned / Direct Placement") return UNASSIGNED_THEME;
+  let hash = 0;
+  for (let i = 0; i < rackName.length; i++) {
+    hash = (hash * 31 + rackName.charCodeAt(i)) >>> 0;
+  }
+  return RACK_PALETTES[(hash + fallbackIndex) % RACK_PALETTES.length];
 }
 
 export default function DeviceTable({
@@ -294,90 +449,143 @@ export default function DeviceTable({
                 description={devices.length === 0 ? "Add a device above to start inventory management." : "Reset filters or adjust the search query."}
               />
             ) : (
-              paginatedGroupEntries.map(([rackName, rackDevices]) => (
-                <Fragment key={rackName}>
-                  <tr className="bg-ops-surface">
-                    <td colSpan={9} className="px-3 py-2">
-                      <div className="sticky left-3 inline-flex items-center gap-2">
-                        <span className="flex size-6 items-center justify-center rounded-md bg-blue-400/12 text-blue-200">
-                          <PackageOpen className="size-3.5" />
-                        </span>
-                        <span className="text-xs font-bold uppercase tracking-[0.08em] text-muted">{rackName}</span>
-                        <span className="text-[11px] text-ops-muted">({rackDevices.length} devices)</span>
-                      </div>
-                    </td>
-                  </tr>
-                  {rackDevices.map((device) => {
-                    const isActive = device.isActive !== false;
-                    const isInRack = !!device.rackName;
-                    const showTakeout = !isActive && isInRack;
+            paginatedGroupEntries.map(([rackName, rackDevices], rackIndex) => {
+                const theme = getRackTheme(rackName, startIndex + rackIndex);
+                const rackLocation = rackDevices.find((d) => d.locationName)?.locationName;
+                const rackZone = rackDevices.find((d) => d.zone)?.zone;
+                const rackAuditable = rackDevices[0]?.isRackAuditable;
+                const isUnassigned = !rackName || rackName === "Unassigned / Direct Placement";
 
-                    return (
-                      <tr key={device.id} className={clsx("group transition-colors hover:bg-ops-surface", !isActive && "opacity-65")}>
-                        <td className="sticky left-0 z-10 bg-ops-surface-raised dark:bg-[#0e1626] group-hover:bg-ops-surface transition-colors border-r border-ops-border/60 shadow-[3px_0_6px_rgba(0,0,0,0.08)] px-3 py-2 font-semibold text-ops-text">
-                          <div className="flex items-center gap-2">
-                            {!isActive && <span className="size-2 rounded-full bg-red-400 shrink-0" title="Inactive" />}
-                            <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
-                            {device.excludeChecklist && (
-                              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 shrink-0" title="Excluded from checklist audit — stays in rack layout">
-                                Excluded
+                return (
+                  <Fragment key={rackName}>
+                    {rackIndex > 0 && (
+                      <tr className="border-t-8 border-ops-bg bg-ops-bg select-none" aria-hidden="true">
+                        <td colSpan={9} className="p-0 h-3.5 bg-ops-bg" />
+                      </tr>
+                    )}
+                    <tr className={clsx("border-y shadow-xs transition-colors", theme.headerBg)}>
+                      <td colSpan={9} className={clsx("px-3.5 py-2.5 border-l-4", theme.leftBorder)}>
+                        <div className="sticky left-3 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className={clsx("flex size-7 shrink-0 items-center justify-center rounded-lg border shadow-xs", theme.iconBg, theme.badgeBorder, theme.iconText)}>
+                              {isUnassigned ? <PackageOpen className="size-4" /> : <Boxes className="size-4" />}
+                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={clsx("text-xs font-black uppercase tracking-wider", theme.badgeText)}>
+                                {rackName}
                               </span>
-                            )}
-                            {device.isRackAuditable === false && (
-                              <span className="rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400 shrink-0" title="Rack is excluded from audit">
-                                Non-Audit Rack
-                              </span>
-                            )}
-                            {device.photoPath && <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />}
-                          </div>
-                        </td>
-                        <td className="px-2.5 py-2">
-                          {device.assetCode ? (
-                            <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">{device.assetCode}</span>
-                          ) : (
-                            <span className="text-ops-muted">-</span>
-                          )}
-                        </td>
-                        <td className="px-2.5 py-2 text-xs text-muted">
-                          {device.brandLogo ? (
-                            <div className="flex items-center gap-1.5">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-4.5 w-auto rounded bg-white p-0.5 object-contain" />
-                              <span>{device.brandName}</span>
-                            </div>
-                          ) : device.brandName ? (
-                            <span>{device.brandName}</span>
-                          ) : (
-                            <span className="text-ops-muted">-</span>
-                          )}
-                        </td>
-                        <td className="px-2.5 py-2 text-xs text-ops-muted">{device.categoryName || "-"}</td>
-                        <td className="px-2.5 py-2 text-xs text-ops-muted">{device.locationName || "-"}</td>
-                        <td className="px-2.5 py-2 text-xs text-ops-muted">
-                          {device.rackName ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">
-                                U{device.rackPosition}
-                              </span>
-                              {showTakeout && (
-                                <ActionButton
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleTakeout(device)}
-                                  disabled={isPending}
-                                  aria-label="Take out from rack"
-                                  title="Take out from rack"
-                                  className="!size-7 p-0"
-                                >
-                                  <PackageOpen aria-hidden="true" className="size-3.5 text-amber-300" />
-                                </ActionButton>
+                              {rackLocation && (
+                                <span className="inline-flex items-center gap-1 rounded-md border border-ops-border bg-ops-surface px-2 py-0.5 text-[11px] font-medium text-ops-text shadow-xs">
+                                  <MapPin className="size-3 text-ops-accent" />
+                                  {rackLocation}
+                                </span>
+                              )}
+                              {rackZone && (
+                                <span className="inline-flex items-center rounded-md border border-ops-border bg-ops-surface px-2 py-0.5 text-[11px] font-medium text-ops-text shadow-xs">
+                                  Zone {rackZone}
+                                </span>
+                              )}
+                              {rackAuditable === false && (
+                                <span className="rounded-md border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                                  Non-Audit Rack
+                                </span>
                               )}
                             </div>
-                          ) : (
-                            <span className="text-ops-muted">-</span>
-                          )}
-                        </td>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={clsx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold shadow-xs", theme.badgeBg, theme.badgeBorder, theme.badgeText)}>
+                              <Server className="size-3" />
+                              {rackDevices.length} {rackDevices.length === 1 ? "Perangkat" : "Perangkat"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    {rackDevices.map((device) => {
+                      const isActive = device.isActive !== false;
+                      const isInRack = !!device.rackName;
+                      const showTakeout = !isActive && isInRack;
+
+                      return (
+                        <tr key={device.id} className={clsx("group transition-colors hover:bg-ops-surface", !isActive && "opacity-65")}>
+                          <td className={clsx(
+                            "sticky left-0 z-10 bg-ops-surface-raised dark:bg-[#0e1626] group-hover:bg-ops-surface transition-colors border-r border-ops-border/60 shadow-[3px_0_6px_rgba(0,0,0,0.08)] px-3 py-2 font-semibold text-ops-text border-l-4",
+                            theme.leftBorder
+                          )}>
+                            <div className="flex items-center gap-2">
+                              {!isActive && <span className="size-2 rounded-full bg-red-400 shrink-0" title="Inactive" />}
+                              <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
+                              {device.excludeChecklist && (
+                                <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 shrink-0" title="Excluded from checklist audit — stays in rack layout">
+                                  Excluded
+                                </span>
+                              )}
+                              {device.isRackAuditable === false && (
+                                <span className="rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400 shrink-0" title="Rack is excluded from audit">
+                                  Non-Audit Rack
+                                </span>
+                              )}
+                              {device.photoPath && <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />}
+                            </div>
+                          </td>
+                          <td className="px-2.5 py-2">
+                            {device.assetCode ? (
+                              <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">{device.assetCode}</span>
+                            ) : (
+                              <span className="text-ops-muted">-</span>
+                            )}
+                          </td>
+                          <td className="px-2.5 py-2 text-xs text-muted">
+                            {device.brandLogo ? (
+                              <div className="flex items-center gap-1.5">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-4.5 w-auto rounded bg-white p-0.5 object-contain" />
+                                <span>{device.brandName}</span>
+                              </div>
+                            ) : device.brandName ? (
+                              <span>{device.brandName}</span>
+                            ) : (
+                              <span className="text-ops-muted">-</span>
+                            )}
+                          </td>
+                          <td className="px-2.5 py-2 text-xs text-ops-muted">{device.categoryName || "-"}</td>
+                          <td className="px-2.5 py-2 text-xs text-ops-muted">{device.locationName || "-"}</td>
+                          <td className="px-2.5 py-2 text-xs text-ops-muted">
+                            {device.rackName ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className={clsx(
+                                  "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-xs font-semibold shadow-xs",
+                                  theme.pillBg, theme.pillBorder, theme.pillText
+                                )}>
+                                  <span className={clsx("size-1.5 rounded-full shrink-0", theme.dotColor)} />
+                                  <span>{device.rackName}</span>
+                                  <span className="opacity-40 font-normal">•</span>
+                                  <span>U{device.rackPosition ?? "-"}</span>
+                                  {device.uHeight && device.uHeight > 1 && (
+                                    <span className="text-[10px] opacity-75">({device.uHeight}U)</span>
+                                  )}
+                                </span>
+                                {showTakeout && (
+                                  <ActionButton
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleTakeout(device)}
+                                    disabled={isPending}
+                                    aria-label="Take out from rack"
+                                    title="Take out from rack"
+                                    className="!size-7 p-0"
+                                  >
+                                    <PackageOpen aria-hidden="true" className="size-3.5 text-amber-300" />
+                                  </ActionButton>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded border border-slate-500/20 bg-slate-500/5 px-2 py-0.5 text-[11px] text-ops-muted italic">
+                                Direct / No Rack
+                              </span>
+                            )}
+                          </td>
                         <td className="px-2.5 py-2">
                           {device.ipAddress ? (
                             <button
@@ -426,7 +634,8 @@ export default function DeviceTable({
                     );
                   })}
                 </Fragment>
-              ))
+              );
+            })
             )}
           </DataTableBody>
         </DataTable>
