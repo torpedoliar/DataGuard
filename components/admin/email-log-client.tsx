@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { Search, X, Filter, Mail, MailCheck, MailX, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 
@@ -9,6 +10,7 @@ type EmailAlertLog = {
     id: number;
     recipient: string;
     recipientName: string | null;
+    incidentId?: number | null;
     subject: string;
     deviceCount: number;
     deviceSummary: string | null;
@@ -75,7 +77,7 @@ export default function EmailLogClient({
                         <input
                             value={searchInput}
                             onChange={e => setSearchInput(e.target.value)}
-                            placeholder="Cari email penerima, subject, atau nama device..."
+                            placeholder="Cari email penerima, subject, nama device, atau #incident..."
                             className="ops-input w-full h-9 pl-9 pr-8 text-sm"
                         />
                         {searchInput && (
@@ -118,6 +120,7 @@ export default function EmailLogClient({
                         <thead className="text-[11px] uppercase tracking-wider text-ops-muted border-b border-ops-border">
                             <tr>
                                 <th className="px-4 py-3 text-left">Waktu</th>
+                                <th className="px-4 py-3 text-left">Incident</th>
                                 <th className="px-4 py-3 text-left">Penerima</th>
                                 <th className="px-4 py-3 text-left">Subject</th>
                                 <th className="px-4 py-3 text-left">Devices</th>
@@ -128,15 +131,20 @@ export default function EmailLogClient({
                         <tbody className="divide-y divide-ops-border/40">
                             {logs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-12 text-center text-ops-muted">
+                                    <td colSpan={7} className="px-4 py-12 text-center text-ops-muted">
                                         <Mail className="h-8 w-8 mx-auto mb-2 opacity-30" />
                                         <p>Belum ada email PIC yang terkirim</p>
-                                        <p className="mt-1 text-xs">Email terkirim otomatis saat audit menemukan device NOT OK milik PIC group.</p>
+                                        <p className="mt-1 text-xs">Email terkirim otomatis saat audit menemukan device NOT OK milik PIC group atau saat progress incident di-update.</p>
                                     </td>
                                 </tr>
                             ) : (
                                 logs.map((log) => {
                                     const status = STATUS_META[log.status] ?? STATUS_META.pending;
+                                    const detectedIncidentId = log.incidentId ?? (() => {
+                                        const match = /#(\d+)/.exec(log.subject);
+                                        return match ? parseInt(match[1], 10) : null;
+                                    })();
+
                                     return (
                                         <tr key={log.id} className="hover:bg-ops-surface/60 transition-colors align-top">
                                             <td className="px-4 py-3 whitespace-nowrap text-xs text-ops-muted">
@@ -144,6 +152,19 @@ export default function EmailLogClient({
                                                     <Clock className="h-3 w-3 shrink-0" />
                                                     {formatDate(log.sentAt ?? log.createdAt)}
                                                 </div>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                {detectedIncidentId ? (
+                                                    <Link
+                                                        href={`/admin/incidents/${detectedIncidentId}`}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/25 transition-colors"
+                                                        title={`Lihat Detail Incident #${detectedIncidentId}`}
+                                                    >
+                                                        <span>#{detectedIncidentId}</span>
+                                                    </Link>
+                                                ) : (
+                                                    <span className="text-ops-muted text-xs">-</span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap">
                                                 <p className="text-ops-text font-medium text-xs">{log.recipient}</p>

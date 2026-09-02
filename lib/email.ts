@@ -451,3 +451,535 @@ export async function sendChecklistPicEmail(
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
+
+export type IncidentProgressEmailContext = {
+  siteName: string;
+  siteCode?: string | null;
+  incidentId: number;
+  title: string;
+  previousStatus?: string | null;
+  newStatus: string;
+  updateType: "status_changed" | "comment" | "evidence";
+  note?: string | null;
+  updatedBy: string;
+  checkDate?: string | null;
+  checkTime?: string | null;
+  shift?: string | null;
+  deviceName: string;
+  deviceAssetCode?: string | null;
+  deviceCategory?: string | null;
+  deviceLocation?: string | null;
+  deviceRack?: string | null;
+  deviceIp?: string | null;
+  incidentUrl: string;
+};
+
+export function renderIncidentProgressEmailHtml(ctx: IncidentProgressEmailContext): string {
+  const isStatusChange = ctx.updateType === "status_changed";
+  const now = new Date();
+  const dateStr = ctx.checkDate || now.toISOString().split("T")[0];
+  const timeStr = ctx.checkTime || now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+
+  const isResolved = ctx.newStatus === "Resolved" || ctx.newStatus === "Verified";
+  const isInProgress = ctx.newStatus === "In Progress";
+
+  const accentColor = isResolved ? "#10b981" : isInProgress ? "#2563eb" : "#f59e0b";
+  const badgeBg = isResolved ? "#10b981" : isInProgress ? "#2563eb" : "#f59e0b";
+  const badgeText = isResolved
+    ? (ctx.newStatus === "Verified" ? "VERIFIED" : "RESOLVED")
+    : isInProgress
+    ? "IN PROGRESS"
+    : "ACTION REQUIRED";
+  const badgeTextColor = isResolved || isInProgress ? "#ffffff" : "#111827";
+
+  const headerTitle = isStatusChange ? `Incident Status: ${escapeEmailHtml(ctx.newStatus)}` : "Incident Progress Update";
+  const introHeadline = isStatusChange
+    ? `Status transitioned: ${escapeEmailHtml(ctx.previousStatus ?? "Status")} ➔ ${escapeEmailHtml(ctx.newStatus)}`
+    : `New operational progress update recorded for Incident #${ctx.incidentId}`;
+  const introSub = `Review the incident details and follow up according to standard operational procedures.`;
+
+  const siteCodeDisplay = ctx.siteCode ? escapeEmailHtml(ctx.siteCode) : "-";
+  const remarksDisplay = ctx.note ? escapeEmailHtml(ctx.note).replace(/\n/g, "<br>") : "No additional notes provided.";
+
+  return `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eef1f4;padding:28px 0;font-family:Arial,Helvetica,sans-serif;color:#172033;">
+<tr>
+<td align="center">
+
+<table width="700" cellpadding="0" cellspacing="0" border="0" style="width:700px;max-width:700px;background:#ffffff;border:1px solid #d5dae1;">
+
+<!-- ========================================================= -->
+<!-- HEADER -->
+<!-- ========================================================= -->
+
+<tr>
+<td style="background:#111827;border-bottom:4px solid ${accentColor};padding:24px 30px;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+
+<td valign="middle">
+
+<div style="font-size:10px;line-height:14px;letter-spacing:2px;color:#9ca3af;font-weight:bold;text-transform:uppercase;">
+CODEX-INFRA / ${escapeEmailHtml(ctx.siteName.toUpperCase())}
+</div>
+
+<div style="font-size:24px;line-height:31px;color:#ffffff;font-weight:bold;margin-top:7px;">
+${headerTitle}
+</div>
+
+<div style="font-size:11px;line-height:17px;color:#9ca3af;margin-top:4px;">
+Incident #${ctx.incidentId} · ${escapeEmailHtml(ctx.title)}
+</div>
+
+</td>
+
+<td width="150" align="right" valign="middle">
+
+<div style="background:${badgeBg};color:${badgeTextColor};font-size:10px;line-height:14px;font-weight:bold;letter-spacing:.8px;padding:8px 13px;text-align:center;">
+${badgeText}
+</div>
+
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+
+
+<!-- ========================================================= -->
+<!-- ALERT INTRO -->
+<!-- ========================================================= -->
+
+<tr>
+<td style="padding:28px 30px 22px 30px;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+
+<td width="5" style="background:${accentColor};"></td>
+
+<td style="padding-left:16px;">
+
+<div style="font-size:14px;line-height:21px;color:#273449;font-weight:bold;">
+${introHeadline}
+</div>
+
+<div style="font-size:12px;line-height:19px;color:#6b7280;margin-top:4px;">
+${introSub}
+</div>
+
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+
+
+<!-- ========================================================= -->
+<!-- AUDIT SNAPSHOT -->
+<!-- ========================================================= -->
+
+<tr>
+<td style="padding:0 30px 27px 30px;">
+
+<div style="font-size:10px;line-height:14px;letter-spacing:1.8px;color:#667085;font-weight:bold;margin-bottom:9px;">
+INCIDENT SNAPSHOT
+</div>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #dce1e7;background:#f8f9fb;">
+
+<tr>
+
+<!-- SITE -->
+
+<td width="34%" valign="top" style="padding:16px 17px;border-right:1px solid #dce1e7;">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.3px;color:#87909e;font-weight:bold;">
+SITE
+</div>
+
+<div style="font-size:14px;line-height:18px;color:#172033;font-weight:bold;margin-top:7px;">
+${escapeEmailHtml(ctx.siteName)}
+</div>
+
+<div style="font-size:10px;color:#7b8491;margin-top:3px;">
+${siteCodeDisplay}
+</div>
+
+</td>
+
+
+<!-- UPDATED -->
+
+<td width="33%" valign="top" style="padding:16px 17px;border-right:1px solid #dce1e7;">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.3px;color:#87909e;font-weight:bold;">
+UPDATED
+</div>
+
+<div style="font-size:14px;line-height:18px;color:#172033;font-weight:bold;margin-top:7px;">
+${dateStr}
+</div>
+
+<div style="font-size:10px;color:#7b8491;margin-top:3px;">
+${timeStr} &nbsp;•&nbsp; ${escapeEmailHtml(ctx.shift || "Follow-up")}
+</div>
+
+</td>
+
+
+<!-- UPDATED BY -->
+
+<td width="33%" valign="top" style="padding:16px 17px;">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.3px;color:#87909e;font-weight:bold;">
+UPDATED BY
+</div>
+
+<div style="font-size:14px;line-height:18px;color:#172033;font-weight:bold;margin-top:7px;">
+${escapeEmailHtml(ctx.updatedBy)}
+</div>
+
+<div style="font-size:10px;color:#7b8491;margin-top:3px;">
+Incident Operations
+</div>
+
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+
+
+<!-- ========================================================= -->
+<!-- DEVICE SECTION -->
+<!-- ========================================================= -->
+
+<tr>
+<td style="padding:0 30px 27px 30px;">
+
+<div style="font-size:10px;line-height:14px;letter-spacing:1.8px;color:#667085;font-weight:bold;margin-bottom:9px;">
+AFFECTED DEVICE
+</div>
+
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #cfd5dd;">
+
+<!-- DEVICE HEADER -->
+
+<tr>
+<td style="background:#172033;padding:18px 20px;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+
+<td valign="middle">
+
+<div style="font-size:17px;line-height:22px;color:#ffffff;font-weight:bold;">
+${escapeEmailHtml(ctx.deviceName)}
+</div>
+
+<div style="font-size:10px;line-height:15px;color:#aeb7c5;letter-spacing:.5px;margin-top:5px;">
+${escapeEmailHtml(ctx.deviceCategory || "-")}
+&nbsp;&nbsp;•&nbsp;&nbsp;
+${escapeEmailHtml(ctx.deviceLocation || "-")}
+</div>
+
+</td>
+
+<td width="125" align="right" valign="middle">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.2px;color:#8792a3;">
+ASSET CODE
+</div>
+
+<div style="font-size:12px;line-height:16px;color:#ffffff;font-weight:bold;margin-top:4px;">
+${escapeEmailHtml(ctx.deviceAssetCode || "-")}
+</div>
+
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+
+
+<!-- STATUS BAR -->
+
+<tr>
+<td style="background:#fff8ea;border-bottom:1px solid #e7e1d4;padding:14px 20px;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+
+<td valign="middle">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.2px;color:#a27627;font-weight:bold;">
+CURRENT STATUS
+</div>
+
+<div style="font-size:14px;line-height:18px;color:#9a5b00;font-weight:bold;margin-top:5px;">
+&#9888;&nbsp;&nbsp;${escapeEmailHtml(ctx.newStatus)}
+</div>
+
+</td>
+
+<td align="right" valign="middle">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.2px;color:#a27627;font-weight:bold;">
+UPDATE TYPE
+</div>
+
+<div style="font-size:11px;line-height:16px;color:#7f5b1e;font-weight:bold;margin-top:5px;">
+${isStatusChange ? "STATUS TRANSITION" : "PROGRESS NOTE"}
+</div>
+
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+
+
+<!-- DEVICE DETAILS -->
+
+<tr>
+<td style="padding:0;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+
+<tr>
+
+<td width="50%" valign="top" style="padding:14px 20px;border-right:1px solid #e1e5ea;border-bottom:1px solid #e1e5ea;">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.2px;color:#87909e;font-weight:bold;">
+LOCATION
+</div>
+
+<div style="font-size:12px;line-height:17px;color:#172033;font-weight:bold;margin-top:5px;">
+${escapeEmailHtml(ctx.deviceLocation || "-")}
+</div>
+
+</td>
+
+<td width="50%" valign="top" style="padding:14px 20px;border-bottom:1px solid #e1e5ea;">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.2px;color:#87909e;font-weight:bold;">
+RACK
+</div>
+
+<div style="font-size:12px;line-height:17px;color:#172033;font-weight:bold;margin-top:5px;">
+${escapeEmailHtml(ctx.deviceRack || "-")}
+</div>
+
+</td>
+
+</tr>
+
+
+<tr>
+
+<td width="50%" valign="top" style="padding:14px 20px;border-right:1px solid #e1e5ea;">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.2px;color:#87909e;font-weight:bold;">
+IP ADDRESS
+</div>
+
+<div style="font-size:12px;line-height:17px;color:#172033;font-weight:bold;font-family:monospace;margin-top:5px;">
+${escapeEmailHtml(ctx.deviceIp || "-")}
+</div>
+
+</td>
+
+<td width="50%" valign="top" style="padding:14px 20px;">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.2px;color:#87909e;font-weight:bold;">
+CATEGORY
+</div>
+
+<div style="font-size:12px;line-height:17px;color:#172033;font-weight:bold;margin-top:5px;">
+${escapeEmailHtml(ctx.deviceCategory || "-")}
+</div>
+
+</td>
+
+</tr>
+
+</table>
+
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+
+
+<!-- ========================================================= -->
+<!-- FINDING NOTES -->
+<!-- ========================================================= -->
+
+<tr>
+<td style="padding:0 30px 27px 30px;">
+
+<div style="font-size:10px;line-height:14px;letter-spacing:1.8px;color:#667085;font-weight:bold;margin-bottom:9px;">
+PROGRESS &amp; UPDATE NOTES
+</div>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+
+<td width="4" style="background:${accentColor};"></td>
+
+<td style="background:#f7f8fa;border-top:1px solid #e0e4e9;border-bottom:1px solid #e0e4e9;padding:15px 18px;">
+
+<div style="font-size:12px;line-height:20px;color:#3f4a5a;">
+${remarksDisplay}
+</div>
+
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+
+
+<!-- ========================================================= -->
+<!-- INCIDENT TRACKING -->
+<!-- ========================================================= -->
+
+<tr>
+<td style="padding:0 30px 29px 30px;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#111827;">
+
+<tr>
+
+<td valign="middle" style="padding:18px 20px;">
+
+<div style="font-size:9px;line-height:12px;letter-spacing:1.5px;color:#8993a3;font-weight:bold;">
+INCIDENT TRACKING
+</div>
+
+<div style="font-size:13px;line-height:18px;color:#ffffff;font-weight:bold;margin-top:5px;">
+#${ctx.incidentId} · ${escapeEmailHtml(ctx.title)}
+</div>
+
+<div style="font-size:10px;line-height:15px;color:#7f8998;margin-top:3px;">
+Refer to the incident record for complete audit trail and status.
+</div>
+
+</td>
+
+<td width="160" align="right" valign="middle" style="padding:18px 20px;">
+
+<a href="${escapeEmailHtml(ctx.incidentUrl)}" style="display:inline-block;background:#2563eb;color:#ffffff;font-size:11px;line-height:16px;font-weight:bold;letter-spacing:.8px;padding:9px 15px;text-decoration:none;text-align:center;">
+VIEW INCIDENT
+</a>
+
+</td>
+
+</tr>
+
+</table>
+
+</td>
+</tr>
+
+
+<!-- ========================================================= -->
+<!-- REQUIRED ACTION -->
+<!-- ========================================================= -->
+
+<tr>
+<td style="background:#f4f6f8;border-top:1px solid #dfe3e8;padding:19px 30px;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+
+<td width="8" valign="top" style="padding-top:3px;">
+<div style="width:7px;height:7px;background:${accentColor};"></div>
+</td>
+
+<td style="padding-left:12px;">
+
+<div style="font-size:10px;line-height:13px;letter-spacing:1.4px;color:#172033;font-weight:bold;">
+REQUIRED ACTION
+</div>
+
+<div style="font-size:11px;line-height:18px;color:#5f6875;margin-top:5px;">
+Validate the progress update, execute the applicable corrective action,
+and update the incident according to standard operational procedures.
+</div>
+
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+
+
+<!-- ========================================================= -->
+<!-- FOOTER -->
+<!-- ========================================================= -->
+
+<tr>
+<td style="background:#111827;padding:17px 30px;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+
+<td valign="middle">
+
+<div style="font-size:11px;line-height:15px;color:#ffffff;font-weight:bold;">
+Data Center Audit System
+</div>
+
+<div style="font-size:9px;line-height:14px;color:#707b8b;margin-top:3px;">
+Automated infrastructure monitoring &amp; audit notification
+</div>
+
+</td>
+
+<td align="right" valign="middle">
+
+<div style="font-size:9px;line-height:13px;letter-spacing:1.2px;color:#697382;">
+CODEX-INFRA SJA
+</div>
+
+<div style="font-size:8px;line-height:12px;color:#596372;margin-top:2px;">
+DO NOT REPLY
+</div>
+
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+
+
+</table>
+
+</td>
+</tr>
+</table>
+  `.trim();
+}

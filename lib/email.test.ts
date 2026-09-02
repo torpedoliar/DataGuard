@@ -21,6 +21,7 @@ const {
   DEFAULT_EMAIL_ALERT_SUBJECT,
   renderEmailTemplate,
   renderEmailSubject,
+  renderIncidentProgressEmailHtml,
   resolveChecklistPicRecipients,
   sendChecklistPicEmail,
   isEmailConfigured,
@@ -234,3 +235,60 @@ describe("sendChecklistPicEmail", () => {
     expect(await isEmailConfigured()).toBe(false);
   });
 });
+
+describe("renderIncidentProgressEmailHtml", () => {
+  const baseContext = {
+    siteName: "DC Sepanjang",
+    siteCode: "SJA",
+    incidentId: 42,
+    title: "High Temperature on Switch Core",
+    previousStatus: "In Progress",
+    newStatus: "Resolved",
+    updateType: "status_changed" as const,
+    note: "Cooling fan replaced and verified normal temperature.",
+    updatedBy: "bagas",
+    checkDate: "2026-09-02",
+    checkTime: "10:15",
+    shift: "Pagi",
+    deviceName: "SW-CORE-01",
+    deviceAssetCode: "AST-SJA-0042",
+    deviceCategory: "Network Switch",
+    deviceLocation: "Server Room 1",
+    deviceRack: "Rack A01 U24",
+    deviceIp: "10.20.30.1",
+    incidentUrl: "https://dc.test/admin/incidents/42",
+  };
+
+  it("renders status change email with uniform template structure", () => {
+    const html = renderIncidentProgressEmailHtml(baseContext);
+
+    expect(html).toContain("CODEX-INFRA / DC SEPANJANG");
+    expect(html).toContain("Incident Status: Resolved");
+    expect(html).toContain("Incident #42 · High Temperature on Switch Core");
+    expect(html).toContain("RESOLVED");
+    expect(html).toContain("Status transitioned: In Progress ➔ Resolved");
+    expect(html).toContain("SW-CORE-01");
+    expect(html).toContain("AST-SJA-0042");
+    expect(html).toContain("Rack A01 U24");
+    expect(html).toContain("10.20.30.1");
+    expect(html).toContain("Cooling fan replaced and verified normal temperature.");
+    expect(html).toContain("https://dc.test/admin/incidents/42");
+    expect(html).toContain("VIEW INCIDENT");
+  });
+
+  it("renders progress note update with proper badges and text", () => {
+    const html = renderIncidentProgressEmailHtml({
+      ...baseContext,
+      updateType: "comment",
+      newStatus: "Open",
+      previousStatus: undefined,
+      note: "Vendor team has arrived on site.",
+    });
+
+    expect(html).toContain("ACTION REQUIRED");
+    expect(html).toContain("Incident Progress Update");
+    expect(html).toContain("Vendor team has arrived on site.");
+    expect(html).toContain("PROGRESS NOTE");
+  });
+});
+

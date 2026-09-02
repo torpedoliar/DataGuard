@@ -843,6 +843,7 @@ export const emailAlerts = pgTable("email_alerts", {
   id: serial("id").primaryKey(),
   siteId: integer("site_id").references(() => sites.id, { onDelete: "cascade" }).notNull(),
   entryId: integer("entry_id").references(() => checklistEntries.id, { onDelete: "set null" }),
+  incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "set null" }),
   recipient: text("recipient").notNull(),
   recipientName: text("recipient_name"),
   subject: text("subject").notNull(),
@@ -855,6 +856,7 @@ export const emailAlerts = pgTable("email_alerts", {
 }, (table) => ({
   siteCreatedIdx: index("email_alerts_site_created_idx").on(table.siteId, table.createdAt),
   statusCreatedIdx: index("email_alerts_status_created_idx").on(table.status, table.createdAt),
+  incidentIdx: index("email_alerts_incident_id_idx").on(table.incidentId),
 }));
 
 export const siemAiJobs = pgTable("siem_ai_jobs", {

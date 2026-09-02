@@ -582,6 +582,12 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                 });
                             }
 
+                            const targetIncident = alertItems
+                                .filter((a) => group.deviceIds.includes(a.deviceId))
+                                .map((a) => incidentByChecklistItemId.get(a.checklistItemId ?? 0))
+                                .find(Boolean);
+                            const groupIncidentId = targetIncident?.id ?? null;
+
                             // Fire-and-forget like Telegram; the history row is
                             // written once with a terminal status. recipient
                             // stores the group's full To line; recipientName
@@ -591,6 +597,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                     void db.insert(emailAlerts).values({
                                         siteId: auth.activeSiteId,
                                         entryId,
+                                        incidentId: groupIncidentId,
                                         recipient: group.emails.join(", "),
                                         recipientName: group.groupName,
                                         subject,
@@ -611,6 +618,7 @@ export async function submitChecklist(prevState: unknown, formData: FormData) {
                                     void db.insert(emailAlerts).values({
                                         siteId: auth.activeSiteId,
                                         entryId,
+                                        incidentId: groupIncidentId,
                                         recipient: group.emails.join(", "),
                                         recipientName: group.groupName,
                                         subject,

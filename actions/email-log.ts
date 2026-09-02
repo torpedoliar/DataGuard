@@ -35,7 +35,7 @@ export async function getEmailAlerts(options?: {
         conditions.push(sql`status = ${options.status}`);
     }
     if (options?.search) {
-        conditions.push(sql`(recipient ILIKE ${"%" + options.search + "%"} OR subject ILIKE ${"%" + options.search + "%"} OR device_summary ILIKE ${"%" + options.search + "%"})`);
+        conditions.push(sql`(recipient ILIKE ${"%" + options.search + "%"} OR subject ILIKE ${"%" + options.search + "%"} OR device_summary ILIKE ${"%" + options.search + "%"} OR CAST(incident_id AS TEXT) ILIKE ${"%" + options.search + "%"})`);
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { devices, incidentUpdates, incidents, sites, siteTelegramChatIds, userSites, users } from "@/db/schema";
+import { devices, emailAlerts, incidentUpdates, incidents, sites, siteTelegramChatIds, userSites, users } from "@/db/schema";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit, logAuditManual } from "@/lib/audit";
 import {
@@ -23,7 +23,7 @@ import { hasAdminAccess } from "@/lib/site-access";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
 import { escapeTelegramHtml, sendTelegramAlert } from "@/lib/telegram";
 import { saveUploadFile, UploadValidationError } from "@/lib/upload";
-import { resolveChecklistPicRecipients, sendChecklistPicEmail } from "@/lib/email";
+import { resolveChecklistPicRecipients, sendChecklistPicEmail, renderIncidentProgressEmailHtml } from "@/lib/email";
 import { and, desc, eq, gte, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -238,11 +238,11 @@ async function notifyIncidentProgressToPic(input: {
       resolveChecklistPicRecipients([input.deviceId], input.siteId),
       db.query.sites.findFirst({
         where: eq(sites.id, input.siteId),
-        columns: { name: true, telegramChatId: true },
+        columns: { name: true, code: true, telegramChatId: true },
       }),
       db.query.devices.findFirst({
         where: eq(devices.id, input.deviceId),
-        with: { location: true },
+        with: { location: true, category: true },
       }),
       resolveNotificationBaseUrl(),
     ]);
@@ -295,104 +295,42 @@ async function notifyIncidentProgressToPic(input: {
       ? `[Incident Progress #${input.incidentId}] ${input.previousStatus ?? "Status"} ➔ ${input.newStatus}: ${input.title} — ${deviceName}`
       : `[Incident Update #${input.incidentId}] Update Catatan: ${input.title} — ${deviceName}`;
 
-    const statusBadgeColor =
-      input.newStatus === "Verified"
-        ? "#10b981"
-        : input.newStatus === "Resolved"
-        ? "#059669"
-        : input.newStatus === "In Progress"
-        ? "#2563eb"
-        : "#dc2626";
-
-    const htmlBody = `
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="utf-8"></head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; padding: 24px 0; margin: 0; color: #0f172a;">
-      <table align="center" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-        <tr>
-          <td style="background-color: #0f172a; padding: 20px 24px; border-bottom: 3px solid ${statusBadgeColor};">
-            <div style="font-size: 11px; font-weight: bold; letter-spacing: 1.5px; color: #94a3b8; text-transform: uppercase;">
-              ${siteName} · INCIDENT PROGRESS UPDATE
-            </div>
-            <div style="font-size: 18px; font-weight: bold; color: #ffffff; margin-top: 6px;">
-              Incident #${input.incidentId}: ${input.title}
-            </div>
-          </td>
-        </tr>
-
-        <tr>
-          <td style="padding: 24px;">
-            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 16px; margin-bottom: 20px;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td width="50%">
-                    <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase;">Status Saat Ini</div>
-                    <div style="font-size: 16px; font-weight: bold; color: ${statusBadgeColor}; margin-top: 3px;">
-                      ${input.newStatus}
-                    </div>
-                  </td>
-                  ${
-                    input.previousStatus
-                      ? `<td width="50%" style="border-left: 1px solid #e2e8f0; padding-left: 16px;">
-                          <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase;">Status Sebelumnya</div>
-                          <div style="font-size: 14px; font-weight: 500; color: #64748b; margin-top: 3px;">
-                            ${input.previousStatus}
-                          </div>
-                        </td>`
-                      : ""
-                  }
-                </tr>
-              </table>
-            </div>
-
-            <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
-              <tr>
-                <td width="30%" style="color: #64748b; padding-bottom: 6px;">Perangkat:</td>
-                <td style="font-weight: 600; color: #0f172a; padding-bottom: 6px;">${deviceName}</td>
-              </tr>
-              <tr>
-                <td style="color: #64748b; padding-bottom: 6px;">Lokasi / Rak:</td>
-                <td style="color: #0f172a; padding-bottom: 6px;">${locationName}</td>
-              </tr>
-              <tr>
-                <td style="color: #64748b; padding-bottom: 6px;">Diperbarui Oleh:</td>
-                <td style="color: #0f172a; padding-bottom: 6px;">${input.updatedBy}</td>
-              </tr>
-            </table>
-
-            ${
-              input.note
-                ? `<div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 14px; border-radius: 0 6px 6px 0; margin-bottom: 24px; font-size: 13px; color: #1e3a8a;">
-                    <strong>Catatan Update:</strong><br/>
-                    <p style="margin: 4px 0 0 0; white-space: pre-wrap;">${input.note}</p>
-                  </div>`
-                : ""
-            }
-
-            <div style="text-align: center; margin-top: 24px;">
-              <a href="${incidentUrl}" style="display: inline-block; background-color: #0f172a; color: #ffffff; font-size: 13px; font-weight: bold; padding: 11px 22px; text-decoration: none; border-radius: 6px;">
-                Lihat Detail Incident di DataGuard &rarr;
-              </a>
-            </div>
-          </td>
-        </tr>
-
-        <tr>
-          <td style="background-color: #f8fafc; padding: 14px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
-            Notifikasi otomatis ini dikirim ke PIC Group perangkat ${deviceName}.
-          </td>
-        </tr>
-      </table>
-    </body>
-    </html>
-    `;
+    const htmlBody = renderIncidentProgressEmailHtml({
+      siteName,
+      siteCode: site?.code,
+      incidentId: input.incidentId,
+      title: input.title,
+      previousStatus: input.previousStatus,
+      newStatus: input.newStatus ?? "Open",
+      updateType: input.updateType,
+      note: input.note,
+      updatedBy: input.updatedBy,
+      deviceName,
+      deviceAssetCode: device?.assetCode,
+      deviceCategory: device?.category?.name,
+      deviceLocation: device?.location?.name,
+      deviceRack: [device?.rackName, device?.rackPosition ? `U${device.rackPosition}` : null].filter(Boolean).join(" "),
+      deviceIp: device?.ipAddress,
+      incidentUrl,
+    });
 
     const textBody = `[Incident #${input.incidentId}] ${input.title}\nStatus: ${input.newStatus} (sebelumnya: ${input.previousStatus ?? "-"})\nPerangkat: ${deviceName} (${locationName})\nOleh: ${input.updatedBy}\nCatatan: ${input.note ?? "-"}\nLihat: ${incidentUrl}`;
 
     for (const group of picMap.values()) {
       if (group.emails.length > 0) {
-        await sendChecklistPicEmail(group.emails, subject, htmlBody, textBody);
+        const sendResult = await sendChecklistPicEmail(group.emails, subject, htmlBody, textBody);
+        void db.insert(emailAlerts).values({
+          siteId: input.siteId,
+          incidentId: input.incidentId,
+          recipient: group.emails.join(", "),
+          recipientName: group.groupName,
+          subject,
+          deviceCount: 1,
+          deviceSummary: `• ${deviceName} (${locationName})`,
+          status: sendResult.success ? "sent" : "failed",
+          error: sendResult.error ?? null,
+          sentAt: sendResult.success ? new Date() : null,
+        }).catch((err) => console.error("Failed to insert email_alerts for incident progress:", err));
       }
     }
   } catch (err) {
