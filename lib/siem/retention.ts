@@ -335,12 +335,11 @@ export async function runSiemRetentionCleanup(options: { now?: Date; batchSize?:
       }
     }
 
-    // Orphan raw events for this site (no surviving event) older than the site raw cutoff.
+    // Raw events for this site older than the site raw cutoff.
     const deletedRawEvents = await db.delete(syslogEventsRaw)
       .where(and(
         eq(syslogEventsRaw.siteId, siteId),
         lt(syslogEventsRaw.receivedAt, rawCutoff),
-        sql`not exists (select 1 from ${syslogEvents} where ${syslogEvents.rawEventId} = ${syslogEventsRaw.id})`,
       ))
       .returning({ id: syslogEventsRaw.id });
     rawEventsDeleted += deletedRawEvents.length;

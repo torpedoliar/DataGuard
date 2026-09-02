@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { encryptString } from "@/lib/crypto";
 import { DEFAULT_SIEM_RULES } from "@/lib/siem/default-rules";
 import { parseSiemRulesFormData } from "@/lib/siem/rule-settings-form";
+import { runSiemRetentionCleanup } from "@/lib/siem/retention";
 import { siemSeverities } from "@/lib/siem/types";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -149,9 +150,41 @@ export async function updateSiemIngestSettings(prevState: unknown, formData: For
   if (existing) await db.update(siemSettings).set(values).where(eq(siemSettings.id, existing.id));
   else await db.insert(siemSettings).values({ ...values, siteId: auth.activeSiteId });
 
+  // Fire retention cleanup in background so new retention policy takes effect immediately
+  void runSiemRetentionCleanup({ batchSize: 2000 }).catch((err) => {
+    console.error("Auto SIEM retention cleanup failed after settings update:", err);
+  });
+
   await logAudit({ action: "UPDATE", entity: "settings", entityName: "SIEM Ingest", detail: "SIEM ingest settings updated" });
   revalidatePath("/admin/settings");
   return { success: true };
+}
+
+export async function runSiemRetentionNow() {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { success: false, message: auth.message };
+
+  try {
+    const result = await runSiemRetentionCleanup({ batchSize: 2000 });
+    await logAudit({
+      action: "DELETE",
+      entity: "settings",
+      entityName: "SIEM Retention",
+      detail: `Manual cleanup executed: ${result.rawEventsDeleted} raw, ${result.eventsDeleted} events, ${result.findingsDeleted} findings, ${result.alertsDeleted} alerts deleted; ${result.partitionsDropped} partitions dropped`,
+    });
+
+    return {
+      success: true,
+      result,
+      message: `Pembersihan berhasil: ${result.rawEventsDeleted} raw events, ${result.eventsDeleted} events, ${result.findingsDeleted} findings, ${result.alertsDeleted} alerts dibersihkan. (${result.partitionsDropped} partisi kedaluwarsa didrop)`,
+    };
+  } catch (error) {
+    console.error("Manual SIEM retention run failed:", error);
+    return {
+      success: false,
+      message: `Gagal menjalankan retensi: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 const SEVERITY_RANK: Record<(typeof siemSeverities)[number], number> = { Low: 1, Medium: 2, High: 3, Critical: 4 };
