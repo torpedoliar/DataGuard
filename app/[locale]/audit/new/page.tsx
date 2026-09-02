@@ -30,11 +30,16 @@ export default async function NewAuditPage(props: { searchParams: Promise<{ devi
       !device.excludeChecklist &&
       (!device.rackName || auditableRackNames.has(device.rackName.toLowerCase())),
   );
-  // Rooms with a temperature threshold show a temp input on the audit form —
-  // unless the room itself is excluded from the temperature check.
+  // Rooms with a temperature check: all active site locations unless explicitly excluded.
+  // Defaults to 27°C threshold if not specified in database.
   const measuredLocations = (await getLocations())
-    .filter((loc) => loc.tempThresholdC !== null && !loc.excludeTempCheck)
-    .map(({ id, name, tempC, tempThresholdC }) => ({ id, name, tempC, tempThresholdC }));
+    .filter((loc) => !loc.excludeTempCheck)
+    .map(({ id, name, tempC, tempThresholdC }) => ({
+      id,
+      name,
+      tempC,
+      tempThresholdC: tempThresholdC ?? 27,
+    }));
 
   const formattedDevices = devices.map((device) => ({
     ...device,

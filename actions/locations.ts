@@ -43,6 +43,7 @@ export async function addLocation(prevState: unknown, formData: FormData) {
             excludeTempCheck: formData.get("excludeTempCheck") === "on",
         });
         revalidatePath("/admin/locations");
+        revalidatePath("/audit/new");
         await logAudit({ action: "CREATE", entity: "location", entityName: name, detail: description });
         return { success: true, message: "Location added successfully" };
     } catch (error) {
@@ -73,14 +74,15 @@ export async function updateLocation(prevState: unknown, formData: FormData) {
             .set({
                 name,
                 description,
-                // Empty field keeps the stored threshold.
-                ...(tempThreshold !== null ? { tempThresholdC: tempThreshold } : {}),
+                // Empty field keeps the stored threshold or defaults to 27.
+                tempThresholdC: tempThreshold ?? existing[0]?.tempThresholdC ?? 27,
                 // Checkbox fully determines the value (absent = unchecked).
                 excludeTempCheck: formData.get("excludeTempCheck") === "on",
             })
             .where(eq(locations.id, id));
 
         revalidatePath("/admin/locations");
+        revalidatePath("/audit/new");
         await logAudit({ action: "UPDATE", entity: "location", entityId: id, entityName: name, detail: description });
         return { success: true, message: "Location updated successfully" };
     } catch (error) {
@@ -111,6 +113,7 @@ export async function deleteLocation(formData: FormData) {
 
         await db.delete(locations).where(eq(locations.id, id));
         revalidatePath("/admin/locations");
+        revalidatePath("/audit/new");
         await logAudit({ action: "DELETE", entity: "location", entityId: id, entityName: existing[0]?.name });
         return { success: true, message: "Location deleted successfully" };
     } catch (error) {

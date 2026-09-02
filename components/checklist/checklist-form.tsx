@@ -232,13 +232,27 @@ export default function ChecklistForm({
             threshold. Optional per reading; readings above threshold+3 are
             flagged server-side as a NOT-OK item ("Ruangan <name>") that joins
             the normal alert/incident flow. */}
-        {measuredLocations.length > 0 && (
-          <div className="border-t border-ops-border p-5">
-            <div className="mb-3 flex items-center gap-2">
+        {/* Room temperature inputs — for rooms the admin configured with a
+            threshold. Optional per reading; readings above threshold+3 are
+            flagged server-side as a NOT-OK item ("Ruangan <name>") that joins
+            the normal alert/incident flow. */}
+        <div className="border-t border-ops-border p-5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               <Thermometer className="size-4 text-ops-accent" />
               <h3 className="text-sm font-bold text-ops-text">Suhu Ruangan (°C)</h3>
               <span className="text-xs text-ops-muted">— opsional; batas normal tiap ruang di tanda kurung</span>
             </div>
+            {measuredLocations.length === 0 && (
+              <Link
+                href="/admin/locations"
+                className="text-xs text-ops-accent hover:underline font-medium"
+              >
+                + Kelola Lokasi
+              </Link>
+            )}
+          </div>
+          {measuredLocations.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {measuredLocations.map((location) => {
                 const value = roomTemps[location.id] ?? "";
@@ -278,8 +292,15 @@ export default function ChecklistForm({
                 );
               })}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="rounded-md border border-dashed border-ops-border p-3 text-center text-xs text-ops-muted">
+              Belum ada lokasi ruangan yang diikutsertakan dalam audit suhu di site ini.{" "}
+              <Link href="/admin/locations" className="text-ops-accent underline">
+                Kelola Lokasi Ruangan
+              </Link>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* Scope tabs — the active tab defines WHICH devices get submitted.
