@@ -63,6 +63,7 @@ type Device = {
   description: string | null;
   isActive: boolean | null;
   excludeChecklist?: boolean;
+  isRackAuditable?: boolean | null;
 };
 
 type Brand = {
@@ -110,7 +111,7 @@ export default function DeviceTable({
   const [selectedStatus, setSelectedStatus] = useState("");
 
   const [currentPage, setCurrentPage] = useState(1);
-  const racksPerPage = 5;
+  const [racksPerPage, setRacksPerPage] = useState(15);
 
   const handleDeleteSuccess = () => {
     setDeletingDevice(null);
@@ -322,6 +323,11 @@ export default function DeviceTable({
                                 Excluded
                               </span>
                             )}
+                            {device.isRackAuditable === false && (
+                              <span className="rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400 shrink-0" title="Rack is excluded from audit">
+                                Non-Audit Rack
+                              </span>
+                            )}
                             {device.photoPath && <PhotoModalTrigger photoPath={device.photoPath} deviceName={device.name} />}
                           </div>
                         </td>
@@ -426,38 +432,60 @@ export default function DeviceTable({
         </DataTable>
       </DataTableFrame>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-md border border-ops-border bg-ops-surface px-5 py-3">
-          <div className="text-sm text-ops-muted">
-            Showing <span className="font-medium text-ops-text">{startIndex + 1}</span> to{" "}
-            <span className="font-medium text-ops-text">{Math.min(startIndex + racksPerPage, totalRacks)}</span> of{" "}
-            <span className="font-medium text-ops-text">{totalRacks}</span> racks
-          </div>
-          <div className="flex items-center gap-2">
-            <ActionButton
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              icon={<ChevronLeft className="size-4" />}
-            >
-              Previous
-            </ActionButton>
-            <div className="px-2 text-sm font-medium text-ops-text">
-              Page {currentPage} of {totalPages}
+      {totalRacks > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-md border border-ops-border bg-ops-surface px-5 py-3">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-ops-muted">
+            <div>
+              Showing <span className="font-medium text-ops-text">{totalRacks === 0 ? 0 : startIndex + 1}</span> to{" "}
+              <span className="font-medium text-ops-text">{Math.min(startIndex + racksPerPage, totalRacks)}</span> of{" "}
+              <span className="font-medium text-ops-text">{totalRacks}</span> racks ({filteredDevices.length} devices)
             </div>
-            <ActionButton
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Next
-              <ChevronRight className="ml-1 size-4" />
-            </ActionButton>
+            <div className="flex items-center gap-1.5 text-xs">
+              <span>View:</span>
+              <select
+                value={racksPerPage}
+                onChange={(e) => {
+                  setRacksPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="rounded border border-ops-border bg-ops-surface px-2 py-1 text-xs text-ops-text"
+              >
+                <option value="5">5 racks</option>
+                <option value="10">10 racks</option>
+                <option value="15">15 racks</option>
+                <option value="25">25 racks</option>
+                <option value="50">50 racks</option>
+                <option value="9999">All racks</option>
+              </select>
+            </div>
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <ActionButton
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                icon={<ChevronLeft className="size-4" />}
+              >
+                Previous
+              </ActionButton>
+              <div className="px-2 text-sm font-medium text-ops-text">
+                Page {currentPage} of {totalPages}
+              </div>
+              <ActionButton
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+                <ChevronRight className="ml-1 size-4" />
+              </ActionButton>
+            </div>
+          )}
         </div>
       )}
 

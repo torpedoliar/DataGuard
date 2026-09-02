@@ -18,7 +18,7 @@ import {
     devicePics,
     deviceGroups,
 } from "../db/schema";
-import { and, eq, or, isNull, sql, inArray } from "drizzle-orm";
+import { and, eq, sql, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
@@ -153,8 +153,6 @@ export async function getDevices() {
     const auth = await requireActiveSiteAction();
     if (!auth.ok) return [];
 
-    const rackFilter = or(eq(racks.isAuditable, true), isNull(racks.id));
-
     return await db
         .select({
             id: devices.id,
@@ -176,13 +174,14 @@ export async function getDevices() {
             photoPath: devices.photoPath,
             isActive: devices.isActive,
             excludeChecklist: devices.excludeChecklist,
+            isRackAuditable: racks.isAuditable,
         })
         .from(devices)
         .leftJoin(categories, eq(devices.categoryId, categories.id))
         .leftJoin(brands, eq(devices.brandId, brands.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
         .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
-        .where(and(eq(devices.siteId, auth.activeSiteId), rackFilter));
+        .where(eq(devices.siteId, auth.activeSiteId));
 }
 
 export async function addDevice(prevState: unknown, formData: FormData) {
@@ -248,6 +247,7 @@ export async function addDevice(prevState: unknown, formData: FormData) {
             excludeChecklist: parsed.data.excludeChecklist ?? false,
         });
         revalidatePath("/admin");
+        revalidatePath("/admin", "layout");
         revalidatePath("/admin/rack");
         await logAudit({ action: "CREATE", entity: "device", entityName: parsed.data.name, detail: parsed.data.rackName ? `Rack: ${parsed.data.rackName} U${parsed.data.rackPosition}` : undefined });
         return { success: true, message: "Device added successfully" };
@@ -362,6 +362,7 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
         });
 
         revalidatePath("/admin");
+        revalidatePath("/admin", "layout");
         revalidatePath("/admin/rack");
         revalidatePath("/admin/device-groups");
         await logAudit({

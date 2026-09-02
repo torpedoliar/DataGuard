@@ -19,13 +19,17 @@ export default async function NewAuditPage(props: { searchParams: Promise<{ devi
   if (!session) redirect("/login");
 
   const categories = await getCategories();
+  // getRacks returns every rack; audit tabs only cover auditable racks.
+  const racks = (await getRacks()).filter((rack) => rack.isAuditable);
+  const auditableRackNames = new Set(racks.map((r) => r.name.toLowerCase()));
   // getDevices() returns the full inventory (admin list + edit-reports need
   // every device to manage flags); the AUDIT form filters out
-  // excludeChecklist so excluded devices never appear here.
-  const devices = (await getDevices()).filter((device) => !device.excludeChecklist);
-  // getRacks returns every rack; audit tabs only cover racks the audit flow
-  // includes (is_auditable), matching getDevices()' rack filter.
-  const racks = (await getRacks()).filter((rack) => rack.isAuditable);
+  // excludeChecklist and devices in non-auditable racks.
+  const devices = (await getDevices()).filter(
+    (device) =>
+      !device.excludeChecklist &&
+      (!device.rackName || auditableRackNames.has(device.rackName.toLowerCase())),
+  );
   // Rooms with a temperature threshold show a temp input on the audit form —
   // unless the room itself is excluded from the temperature check.
   const measuredLocations = (await getLocations())
