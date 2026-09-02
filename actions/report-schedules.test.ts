@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateNextRun } from "./report-schedules";
+import { calculateNextRun } from "@/lib/report-schedules";
 
 describe("calculateNextRun", () => {
     it("calculates next daily run correctly when target time is in the future today", () => {

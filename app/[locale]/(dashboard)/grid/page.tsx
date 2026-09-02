@@ -3,9 +3,10 @@ import { getAuditGridData, type DailyCheck } from "@/actions/grid";
 import GridFilters from "@/components/grid/grid-filters";
 import GridExportButton from "@/components/grid/grid-export-button";
 import PageHeader from "@/components/ui/page-header";
+import StatsCard from "@/components/ui/stats-card";
 import DraggableScroll from "@/components/ui/draggable-scroll";
 import { verifySession } from "@/lib/session";
-import { CheckCircle2, Circle, Grid3X3, Thermometer, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, ClipboardCheck, Grid3X3, Server, Thermometer, TrendingUp, XCircle } from "lucide-react";
 import { redirect } from "next/navigation";
 import clsx from "clsx";
 import { OfflineBanner } from "@/components/mobile/offline-banner";
@@ -56,6 +57,30 @@ export default async function AuditGridPage({
     return acc;
   }, {} as Record<string, { color: string; devices: typeof gridData }>);
 
+  let totalChecks = 0;
+  let okChecks = 0;
+  let notOkChecks = 0;
+  let devicesWithIssue = 0;
+
+  filteredGridData.forEach((device) => {
+    let hasIssue = false;
+    dates.forEach((date) => {
+      const checks = device.statusHistory[date] || [];
+      checks.forEach((c) => {
+        totalChecks++;
+        if (c.status === "OK") okChecks++;
+        else if (c.status === "NOT OK") {
+          notOkChecks++;
+          hasIssue = true;
+        }
+      });
+    });
+    if (hasIssue) devicesWithIssue++;
+  });
+
+  const totalPossibleChecks = filteredGridData.length * Math.max(1, dates.length);
+  const coveragePct = totalPossibleChecks > 0 ? Math.round((totalChecks / totalPossibleChecks) * 100) : 0;
+
   return (
     <>
       <OfflineBanner />
@@ -73,6 +98,14 @@ export default async function AuditGridPage({
               </div>
             }
           />
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <StatsCard label="Devices" value={filteredGridData.length} icon={<Server className="size-4" />} tone="info" />
+            <StatsCard label="Total Checks" value={totalChecks} icon={<ClipboardCheck className="size-4" />} tone="neutral" />
+            <StatsCard label="OK Checks" value={okChecks} icon={<CheckCircle2 className="size-4" />} tone="success" meta={`${totalChecks > 0 ? Math.round((okChecks / totalChecks) * 100) : 0}% pass`} />
+            <StatsCard label="NOT OK Checks" value={notOkChecks} icon={<AlertTriangle className="size-4" />} tone={notOkChecks > 0 ? "danger" : "neutral"} />
+            <StatsCard label="Coverage" value={`${coveragePct}%`} icon={<TrendingUp className="size-4" />} tone="accent" />
+            <StatsCard label="Devices w/ Issue" value={devicesWithIssue} icon={<XCircle className="size-4" />} tone={devicesWithIssue > 0 ? "warning" : "neutral"} />
+          </div>
           <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-ops-muted">
             <LegendItem icon={<CheckCircle2 className="size-4 text-emerald-300" />} label="OK" />
             <LegendItem icon={<XCircle className="size-4 text-red-300" />} label="NOT OK" />

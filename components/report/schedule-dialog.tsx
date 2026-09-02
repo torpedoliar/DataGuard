@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { createReportSchedule, updateReportSchedule, type ReportScheduleItem } from "@/actions/report-schedules";
+import { createReportSchedule, updateReportSchedule } from "@/actions/report-schedules";
+import type { ReportScheduleItem } from "@/lib/report-schedules";
 import ActionButton from "@/components/ui/action-button";
 import { CalendarClock, Check, X } from "lucide-react";
 

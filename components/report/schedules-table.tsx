@@ -5,8 +5,8 @@ import {
     deleteReportSchedule,
     sendReportScheduleNow,
     toggleReportSchedule,
-    type ReportScheduleItem,
 } from "@/actions/report-schedules";
+import type { ReportScheduleItem } from "@/lib/report-schedules";
 import ScheduleDialog from "./schedule-dialog";
 import ActionButton from "@/components/ui/action-button";
 import {
