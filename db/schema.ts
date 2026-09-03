@@ -1084,3 +1084,81 @@ export const siemSettingsRelations = relations(siemSettings, ({ one }) => ({
   }),
 }));
 
+// ==================== THREAT INTELLIGENCE (ISO 27001 A.5.7 & A.8.8) ====================
+export const threatIntelligenceStatusEnum = pgEnum("threat_intelligence_status", [
+  "open",
+  "in_progress",
+  "mitigated",
+  "not_applicable",
+  "accepted_risk",
+]);
+
+export const threatIntelligenceSeverityEnum = pgEnum("threat_intelligence_severity", [
+  "critical",
+  "high",
+  "medium",
+  "low",
+]);
+
+export const threatIntelligences = pgTable("threat_intelligences", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id, { onDelete: "set null" }),
+  deviceId: integer("device_id").references(() => devices.id, { onDelete: "set null" }),
+  intelDate: timestamp("intel_date", { withTimezone: true }).notNull(),
+  source: text("source").notNull(),
+  sourceUrl: text("source_url"),
+  title: text("title").notNull(),
+  cveList: text("cve_list"),
+  cvssScore: real("cvss_score"),
+  severity: threatIntelligenceSeverityEnum("severity").notNull().default("medium"),
+  description: text("description"),
+  affectedAsset: text("affected_asset").notNull(),
+  status: threatIntelligenceStatusEnum("status").notNull().default("open"),
+  mitigatedAt: timestamp("mitigated_at", { withTimezone: true }),
+  mitigationAction: text("mitigation_action"),
+  createdById: integer("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  siteIdIdx: index("threat_intel_site_id_idx").on(table.siteId),
+  statusIdx: index("threat_intel_status_idx").on(table.status),
+  intelDateIdx: index("threat_intel_intel_date_idx").on(table.intelDate),
+}));
+
+export const threatIntelligenceEvidences = pgTable("threat_intelligence_evidences", {
+  id: serial("id").primaryKey(),
+  threatIntelId: integer("threat_intel_id").references(() => threatIntelligences.id, { onDelete: "cascade" }).notNull(),
+  filePath: text("file_path").notNull(),
+  fileName: text("file_name"),
+  fileSize: integer("file_size"),
+  mimeType: text("mime_type"),
+  caption: text("caption"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  threatIntelIdIdx: index("threat_intel_evidence_intel_id_idx").on(table.threatIntelId),
+}));
+
+export const threatIntelligencesRelations = relations(threatIntelligences, ({ one, many }) => ({
+  site: one(sites, {
+    fields: [threatIntelligences.siteId],
+    references: [sites.id],
+  }),
+  device: one(devices, {
+    fields: [threatIntelligences.deviceId],
+    references: [devices.id],
+  }),
+  createdBy: one(users, {
+    fields: [threatIntelligences.createdById],
+    references: [users.id],
+  }),
+  evidences: many(threatIntelligenceEvidences),
+}));
+
+export const threatIntelligenceEvidencesRelations = relations(threatIntelligenceEvidences, ({ one }) => ({
+  threatIntel: one(threatIntelligences, {
+    fields: [threatIntelligenceEvidences.threatIntelId],
+    references: [threatIntelligences.id],
+  }),
+}));
+
+

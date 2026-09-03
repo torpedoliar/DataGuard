@@ -330,6 +330,13 @@
       "when": 1787073695133,
       "tag": "0047_email_alerts_incident_id",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1788404345000,
+      "tag": "0048_threat_intelligence",
+      "breakpoints": true
     }
   ]
 }
