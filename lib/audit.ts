@@ -46,6 +46,7 @@ export type AuditEntity =
     | "site"
     | "site_telegram_chat"
     | "user_site"
+    | "threat_intel"
     | "session";
 
 export interface AuditParams {

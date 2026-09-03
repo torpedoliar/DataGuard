@@ -9,7 +9,7 @@ const DEFAULT_MAX_FILE_SIZE = 5 * 1024 * 1024;
 const UPLOAD_URL_PREFIX = "/uploads/";
 
 export type UploadKind = "photo" | "logo" | "favicon";
-export type UploadDirectory = "root" | "devices" | "brands" | "settings" | "profiles";
+export type UploadDirectory = "root" | "devices" | "brands" | "settings" | "profiles" | "threat-intel";
 export type UploadValidationCode = "TOO_LARGE" | "UNSUPPORTED_TYPE" | "INVALID_CONTENT";
 export type DetectedUploadType = keyof typeof UPLOAD_TYPES;
 
@@ -49,6 +49,7 @@ const UPLOAD_DIRECTORIES: Record<UploadDirectory, string> = {
   brands: "brands",
   settings: "settings",
   profiles: "profiles",
+  "threat-intel": "threat-intel",
 };
 
 export class UploadValidationError extends Error {
