@@ -18,7 +18,7 @@ const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08e
 
 export default function DeviceGroupsClient({ initialGroups }: { initialGroups: DeviceGroupWithPics[] }) {
   const t = useTranslations("DeviceGroups");
-  const [groups] = useState(initialGroups);
+  const groups = initialGroups;
   const [editing, setEditing] = useState<DeviceGroupWithPics | null>(null);
   const [creating, setCreating] = useState(false);
   const [devices, setDevices] = useState<DeviceOpt[]>([]);

@@ -110,13 +110,20 @@ export default function RackManageClient() {
                 </div>
             </div>
 
-            <AddRackForm locations={locations} />
+            <AddRackForm
+                locations={locations}
+                onSuccess={() => getRacks().then(setRacks)}
+            />
 
             <div className="mt-8">
                 <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white">
                     Defined Racks ({racks.length})
                 </h3>
-                <RackTable racks={racks} onEdit={setEditingRack} />
+                <RackTable
+                    racks={racks}
+                    onEdit={setEditingRack}
+                    onDeleteSuccess={() => getRacks().then(setRacks)}
+                />
             </div>
 
             {editingRack && (

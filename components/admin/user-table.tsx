@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
 import { ArrowDown, ArrowUp, ArrowUpDown, Database, Edit, Key, Mail, Search, Shield, Trash2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition, type ReactNode } from "react";
 import EditUserForm from "./edit-user-form";
 import ResetPasswordModal from "./reset-password-modal";
@@ -35,6 +36,7 @@ type SortDir = "asc" | "desc";
 const fieldClass = "ops-input h-9 px-3 text-sm";
 
 export default function UserTable({ users, sites, currentUserId }: { users: User[]; sites: Site[]; currentUserId: number }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -49,8 +51,13 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
     if (confirm(`Are you sure you want to delete user "${username}"?`)) {
       setDeletingId(id);
       startTransition(async () => {
-        await deleteUser(id);
+        const result = await deleteUser(id);
         setDeletingId(null);
+        if (result && "success" in result && !result.success) {
+          alert(result.message || "Failed to delete user");
+        } else {
+          router.refresh();
+        }
       });
     }
   };

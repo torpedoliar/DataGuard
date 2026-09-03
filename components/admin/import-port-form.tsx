@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { importPortsFromFile, type PortImportResult } from "@/actions/network";
 import { CheckCircle2, FileSpreadsheet, Loader2, UploadCloud, XCircle } from "lucide-react";
 
@@ -11,6 +12,7 @@ const initialState: PortImportResult = {
 };
 
 export default function ImportPortForm({ deviceId }: { deviceId: number }) {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [state, formAction, isPending] = useActionState(
@@ -19,6 +21,12 @@ export default function ImportPortForm({ deviceId }: { deviceId: number }) {
     },
     initialState,
   );
+
+  useEffect(() => {
+    if (state.success) {
+      router.refresh();
+    }
+  }, [state.success, router]);
 
   const handleFileChange = (selected: File | null) => {
     setFile(selected);

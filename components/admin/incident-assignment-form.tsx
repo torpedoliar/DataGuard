@@ -4,7 +4,8 @@ import { assignIncident } from "@/actions/incidents";
 import ActionButton from "@/components/ui/action-button";
 import FormSection from "@/components/ui/form-section";
 import { incidentSeverities } from "@/lib/incidents";
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect } from "react";
 
 type UserOption = { id: number; username: string };
 type ActionState = { message?: string; success?: boolean } | null;
@@ -30,7 +31,14 @@ export default function IncidentAssignmentForm({
   currentSeverity: string;
   currentDueDate: Date | null;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState<ActionState, FormData>(assignIncident, null);
+
+  useEffect(() => {
+    if (state?.success) {
+      router.refresh();
+    }
+  }, [state?.success, router]);
 
   return (
     <form action={formAction}>

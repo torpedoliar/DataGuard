@@ -1,15 +1,18 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { deleteVlan } from "@/actions/network";
 import { AlertTriangle, Loader2, X } from "lucide-react";
 
 export default function DeleteVlanModal({ vlan, onClose }: { vlan: { id: number; vlanId: number; name: string }; onClose: () => void }) {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
 
     const handleDelete = () => {
         startTransition(async () => {
             await deleteVlan(vlan.id);
+            router.refresh();
             onClose();
         });
     };

@@ -3,7 +3,8 @@
 import { addIncidentUpdate } from "@/actions/incidents";
 import ActionButton from "@/components/ui/action-button";
 import FormSection from "@/components/ui/form-section";
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useRef } from "react";
 
 type ActionState = { message?: string; success?: boolean } | null;
 
@@ -11,10 +12,19 @@ const fieldClass = "ops-input w-full px-3 py-2 text-sm";
 const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
 
 export default function IncidentUpdateForm({ incidentId }: { incidentId: number }) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(addIncidentUpdate, null);
 
+  useEffect(() => {
+    if (state?.success) {
+      formRef.current?.reset();
+      router.refresh();
+    }
+  }, [state?.success, router]);
+
   return (
-    <form action={formAction} encType="multipart/form-data">
+    <form ref={formRef} action={formAction} encType="multipart/form-data">
       <input type="hidden" name="incidentId" value={incidentId} />
       <FormSection
         title="Add Update"

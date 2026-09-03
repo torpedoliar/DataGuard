@@ -1,7 +1,7 @@
 "use client";
 
 import { addRack } from "@/actions/rack-management";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Server } from "lucide-react";
 
@@ -10,15 +10,24 @@ type Location = {
     name: string;
 };
 
-export default function AddRackForm({ locations }: { locations: Location[] }) {
+export default function AddRackForm({
+    locations,
+    onSuccess,
+}: {
+    locations: Location[];
+    onSuccess?: () => void;
+}) {
     const [state, action, isPending] = useActionState(addRack, undefined);
+    const formRef = useRef<HTMLFormElement>(null);
     const router = useRouter();
 
     useEffect(() => {
         if (state?.success) {
+            formRef.current?.reset();
             router.refresh();
+            onSuccess?.();
         }
-    }, [state?.success, router]);
+    }, [state?.success, router, onSuccess]);
 
     return (
         <div className="bg-white dark:bg-surface p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
@@ -27,7 +36,7 @@ export default function AddRackForm({ locations }: { locations: Location[] }) {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Add New Rack</h3>
             </div>
 
-            <form action={action} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <form ref={formRef} action={action} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="lg:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Rack Name *

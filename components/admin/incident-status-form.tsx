@@ -4,7 +4,8 @@ import { changeIncidentStatus } from "@/actions/incidents";
 import ActionButton from "@/components/ui/action-button";
 import FormSection from "@/components/ui/form-section";
 import { allowedNextStatuses, resolutionActions, resolutionCategories, type IncidentStatus } from "@/lib/incidents";
-import { useActionState, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useState } from "react";
 
 type ActionState = { message?: string; success?: boolean } | null;
 
@@ -22,7 +23,15 @@ export default function IncidentStatusForm({
   isAdmin: boolean;
   isAssignee: boolean;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState<ActionState, FormData>(changeIncidentStatus, null);
+
+  useEffect(() => {
+    if (state?.success) {
+      router.refresh();
+    }
+  }, [state?.success, router]);
+
   const allowed = allowedNextStatuses({ isAdmin, isAssignee, current: currentStatus });
   const [selectedStatus, setSelectedStatus] = useState<IncidentStatus>(
     allowed.includes(currentStatus) ? currentStatus : (allowed[0] ?? currentStatus),

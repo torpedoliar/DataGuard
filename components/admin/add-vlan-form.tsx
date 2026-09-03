@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { addVlan } from "@/actions/network";
 import { Plus, Loader2 } from "lucide-react";
 
 export default function AddVlanForm() {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [vlanId, setVlanId] = useState("");
     const [name, setName] = useState("");
@@ -42,6 +44,7 @@ export default function AddVlanForm() {
                 setName("");
                 setSubnet("");
                 setDescription("");
+                router.refresh();
                 setTimeout(() => setSuccess(null), 3000);
             } catch (err: unknown) {
                 const error = err as Error;

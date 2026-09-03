@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 
+import { cookies } from "next/headers";
 import { getSettings } from "@/actions/settings";
 
 // viewportFit cover enables env(safe-area-inset-*) on iOS so the fixed
@@ -42,12 +43,21 @@ export default async function RootLayout({
     : routing.defaultLocale;
   const messages = await getMessages();
 
+  // Server-side theme detection via cookie to eliminate FOUC and theme drifting
+  const cookieStore = await cookies();
+  const themeCookie = cookieStore.get("theme")?.value;
+  const isDark = themeCookie !== undefined ? themeCookie === "dark" : true;
+
   return (
-    <html lang={validLocale} suppressHydrationWarning>
+    <html
+      lang={validLocale}
+      className={isDark ? "dark" : ""}
+      suppressHydrationWarning
+    >
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('theme');var d=t?t==='dark':!window.matchMedia||window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d)}catch(e){document.documentElement.classList.toggle('dark',!0)}`,
+            __html: `(function(){try{var t=localStorage.getItem('theme');var c=document.cookie.match(/(?:^|; )theme=([^;]*)/);var v=t||(c?c[1]:null);if(v){var d=v==='dark';document.documentElement.classList.toggle('dark',d);if(!c||c[1]!==v){document.cookie='theme='+v+';path=/;max-age=31536000;SameSite=Lax';}}else{var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;var d=m!==false;document.documentElement.classList.toggle('dark',d);localStorage.setItem('theme',d?'dark':'light');document.cookie='theme='+(d?'dark':'light')+';path=/;max-age=31536000;SameSite=Lax';}}catch(e){}})();`,
           }}
         />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />

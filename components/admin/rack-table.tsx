@@ -28,9 +28,10 @@ type Rack = {
 interface RackTableProps {
   racks: Rack[];
   onEdit: (rack: Rack) => void;
+  onDeleteSuccess?: () => void;
 }
 
-export default function RackTable({ racks, onEdit }: RackTableProps) {
+export default function RackTable({ racks, onEdit, onDeleteSuccess }: RackTableProps) {
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function RackTable({ racks, onEdit }: RackTableProps) {
         await deleteRack(id);
         setDeletingId(null);
         router.refresh();
+        onDeleteSuccess?.();
       });
     }
   };

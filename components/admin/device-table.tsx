@@ -276,7 +276,11 @@ export default function DeviceTable({
   const handleToggleStatus = (deviceId: number) => {
     startTransition(async () => {
       const result = await toggleDeviceStatus(deviceId);
-      if (!result.success) alert(result.message);
+      if (!result.success) {
+        alert(result.message);
+      } else {
+        router.refresh();
+      }
     });
   };
 
@@ -284,7 +288,11 @@ export default function DeviceTable({
     if (!confirm(`Take out "${device.name}" from ${device.rackName} U${device.rackPosition}? This will clear its rack position.`)) return;
     startTransition(async () => {
       const result = await takeoutFromRack(device.id);
-      if (!result.success) alert(result.message);
+      if (!result.success) {
+        alert(result.message);
+      } else {
+        router.refresh();
+      }
     });
   };
 

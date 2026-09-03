@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { updateVlan } from "@/actions/network";
 import { Loader2, X } from "lucide-react";
 
@@ -13,6 +14,7 @@ type Vlan = {
 };
 
 export default function EditVlanModal({ vlan, onClose }: { vlan: Vlan; onClose: () => void }) {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [name, setName] = useState(vlan.name);
     const [subnet, setSubnet] = useState(vlan.subnet || "");
@@ -35,6 +37,7 @@ export default function EditVlanModal({ vlan, onClose }: { vlan: Vlan; onClose: 
                     subnet: subnet || undefined,
                     description: description || undefined
                 });
+                router.refresh();
                 onClose();
             } catch (err: unknown) {
                 const error = err as Error;

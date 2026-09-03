@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState, useCallback, useRef, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { submitChecklist, getAuditEntryByDate } from "@/actions/checklist";
 import ActionButton from "@/components/ui/action-button";
 import { selectScopeDevices, sortRacksByLayout, type AuditScopeMode } from "@/lib/checklist-scope";
@@ -49,6 +50,7 @@ export default function ChecklistForm({
   prefillDeviceId?: number;
   existingTodayEntry?: { id: number; checkDate: string; checkTime: string; shift: string; checker: string } | null;
 }) {
+  const router = useRouter();
   // Scope mode: "category" tab filters the view AND the submit; "rack" adds
   // a rack-walk tab set. "All" submits every device.
   const [scopeMode, setScopeMode] = useState<AuditScopeMode>("category");
@@ -73,14 +75,15 @@ export default function ChecklistForm({
     writePartialDevices(auditData);
   }, [auditData]);
 
-  // Clear partial audit data upon successful submit
+  // Clear partial audit data upon successful submit and refresh
   useEffect(() => {
     if (state?.success) {
       try {
         if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY);
       } catch { /* skip */ }
+      router.refresh();
     }
-  }, [state?.success]);
+  }, [state?.success, router]);
 
   // Close rack dropdown on outside click
   useEffect(() => {

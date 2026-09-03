@@ -2,6 +2,7 @@
 
 import { updateUser } from "@/actions/users";
 import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 
 type Site = { id: number; name: string; code: string };
@@ -22,6 +23,7 @@ interface EditUserFormProps {
 }
 
 export default function EditUserForm({ user, sites, onClose }: EditUserFormProps) {
+    const router = useRouter();
     const [state, action, isPending] = useActionState(updateUser, undefined);
     const [role, setRole] = useState(user.role);
 
@@ -30,9 +32,10 @@ export default function EditUserForm({ user, sites, onClose }: EditUserFormProps
 
     useEffect(() => {
         if (state?.success) {
+            router.refresh();
             onClose();
         }
-    }, [state?.success, onClose]);
+    }, [state?.success, onClose, router]);
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
