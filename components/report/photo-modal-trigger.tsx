@@ -10,7 +10,10 @@ export default function PhotoModalTrigger({ photoPath, deviceName }: { photoPath
         <>
             <button
                 type="button"
-                onClick={() => setIsOpen(true)}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen(true);
+                }}
                 className="text-blue-400 hover:text-blue-300 shrink-0 outline-none"
                 title="View photo"
             >

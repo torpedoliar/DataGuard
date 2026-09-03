@@ -1,7 +1,8 @@
 "use client";
 
 import { X, ZoomIn, ZoomOut, Download } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 
 interface PhotoModalProps {
     photoPath: string;
@@ -9,8 +10,32 @@ interface PhotoModalProps {
     onClose: () => void;
 }
 
+const emptySubscribe = () => () => {};
+
 export default function PhotoModal({ photoPath, deviceName, onClose }: PhotoModalProps) {
     const [zoom, setZoom] = useState(1);
+    const isMounted = useSyncExternalStore(
+        emptySubscribe,
+        () => true,
+        () => false
+    );
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                onClose();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+            document.body.style.overflow = prevOverflow;
+        };
+    }, [onClose]);
 
     const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.5, 3));
     const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.5, 0.5));
@@ -33,9 +58,14 @@ export default function PhotoModal({ photoPath, deviceName, onClose }: PhotoModa
         }
     };
 
-    return (
+    if (!isMounted || typeof document === "undefined") {
+        return null;
+    }
+
+    // ponytail: portal escapes table/cell stacking context so sticky rows/columns cannot overlap modal
+    return createPortal(
         <div
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4"
             onClick={onClose}
         >
             <div
@@ -54,6 +84,7 @@ export default function PhotoModal({ photoPath, deviceName, onClose }: PhotoModa
                     </div>
                     <div className="flex items-center gap-2">
                         <button
+                            type="button"
                             onClick={handleZoomOut}
                             disabled={zoom <= 0.5}
                             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -62,12 +93,14 @@ export default function PhotoModal({ photoPath, deviceName, onClose }: PhotoModa
                             <ZoomOut className="h-5 w-5" />
                         </button>
                         <button
+                            type="button"
                             onClick={handleReset}
                             className="px-3 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
                         >
                             Reset
                         </button>
                         <button
+                            type="button"
                             onClick={handleZoomIn}
                             disabled={zoom >= 3}
                             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -76,6 +109,7 @@ export default function PhotoModal({ photoPath, deviceName, onClose }: PhotoModa
                             <ZoomIn className="h-5 w-5" />
                         </button>
                         <button
+                            type="button"
                             onClick={handleDownload}
                             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
                             title="Download"
@@ -83,6 +117,7 @@ export default function PhotoModal({ photoPath, deviceName, onClose }: PhotoModa
                             <Download className="h-5 w-5" />
                         </button>
                         <button
+                            type="button"
                             onClick={onClose}
                             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors ml-2"
                             title="Close"
@@ -103,6 +138,7 @@ export default function PhotoModal({ photoPath, deviceName, onClose }: PhotoModa
                     />
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

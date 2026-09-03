@@ -34,6 +34,10 @@ const siemItems: NavItem[] = [
   { href: "/admin/siem", label: "SIEM", labelKey: "siem", ns: "Nav", icon: "shield-alert" },
 ];
 
+const complianceItems: NavItem[] = [
+  { href: "/compliance/threat-intel", label: "Threat Intelligence", icon: "shield-check" },
+];
+
 const adminItems: NavItem[] = [
   { href: "/admin", label: "Devices", labelKey: "devices", ns: "AdminMenu", icon: "server" },
   { href: "/admin/rack-manage", label: "Racks", labelKey: "racks", ns: "AdminMenu", icon: "boxes" },
@@ -62,6 +66,10 @@ export function getAppNavigation(role: UserRole): NavGroup[] {
 
   if (role === "admin" || role === "superadmin") {
     groups.push({ label: "SIEM", labelKey: "siem", items: siemItems });
+  }
+
+  if (role === "admin" || role === "superadmin") {
+    groups.push({ label: "Compliance", items: complianceItems });
   }
 
   if (role === "admin" || role === "superadmin") {
