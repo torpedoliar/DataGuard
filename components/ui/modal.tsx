@@ -20,12 +20,16 @@ export type ModalProps = {
   description?: string;
   /** Optional content rendered in the header (right side). */
   headerExtra?: ReactNode;
+  /** Optional content rendered in the footer (pinned at bottom). */
+  footer?: ReactNode;
   /** Hide the built-in close button. Caller is responsible for an alternate dismiss path. */
   hideCloseButton?: boolean;
   /** Tailwind class for the dialog panel. */
   panelClassName?: string;
   /** Tailwind class for the backdrop container. */
   backdropClassName?: string;
+  /** Tailwind class for the body wrapper around children. Defaults to 'p-5'. */
+  bodyClassName?: string;
   children: ReactNode;
 };
 
@@ -51,9 +55,11 @@ export function Modal({
   title,
   description,
   headerExtra,
+  footer,
   hideCloseButton = false,
   panelClassName = "w-full max-w-md rounded-xl border border-ops-border bg-ops-surface-raised shadow-2xl",
   backdropClassName = "fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4",
+  bodyClassName = "p-5",
   children,
 }: ModalProps) {
   const titleId = useId();
@@ -158,9 +164,14 @@ export function Modal({
             )}
           </div>
         </div>
-        <div className="p-5">
+        <div className={bodyClassName}>
           {children}
         </div>
+        {footer && (
+          <div className="border-t border-ops-border bg-ops-surface px-5 py-3">
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body,

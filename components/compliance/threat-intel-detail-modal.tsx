@@ -85,9 +85,42 @@ export default function ThreatIntelDetailModal({
       onClose={onClose}
       title={item.title}
       description="ISO/IEC 27001:2022 Control A.5.7 (Threat Intelligence) & A.8.8 (Management of Technical Vulnerabilities)"
-      panelClassName="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-xl border border-ops-border bg-ops-surface-raised shadow-2xl overflow-hidden"
+      panelClassName="w-full max-w-4xl max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-xl border border-ops-border bg-ops-surface-raised shadow-2xl overflow-hidden"
+      bodyClassName="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-6 text-ops-text"
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+          <div className="flex items-center gap-2 text-xs text-ops-muted">
+            <Clock className="size-3.5" />
+            <span>
+              Dicatat pada {formatDate(item.createdAt)}
+              {item.createdByName ? ` oleh ${item.createdByName}` : ""}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <ActionButton
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+            >
+              Tutup
+            </ActionButton>
+
+            {onEdit && (
+              <ActionButton
+                type="button"
+                variant="primary"
+                icon={<Edit2 className="size-4" />}
+                onClick={handleEditClick}
+              >
+                Edit Advisory
+              </ActionButton>
+            )}
+          </div>
+        </div>
+      }
     >
-      <div className="flex flex-col flex-1 overflow-y-auto px-6 py-5 gap-6 text-ops-text">
+      <div className="space-y-6">
         {/* Top Header Card */}
         <div className="rounded-lg border border-ops-border bg-ops-bg/60 p-4 flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -310,38 +343,6 @@ export default function ThreatIntelDetailModal({
               <Shield className="size-6 text-ops-muted/60 mb-1.5" />
               <span>Belum ada lampiran bukti foto atau dokumen mitigasi.</span>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Modal Footer */}
-      <div className="border-t border-ops-border bg-ops-surface px-6 py-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs text-ops-muted">
-          <Clock className="size-3.5" />
-          <span>
-            Dicatat pada {formatDate(item.createdAt)}
-            {item.createdByName ? ` oleh ${item.createdByName}` : ""}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <ActionButton
-            type="button"
-            variant="secondary"
-            onClick={onClose}
-          >
-            Tutup
-          </ActionButton>
-
-          {onEdit && (
-            <ActionButton
-              type="button"
-              variant="primary"
-              icon={<Edit2 className="size-4" />}
-              onClick={handleEditClick}
-            >
-              Edit Advisory
-            </ActionButton>
           )}
         </div>
       </div>

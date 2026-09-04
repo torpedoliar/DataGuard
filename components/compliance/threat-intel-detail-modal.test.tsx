@@ -46,17 +46,20 @@ vi.mock("@/components/ui/modal", () => ({
     children,
     title,
     description,
+    footer,
   }: {
     open: boolean;
     children: React.ReactNode;
     title: string;
     description?: string;
+    footer?: React.ReactNode;
   }) => {
     if (!open) return null;
     return (
       <div data-testid="mock-modal" aria-label={title}>
         <div>{description}</div>
         {children}
+        {footer}
       </div>
     );
   },

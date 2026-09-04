@@ -79,7 +79,11 @@ export default function ThreatIntelTable({
               return (
                 <tr
                   key={item.id}
-                  className="group transition-colors hover:bg-ops-surface"
+                  onClick={() => onViewDetail && onViewDetail(item)}
+                  className={`group transition-colors hover:bg-ops-surface ${
+                    onViewDetail ? "cursor-pointer" : ""
+                  }`}
+                  title={onViewDetail ? "Klik untuk melihat detail lengkap kasus" : undefined}
                 >
                   {/* 1. Tanggal Informasi */}
                   <td className="whitespace-nowrap px-3.5 py-3 text-xs font-mono text-ops-muted">
@@ -93,6 +97,7 @@ export default function ThreatIntelTable({
                         href={item.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center gap-1 font-medium text-blue-400 hover:text-blue-300 hover:underline"
                         title={item.sourceUrl}
                       >
@@ -211,13 +216,14 @@ export default function ThreatIntelTable({
                           <button
                             key={ev.id}
                             type="button"
-                            onClick={() =>
+                            onClick={(e) => {
+                              e.stopPropagation();
                               onViewPhoto(
                                 ev.filePath,
                                 ev.caption ? `${item.title} - ${ev.caption}` : item.title
-                              )
-                            }
-                            className="group/thumb relative size-9 overflow-hidden rounded-md border border-ops-border bg-ops-surface hover:border-ops-accent transition-all shrink-0"
+                              );
+                            }}
+                            className="group/thumb relative size-9 overflow-hidden rounded-md border border-ops-border bg-ops-surface hover:border-ops-accent transition-all shrink-0 cursor-pointer"
                             title={ev.caption || ev.fileName || "View evidence"}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -238,7 +244,10 @@ export default function ThreatIntelTable({
                   </td>
 
                   {/* 9. Aksi */}
-                  <td className="whitespace-nowrap px-3.5 py-3 text-right">
+                  <td
+                    className="whitespace-nowrap px-3.5 py-3 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="flex items-center justify-end gap-1">
                       {onViewDetail && (
                         <IconButton
