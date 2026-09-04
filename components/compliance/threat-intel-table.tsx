@@ -16,10 +16,11 @@ import {
   threatStatusLabels,
   type ThreatIntelRecord,
 } from "@/lib/threat-intel";
-import { Edit2, ExternalLink, Image as ImageIcon, Trash2 } from "lucide-react";
+import { Edit2, ExternalLink, Eye, Image as ImageIcon, Trash2 } from "lucide-react";
 
 interface ThreatIntelTableProps {
   items: ThreatIntelRecord[];
+  onViewDetail?: (item: ThreatIntelRecord) => void;
   onEdit: (item: ThreatIntelRecord) => void;
   onDelete: (item: ThreatIntelRecord) => void;
   onViewPhoto: (photoPath: string, caption?: string) => void;
@@ -38,6 +39,7 @@ function formatDate(date: Date | string | null | undefined): string {
 
 export default function ThreatIntelTable({
   items,
+  onViewDetail,
   onEdit,
   onDelete,
   onViewPhoto,
@@ -106,9 +108,20 @@ export default function ThreatIntelTable({
                   <td className="px-3.5 py-3">
                     <div className="flex flex-col gap-1.5">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-ops-text text-sm leading-tight">
-                          {item.title}
-                        </span>
+                        {onViewDetail ? (
+                          <button
+                            type="button"
+                            onClick={() => onViewDetail(item)}
+                            className="text-left font-semibold text-ops-text hover:text-ops-accent hover:underline text-sm leading-tight transition-colors cursor-pointer"
+                            title="Klik untuk melihat detail lengkap kasus"
+                          >
+                            {item.title}
+                          </button>
+                        ) : (
+                          <span className="font-semibold text-ops-text text-sm leading-tight">
+                            {item.title}
+                          </span>
+                        )}
                         {item.cvssScore !== null && item.cvssScore !== undefined && (
                           <StatusBadge
                             tone={getThreatSeverityTone(item.severity)}
@@ -227,6 +240,13 @@ export default function ThreatIntelTable({
                   {/* 9. Aksi */}
                   <td className="whitespace-nowrap px-3.5 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {onViewDetail && (
+                        <IconButton
+                          icon={<Eye className="size-4 text-ops-accent" />}
+                          label="Lihat detail kasus"
+                          onClick={() => onViewDetail(item)}
+                        />
+                      )}
                       <IconButton
                         icon={<Edit2 className="size-4" />}
                         label="Edit advisory"

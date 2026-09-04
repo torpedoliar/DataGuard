@@ -7,6 +7,7 @@ import Modal from "@/components/ui/modal";
 import PageHeader from "@/components/ui/page-header";
 import StatusBadge from "@/components/ui/status-badge";
 import PhotoModal from "@/components/report/photo-modal";
+import ThreatIntelDetailModal from "./threat-intel-detail-modal";
 import ThreatIntelFormModal from "./threat-intel-form-modal";
 import ThreatIntelKpi from "./threat-intel-kpi";
 import ThreatIntelTable from "./threat-intel-table";
@@ -61,6 +62,7 @@ export default function ThreatIntelClient({
 
   // Modals state
   const [formModalOpen, setFormModalOpen] = useState(false);
+  const [viewingItem, setViewingItem] = useState<ThreatIntelRecord | null>(null);
   const [editingItem, setEditingItem] = useState<ThreatIntelRecord | null>(null);
   const [deletingItem, setDeletingItem] = useState<ThreatIntelRecord | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<{ path: string; caption?: string } | null>(null);
@@ -270,6 +272,7 @@ export default function ThreatIntelClient({
       {/* Main Table */}
       <ThreatIntelTable
         items={items}
+        onViewDetail={(item) => setViewingItem(item)}
         onEdit={(item) => {
           setEditingItem(item);
           setFormModalOpen(true);
@@ -279,6 +282,23 @@ export default function ThreatIntelClient({
           setPreviewPhoto({ path: photoPath, caption })
         }
       />
+
+      {/* Case Reader Detail Modal (Popup on threat click) */}
+      {viewingItem && (
+        <ThreatIntelDetailModal
+          open={Boolean(viewingItem)}
+          item={viewingItem}
+          onClose={() => setViewingItem(null)}
+          onEdit={(item) => {
+            setViewingItem(null);
+            setEditingItem(item);
+            setFormModalOpen(true);
+          }}
+          onViewPhoto={(photoPath, caption) =>
+            setPreviewPhoto({ path: photoPath, caption })
+          }
+        />
+      )}
 
       {/* Add / Edit Form Modal */}
       {formModalOpen && (
