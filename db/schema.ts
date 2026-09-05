@@ -21,7 +21,7 @@ export const syslogTransportEnum = pgEnum("syslog_transport", ["udp", "tcp", "tl
 export const syslogIngestStatusEnum = pgEnum("syslog_ingest_status", ["received", "parsed", "parse_failed", "dropped"]);
 export const syslogVendorEnum = pgEnum("syslog_vendor", ["generic", "mikrotik", "cisco", "fortigate", "linux", "watchguard", "paloalto", "juniper", "checkpoint"]);
 export const syslogTrustLevelEnum = pgEnum("syslog_trust_level", ["unknown", "trusted", "untrusted"]);
-export const siemRuleTypeEnum = pgEnum("siem_rule_type", ["single_event", "threshold", "sequence", "absence", "baseline_anomaly"]);
+export const siemRuleTypeEnum = pgEnum("siem_rule_type", ["single_event", "threshold", "sequence", "absence", "baseline_anomaly", "indicator_match", "first_seen"]);
 export const siemFindingStatusEnum = pgEnum("siem_finding_status", ["Open", "Acknowledged", "Resolved"]);
 export const siemAlertChannelEnum = pgEnum("siem_alert_channel", ["telegram", "webhook", "email"]);
 export const siemAlertStatusEnum = pgEnum("siem_alert_status", ["pending", "sent", "failed"]);
@@ -766,6 +766,13 @@ export const siemRules = pgTable("siem_rules", {
   windowSeconds: integer("window_seconds"),
   cooldownSeconds: integer("cooldown_seconds").notNull().default(300),
   alertEnabled: boolean("alert_enabled").notNull().default(false),
+  // Metadata tags (0049): MITRE ATT&CK tactics/techniques and ISO 27001 Annex A
+  // controls this rule maps to. Pure annotation — the rule engine ignores them;
+  // the rules UI and coverage matrix read them. Array-of-string jsonb to match
+  // the group_by/tags convention. E.g. ["T1110"] / ["A.8.15"].
+  mitreTactics: jsonb("mitre_tactics").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  mitreTechniques: jsonb("mitre_techniques").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  isoControls: jsonb("iso_controls").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   // 0024 backfilled NULL site_ids to the min active site id, then 0025 locked
   // this column NOT NULL — rows parked on the min-site may be mis-attributed
   // legacy data (see scripts/audit-site-backfill.sql for a review pass).
@@ -778,6 +785,47 @@ export const siemRules = pgTable("siem_rules", {
   enabledIdx: index("siem_rules_enabled_idx").on(table.enabled),
   categoryIdx: index("siem_rules_category_idx").on(table.category),
   severityIdx: index("siem_rules_severity_idx").on(table.severity),
+}));
+
+// ==================== SIEM IOC WATCHLIST (0050) ====================
+// Indicators of compromise matched against events by the `indicator_match`
+// rule type. value semantics per type: exact for ip, case-insensitive for
+// domain/hash (lowercased on write).
+export const siemIocs = pgTable("siem_iocs", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
+  type: text("type").notNull(), // "ip" | "domain" | "hash"
+  value: text("value").notNull(),
+  description: text("description"),
+  severity: incidentSeverityEnum("severity").notNull().default("High"),
+  enabled: boolean("enabled").notNull().default(true),
+  expiresAt: timestamp("expires_at"),
+  createdById: integer("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  siteTypeIdx: index("siem_iocs_site_type_idx").on(table.siteId, table.type),
+  siteEnabledIdx: index("siem_iocs_site_enabled_idx").on(table.siteId, table.enabled),
+  siteTypeValueUnique: uniqueIndex("siem_iocs_site_type_value_unique").on(table.siteId, table.type, table.value),
+}));
+
+// ==================== SIEM FIRST-SEEN STATE (0051) ====================
+// Seen-state for `first_seen` rules: one row per (rule, group_key, value).
+// The rule engine fires when a value has no row yet; the runner records the
+// first sighting here. ON CONFLICT bumps last_seen/seen_count only.
+export const siemSeenState = pgTable("siem_seen_state", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").references(() => sites.id).notNull(),
+  ruleId: integer("rule_id").references(() => siemRules.id, { onDelete: "cascade" }).notNull(),
+  groupKey: text("group_key").notNull(),
+  groupValue: text("group_value").notNull(),
+  firstSeenAt: timestamp("first_seen_at").notNull(),
+  lastSeenAt: timestamp("last_seen_at").notNull(),
+  seenCount: integer("seen_count").notNull().default(1),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  lookupIdx: index("siem_seen_state_lookup_idx").on(table.siteId, table.ruleId, table.groupKey),
+  stateUnique: uniqueIndex("siem_seen_state_unique").on(table.siteId, table.ruleId, table.groupKey, table.groupValue),
 }));
 
 export const siemFindings = pgTable("siem_findings", {
@@ -809,6 +857,9 @@ export const siemFindings = pgTable("siem_findings", {
   resolvedBy: integer("resolved_by").references(() => users.id),
   resolvedAt: timestamp("resolved_at"),
   createdIncidentId: integer("created_incident_id").references(() => incidents.id),
+  // Case workflow (0052): single active owner + append-only investigation comments.
+  assignedToId: integer("assigned_to_id").references(() => users.id, { onDelete: "set null" }),
+  assignedAt: timestamp("assigned_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -816,6 +867,41 @@ export const siemFindings = pgTable("siem_findings", {
   siteStatusSeverityIdx: index("siem_findings_site_status_severity_idx").on(table.siteId, table.status, table.severity),
   deviceStatusIdx: index("siem_findings_device_status_idx").on(table.deviceId, table.status),
   siteRuleCorrelationUnique: uniqueIndex("siem_findings_site_rule_correlation_unique").on(table.siteId, table.ruleId, table.correlationKey),
+}));
+
+export const siemFindingComments = pgTable("siem_finding_comments", {
+  id: serial("id").primaryKey(),
+  findingId: integer("finding_id").references(() => siemFindings.id, { onDelete: "cascade" }).notNull(),
+  authorId: integer("author_id").references(() => users.id, { onDelete: "set null" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  findingCreatedIdx: index("siem_finding_comments_finding_idx").on(table.findingId, table.createdAt),
+}));
+
+// ==================== SIEM RESPONSE ACTIONS (0053, lightweight SOAR) ====================
+// Outbound webhook responses on findings. Two-person rule: requested by one
+// admin, executed only after a second approval action. status flow:
+// pending_approval -> approved -> executed | failed | cancelled.
+export const siemResponseActions = pgTable("siem_response_actions", {
+  id: serial("id").primaryKey(),
+  findingId: integer("finding_id").references(() => siemFindings.id, { onDelete: "cascade" }).notNull(),
+  requestedById: integer("requested_by_id").references(() => users.id, { onDelete: "set null" }),
+  approvedById: integer("approved_by_id").references(() => users.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at"),
+  actionType: text("action_type").notNull(), // e.g. "block_ip", "disable_port"
+  webhookUrl: text("webhook_url").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  status: text("status").notNull().default("pending_approval"),
+  executedAt: timestamp("executed_at"),
+  responseStatus: integer("response_status"),
+  responseBody: text("response_body"),
+  error: text("error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  findingIdx: index("siem_response_actions_finding_idx").on(table.findingId),
+  statusIdx: index("siem_response_actions_status_idx").on(table.status),
 }));
 
 export const siemAlerts = pgTable("siem_alerts", {
@@ -1032,6 +1118,17 @@ export const siemRulesRelations = relations(siemRules, ({ one, many }) => ({
   findings: many(siemFindings),
 }));
 
+export const siemIocsRelations = relations(siemIocs, ({ one }) => ({
+  site: one(sites, {
+    fields: [siemIocs.siteId],
+    references: [sites.id],
+  }),
+  createdBy: one(users, {
+    fields: [siemIocs.createdById],
+    references: [users.id],
+  }),
+}));
+
 export const siemFindingsRelations = relations(siemFindings, ({ one, many }) => ({
   rule: one(siemRules, {
     fields: [siemFindings.ruleId],
@@ -1059,7 +1156,41 @@ export const siemFindingsRelations = relations(siemFindings, ({ one, many }) => 
     references: [users.id],
     relationName: "resolvedSiemFindings",
   }),
+  assignedTo: one(users, {
+    fields: [siemFindings.assignedToId],
+    references: [users.id],
+    relationName: "assignedSiemFindings",
+  }),
   alerts: many(siemAlerts),
+  comments: many(siemFindingComments),
+}));
+
+export const siemFindingCommentsRelations = relations(siemFindingComments, ({ one }) => ({
+  finding: one(siemFindings, {
+    fields: [siemFindingComments.findingId],
+    references: [siemFindings.id],
+  }),
+  author: one(users, {
+    fields: [siemFindingComments.authorId],
+    references: [users.id],
+  }),
+}));
+
+export const siemResponseActionsRelations = relations(siemResponseActions, ({ one }) => ({
+  finding: one(siemFindings, {
+    fields: [siemResponseActions.findingId],
+    references: [siemFindings.id],
+  }),
+  requestedBy: one(users, {
+    fields: [siemResponseActions.requestedById],
+    references: [users.id],
+    relationName: "requestedSiemResponseActions",
+  }),
+  approvedBy: one(users, {
+    fields: [siemResponseActions.approvedById],
+    references: [users.id],
+    relationName: "approvedSiemResponseActions",
+  }),
 }));
 
 export const siemEvidenceEventsRelations = relations(siemEvidenceEvents, ({ one }) => ({

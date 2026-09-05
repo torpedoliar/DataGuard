@@ -39,6 +39,7 @@ export type AuditEntity =
     | "syslog_source"
     | "syslog_event"
     | "siem_finding"
+    | "siem_response_action"
     | "checklist"
     | "incident"
     | "settings"

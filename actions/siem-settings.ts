@@ -203,6 +203,9 @@ export async function getSiemRules() {
       severity: siemRules.severity,
       enabled: siemRules.enabled,
       alertEnabled: siemRules.alertEnabled,
+      mitreTactics: siemRules.mitreTactics,
+      mitreTechniques: siemRules.mitreTechniques,
+      isoControls: siemRules.isoControls,
     })
     .from(siemRules)
     .where(eq(siemRules.siteId, auth.activeSiteId));
@@ -226,6 +229,9 @@ export async function getSiemRules() {
         windowSeconds: rule.windowSeconds,
         cooldownSeconds: rule.cooldownSeconds,
         alertEnabled: rule.alertEnabled,
+        mitreTactics: rule.mitreTactics,
+        mitreTechniques: rule.mitreTechniques,
+        isoControls: rule.isoControls,
       })),
     );
     rules = await db
@@ -238,6 +244,9 @@ export async function getSiemRules() {
         severity: siemRules.severity,
         enabled: siemRules.enabled,
         alertEnabled: siemRules.alertEnabled,
+        mitreTactics: siemRules.mitreTactics,
+        mitreTechniques: siemRules.mitreTechniques,
+        isoControls: siemRules.isoControls,
       })
       .from(siemRules)
       .where(eq(siemRules.siteId, auth.activeSiteId));
@@ -316,7 +325,21 @@ const ruleDetailSchema = z.object({
     },
     { message: "Conditions must be valid JSON." },
   ).optional(),
+  // Mapping tags: comma-separated free-text, normalized to trimmed uppercase
+  // tokens (MITRE ids like T1110, ISO ids like A.8.15, tactic names).
+  mitreTactics: z.string().max(500).optional(),
+  mitreTechniques: z.string().max(500).optional(),
+  isoControls: z.string().max(500).optional(),
 });
+
+function tagList(raw: string | undefined): string[] {
+  return [...new Set(
+    (raw ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean),
+  )];
+}
 
 export async function updateSiemRuleDetail(prevState: unknown, formData: FormData) {
   void prevState;
@@ -333,6 +356,9 @@ export async function updateSiemRuleDetail(prevState: unknown, formData: FormDat
     threshold: formData.get("threshold") ?? "",
     windowSeconds: formData.get("windowSeconds") ?? "",
     conditions: conditionsRaw,
+    mitreTactics: String(formData.get("mitreTactics") ?? ""),
+    mitreTechniques: String(formData.get("mitreTechniques") ?? ""),
+    isoControls: String(formData.get("isoControls") ?? ""),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -366,11 +392,15 @@ export async function updateSiemRuleDetail(prevState: unknown, formData: FormDat
       threshold: parsed.data.threshold ?? null,
       windowSeconds: parsed.data.windowSeconds ?? null,
       conditions: conditionsValue,
+      mitreTactics: tagList(parsed.data.mitreTactics),
+      mitreTechniques: tagList(parsed.data.mitreTechniques),
+      isoControls: tagList(parsed.data.isoControls),
       updatedAt: new Date(),
     })
     .where(and(eq(siemRules.id, parsed.data.id), eq(siemRules.siteId, auth.activeSiteId)));
 
   revalidatePath("/admin/siem/rules");
+  revalidatePath("/admin/siem");
   await logAudit({
     action: "UPDATE",
     entity: "settings",

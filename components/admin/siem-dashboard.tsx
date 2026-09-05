@@ -29,6 +29,12 @@ export type SiemDashboardStats = {
   unmappedSources: number;
   pendingAlerts: number;
   failedAlerts: number;
+  topSources: {
+    sourceIp: string;
+    displayName: string | null;
+    deviceId: number | null;
+    eventCount: number;
+  }[];
   latestFindings: {
     id: number;
     title: string;
@@ -267,6 +273,40 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
         <ActionButton href="/admin/siem/events" variant="secondary" icon={<FileSearch className="size-4" />}>Event Explorer</ActionButton>
         <ActionButton href="/admin/siem/findings" variant="secondary" icon={<ShieldAlert className="size-4" />}>Findings</ActionButton>
         <ActionButton href="/admin/siem/sources" variant="secondary" icon={<RadioTower className="size-4" />}>Sources</ActionButton>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-bold text-ops-text">Top Sources (24h)</h2>
+          <p className="text-sm text-ops-muted">Sumber paling berisik dalam 24 jam terakhir — kandidat investigasi volume anomali.</p>
+        </div>
+        {stats.topSources.length === 0 ? (
+          <p className="text-sm text-ops-muted">Belum ada event dalam 24 jam terakhir.</p>
+        ) : (
+          <DataTableFrame>
+            <DataTable>
+              <DataTableHead>
+                <tr>
+                  <th className="px-4 py-3">Source</th>
+                  <th className="px-4 py-3">IP</th>
+                  <th className="px-4 py-3 text-right">Events (24h)</th>
+                </tr>
+              </DataTableHead>
+              <DataTableBody>
+                {stats.topSources.map((row) => (
+                  <tr key={row.sourceIp} className="transition-colors hover:bg-ops-surface">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-ops-text">{row.displayName ?? "Unmapped"}</div>
+                      {row.deviceId && <div className="text-xs text-ops-muted">device #{row.deviceId}</div>}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-sm text-ops-muted">{row.sourceIp}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-ops-text">{row.eventCount.toLocaleString("id-ID")}</td>
+                  </tr>
+                ))}
+              </DataTableBody>
+            </DataTable>
+          </DataTableFrame>
+        )}
       </section>
 
       <section className="space-y-3">

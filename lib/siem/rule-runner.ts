@@ -1,9 +1,9 @@
 import { db } from "../../db";
-import { siemFindings, siemRules, sites, syslogEvents, syslogSources } from "../../db/schema";
-import { and, desc, eq, gte } from "drizzle-orm";
+import { siemFindings, siemIocs, siemRules, siemSeenState, sites, syslogEvents, syslogSources } from "../../db/schema";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { queueSiemAiAnalysis } from "./ai-queue";
 import { buildFindingText } from "./human-analysis";
-import { evaluateSiemRules, type SiemFindingCandidate, type SiemRuleDefinition, type SiemRuleEvent, type SiemSourceBaseline } from "./rule-engine";
+import { evaluateSiemRules, type SiemFindingCandidate, type SiemIoc, type SiemRuleDefinition, type SiemRuleEvent, type SiemSourceBaseline } from "./rule-engine";
 import type { SiemRuleType, SiemSeverity } from "./types";
 
 export type SiemRuleRunnerOptions = {
@@ -12,7 +12,13 @@ export type SiemRuleRunnerOptions = {
   limit?: number;
 };
 
-export type SeedSiemRule = Omit<SiemRuleDefinition, "id"> & { alertEnabled?: boolean };
+export type SeedSiemRule = Omit<SiemRuleDefinition, "id"> & {
+  alertEnabled?: boolean;
+  // Mapping metadata (0049): optional so legacy seed shapes keep working.
+  mitreTactics?: string[];
+  mitreTechniques?: string[];
+  isoControls?: string[];
+};
 
 function asRule(row: typeof siemRules.$inferSelect): SiemRuleDefinition {
   return {
@@ -129,6 +135,154 @@ async function buildBaselineMap(
   return map;
 }
 
+/**
+ * Per-entity baselines (P2 mini-UEBA) for baseline_anomaly rules whose
+ * groupBy targets a non-sourceId key. avg/hour per `entityKey:value` over the
+ * same 7-day history window as the source baseline.
+ */
+async function buildEntityBaselineMap(
+  rules: SiemRuleDefinition[],
+  siteId: number,
+): Promise<Map<string, number>> {
+  const entityRules = rules.filter((rule) => {
+    if (rule.ruleType !== "baseline_anomaly") return false;
+    const entityKeys = rule.groupBy.filter((key) => key !== "sourceId");
+    return entityKeys.length > 0;
+  });
+  const map = new Map<string, number>();
+  if (entityRules.length === 0) return map;
+
+  const entityKeys = [...new Set(entityRules.flatMap((rule) => rule.groupBy.filter((key) => key !== "sourceId")))];
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const rows = await db
+    .select({
+      srcIp: syslogEvents.srcIp,
+      dstIp: syslogEvents.dstIp,
+      username: syslogEvents.username,
+      program: syslogEvents.program,
+      receivedAt: syslogEvents.receivedAt,
+    })
+    .from(syslogEvents)
+    .where(and(eq(syslogEvents.siteId, siteId), gte(syslogEvents.receivedAt, sevenDaysAgo)));
+
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (const key of entityKeys) {
+      const raw = key === "username" ? row.username : key === "program" ? row.program : key === "dstIp" ? row.dstIp : key === "srcIp" ? row.srcIp : null;
+      if (raw == null || raw === "") continue;
+      const mapKey = `${key}:${String(raw)}`;
+      counts.set(mapKey, (counts.get(mapKey) ?? 0) + 1);
+    }
+  }
+  const hours = 7 * 24;
+  for (const [mapKey, total] of counts) {
+    if (total === 0) continue;
+    map.set(mapKey, total / hours);
+  }
+  return map;
+}
+
+async function loadSiteIocs(siteId: number, now: Date): Promise<SiemIoc[]> {
+  const rows = await db
+    .select({ id: siemIocs.id, type: siemIocs.type, value: siemIocs.value, severity: siemIocs.severity, expiresAt: siemIocs.expiresAt })
+    .from(siemIocs)
+    .where(and(eq(siemIocs.siteId, siteId), eq(siemIocs.enabled, true)));
+  const nowMs = now.getTime();
+  return rows
+    .filter((row) => {
+      if (row.type !== "ip" && row.type !== "domain" && row.type !== "hash") return false;
+      // Expired IOCs stop matching but stay in the table for audit/review.
+      return row.expiresAt == null || row.expiresAt.getTime() > nowMs;
+    })
+    .map((row) => ({ id: row.id, type: row.type as SiemIoc["type"], value: row.value, severity: row.severity as SiemSeverity }));
+}
+
+/**
+ * Load known entity values for the site's first_seen rules. State key mirrors
+ * the engine: `${ruleId}:${groupKey}` -> set of `key:value|key:value` strings.
+ */
+async function buildKnownValuesMap(rules: SiemRuleDefinition[], siteId: number): Promise<Map<string, Set<string>>> {
+  const firstSeenRules = rules.filter((rule) => rule.ruleType === "first_seen" && rule.groupBy.length > 0);
+  const map = new Map<string, Set<string>>();
+  if (firstSeenRules.length === 0) return map;
+
+  const rows = await db
+    .select({ ruleId: siemSeenState.ruleId, groupKey: siemSeenState.groupKey, groupValue: siemSeenState.groupValue })
+    .from(siemSeenState)
+    .where(eq(siemSeenState.siteId, siteId));
+
+  const ruleIds = new Set(firstSeenRules.map((rule) => rule.id));
+  for (const row of rows) {
+    if (!ruleIds.has(row.ruleId)) continue;
+    const stateKey = `${row.ruleId}:${row.groupKey}`;
+    const set = map.get(stateKey) ?? new Set<string>();
+    set.add(row.groupValue);
+    map.set(stateKey, set);
+  }
+  return map;
+}
+
+/**
+ * Record first sightings for first_seen candidates so the same entity value
+ * doesn't fire again on the next pass. Upsert bumps last_seen/seen_count for
+ * already-known values (cheap, and keeps the state honest about recency).
+ */
+async function recordSeenValues(siteId: number, rules: SiemRuleDefinition[], candidates: SiemFindingCandidate[], events: SiemRuleEvent[], now: Date): Promise<void> {
+  const firstSeenRules = rules.filter((rule) => rule.ruleType === "first_seen" && rule.groupBy.length > 0);
+  if (firstSeenRules.length === 0) return;
+  const ruleById = new Map(firstSeenRules.map((rule) => [rule.id, rule]));
+  const eventById = new Map(events.map((event) => [event.id, event]));
+
+  for (const candidate of candidates) {
+    const rule = ruleById.get(candidate.ruleId);
+    if (!rule) continue;
+    const sampleEventId = candidate.sampleEventIds[0];
+    const event = sampleEventId !== undefined ? eventById.get(sampleEventId) : undefined;
+    if (!event) continue;
+
+    const groupParts = rule.groupBy.map((key) => `${key}:${groupValue(event, key) ?? "none"}`);
+    if (groupParts.some((part) => part.endsWith(":none"))) continue;
+    const groupValueText = groupParts.join("|");
+    const groupKey = rule.groupBy.join(",");
+    const seenAt = candidate.firstSeenAt;
+
+    await db
+      .insert(siemSeenState)
+      .values({
+        siteId,
+        ruleId: rule.id,
+        groupKey,
+        groupValue: groupValueText,
+        firstSeenAt: seenAt,
+        lastSeenAt: seenAt,
+        seenCount: 1,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [siemSeenState.siteId, siemSeenState.ruleId, siemSeenState.groupKey, siemSeenState.groupValue],
+        set: { lastSeenAt: seenAt, seenCount: sql`${siemSeenState.seenCount} + 1`, updatedAt: now },
+      });
+  }
+}
+
+// Group-value lookup shared with the engine's first_seen bookkeeping.
+
+function groupValue(event: SiemRuleEvent, key: string) {
+  if (key === "deviceId") return event.deviceId;
+  if (key === "sourceId") return event.sourceId;
+  if (key === "sourceIp") return event.sourceIp;
+  if (key === "srcIp") return event.srcIp;
+  if (key === "srcPort") return event.srcPort;
+  if (key === "dstIp") return event.dstIp;
+  if (key === "dstPort") return event.dstPort;
+  if (key === "username") return event.username;
+  if (key === "interfaceName") return event.interfaceName;
+  if (key === "program") return event.program;
+  if (key === "protocol") return event.protocol;
+  return null;
+}
+
 export async function runSiemRules(options: SiemRuleRunnerOptions = {}) {
   const now = options.now ?? new Date();
   const lookbackSeconds = options.lookbackSeconds ?? 900;
@@ -180,11 +334,19 @@ async function runSiemRulesForSite(siteId: number, options: { now: Date; lookbac
     .orderBy(desc(syslogEvents.receivedAt))
     .limit(limit);
 
-  const [absenceMap, baselineMap] = await Promise.all([
+  const [absenceMap, baselineBySource, iocs, knownValues, baselineByEntity] = await Promise.all([
     buildAbsenceMap(rules, siteId),
     buildBaselineMap(rules, eventRows, now, siteId),
+    loadSiteIocs(siteId, now),
+    buildKnownValuesMap(rules, siteId),
+    buildEntityBaselineMap(rules, siteId),
   ]);
-  const candidates = evaluateSiemRules({ rules, events: eventRows.map(asEvent), options: { now, absence: absenceMap, baseline: baselineMap } });
+  const candidates = evaluateSiemRules({ rules, events: eventRows.map(asEvent), options: { now, absence: absenceMap, baseline: { now, baselineBySource, baselineByEntity }, iocs, knownValues } });
+
+  // Persist first sightings BEFORE creating findings so a concurrent pass can't
+  // double-fire the same entity; a failed finding insert leaves the state row,
+  // which only loses one finding, not the dedupe guarantee.
+  await recordSeenValues(siteId, rules, candidates, eventRows.map(asEvent), now);
   let created = 0;
   let updated = 0;
 
@@ -287,6 +449,9 @@ export async function seedDefaultSiemRules(rules: SeedSiemRule[], siteId: number
         windowSeconds: rule.windowSeconds,
         cooldownSeconds: rule.cooldownSeconds,
         alertEnabled: rule.alertEnabled ?? false,
+        mitreTactics: rule.mitreTactics ?? [],
+        mitreTechniques: rule.mitreTechniques ?? [],
+        isoControls: rule.isoControls ?? [],
       })),
     );
   }

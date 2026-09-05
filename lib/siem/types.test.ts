@@ -15,7 +15,7 @@ describe("SIEM type helpers", () => {
     expect(siemSeverities).toEqual(["Low", "Medium", "High", "Critical"]);
     expect(siemFindingStatuses).toEqual(["Open", "Acknowledged", "Resolved"]);
     expect(siemAlertStatuses).toEqual(["pending", "sent", "failed"]);
-    expect(siemRuleTypes).toEqual(["single_event", "threshold", "sequence", "absence", "baseline_anomaly"]);
+    expect(siemRuleTypes).toEqual(["single_event", "threshold", "sequence", "absence", "baseline_anomaly", "indicator_match", "first_seen"]);
   });
 
   it("accepts valid values and rejects invalid values", () => {
@@ -26,6 +26,8 @@ describe("SIEM type helpers", () => {
     expect(isSiemAlertStatus("failed")).toBe(true);
     expect(isSiemAlertStatus("error")).toBe(false);
     expect(isSiemRuleType("threshold")).toBe(true);
+    expect(isSiemRuleType("indicator_match")).toBe(true);
+    expect(isSiemRuleType("first_seen")).toBe(true);
     expect(isSiemRuleType("correlation")).toBe(false);
   });
 });

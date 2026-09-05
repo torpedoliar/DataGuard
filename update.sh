@@ -131,7 +131,7 @@ echo "OK - Code updated"
 # STEP 3: REBUILD APP IMAGE (database TIDAK disentuh!)
 # ==================================================================
 APP_SERVICE="app"
-SIEM_WORKER_SERVICES=(syslog-receiver siem-parser siem-rules siem-alerts siem-ai siem-retention siem-snapshot incidents-overdue-notify backup-scheduler network-doc-sync)
+SIEM_WORKER_SERVICES=(syslog-receiver siem-parser siem-rules siem-alerts siem-ai siem-retention siem-snapshot siem-response incidents-overdue-notify backup-scheduler network-doc-sync)
 echo ""
 echo "[3/6] Rebuilding app image (database untouched)..."
 echo "      Workers reuse image: ${SIEM_WORKER_SERVICES[*]}"

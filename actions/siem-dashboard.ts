@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { siemAlerts, siemFindings, syslogEvents, syslogEventsRaw, syslogSources } from "@/db/schema";
+import { siemAlerts, siemFindings, siemRules, syslogEvents, syslogEventsRaw, syslogSources } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { and, eq, gte, isNull, ne, sql } from "drizzle-orm";
 import { captureSiemSnapshot, getSiemSnapshots, type SiemSnapshot } from "@/lib/siem/snapshots";
@@ -59,6 +59,22 @@ export async function getSiemDashboardStats() {
     with: { rule: true, source: true, device: true },
   });
 
+  // Top noisy sources over 24h: event counts grouped by source IP, joined to
+  // the source registry for display names. Left join keeps unmapped IPs.
+  const topSources = await db
+    .select({
+      sourceIp: syslogEvents.sourceIp,
+      displayName: syslogSources.displayName,
+      deviceId: syslogSources.deviceId,
+      eventCount: sql<number>`count(*)::int`,
+    })
+    .from(syslogEvents)
+    .leftJoin(syslogSources, eq(syslogEvents.sourceId, syslogSources.id))
+    .where(and(eq(syslogEvents.siteId, auth.activeSiteId), gte(syslogEvents.receivedAt, since24h)))
+    .groupBy(syslogEvents.sourceIp, syslogSources.displayName, syslogSources.deviceId)
+    .orderBy(sql`count(*) desc`)
+    .limit(10);
+
   // History: try to load the snapshots that the worker has been collecting.
   // If the table is empty (fresh deploy with no worker yet), take a single
   // lazy snapshot so the dashboard shows at least one data point.
@@ -81,6 +97,12 @@ export async function getSiemDashboardStats() {
     unmappedSources: Number(unmappedSources[0]?.count ?? 0),
     pendingAlerts: Number(pendingAlerts[0]?.count ?? 0),
     failedAlerts: Number(failedAlerts[0]?.count ?? 0),
+    topSources: topSources.map((row) => ({
+      sourceIp: row.sourceIp,
+      displayName: row.displayName ?? null,
+      deviceId: row.deviceId ?? null,
+      eventCount: Number(row.eventCount ?? 0),
+    })),
     latestFindings: latestFindings.map((finding) => ({
       id: finding.id,
       title: finding.title,
@@ -122,6 +144,84 @@ export async function getSiemDashboardStats() {
         pendingAlerts: snap.pendingAlerts,
         failedAlerts: snap.failedAlerts,
       })),
+    },
+  };
+}
+
+// ==================== MITRE ATT&CK + ISO 27001 coverage ====================
+
+export const SIEM_ATTACK_TACTICS = [
+  "Reconnaissance",
+  "Resource Development",
+  "Initial Access",
+  "Execution",
+  "Persistence",
+  "Privilege Escalation",
+  "Defense Evasion",
+  "Credential Access",
+  "Discovery",
+  "Lateral Movement",
+  "Collection",
+  "Command and Control",
+  "Exfiltration",
+  "Impact",
+] as const;
+
+export async function getSiemCoverageMatrix() {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+
+  const rules = await db
+    .select({
+      name: siemRules.name,
+      enabled: siemRules.enabled,
+      mitreTactics: siemRules.mitreTactics,
+      mitreTechniques: siemRules.mitreTechniques,
+      isoControls: siemRules.isoControls,
+    })
+    .from(siemRules)
+    .where(eq(siemRules.siteId, auth.activeSiteId));
+
+  // Coverage = any enabled rule tagged with the tactic/control. Disabled rules
+  // don't count — the matrix must reflect what actually detects right now.
+  const tacticCoverage = SIEM_ATTACK_TACTICS.map((tactic) => {
+    const rulesForTactic = rules.filter((rule) => rule.mitreTactics.includes(tactic));
+    return {
+      tactic,
+      covered: rulesForTactic.some((rule) => rule.enabled),
+      ruleCount: rulesForTactic.length,
+      enabledCount: rulesForTactic.filter((rule) => rule.enabled).length,
+      rules: rulesForTactic.map((rule) => ({ name: rule.name, enabled: rule.enabled, techniques: rule.mitreTechniques })),
+    };
+  });
+
+  const controlCounts = new Map<string, { rules: { name: string; enabled: boolean }[] }>();
+  for (const rule of rules) {
+    for (const control of rule.isoControls) {
+      const entry = controlCounts.get(control) ?? { rules: [] };
+      entry.rules.push({ name: rule.name, enabled: rule.enabled });
+      controlCounts.set(control, entry);
+    }
+  }
+  const isoCoverage = [...controlCounts.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([control, entry]) => ({
+      control,
+      covered: entry.rules.some((rule) => rule.enabled),
+      ruleCount: entry.rules.length,
+      enabledCount: entry.rules.filter((rule) => rule.enabled).length,
+      rules: entry.rules,
+    }));
+
+  const taggedRules = rules.filter((rule) => rule.mitreTactics.length > 0);
+  return {
+    tactics: tacticCoverage,
+    isoControls: isoCoverage,
+    stats: {
+      totalRules: rules.length,
+      attackMappedRules: taggedRules.length,
+      attackMappedEnabled: taggedRules.filter((rule) => rule.enabled).length,
+      tacticsCovered: tacticCoverage.filter((entry) => entry.covered).length,
     },
   };
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { generateSiemAiAnalysis } from "@/actions/siem-ai";
+import { assignSiemFinding, addSiemFindingComment, getSiemFindingComments, type SiemFindingCommentRow } from "@/actions/siem-finding-case";
+import SiemResponseActionsPanel from "@/components/admin/siem-response-actions-panel";
 import { createIncidentFromSiemFinding, updateSiemFindingStatus } from "@/actions/siem-findings";
 import ActionButton from "@/components/ui/action-button";
 import {
@@ -12,7 +14,7 @@ import {
 } from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
 import { getIncidentSeverityTone } from "@/lib/ui/status";
-import { CheckCircle2, Eye, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Eye, MessageSquare, ShieldCheck, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
@@ -33,6 +35,8 @@ export type SiemFindingRow = {
   sampleEventIds: number[];
   correlationKey: string;
   createdIncidentId: number | null;
+  assignedToId: number | null;
+  assigneeName: string | null;
   ruleKey: string | null;
   ruleName: string | null;
   ruleCategory: string | null;
@@ -152,6 +156,89 @@ function AiAnalysisBlock({ analysis }: { analysis: Record<string, unknown> }) {
   );
 }
 
+function CasePanel({ finding }: { finding: SiemFindingRow }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [comments, setComments] = useState<SiemFindingCommentRow[] | null>(null);
+  const [assignState, assignAction, assignPending] = useActionState(assignSiemFinding, undefined);
+  const [commentState, commentAction, commentPending] = useActionState(addSiemFindingComment, undefined);
+
+  useEffect(() => {
+    if (assignState?.success || commentState?.success) router.refresh();
+  }, [assignState?.success, commentState?.success, router]);
+
+  useEffect(() => {
+    if (commentState?.success) {
+      setComments(null); // force reload on next open
+      setOpen(true);
+    }
+  }, [commentState?.success]);
+
+  async function loadComments() {
+    setOpen((prev) => !prev);
+    if (comments === null) {
+      setComments(await getSiemFindingComments(finding.id));
+    }
+  }
+
+  return (
+    <div className="space-y-2 text-left">
+      <div className="flex items-center gap-2">
+        <form action={assignAction} className="flex items-center gap-1">
+          <input type="hidden" name="id" value={finding.id} />
+          <input
+            name="assigneeId"
+            type="number"
+            min={1}
+            placeholder={finding.assigneeName ? `@${finding.assigneeName}` : "user id"}
+            className="ops-input h-8 w-28 px-2 text-xs"
+          />
+          <ActionButton type="submit" size="sm" variant="secondary" isPending={assignPending} icon={<UserPlus className="size-3.5" />}>
+            {finding.assignedToId ? "Reassign" : "Assign"}
+          </ActionButton>
+        </form>
+        {finding.assignedToId !== null && (
+          <form action={assignAction}>
+            <input type="hidden" name="id" value={finding.id} />
+            <input type="hidden" name="assigneeId" value="" />
+            <ActionButton type="submit" size="sm" variant="ghost" isPending={assignPending}>Clear</ActionButton>
+          </form>
+        )}
+        <ActionButton type="button" size="sm" variant="ghost" onClick={() => void loadComments()} icon={<MessageSquare className="size-3.5" />}>
+          Notes
+        </ActionButton>
+      </div>
+      {(assignState?.message && !assignState.success) && <p className="text-xs text-red-200">{assignState.message}</p>}
+      {open && (
+        <div className="w-full max-w-xl rounded-md border border-ops-border bg-ops-surface p-3">
+          {comments === null ? (
+            <p className="text-xs text-ops-muted">Loading notes…</p>
+          ) : comments.length === 0 ? (
+            <p className="text-xs text-ops-muted">Belum ada catatan investigasi.</p>
+          ) : (
+            <ul className="space-y-2">
+              {comments.map((comment) => (
+                <li key={comment.id} className="rounded border border-ops-border/60 p-2">
+                  <div className="text-[10px] uppercase tracking-wide text-ops-muted">
+                    {comment.authorName ?? "unknown"} · {comment.createdAt ? formatDate(comment.createdAt) : ""}
+                  </div>
+                  <p className="whitespace-pre-wrap text-xs text-ops-text">{comment.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form action={commentAction} className="mt-2 flex items-start gap-2">
+            <input type="hidden" name="id" value={finding.id} />
+            <textarea name="body" rows={2} maxLength={5000} required placeholder="Tambah catatan investigasi…" className="w-full rounded border border-ops-border bg-ops-surface px-2 py-1.5 text-xs text-ops-text" />
+            <ActionButton type="submit" size="sm" isPending={commentPending}>Kirim</ActionButton>
+          </form>
+          {commentState?.errors && <p className="mt-1 text-xs text-red-200">{Object.values(commentState.errors).flat().join(" ")}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SiemFindingTable({ findings, highlightId }: { findings: SiemFindingRow[]; highlightId?: number }) {
   // Telegram alert deep links land on ?highlight=<id>: scroll the row into
   // view once the server-rendered table hydrates.
@@ -222,6 +309,8 @@ export default function SiemFindingTable({ findings, highlightId }: { findings: 
                   </div>
                   <GenerateAiAnalysisForm finding={finding} />
                   <CreateIncidentForm finding={finding} />
+                  <CasePanel finding={finding} />
+                  <SiemResponseActionsPanel findingId={finding.id} />
                 </div>
               </td>
             </tr>

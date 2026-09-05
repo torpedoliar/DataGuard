@@ -7,7 +7,7 @@ export type SiemFindingStatus = typeof siemFindingStatuses[number];
 export const siemAlertStatuses = ["pending", "sent", "failed"] as const;
 export type SiemAlertStatus = typeof siemAlertStatuses[number];
 
-export const siemRuleTypes = ["single_event", "threshold", "sequence", "absence", "baseline_anomaly"] as const;
+export const siemRuleTypes = ["single_event", "threshold", "sequence", "absence", "baseline_anomaly", "indicator_match", "first_seen"] as const;
 export type SiemRuleType = typeof siemRuleTypes[number];
 
 export const siemVendors = ["generic", "mikrotik", "cisco", "fortigate", "linux", "watchguard", "paloalto", "juniper", "checkpoint"] as const;

@@ -16,6 +16,9 @@ export type SiemRuleRow = {
   severity: SiemSeverity;
   enabled: boolean;
   alertEnabled: boolean;
+  mitreTactics?: string[];
+  mitreTechniques?: string[];
+  isoControls?: string[];
 };
 
 type ToggleState = Record<number, { enabled: boolean; alertEnabled: boolean }>;
@@ -122,6 +125,34 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
               />
               <span className="text-xs text-ops-muted">Optional. Must be valid JSON object. Leave blank to clear.</span>
             </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              MITRE Tactics
+              <input
+                name="mitreTactics"
+                defaultValue={(rule.mitreTactics ?? []).join(", ")}
+                placeholder="Credential Access, Discovery"
+                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              MITRE Techniques
+              <input
+                name="mitreTechniques"
+                defaultValue={(rule.mitreTechniques ?? []).join(", ")}
+                placeholder="T1110, T1110.001"
+                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text md:col-span-2">
+              ISO 27001 Controls
+              <input
+                name="isoControls"
+                defaultValue={(rule.isoControls ?? []).join(", ")}
+                placeholder="A.8.15, A.8.16"
+                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+              />
+              <span className="text-xs text-ops-muted">Comma-separated. Shown in the coverage matrix.</span>
+            </label>
           </div>
 
           {state?.errors && (
@@ -207,6 +238,16 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
                       <span className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{rule.severity}</span>
                     </div>
                     <p className="mt-0.5 text-xs text-slate-500">{rule.description}</p>
+                    {(rule.mitreTechniques?.length || rule.isoControls?.length) ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {(rule.mitreTechniques ?? []).map((technique) => (
+                          <span key={technique} className="rounded border border-purple-500/40 bg-purple-500/10 px-1.5 py-0.5 font-mono text-[10px] text-purple-300">{technique}</span>
+                        ))}
+                        {(rule.isoControls ?? []).map((control) => (
+                          <span key={control} className="rounded border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[10px] text-sky-300">{control}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-5">
                     <label className="flex items-center gap-2 text-xs text-slate-300">

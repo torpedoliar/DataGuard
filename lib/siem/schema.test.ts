@@ -121,6 +121,8 @@ describe("SIEM schema", () => {
       "resolvedBy",
       "resolvedAt",
       "createdIncidentId",
+      "assignedToId",
+      "assignedAt",
       "createdAt",
       "updatedAt",
     ]);

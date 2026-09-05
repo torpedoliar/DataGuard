@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { devices, incidentUpdates, incidents, siemFindings, siemRules, sites, syslogSources } from "@/db/schema";
+import { devices, incidentUpdates, incidents, siemFindings, siemRules, sites, syslogSources, users } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { requireSiteAccess } from "@/lib/site-access";
 import { logAudit } from "@/lib/audit";
@@ -52,6 +52,8 @@ export async function getSiemFindings(filters: SiemFindingListFilters = {}, site
     sampleEventIds: siemFindings.sampleEventIds,
     correlationKey: siemFindings.correlationKey,
     createdIncidentId: siemFindings.createdIncidentId,
+    assignedToId: siemFindings.assignedToId,
+    assigneeName: users.username,
     ruleKey: siemRules.key,
     ruleName: siemRules.name,
     ruleCategory: siemRules.category,
@@ -66,6 +68,7 @@ export async function getSiemFindings(filters: SiemFindingListFilters = {}, site
     .leftJoin(sites, eq(siemFindings.siteId, sites.id))
     .leftJoin(devices, eq(siemFindings.deviceId, devices.id))
     .leftJoin(syslogSources, eq(siemFindings.sourceId, syslogSources.id))
+    .leftJoin(users, eq(siemFindings.assignedToId, users.id))
     .where(and(...conditions))
     .orderBy(desc(siemFindings.lastSeenAt))
     .limit(200);

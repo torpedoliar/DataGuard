@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SIEM_RULES } from "./default-rules";
 
 describe("default SIEM rules", () => {
-  it("ships all 26 default rule keys", () => {
+  it("ships all 28 default rule keys", () => {
     expect(DEFAULT_SIEM_RULES.map((rule) => rule.key)).toEqual([
       "auth.failed_login_spike",
       "auth.success_after_failures",
@@ -30,12 +30,14 @@ describe("default SIEM rules", () => {
       "health.log_volume_spike",
       "health.parser_error_spike",
       "health.unknown_source_high_volume",
+      "threat.ioc_indicator_match",
+      "auth.first_seen_source_login",
     ]);
   });
 
   it("uses unique keys and alertable high-impact defaults", () => {
     const keys = DEFAULT_SIEM_RULES.map((rule) => rule.key);
-    expect(new Set(keys).size).toBe(26);
+    expect(new Set(keys).size).toBe(28);
     expect(DEFAULT_SIEM_RULES.every((rule) => rule.enabled)).toBe(true);
     expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "auth.success_after_failures")?.severity).toBe("Critical");
     expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "auth.success_after_failures")?.alertEnabled).toBe(true);
@@ -54,7 +56,25 @@ describe("default SIEM rules", () => {
       expect(rule.cooldownSeconds).toBeGreaterThan(0);
       expect(rule.conditions).toMatchObject({ normalizedTypes: expect.any(Array) });
       expect(rule.groupBy).toEqual(expect.any(Array));
+      // Mapping tags (0049): always present as arrays; MITRE technique ids and
+      // ISO control ids follow their canonical formats when non-empty.
+      expect(rule.mitreTactics).toEqual(expect.any(Array));
+      expect(rule.mitreTechniques).toEqual(expect.any(Array));
+      expect(rule.isoControls).toEqual(expect.any(Array));
+      for (const technique of rule.mitreTechniques) expect(technique).toMatch(/^T\d{4}(\.\d{3})?$/);
+      for (const control of rule.isoControls) expect(control).toMatch(/^A\.\d+\.\d+$/);
     }
+  });
+
+  it("tags detection-relevant rules with MITRE ATT&CK and ISO controls", () => {
+    expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "auth.failed_login_spike")).toMatchObject({
+      mitreTactics: ["Credential Access"],
+      mitreTechniques: ["T1110"],
+      isoControls: expect.arrayContaining(["A.8.16"]),
+    });
+    expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "firewall.port_scan_pattern")?.mitreTechniques).toContain("T1046");
+    // Health rules are SIEM plumbing, not attacker behaviour: ISO yes, MITRE no.
+    expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "health.source_silent")?.mitreTactics).toEqual([]);
   });
 
   it("keeps representative defaults aligned with the phase plan", () => {

@@ -1,9 +1,10 @@
-import { getSiemDashboardStats } from "@/actions/siem-dashboard";
+import { getSiemCoverageMatrix, getSiemDashboardStats } from "@/actions/siem-dashboard";
 import SiemDashboard from "@/components/admin/siem-dashboard";
+import SiemCoverageMatrixPanel from "@/components/admin/siem-coverage-matrix";
 import ActionButton from "@/components/ui/action-button";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
-import { FileSearch, RadioTower, ScrollText, ShieldAlert, SlidersHorizontal } from "lucide-react";
+import { FileSearch, RadioTower, ScrollText, ShieldAlert, SlidersHorizontal, Crosshair } from "lucide-react";
 import { redirect } from "next/navigation";
 
 export default async function SiemPage() {
@@ -11,7 +12,10 @@ export default async function SiemPage() {
   if (!session || !["admin", "superadmin"].includes(session.role)) redirect("/checklist");
   if (!session.activeSiteId) redirect("/select-site");
 
-  const data = await getSiemDashboardStats();
+  const [data, coverage] = await Promise.all([
+    getSiemDashboardStats(),
+    getSiemCoverageMatrix(),
+  ]);
 
   if ("message" in data) {
     return (
@@ -39,11 +43,15 @@ export default async function SiemPage() {
             <ActionButton href="/admin/siem/findings" variant="secondary" icon={<ShieldAlert className="size-4" />}>Findings</ActionButton>
             <ActionButton href="/admin/siem/sources" variant="secondary" icon={<RadioTower className="size-4" />}>Sources</ActionButton>
             <ActionButton href="/admin/siem/rules" variant="secondary" icon={<SlidersHorizontal className="size-4" />}>Rules</ActionButton>
+            <ActionButton href="/admin/siem/iocs" variant="secondary" icon={<Crosshair className="size-4" />}>IOC</ActionButton>
           </>
         }
       />
 
       <SiemDashboard stats={data} />
+      {"message" in coverage
+        ? null
+        : <SiemCoverageMatrixPanel matrix={coverage} />}
     </main>
   );
 }

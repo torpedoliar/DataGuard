@@ -337,6 +337,41 @@
       "when": 1788404345000,
       "tag": "0048_threat_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1788404346000,
+      "tag": "0049_siem_rule_mappings",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1788404347000,
+      "tag": "0050_siem_iocs",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1788404348000,
+      "tag": "0051_siem_seen_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1788404349000,
+      "tag": "0052_siem_finding_case",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788404350000,
+      "tag": "0053_siem_response_actions",
+      "breakpoints": true
     }
   ]
 }

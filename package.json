@@ -28,6 +28,7 @@
     "siem:retention:run-once": "tsx scripts/siem-retention-worker.ts --run-once",
     "siem:ai": "tsx scripts/siem-ai-worker.ts",
     "siem:snapshot": "tsx scripts/siem-snapshot-worker.ts",
+    "siem:response": "tsx scripts/siem-response-worker.ts",
     "backup:scheduler": "tsx scripts/scheduled-backup.ts",
     "backup:restore": "tsx scripts/restore-from-file.ts",
     "reports:scheduler": "tsx scripts/report-scheduler-worker.ts",

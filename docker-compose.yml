@@ -166,6 +166,19 @@ services:
     networks:
       - dccheck_net
 
+  siem-response:
+    image: dc-check-app:latest
+    container_name: dccheck_siem_response
+    restart: unless-stopped
+    command: npm run siem:response
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dccheck_net
+
   incidents-overdue-notify:
     image: dc-check-app:latest
     container_name: dccheck_incidents_overdue_notify

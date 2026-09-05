@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCorrelationKey, evaluateAbsence, evaluateBaseline, evaluateSiemRules, eventMatchesRule, type SiemRuleDefinition, type SiemRuleEvent } from "./rule-engine";
+import { buildCorrelationKey, evaluateAbsence, evaluateBaseline, evaluateBaselineByEntity, evaluateSiemRules, eventMatchesRule, type SiemRuleDefinition, type SiemRuleEvent } from "./rule-engine";
 
 const baseRule: SiemRuleDefinition = {
   id: 1,
@@ -92,6 +92,122 @@ describe("evaluateSiemRules", () => {
 
     expect(findings).toHaveLength(1);
     expect(findings[0]?.sampleEventIds).toEqual([1, 2, 3]);
+  });
+
+  it("creates indicator_match findings against the site IOC list", () => {
+    const rule = { ...baseRule, id: 30, key: "threat.ioc_indicator_match", name: "IOC indicator match", ruleType: "indicator_match" as const, conditions: { normalizedTypes: [] }, groupBy: [], threshold: null, windowSeconds: null };
+    const iocs = [
+      { id: 1, type: "ip" as const, value: "203.0.113.9", severity: "Critical" as const },
+      { id: 2, type: "domain" as const, value: "evil.example.com", severity: "High" as const },
+      { id: 3, type: "hash" as const, value: "deadbeef", severity: "High" as const },
+    ];
+    const events = [
+      event({ id: 11, srcIp: "203.0.113.9" }),
+      event({ id: 12, srcIp: "192.0.2.1" }),
+      event({ id: 13, program: "Evil.Example.Com" }),
+    ];
+
+    const findings = evaluateSiemRules({ rules: [rule], events, options: { iocs } });
+
+    expect(findings).toHaveLength(2);
+    // IP hit escalates to the IOC's severity (Critical beats rule severity High).
+    const ipFinding = findings.find((candidate) => candidate.sampleEventIds[0] === 11);
+    expect(ipFinding?.severity).toBe("Critical");
+    expect(ipFinding?.correlationKey).toBe("threat.ioc_indicator_match|ip:203.0.113.9");
+    // Domain matches case-insensitively on program.
+    expect(findings.find((candidate) => candidate.sampleEventIds[0] === 13)?.correlationKey).toBe("threat.ioc_indicator_match|domain:evil.example.com");
+  });
+
+  it("does not match ip IOCs against username fields", () => {
+    const rule = { ...baseRule, id: 31, key: "threat.ioc_indicator_match", name: "IOC indicator match", ruleType: "indicator_match" as const, conditions: { normalizedTypes: [] }, groupBy: [], threshold: null, windowSeconds: null };
+    const iocs = [{ id: 1, type: "ip" as const, value: "10.0.0.1", severity: "High" as const }];
+
+    const findings = evaluateSiemRules({ rules: [rule], events: [event({ username: "10.0.0.1" })], options: { iocs } });
+
+    expect(findings).toEqual([]);
+  });
+});
+
+describe("evaluateFirstSeen", () => {
+  const firstSeenRule: SiemRuleDefinition = {
+    ...baseRule,
+    id: 40,
+    key: "auth.first_seen_source_login",
+    name: "First login from new source IP",
+    description: "A source IP authenticates for the first time.",
+    severity: "Low",
+    category: "Authentication",
+    ruleType: "first_seen",
+    conditions: { normalizedTypes: ["auth_success"] },
+    groupBy: ["srcIp"],
+    threshold: null,
+    windowSeconds: null,
+  };
+
+  it("fires once per never-seen group value and skips known values", () => {
+    const known = new Map([["40:srcIp", new Set(["srcIp:192.0.2.10"])]]);
+    const events = [
+      event({ id: 1, normalizedType: "auth_success", srcIp: "192.0.2.10" }),
+      event({ id: 2, normalizedType: "auth_success", srcIp: "203.0.113.50" }),
+      event({ id: 3, normalizedType: "auth_success", srcIp: "203.0.113.50" }),
+    ];
+
+    const findings = evaluateSiemRules({ rules: [firstSeenRule], events, options: { knownValues: known } });
+
+    // 192.0.2.10 known -> skipped; 203.0.113.50 new -> one finding despite 2 events.
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.correlationKey).toBe("auth.first_seen_source_login|srcIp:203.0.113.50");
+    expect(findings[0]?.sampleEventIds).toEqual([2]);
+  });
+
+  it("ignores events with null group values and non-matching events", () => {
+    // The event() helper defaults srcIp with ??, so force the null explicitly.
+    const nullSrcEvent = Object.assign(event({ id: 2, normalizedType: "auth_success" }), { srcIp: null });
+    const events = [
+      event({ id: 1, normalizedType: "auth_failed" }),
+      nullSrcEvent,
+    ];
+
+    expect(evaluateSiemRules({ rules: [firstSeenRule], events })).toEqual([]);
+  });
+});
+
+describe("evaluateBaselineByEntity", () => {
+  const entityRule: SiemRuleDefinition = {
+    ...baseRule,
+    id: 50,
+    key: "auth.username_activity_spike",
+    name: "Username activity spike",
+    description: "Auth activity for a username far above its baseline.",
+    severity: "Medium",
+    category: "Authentication",
+    ruleType: "baseline_anomaly",
+    conditions: { normalizedTypes: ["auth_success"] },
+    groupBy: ["username"],
+    threshold: 3,
+    windowSeconds: 900,
+  };
+
+  const now = new Date("2026-05-24T00:15:00.000Z");
+  const baselines = new Map([["username:admin", 1]]); // 1/hour baseline
+
+  it("fires when a username exceeds threshold × baseline in the window", () => {
+    // 15 min window, baseline 1/h, threshold 3× -> expected max 0.75 -> any 1+ extra hits fire.
+    const events = Array.from({ length: 4 }, (_, index) =>
+      event({ id: index + 1, normalizedType: "auth_success", receivedAt: new Date(now.getTime() - index * 60_000) }));
+
+    const findings = evaluateBaselineByEntity(entityRule, events, { now, baselineByEntity: baselines, entityKey: "username" });
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.correlationKey).toBe("auth.username_activity_spike|username:admin");
+    expect(findings[0]?.eventCount).toBe(4);
+  });
+
+  it("skips entities without baseline history and below-threshold counts", () => {
+    // Unknown entity (no baseline) and known entity with 0 events.
+    const events = [event({ id: 1, username: "root", normalizedType: "auth_success" })];
+    const findings = evaluateBaselineByEntity(entityRule, events, { now, baselineByEntity: baselines, entityKey: "username" });
+    expect(findings).toEqual([]);
   });
 });
 
