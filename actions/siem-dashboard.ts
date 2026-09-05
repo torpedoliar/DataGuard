@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { siemAlerts, siemFindings, siemRules, syslogEvents, syslogEventsRaw, syslogSources } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
+import { SIEM_ATTACK_TACTICS } from "@/lib/siem/attack-tactics";
 import { and, eq, gte, isNull, ne, sql } from "drizzle-orm";
 import { captureSiemSnapshot, getSiemSnapshots, type SiemSnapshot } from "@/lib/siem/snapshots";
 
@@ -150,22 +151,8 @@ export async function getSiemDashboardStats() {
 
 // ==================== MITRE ATT&CK + ISO 27001 coverage ====================
 
-export const SIEM_ATTACK_TACTICS = [
-  "Reconnaissance",
-  "Resource Development",
-  "Initial Access",
-  "Execution",
-  "Persistence",
-  "Privilege Escalation",
-  "Defense Evasion",
-  "Credential Access",
-  "Discovery",
-  "Lateral Movement",
-  "Collection",
-  "Command and Control",
-  "Exfiltration",
-  "Impact",
-] as const;
+// NOTE: tactic names live in lib/siem/attack-tactics.ts — a "use server" file
+// may only export async functions, so constants must live elsewhere.
 
 export async function getSiemCoverageMatrix() {
   const auth = await requireActiveSiteAdminAction();
