@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { siemAlerts, siemFindings, siemRules, syslogEvents, syslogEventsRaw, syslogSources } from "@/db/schema";
+import { devices, siemAlerts, siemFindings, siemRules, syslogEvents, syslogEventsRaw, syslogSources } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { SIEM_ATTACK_TACTICS } from "@/lib/siem/attack-tactics";
 import { and, eq, gte, isNull, ne, sql } from "drizzle-orm";
@@ -62,19 +62,42 @@ export async function getSiemDashboardStats() {
 
   // Top noisy sources over 24h: event counts grouped by source IP, joined to
   // the source registry for display names. Left join keeps unmapped IPs.
-  const topSources = await db
-    .select({
-      sourceIp: syslogEvents.sourceIp,
-      displayName: syslogSources.displayName,
-      deviceId: syslogSources.deviceId,
-      eventCount: sql<number>`count(*)::int`,
-    })
-    .from(syslogEvents)
-    .leftJoin(syslogSources, eq(syslogEvents.sourceId, syslogSources.id))
-    .where(and(eq(syslogEvents.siteId, auth.activeSiteId), gte(syslogEvents.receivedAt, since24h)))
-    .groupBy(syslogEvents.sourceIp, syslogSources.displayName, syslogSources.deviceId)
-    .orderBy(sql`count(*) desc`)
-    .limit(10);
+  const [topSourcesRows, inventoryDevices] = await Promise.all([
+    db
+      .select({
+        sourceIp: syslogEvents.sourceIp,
+        displayName: syslogSources.displayName,
+        deviceId: syslogSources.deviceId,
+        eventCount: sql<number>`count(*)::int`,
+      })
+      .from(syslogEvents)
+      .leftJoin(syslogSources, eq(syslogEvents.sourceId, syslogSources.id))
+      .where(and(eq(syslogEvents.siteId, auth.activeSiteId), gte(syslogEvents.receivedAt, since24h)))
+      .groupBy(syslogEvents.sourceIp, syslogSources.displayName, syslogSources.deviceId)
+      .orderBy(sql`count(*) desc`)
+      .limit(10),
+    // Inventory fallback: events parsed before their device was mapped (or
+    // matched via the parser's device_ip fallback, which leaves sourceId null)
+    // have no registry row — fall back to the device whose ipAddress matches.
+    db
+      .select({ id: devices.id, name: devices.name, ipAddress: devices.ipAddress })
+      .from(devices)
+      .where(eq(devices.siteId, auth.activeSiteId)),
+  ]);
+
+  const deviceByIp = new Map<string, { id: number; name: string }>();
+  for (const device of inventoryDevices) {
+    if (device.ipAddress?.trim()) deviceByIp.set(device.ipAddress.trim(), { id: device.id, name: device.name });
+  }
+  const topSources = topSourcesRows.map((row) => {
+    const inventory = deviceByIp.get(row.sourceIp);
+    return {
+      sourceIp: row.sourceIp,
+      displayName: row.displayName ?? inventory?.name ?? null,
+      deviceId: row.deviceId ?? inventory?.id ?? null,
+      eventCount: Number(row.eventCount ?? 0),
+    };
+  });
 
   // History: try to load the snapshots that the worker has been collecting.
   // If the table is empty (fresh deploy with no worker yet), take a single

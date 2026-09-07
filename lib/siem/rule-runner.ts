@@ -425,10 +425,11 @@ export async function seedDefaultSiemRules(rules: SeedSiemRule[], siteId: number
   // the global key-unique constraint is still live, so onConflict targeting
   // [siteId, key] would error and targeting key would collide across sites.
   // The anti-join only inserts rules the site doesn't already own, which is
-  // exactly the seed semantics. Metadata refresh for existing rules is dropped
-  // (rule worker reseed now only backfills missing rules); upgrade path: a
-  // dedicated reseed-on-version command once the per-site unique exists.
-  const existing = await db.select({ key: siemRules.key }).from(siemRules).where(eq(siemRules.siteId, siteId));
+  // exactly the seed semantics.
+  const existing = await db
+    .select({ id: siemRules.id, key: siemRules.key, mitreTactics: siemRules.mitreTactics, mitreTechniques: siemRules.mitreTechniques, isoControls: siemRules.isoControls })
+    .from(siemRules)
+    .where(eq(siemRules.siteId, siteId));
   const existingKeys = new Set(existing.map((row) => row.key));
   const toInsert = rules.filter((rule) => !existingKeys.has(rule.key));
 
@@ -454,6 +455,23 @@ export async function seedDefaultSiemRules(rules: SeedSiemRule[], siteId: number
         isoControls: rule.isoControls ?? [],
       })),
     );
+  }
+
+  // Metadata backfill: rules seeded before the mapping columns existed (0049)
+  // have empty tag arrays. Sync ONLY the mapping metadata from code for rules
+  // whose tags are empty — never touches name/description/enabled/alertEnabled
+  // (user-controlled), and never overwrites tags an admin already set.
+  const defaultsByKey = new Map(rules.map((rule) => [rule.key, rule]));
+  for (const row of existing) {
+    const hasTags = row.mitreTactics.length > 0 || row.mitreTechniques.length > 0 || row.isoControls.length > 0;
+    if (hasTags) continue;
+    const defaults = defaultsByKey.get(row.key);
+    if (!defaults) continue;
+    const tactics = defaults.mitreTactics ?? [];
+    const techniques = defaults.mitreTechniques ?? [];
+    const controls = defaults.isoControls ?? [];
+    if (tactics.length === 0 && techniques.length === 0 && controls.length === 0) continue;
+    await db.update(siemRules).set({ mitreTactics: tactics, mitreTechniques: techniques, isoControls: controls, updatedAt: new Date() }).where(eq(siemRules.id, row.id));
   }
 
   return { seeded: toInsert.length };
