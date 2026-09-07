@@ -192,6 +192,10 @@ export const devices = pgTable("devices", {
   description: text("description"),
   photoPath: text("photo_path"),
   isActive: boolean("is_active").default(true),
+  // Q12: flags critical infrastructure. The syslog parser stamps
+  // `critical_device` on events from such devices, feeding the
+  // network.interface_down_critical rule (ISO A.8.15/A.8.16).
+  isCritical: boolean("is_critical").notNull().default(false),
   // Exclude from the checklist audit population (form, grid, dashboard,
   // reports) while staying in the device inventory and the rack layout —
   // e.g. PDU / blade chassis that are not field-audited daily.

@@ -1,7 +1,7 @@
 "use client";
 
 import { updateRack } from "@/actions/rack-management";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, X, Server } from "lucide-react";
 
@@ -29,6 +29,8 @@ interface EditRackFormProps {
 export default function EditRackForm({ rack, onClose, locations }: EditRackFormProps) {
     const [state, action, isPending] = useActionState(updateRack, undefined);
     const router = useRouter();
+    const isPresetU = [42, 45, 47, 48, 30, 24, 12, 9, 4].includes(rack.totalU ?? 42);
+    const [customU, setCustomU] = useState(!isPresetU);
 
     useEffect(() => {
         if (state?.success) {
@@ -86,8 +88,9 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
                                 Total U
                             </label>
                             <select
-                                name="totalU"
-                                defaultValue={rack.totalU || 42}
+                                name={customU ? undefined : "totalU"}
+                                defaultValue={isPresetU ? (rack.totalU || 42) : "custom"}
+                                onChange={(event) => setCustomU(event.target.value === "custom")}
                                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="42">42U (Standard)</option>
@@ -97,7 +100,22 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
                                 <option value="30">30U</option>
                                 <option value="24">24U</option>
                                 <option value="12">12U</option>
+                                <option value="9">9U</option>
+                                <option value="4">4U (Wall Mount)</option>
+                                <option value="custom">Custom…</option>
                             </select>
+                            {customU && (
+                                <input
+                                    type="number"
+                                    name="totalU"
+                                    defaultValue={rack.totalU ?? undefined}
+                                    min={1}
+                                    max={60}
+                                    required
+                                    placeholder="Jumlah U (1-60)"
+                                    className="mt-2 w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            )}
                         </div>
 
                         <div className="md:col-span-2">

@@ -1,7 +1,7 @@
 "use client";
 
 import { addRack } from "@/actions/rack-management";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Server } from "lucide-react";
 
@@ -20,10 +20,12 @@ export default function AddRackForm({
     const [state, action, isPending] = useActionState(addRack, undefined);
     const formRef = useRef<HTMLFormElement>(null);
     const router = useRouter();
+    const [customU, setCustomU] = useState(false);
 
     useEffect(() => {
         if (state?.success) {
             formRef.current?.reset();
+            setCustomU(false);
             router.refresh();
             onSuccess?.();
         }
@@ -67,6 +69,7 @@ export default function AddRackForm({
                     <select
                         name="totalU"
                         defaultValue="42"
+                        onChange={(event) => setCustomU(event.target.value === "custom")}
                         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         <option value="42">42U (Standard)</option>
@@ -76,7 +79,21 @@ export default function AddRackForm({
                         <option value="30">30U</option>
                         <option value="24">24U</option>
                         <option value="12">12U</option>
+                        <option value="9">9U</option>
+                        <option value="4">4U (Wall Mount)</option>
+                        <option value="custom">Custom…</option>
                     </select>
+                    {customU && (
+                        <input
+                            type="number"
+                            name="totalU"
+                            min={1}
+                            max={60}
+                            required
+                            placeholder="Jumlah U (1-60)"
+                            className="mt-2 w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    )}
                 </div>
 
                 <div>

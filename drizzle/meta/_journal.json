@@ -386,6 +386,13 @@
       "when": 1788404352000,
       "tag": "0055_fix_siem_rules_id_sequence",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1788404353000,
+      "tag": "0056_device_is_critical",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,15 @@ export type SiemRuleConditions = {
   tags?: string[];
   fieldMatches?: SiemRuleFieldMatch[];
   suppressions?: SiemRuleSuppression[];
+  // The rule only fires OUTSIDE this window (local site time). E.g.
+  // { startHour: 8, endHour: 17 } -> fires 17:00–08:00. Wraps past midnight
+  // when start > end. A rule without activeHours matches at all hours.
+  activeHours?: SiemRuleActiveHours;
+};
+
+export type SiemRuleActiveHours = {
+  startHour: number;
+  endHour: number;
 };
 
 export type SiemRuleDefinition = {
@@ -34,6 +43,26 @@ export type SiemRuleDefinition = {
   windowSeconds: number | null;
   cooldownSeconds: number;
 };
+
+/**
+ * True when the event falls OUTSIDE the rule's active window (local time).
+ * Hours are wall-clock 0–23. A rule with no activeHours matches at all hours.
+ */
+export function eventOutsideActiveHours(rule: SiemRuleDefinition, event: SiemRuleEvent): boolean {
+  const raw = (rule.conditions.activeHours ?? undefined) as SiemRuleActiveHours | undefined;
+  if (!raw || typeof raw !== "object") return true;
+  const start = (raw as SiemRuleActiveHours).startHour;
+  const end = (raw as SiemRuleActiveHours).endHour;
+  if (typeof start !== "number" || typeof end !== "number" || start < 0 || start > 23 || end < 0 || end > 23) return true;
+
+  // Event times are UTC instants; convert to Asia/Jakarta wall-clock hour.
+  // ponytail: hardcodes the operator timezone (single-site DC ops in WIB);
+  // per-site timezone when the product goes multi-region.
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jakarta" }).format(event.receivedAt));
+  if (start === end) return false; // degenerate window = whole day active -> never fires
+  if (start < end) return hour < start || hour >= end;
+  return hour < start && hour >= end;
+}
 
 export type SiemRuleEvent = {
   id: number;
@@ -117,6 +146,7 @@ function conditions(rule: SiemRuleDefinition): SiemRuleConditions {
     tags: stringArray(rule.conditions.tags),
     fieldMatches: (Array.isArray(rule.conditions.fieldMatches) ? rule.conditions.fieldMatches : []) as SiemRuleFieldMatch[],
     suppressions: (Array.isArray(rule.conditions.suppressions) ? rule.conditions.suppressions : []) as SiemRuleSuppression[],
+    activeHours: (rule.conditions.activeHours && typeof rule.conditions.activeHours === "object" ? rule.conditions.activeHours : undefined) as SiemRuleActiveHours | undefined,
   };
 }
 
@@ -137,6 +167,8 @@ function groupValue(event: SiemRuleEvent, key: string) {
 
 export function eventMatchesRule(rule: SiemRuleDefinition, event: SiemRuleEvent) {
   const parsed = conditions(rule);
+
+  if (parsed.activeHours && !eventOutsideActiveHours(rule, event)) return false;
 
   if (parsed.suppressions?.length) {
     for (const supp of parsed.suppressions) {

@@ -5,7 +5,8 @@ import { siemRules, siemSettings } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
 import { encryptString } from "@/lib/crypto";
-import { DEFAULT_SIEM_RULES } from "@/lib/siem/default-rules";
+import { DEFAULT_SIEM_RULES, NEEDS_DATA_SOURCE_TEMPLATES } from "@/lib/siem/default-rules";
+import { KNOWN_GROUP_BY_FIELDS, KNOWN_NORMALIZED_TYPES, KNOWN_TAGS } from "@/lib/siem/rule-form-reference";
 import { parseSiemRulesFormData } from "@/lib/siem/rule-settings-form";
 import { runSiemRetentionCleanup } from "@/lib/siem/retention";
 import { siemSeverities } from "@/lib/siem/types";
@@ -203,6 +204,8 @@ export async function getSiemRules() {
       severity: siemRules.severity,
       enabled: siemRules.enabled,
       alertEnabled: siemRules.alertEnabled,
+      conditions: siemRules.conditions,
+      groupBy: siemRules.groupBy,
       mitreTactics: siemRules.mitreTactics,
       mitreTechniques: siemRules.mitreTechniques,
       isoControls: siemRules.isoControls,
@@ -244,6 +247,8 @@ export async function getSiemRules() {
         severity: siemRules.severity,
         enabled: siemRules.enabled,
         alertEnabled: siemRules.alertEnabled,
+        conditions: siemRules.conditions,
+        groupBy: siemRules.groupBy,
         mitreTactics: siemRules.mitreTactics,
         mitreTechniques: siemRules.mitreTechniques,
         isoControls: siemRules.isoControls,
@@ -264,6 +269,84 @@ export async function getSiemRules() {
     rules,
     alertMinSeverity: (settings?.alertMinSeverity ?? "High") as (typeof siemSeverities)[number],
   };
+}
+
+// ==================== TEMPLATE CATALOG ====================
+// Templates that are not yet installed on the active site, ready to be
+// installed with one click. Locked entries (needsDataSources) describe
+// detections whose input signals the SIEM does not receive yet.
+export async function getSiemTemplateCatalog() {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { available: [], needsDataSources: [], message: auth.message };
+
+  const existing = await db
+    .select({ key: siemRules.key })
+    .from(siemRules)
+    .where(eq(siemRules.siteId, auth.activeSiteId));
+  const installedKeys = new Set(existing.map((row) => row.key));
+
+  const available = DEFAULT_SIEM_RULES
+    .filter((rule) => !installedKeys.has(rule.key))
+    .map((rule) => ({ ...rule }));
+
+  return {
+    available,
+    needsDataSources: NEEDS_DATA_SOURCE_TEMPLATES,
+  };
+}
+
+export type SiemTemplateRow = (typeof DEFAULT_SIEM_RULES)[number] & { key: string };
+
+const templateInstallSchema = z.object({
+  keys: z.array(z.string().min(1)).min(1).max(20),
+});
+
+export async function installSiemTemplates(prevState: unknown, formData: FormData) {
+  void prevState;
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+
+  const keys = formData.getAll("keys").map((value) => String(value)).filter(Boolean);
+  const parsed = templateInstallSchema.safeParse({ keys });
+  if (!parsed.success) return { message: "Pilih minimal satu template." };
+
+  const byKey = new Map(DEFAULT_SIEM_RULES.map((rule) => [rule.key, rule]));
+  const toInstall = parsed.data.keys
+    .map((key) => byKey.get(key))
+    .filter((rule): rule is (typeof DEFAULT_SIEM_RULES)[number] => rule !== undefined);
+  if (toInstall.length === 0) return { message: "Template tidak dikenal." };
+
+  await db.insert(siemRules).values(
+    toInstall.map((rule) => ({
+      siteId: auth.activeSiteId,
+      key: rule.key,
+      name: rule.name,
+      description: rule.description,
+      enabled: rule.enabled,
+      severity: rule.severity,
+      category: rule.category,
+      ruleType: rule.ruleType,
+      conditions: rule.conditions,
+      groupBy: rule.groupBy,
+      threshold: rule.threshold,
+      windowSeconds: rule.windowSeconds,
+      cooldownSeconds: rule.cooldownSeconds,
+      alertEnabled: rule.alertEnabled,
+      mitreTactics: rule.mitreTactics,
+      mitreTechniques: rule.mitreTechniques,
+      isoControls: rule.isoControls,
+    })),
+  );
+
+  await logAudit({
+    action: "CREATE",
+    entity: "settings",
+    entityName: "SIEM Rule",
+    detail: `installed ${toInstall.length} template(s): ${toInstall.map((rule) => rule.key).join(", ")}`,
+  });
+  revalidatePath("/admin/siem/rules");
+  revalidatePath("/admin/siem");
+  return { success: true, installed: toInstall.length };
 }
 
 export async function updateSiemRules(prevState: unknown, formData: FormData) {
@@ -365,6 +448,11 @@ const ruleDetailSchema = z.object({  id: z.coerce.number().int().min(1),
     },
     { message: "Conditions must be valid JSON." },
   ).optional(),
+  // Guided form selections (multi-selects). Validated against the same
+  // reference lists the UI shows, then merged into conditions on save.
+  normalizedTypes: z.array(z.string()).optional(),
+  tags: z.array(z.string()).optional(),
+  groupBy: z.array(z.string()).optional(),
   // Mapping tags: comma-separated free-text, normalized to trimmed uppercase
   // tokens (MITRE ids like T1110, ISO ids like A.8.15, tactic names).
   mitreTactics: z.string().max(500).optional(),
@@ -396,6 +484,9 @@ export async function updateSiemRuleDetail(prevState: unknown, formData: FormDat
     threshold: formData.get("threshold") ?? "",
     windowSeconds: formData.get("windowSeconds") ?? "",
     conditions: conditionsRaw,
+    normalizedTypes: formData.getAll("normalizedTypes").map(String).filter(Boolean),
+    tags: formData.getAll("tags").map(String).filter(Boolean),
+    groupBy: formData.getAll("groupBy").map(String).filter(Boolean),
     mitreTactics: String(formData.get("mitreTactics") ?? ""),
     mitreTechniques: String(formData.get("mitreTechniques") ?? ""),
     isoControls: String(formData.get("isoControls") ?? ""),
@@ -422,6 +513,18 @@ export async function updateSiemRuleDetail(prevState: unknown, formData: FormDat
     }
   }
 
+  // Guided selections override the corresponding JSON keys — the dropdowns are
+  // the source of truth for normalizedTypes/tags; advanced JSON keeps the rest
+  // (fieldMatches/suppressions/activeHours).
+  const knownTypeValues = new Set(KNOWN_NORMALIZED_TYPES.map((type) => type.value));
+  const knownTagValues = new Set(KNOWN_TAGS.map((tag) => tag.value));
+  const knownGroupFields = new Set(KNOWN_GROUP_BY_FIELDS as readonly string[]);
+  const selectedTypes = parsed.data.normalizedTypes?.filter((value) => knownTypeValues.has(value)) ?? [];
+  const selectedTags = parsed.data.tags?.filter((value) => knownTagValues.has(value)) ?? [];
+  const selectedGroupBy = parsed.data.groupBy?.filter((value) => knownGroupFields.has(value)) ?? [];
+  if (selectedTypes.length > 0 || conditionsValue.normalizedTypes !== undefined) conditionsValue.normalizedTypes = selectedTypes;
+  if (selectedTags.length > 0 || conditionsValue.tags !== undefined) conditionsValue.tags = selectedTags;
+
   await db
     .update(siemRules)
     .set({
@@ -432,6 +535,7 @@ export async function updateSiemRuleDetail(prevState: unknown, formData: FormDat
       threshold: parsed.data.threshold ?? null,
       windowSeconds: parsed.data.windowSeconds ?? null,
       conditions: conditionsValue,
+      groupBy: selectedGroupBy.length > 0 ? selectedGroupBy : existing.groupBy,
       mitreTactics: tagList(parsed.data.mitreTactics),
       mitreTechniques: tagList(parsed.data.mitreTechniques),
       isoControls: tagList(parsed.data.isoControls),

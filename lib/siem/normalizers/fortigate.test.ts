@@ -22,4 +22,15 @@ describe("normalizeFortigate", () => {
       srcIp: "192.168.1.100"
     });
   });
+
+  it("detects vpn success", () => {
+    expect(normalizeFortigate("action=vpn user=testuser remip=192.168.1.100 msg=vpn tunnel established")).toMatchObject({
+      category: "Firewall",
+      normalizedType: "vpn_login_success",
+      action: "login",
+      outcome: "success",
+      username: "testuser",
+      srcIp: "192.168.1.100"
+    });
+  });
 });

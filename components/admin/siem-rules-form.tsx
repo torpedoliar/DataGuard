@@ -2,6 +2,7 @@
 
 import { updateSiemRuleDetail, updateSiemRules } from "@/actions/siem-settings";
 import ActionButton from "@/components/ui/action-button";
+import { KNOWN_GROUP_BY_FIELDS, KNOWN_NORMALIZED_TYPES, KNOWN_TAGS } from "@/lib/siem/rule-form-reference";
 import { siemSeverities, type SiemSeverity } from "@/lib/siem/types";
 import { Edit, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -16,6 +17,8 @@ export type SiemRuleRow = {
   severity: SiemSeverity;
   enabled: boolean;
   alertEnabled: boolean;
+  conditions: Record<string, unknown>;
+  groupBy: string[];
   mitreTactics?: string[];
   mitreTechniques?: string[];
   isoControls?: string[];
@@ -23,9 +26,18 @@ export type SiemRuleRow = {
 
 type ToggleState = Record<number, { enabled: boolean; alertEnabled: boolean }>;
 
+// Conditions arrive as a persisted jsonb object; the guided selects only need
+// the two array keys they own. Anything else (fieldMatches, activeHours, …)
+// stays in the advanced JSON handled server-side.
+function arrayOf(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => void }) {
   const router = useRouter();
   const [state, action, isPending] = useActionState(updateSiemRuleDetail, undefined);
+  const initialTypes = arrayOf(rule.conditions?.normalizedTypes);
+  const initialTags = arrayOf(rule.conditions?.tags);
 
   useEffect(() => {
     if (state?.success) {
@@ -115,15 +127,62 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
               />
             </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              Event Types (normalized)
+              <select
+                multiple
+                name="normalizedTypes"
+                defaultValue={initialTypes}
+                size={6}
+                className="w-full rounded-md border border-ops-border bg-ops-surface px-2 py-1.5 text-xs text-ops-text"
+              >
+                {KNOWN_NORMALIZED_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.produced ? type.value : `${type.value} ⚠️ (belum ada parser)`}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-ops-muted">Ctrl/⌘+klik untuk multi-pilih. ⚠️ = tipe belum diproduksi normalizer — rule tidak akan menyala.</span>
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text">
+              Tags (semua harus ada)
+              <select
+                multiple
+                name="tags"
+                defaultValue={initialTags}
+                size={6}
+                className="w-full rounded-md border border-ops-border bg-ops-surface px-2 py-1.5 text-xs text-ops-text"
+              >
+                {KNOWN_TAGS.map((tag) => (
+                  <option key={tag.value} value={tag.value}>{tag.value}</option>
+                ))}
+              </select>
+              <span className="text-xs text-ops-muted">Rule hanya match event yang punya SEMUA tag terpilih.</span>
+            </label>
             <label className="space-y-1.5 text-sm font-medium text-ops-text md:col-span-2">
-              Conditions (JSON)
+              Group By (korelasi & first-seen)
+              <select
+                multiple
+                name="groupBy"
+                defaultValue={rule.groupBy ?? []}
+                size={4}
+                className="w-full rounded-md border border-ops-border bg-ops-surface px-2 py-1.5 text-xs text-ops-text"
+              >
+                {KNOWN_GROUP_BY_FIELDS.map((field) => (
+                  <option key={field} value={field}>{field}</option>
+                ))}
+              </select>
+              <span className="text-xs text-ops-muted">Untuk first_seen/threshold/baseline: satu finding per kombinasi nilai field terpilih.</span>
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-ops-text md:col-span-2">
+              Conditions lanjutan (JSON — regex fieldMatches/suppression/activeHours)
               <textarea
                 name="conditions"
-                rows={4}
+                rows={3}
                 placeholder="{}"
                 className="w-full rounded-md border border-ops-border bg-ops-surface px-3 py-2 font-mono text-xs text-ops-text"
               />
-              <span className="text-xs text-ops-muted">Optional. Must be valid JSON object. Leave blank to clear.</span>
+              <span className="text-xs text-ops-muted">Khusus kondisi advanced. Event types, tags, dan groupBy di atas di-merge ke sini saat disimpan.</span>
             </label>
             <label className="space-y-1.5 text-sm font-medium text-ops-text">
               MITRE Tactics

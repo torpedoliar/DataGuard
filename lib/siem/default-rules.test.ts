@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SIEM_RULES } from "./default-rules";
 
 describe("default SIEM rules", () => {
-  it("ships all 28 default rule keys", () => {
+  it("ships all 35 default rule keys", () => {
     expect(DEFAULT_SIEM_RULES.map((rule) => rule.key)).toEqual([
       "auth.failed_login_spike",
       "auth.success_after_failures",
@@ -32,12 +32,19 @@ describe("default SIEM rules", () => {
       "health.unknown_source_high_volume",
       "threat.ioc_indicator_match",
       "auth.first_seen_source_login",
+      "recon.port_scan_internal",
+      "recon.deny_scan_burst",
+      "lateral.unusual_interhost_login",
+      "lateral.vpn_pivot_suspect",
+      "privesc.sudo_first_time_user",
+      "privesc.sudo_command_spike",
+      "exec.unusual_program",
     ]);
   });
 
   it("uses unique keys and alertable high-impact defaults", () => {
     const keys = DEFAULT_SIEM_RULES.map((rule) => rule.key);
-    expect(new Set(keys).size).toBe(28);
+    expect(new Set(keys).size).toBe(35);
     expect(DEFAULT_SIEM_RULES.every((rule) => rule.enabled)).toBe(true);
     expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "auth.success_after_failures")?.severity).toBe("Critical");
     expect(DEFAULT_SIEM_RULES.find((rule) => rule.key === "auth.success_after_failures")?.alertEnabled).toBe(true);

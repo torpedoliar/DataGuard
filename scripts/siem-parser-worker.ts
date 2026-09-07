@@ -67,6 +67,7 @@ async function loadContext() {
       siteId: devices.siteId,
       name: devices.name,
       ipAddress: devices.ipAddress,
+      isCritical: devices.isCritical,
       assetCode: devices.assetCode,
       categoryName: categories.name,
       brandName: brands.name,
@@ -138,6 +139,16 @@ async function runOnce() {
     const site = context.sites.find((candidate) => candidate.id === siteId) ?? null;
 
     const processed = processRawSyslogEvent({ rawMessage: raw.rawMessage, vendor: match.vendor as SiemVendor });
+    // Enrichment tags the rule engine filters on:
+    // - `critical_device`: event came from an inventory device flagged critical
+    //   (feeds network.interface_down_critical).
+    // - `unknown_source`: the event matched via the inventory fallback
+    //   (device_ip/device_name) — no registry entry in syslog_sources yet, so
+    //   admins see which devices still need an explicit Source mapping.
+    const enrichmentTags = [
+      ...(device?.isCritical ? ["critical_device"] : []),
+      ...(match.matchType === "device_ip" || match.matchType === "device_name" ? ["unknown_source"] : []),
+    ];
     const metadata = { ...processed.metadata, enrichment: buildAssetMetadata({ site, device }), matchType: match.matchType };
 
     if (processed.ingestStatus === "parsed") {
@@ -170,7 +181,7 @@ async function runOnce() {
         username: processed.username,
         interfaceName: processed.interfaceName,
         protocol: processed.protocol,
-        tags: processed.tags,
+        tags: [...processed.tags, ...enrichmentTags],
         metadata,
       });
       pushSite(parsedBySite, siteId, raw.id);

@@ -1,5 +1,6 @@
-import { getSiemRules } from "@/actions/siem-settings";
+import { getSiemRules, getSiemTemplateCatalog } from "@/actions/siem-settings";
 import SiemRulesForm, { type SiemRuleRow } from "@/components/admin/siem-rules-form";
+import SiemTemplateCatalog from "@/components/admin/siem-template-catalog";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
@@ -9,7 +10,10 @@ export default async function SiemRulesPage() {
   if (!session || !["admin", "superadmin"].includes(session.role)) redirect("/checklist");
   if (!session.activeSiteId) redirect("/select-site");
 
-  const data = await getSiemRules();
+  const [data, catalog] = await Promise.all([
+    getSiemRules(),
+    getSiemTemplateCatalog(),
+  ]);
 
   if ("message" in data) {
     return (
@@ -23,6 +27,9 @@ export default async function SiemRulesPage() {
   return (
     <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
       <PageHeader eyebrow="Admin / SIEM" title="SIEM Rules" description="Atur rule mana yang aktif dan mana yang mengirim alert ke Telegram." />
+      {"message" in catalog ? null : (
+        <SiemTemplateCatalog available={catalog.available} locked={catalog.needsDataSources} />
+      )}
       <SiemRulesForm rules={data.rules as SiemRuleRow[]} alertMinSeverity={data.alertMinSeverity} />
     </main>
   );

@@ -43,6 +43,11 @@ export const ATTACK_TECHNIQUE_INFO: Record<string, { name: string; url: string }
   "T1529": { name: "System Shutdown/Reboot", url: "https://attack.mitre.org/techniques/T1529/" },
   "T1562.004": { name: "Impair Defenses: Disable or Modify System Firewall", url: "https://attack.mitre.org/techniques/T1562/004/" },
   "T1498": { name: "Network Denial of Service", url: "https://attack.mitre.org/techniques/T1498/" },
+  "T1595.002": { name: "Active Scanning: Vulnerability Scanning", url: "https://attack.mitre.org/techniques/T1595/002/" },
+  "T1021": { name: "Remote Services", url: "https://attack.mitre.org/techniques/T1021/" },
+  "T1133": { name: "External Remote Services", url: "https://attack.mitre.org/techniques/T1133/" },
+  "T1548": { name: "Abuse Elevation Control Mechanism", url: "https://attack.mitre.org/techniques/T1548/" },
+  "T1059": { name: "Command and Scripting Interpreter", url: "https://attack.mitre.org/techniques/T1059/" },
 };
 
 export type IsoControlInfo = {

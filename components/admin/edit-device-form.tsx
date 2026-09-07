@@ -378,6 +378,21 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                   </span>
                 </span>
               </label>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border border-amber-400/30 bg-amber-400/5 px-3 py-2.5 md:col-span-2">
+                <input
+                  type="checkbox"
+                  name="isCritical"
+                  defaultChecked={(device as { isCritical?: boolean }).isCritical ?? false}
+                  className="size-4 accent-amber-400"
+                />
+                <span className="text-sm font-medium text-ops-text">
+                  Perangkat kritikal (SIEM)
+                  <span className="mt-0.5 block text-xs font-normal text-ops-muted">
+                    Event dari perangkat ini ditandai critical_device — memicu rule Interface down on critical device.
+                  </span>
+                </span>
+              </label>
             </div>
           </FormSection>
         </form>

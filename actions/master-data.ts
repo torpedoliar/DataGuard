@@ -49,6 +49,12 @@ const deviceSchema = z.object({
         (val) => val === undefined ? undefined : val === "on" || val === "true" || val === true || val === 1 || val === "1",
         z.boolean().optional(),
     ),
+    // SIEM critical-infrastructure flag (Q12): parser stamps `critical_device`
+    // on events from these devices.
+    isCritical: z.preprocess(
+        (val) => val === undefined ? undefined : val === "on" || val === "true" || val === true || val === 1 || val === "1",
+        z.boolean().optional(),
+    ),
 });
 
 const categorySchema = z.object({
@@ -245,6 +251,7 @@ export async function addDevice(prevState: unknown, formData: FormData) {
             description: parsed.data.description || null,
             photoPath,
             excludeChecklist: parsed.data.excludeChecklist ?? false,
+            isCritical: parsed.data.isCritical ?? false,
         });
         revalidatePath("/admin");
         revalidatePath("/admin", "layout");
@@ -337,6 +344,7 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
             photoPath,
             // Checkbox fully determines the value (absent = unchecked).
             excludeChecklist: formData.get("excludeChecklist") === "on",
+            isCritical: formData.get("isCritical") === "on",
         }).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)));
 
         // PIC group binding from the device side: the form submits one

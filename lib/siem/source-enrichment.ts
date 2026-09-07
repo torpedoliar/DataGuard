@@ -1,5 +1,5 @@
 export type SourceCandidate = { id: number; siteId: number | null; deviceId: number | null; sourceIp: string; hostname: string | null; vendor: string; parserProfile: string };
-export type DeviceCandidate = { id: number; siteId: number | null; name: string; ipAddress: string | null; assetCode: string | null; categoryName: string | null; brandName: string | null; locationName: string | null; rackName: string | null; rackPosition: number | null; zone: string | null };
+export type DeviceCandidate = { id: number; siteId: number | null; name: string; ipAddress: string | null; assetCode: string | null; categoryName: string | null; brandName: string | null; locationName: string | null; rackName: string | null; rackPosition: number | null; zone: string | null; isCritical: boolean | null };
 export type SiteCandidate = { id: number; name: string; code: string };
 
 function normalizeHostname(value: string | null) {

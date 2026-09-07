@@ -387,3 +387,39 @@ describe("eventMatchesRule", () => {
   });
 });
 
+
+describe("eventOutsideActiveHours", () => {
+  const hoursRule: SiemRuleDefinition = {
+    ...baseRule,
+    id: 60,
+    key: "system.config_changed_outside_maintenance",
+    name: "Config changed outside maintenance",
+    ruleType: "single_event" as const,
+    conditions: { normalizedTypes: ["config_changed"], activeHours: { startHour: 8, endHour: 17 } },
+    groupBy: ["deviceId"],
+    threshold: null,
+    windowSeconds: null,
+  };
+
+  // 10:00 WIB = 03:00 UTC -> inside the window -> no match.
+  const insideEvent = event({ id: 1, normalizedType: "config_changed", receivedAt: new Date("2026-05-24T03:00:00.000Z") });
+  // 20:00 WIB = 13:00 UTC -> outside the window -> match.
+  const outsideEvent = event({ id: 2, normalizedType: "config_changed", receivedAt: new Date("2026-05-24T13:00:00.000Z") });
+
+  it("matches only outside the active window", () => {
+    expect(eventMatchesRule(hoursRule, insideEvent)).toBe(false);
+    expect(eventMatchesRule(hoursRule, outsideEvent)).toBe(true);
+  });
+
+  it("handles overnight windows", () => {
+    const night = { ...hoursRule, conditions: { normalizedTypes: ["config_changed"], activeHours: { startHour: 22, endHour: 6 } } };
+    // 10:00 WIB is outside a 22:00-06:00 window -> match; 23:00 WIB inside -> no match.
+    expect(eventMatchesRule(night, insideEvent)).toBe(true);
+    expect(eventMatchesRule(night, event({ ...insideEvent, id: 3, receivedAt: new Date("2026-05-24T16:00:00.000Z") }))).toBe(false);
+  });
+
+  it("treats missing or invalid windows as match-all", () => {
+    expect(eventMatchesRule({ ...hoursRule, conditions: { normalizedTypes: ["config_changed"] } }, insideEvent)).toBe(true);
+    expect(eventMatchesRule({ ...hoursRule, conditions: { normalizedTypes: ["config_changed"], activeHours: { startHour: 99, endHour: 1 } } }, insideEvent)).toBe(true);
+  });
+});

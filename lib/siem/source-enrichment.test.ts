@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildAssetMetadata, matchSyslogSource, type DeviceCandidate, type SourceCandidate } from "./source-enrichment";
 
 const source: SourceCandidate = { id: 1, siteId: 10, deviceId: 100, sourceIp: "10.0.0.1", hostname: "src-host", vendor: "cisco", parserProfile: "cisco" };
-const device: DeviceCandidate = { id: 100, siteId: 10, name: "core-sw", ipAddress: "10.0.0.1", assetCode: "AST-1", categoryName: "Switch", brandName: "Cisco", locationName: "MDF", rackName: "R1", rackPosition: 10, zone: "Core" };
+const device: DeviceCandidate = { id: 100, siteId: 10, name: "core-sw", ipAddress: "10.0.0.1", assetCode: "AST-1", categoryName: "Switch", brandName: "Cisco", locationName: "MDF", rackName: "R1", rackPosition: 10, zone: "Core", isCritical: false };
 
 const natDevice: DeviceCandidate = {
   id: 10,
@@ -16,6 +16,7 @@ const natDevice: DeviceCandidate = {
   rackName: null,
   rackPosition: null,
   zone: null,
+  isCritical: false,
 };
 
 const natSource: SourceCandidate = {
