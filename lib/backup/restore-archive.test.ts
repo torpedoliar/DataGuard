@@ -100,7 +100,7 @@ describe("restoreBackupArchive", () => {
 
     const restorePsql = calls.find((call) => call.command === "psql" && call.input !== undefined);
     expect(result.mode).toBe("wipe");
-    expect(calls.map((call) => call.command)).toEqual(["pg_restore", "pg_restore17", "psql", "psql", "pg_restore17", "psql"]);
+    expect(calls.map((call) => call.command)).toEqual(["pg_restore", "pg_restore17", "psql", "psql", "pg_restore17", "psql", "psql"]);
     expect(calls[0].args).toContain("--list");
     expect(calls[1].args).toContain("--list");
     const dumpCall = calls[4];
@@ -185,7 +185,8 @@ describe("restoreBackupArchive", () => {
       database: { host: "db", port: "5432", user: "administrator", password: "secret", name: "dccheck" },
       runShell: fakeRunShell,
     });
-    expect(calls.map((call) => call.command)).toEqual(["pg_restore", "psql", "psql", "pg_restore"]);
+    // Final psql = sequence realignment (DO block) after the wipe restore.
+    expect(calls.map((call) => call.command)).toEqual(["pg_restore", "psql", "psql", "pg_restore", "psql"]);
     expect(calls[0].args).toContain("--list");
     expect(calls[2].args.join(" ")).toContain('CREATE SCHEMA "public";');
     expect(calls[3].args).toContain("--dbname=dccheck");

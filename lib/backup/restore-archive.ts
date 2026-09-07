@@ -158,6 +158,49 @@ function quoteIdentifier(value: string): string {
   return `"${value.replaceAll('"', '""')}"`;
 }
 
+/**
+ * Realign every serial/identity sequence in the public schema to its column's
+ * max(id). pg_restore replays dump-time setvals, but a dump taken from a
+ * database whose sequences were already behind (or a plain-SQL restore path)
+ * leaves sequences behind max(id) — inserts then collide with
+ * duplicate-key errors (observed on siem_rules_pkey). Cheap insurance after
+ * a wipe restore: one psql call with a DO block looping pg_class defaults.
+ */
+async function realignSequences(
+  runShell: RestoreOptions["runShell"],
+  database: DatabaseTarget,
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  const doBlock = `
+    DO $$
+    DECLARE
+      seq record;
+      max_id bigint;
+    BEGIN
+      FOR seq IN
+        SELECT n.nspname AS schema_name, c.relname AS table_name, a.attname AS column_name
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+        WHERE n.nspname = 'public'
+          AND pg_get_serial_sequence(format('%I.%I', n.nspname, c.relname), a.attname) IS NOT NULL
+          AND EXISTS (SELECT 1 FROM pg_attrdef d WHERE d.adrelid = c.oid AND d.adnum = a.attnum)
+      LOOP
+        EXECUTE format('SELECT COALESCE(MAX(%I), 0) FROM %I.%I', seq.column_name, seq.schema_name, seq.table_name) INTO max_id;
+        PERFORM setval(pg_get_serial_sequence(format('%I.%I', seq.schema_name, seq.table_name), seq.column_name), max_id + 1, false);
+      END LOOP;
+    END $$;
+  `;
+  const realign = await runShell!("psql", [
+    ...connectionArgs(database),
+    "-v", "ON_ERROR_STOP=1",
+    "-c", doBlock,
+  ], { env });
+  if (realign.code !== 0) {
+    throw new Error(`sequence realign failed: ${realign.stderr.toString().trim()}`);
+  }
+}
+
 function isUnsupportedDumpVersion(stderr: string): boolean {
   return /unsupported version \([^)]+\) in file header/.test(stderr);
 }
@@ -343,6 +386,13 @@ export async function restoreBackupArchive(options: RestoreOptions): Promise<Res
       ? await restoreViaSqlPipe(runShell, tool, options, dumpPath, env)
       : await restoreDirect(runShell, tool, options, dumpPath, env);
     if (warning) warnings.push(warning);
+
+    // Wipe mode rebuilt every table from the dump — realign sequences so new
+    // inserts can't collide with restored ids. Append mode leaves schema alone;
+    // skip it there (data-only restore keeps sequences as-is).
+    if (options.mode === "wipe") {
+      await realignSequences(runShell, options.database, env);
+    }
 
     await copyUploads(directory, options.uploadsDir, options.mode);
     return { mode: options.mode, warnings };
