@@ -181,10 +181,12 @@ export async function getSiemCoverageMatrix() {
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { message: auth.message };
 
-  // Rule rows carry name/description/category so the coverage modals can
-  // describe what each mapped rule does (not just its name).
+  // Rule rows carry id/name/description/category so the coverage modals can
+  // describe what each mapped rule does (not just its name) and toggle it.
   const rules = await db
     .select({
+      id: siemRules.id,
+      key: siemRules.key,
       name: siemRules.name,
       description: siemRules.description,
       category: siemRules.category,
@@ -205,15 +207,15 @@ export async function getSiemCoverageMatrix() {
       covered: rulesForTactic.some((rule) => rule.enabled),
       ruleCount: rulesForTactic.length,
       enabledCount: rulesForTactic.filter((rule) => rule.enabled).length,
-      rules: rulesForTactic.map((rule) => ({ name: rule.name, description: rule.description, category: rule.category, enabled: rule.enabled, techniques: rule.mitreTechniques })),
+      rules: rulesForTactic.map((rule) => ({ id: rule.id, key: rule.key, name: rule.name, description: rule.description, category: rule.category, enabled: rule.enabled, techniques: rule.mitreTechniques })),
     };
   });
 
-  const controlCounts = new Map<string, { rules: { name: string; description: string; category: string; enabled: boolean }[] }>();
+  const controlCounts = new Map<string, { rules: { id: number; key: string; name: string; description: string; category: string; enabled: boolean }[] }>();
   for (const rule of rules) {
     for (const control of rule.isoControls) {
       const entry = controlCounts.get(control) ?? { rules: [] };
-      entry.rules.push({ name: rule.name, description: rule.description, category: rule.category, enabled: rule.enabled });
+      entry.rules.push({ id: rule.id, key: rule.key, name: rule.name, description: rule.description, category: rule.category, enabled: rule.enabled });
       controlCounts.set(control, entry);
     }
   }

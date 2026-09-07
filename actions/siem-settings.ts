@@ -299,8 +299,48 @@ export async function updateSiemRules(prevState: unknown, formData: FormData) {
   return { success: true };
 }
 
-const ruleDetailSchema = z.object({
+// Toggle a single rule from the coverage matrix modal. Alert toggle follows
+// the same clamp rule as the rules form: a disabled rule can never alert.
+const ruleToggleSchema = z.object({
   id: z.coerce.number().int().min(1),
+  enabled: z.coerce.boolean(),
+});
+
+export async function toggleSiemRule(prevState: unknown, formData: FormData) {
+  void prevState;
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+
+  const parsed = ruleToggleSchema.safeParse({
+    id: formData.get("id"),
+    enabled: formData.get("enabled") === "true",
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const existing = await db.query.siemRules.findFirst({
+    where: and(eq(siemRules.id, parsed.data.id), eq(siemRules.siteId, auth.activeSiteId)),
+  });
+  if (!existing) return { message: "SIEM rule not found." };
+
+  await db.update(siemRules).set({
+    enabled: parsed.data.enabled,
+    alertEnabled: parsed.data.enabled ? existing.alertEnabled : false,
+    updatedAt: new Date(),
+  }).where(eq(siemRules.id, existing.id));
+
+  await logAudit({
+    action: "UPDATE",
+    entity: "settings",
+    entityName: "SIEM Rule",
+    entityId: existing.id,
+    detail: `toggle from coverage matrix: ${existing.key} -> ${parsed.data.enabled ? "enabled" : "disabled"}`,
+  });
+  revalidatePath("/admin/siem");
+  revalidatePath("/admin/siem/rules");
+  return { success: true, enabled: parsed.data.enabled };
+}
+
+const ruleDetailSchema = z.object({  id: z.coerce.number().int().min(1),
   name: z.string().min(1, "Name is required").max(200),
   description: z.string().max(2000).default(""),
   severity: z.enum(siemSeverities),

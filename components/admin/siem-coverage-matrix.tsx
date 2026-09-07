@@ -1,10 +1,14 @@
 "use client";
 
+import { toggleSiemRule } from "@/actions/siem-settings";
 import { ATTACK_TACTIC_INFO, ATTACK_TECHNIQUE_INFO, ISO_CONTROL_INFO } from "@/lib/siem/coverage-reference";
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useState } from "react";
 
 export type SiemCoverageRule = {
+  id: number;
+  key: string;
   name: string;
   description?: string;
   category?: string;
@@ -88,15 +92,47 @@ function techniqueChips(techniques: string[] | undefined) {
   );
 }
 
-function RuleListItem({ rule }: { rule: SiemCoverageRule }) {
+function RuleToggleForm({ ruleId, enabled, onToggled }: { ruleId: number; enabled: boolean; onToggled: (id: number, enabled: boolean) => void }) {
+  const router = useRouter();
+  const [state, action, isPending] = useActionState(toggleSiemRule, undefined);
+
+  useEffect(() => {
+    if (state?.success && typeof state.enabled === "boolean") {
+      onToggled(ruleId, state.enabled);
+      router.refresh();
+    }
+  }, [state?.success, state?.enabled, ruleId, onToggled, router]);
+
+  return (
+    <form action={action} className="flex shrink-0 items-center gap-1.5">
+      <input type="hidden" name="id" value={ruleId} />
+      <input type="hidden" name="enabled" value={enabled ? "false" : "true"} />
+      <button
+        type="submit"
+        disabled={isPending}
+        title={enabled ? "Matikan rule ini" : "Aktifkan rule ini"}
+        className={`relative h-5 w-9 rounded-full transition-colors disabled:opacity-50 ${
+          enabled ? "bg-emerald-500" : "bg-slate-600"
+        }`}
+      >
+        <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${enabled ? "left-[18px]" : "left-0.5"}`} />
+      </button>
+    </form>
+  );
+}
+
+function RuleListItem({ rule, enabled, onToggled }: { rule: SiemCoverageRule; enabled: boolean; onToggled: (id: number, enabled: boolean) => void }) {
   return (
     <li className="rounded border border-slate-700/60 bg-slate-900/60 p-2.5">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-white">{rule.name}</span>
-        <span className={`rounded-full border px-1.5 py-px text-[10px] ${rule.enabled ? "border-emerald-500/40 text-emerald-300" : "border-slate-600 text-slate-500"}`}>
-          {rule.enabled ? "aktif" : "mati"}
-        </span>
-        {rule.category && <span className="text-[10px] uppercase tracking-wide text-slate-500">{rule.category}</span>}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-medium text-white">{rule.name}</span>
+          <span className={`shrink-0 rounded-full border px-1.5 py-px text-[10px] ${enabled ? "border-emerald-500/40 text-emerald-300" : "border-slate-600 text-slate-500"}`}>
+            {enabled ? "aktif" : "mati"}
+          </span>
+          {rule.category && <span className="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">{rule.category}</span>}
+        </div>
+        <RuleToggleForm ruleId={rule.id} enabled={enabled} onToggled={onToggled} />
       </div>
       {rule.description && <p className="mt-1 text-xs text-slate-400">{rule.description}</p>}
       {techniqueChips(rule.techniques)}
@@ -109,10 +145,34 @@ type Selection = { kind: "tactic"; tactic: string } | { kind: "control"; control
 export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCoverageMatrix }) {
   const { stats } = matrix;
   const [selected, setSelected] = useState<Selection>(null);
+  // Local toggle overrides so the modal reflects a switch immediately; the
+  // router.refresh() behind it re-renders the server-computed matrix.
+  const [overrides, setOverrides] = useState<Map<number, boolean>>(new Map());
 
-  const tacticEntry = selected?.kind === "tactic" ? matrix.tactics.find((entry) => entry.tactic === selected.tactic) : undefined;
+  const effectiveEnabled = (rule: SiemCoverageRule) => overrides.get(rule.id) ?? rule.enabled;
+  const onToggled = (id: number, enabled: boolean) =>
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(id, enabled);
+      return next;
+    });
+
+  const withOverrides = (rules: SiemCoverageRule[]) => rules.map((rule) => ({ ...rule, enabled: effectiveEnabled(rule) }));
+  const liveMatrix: SiemCoverageMatrix = {
+    tactics: matrix.tactics.map((entry) => {
+      const rules = withOverrides(entry.rules);
+      return { ...entry, rules, covered: rules.some((rule) => rule.enabled), enabledCount: rules.filter((rule) => rule.enabled).length };
+    }),
+    isoControls: matrix.isoControls.map((entry) => {
+      const rules = withOverrides(entry.rules);
+      return { ...entry, rules, covered: rules.some((rule) => rule.enabled), enabledCount: rules.filter((rule) => rule.enabled).length };
+    }),
+    stats: matrix.stats,
+  };
+
+  const tacticEntry = selected?.kind === "tactic" ? liveMatrix.tactics.find((entry) => entry.tactic === selected.tactic) : undefined;
   const tacticInfo = selected?.kind === "tactic" ? ATTACK_TACTIC_INFO[selected.tactic] : undefined;
-  const controlEntry = selected?.kind === "control" ? matrix.isoControls.find((entry) => entry.control === selected.control) : undefined;
+  const controlEntry = selected?.kind === "control" ? liveMatrix.isoControls.find((entry) => entry.control === selected.control) : undefined;
   const controlInfo = selected?.kind === "control" ? ISO_CONTROL_INFO[selected.control] : undefined;
 
   // Distinct techniques mapped to the selected tactic across its rules.
@@ -133,7 +193,7 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
       </p>
 
       <div className="mt-4 grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-7">
-        {matrix.tactics.map((entry) => (
+        {liveMatrix.tactics.map((entry) => (
           <Tile
             key={entry.tactic}
             label={TACTIC_LABEL[entry.tactic] ?? entry.tactic}
@@ -144,11 +204,11 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
         ))}
       </div>
 
-      {matrix.isoControls.length > 0 && (
+      {liveMatrix.isoControls.length > 0 && (
         <div className="mt-5">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">ISO 27001 Annex A</h3>
           <div className="mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-7">
-            {matrix.isoControls.map((entry) => (
+            {liveMatrix.isoControls.map((entry) => (
               <Tile
                 key={entry.control}
                 label={entry.control}
@@ -231,7 +291,7 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
                 {(selected.kind === "tactic" ? tacticEntry?.rules : controlEntry?.rules)?.length ? (
                   <ul className="mt-2 space-y-2">
                     {(selected.kind === "tactic" ? tacticEntry!.rules : controlEntry!.rules).map((rule) => (
-                      <RuleListItem key={rule.name} rule={rule} />
+                      <RuleListItem key={rule.id} rule={rule} enabled={rule.enabled} onToggled={onToggled} />
                     ))}
                   </ul>
                 ) : (
