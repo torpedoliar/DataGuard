@@ -1,7 +1,7 @@
 "use client";
 
 import { updateRack } from "@/actions/rack-management";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, X, Server } from "lucide-react";
 
@@ -31,13 +31,17 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
     const router = useRouter();
     const isPresetU = [42, 45, 47, 48, 30, 24, 12, 9, 4].includes(rack.totalU ?? 42);
     const [customU, setCustomU] = useState(!isPresetU);
+    // Same stale-boolean hazard as add-rack-form: guard on the result object
+    // so the effect can't re-fire for an already-handled success either.
+    const lastHandledRef = useRef<unknown>(null);
 
     useEffect(() => {
-        if (state?.success) {
+        if (state?.success && lastHandledRef.current !== state) {
+            lastHandledRef.current = state;
             router.refresh();
             onClose();
         }
-    }, [state?.success, onClose, router]);
+    }, [state, onClose, router]);
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

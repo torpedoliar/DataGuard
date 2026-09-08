@@ -41,6 +41,7 @@ type Device = {
   ipAddress: string | null;
   description: string | null;
   excludeChecklist?: boolean;
+  isCritical?: boolean | null;
 };
 
 type Location = {
@@ -383,7 +384,7 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                 <input
                   type="checkbox"
                   name="isCritical"
-                  defaultChecked={(device as { isCritical?: boolean }).isCritical ?? false}
+                  defaultChecked={device.isCritical ?? false}
                   className="size-4 accent-amber-400"
                 />
                 <span className="text-sm font-medium text-ops-text">

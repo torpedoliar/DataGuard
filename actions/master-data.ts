@@ -180,6 +180,7 @@ export async function getDevices() {
             photoPath: devices.photoPath,
             isActive: devices.isActive,
             excludeChecklist: devices.excludeChecklist,
+            isCritical: devices.isCritical,
             isRackAuditable: racks.isAuditable,
         })
         .from(devices)

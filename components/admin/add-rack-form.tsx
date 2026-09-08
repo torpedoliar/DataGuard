@@ -21,15 +21,22 @@ export default function AddRackForm({
     const formRef = useRef<HTMLFormElement>(null);
     const router = useRouter();
     const [customU, setCustomU] = useState(false);
+    // Guard against repeat runs: `state` stays { success: true } after a
+    // submit, so a boolean dep would skip every consecutive success (stale
+    // form + stale list until a manual refresh). Track the handled result
+    // object instead — each dispatch produces a new one.
+    const lastHandledRef = useRef<unknown>(null);
 
     useEffect(() => {
-        if (state?.success) {
+        if (state?.success && lastHandledRef.current !== state) {
+            lastHandledRef.current = state;
             formRef.current?.reset();
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot form reset after a successful submit, same pattern as edit-device-form
             setCustomU(false);
             router.refresh();
             onSuccess?.();
         }
-    }, [state?.success, router, onSuccess]);
+    }, [state, router, onSuccess]);
 
     return (
         <div className="bg-white dark:bg-surface p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 mb-8">

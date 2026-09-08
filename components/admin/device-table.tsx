@@ -66,6 +66,7 @@ type Device = {
   description: string | null;
   isActive: boolean | null;
   excludeChecklist?: boolean;
+  isCritical?: boolean | null;
   isRackAuditable?: boolean | null;
 };
 
@@ -526,6 +527,11 @@ export default function DeviceTable({
                               {device.excludeChecklist && (
                                 <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 shrink-0" title="Excluded from checklist audit — stays in rack layout">
                                   Excluded
+                                </span>
+                              )}
+                              {device.isCritical && (
+                                <span className="shrink-0 rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300" title="Critical device — SIEM stamps critical_device on its events">
+                                  Critical
                                 </span>
                               )}
                               {device.isRackAuditable === false && (
