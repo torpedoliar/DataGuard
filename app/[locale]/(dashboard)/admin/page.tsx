@@ -14,6 +14,7 @@ import {
   Network,
   PanelTop,
   RadioTower,
+  Router,
   ScrollText,
   Server,
   Settings,
@@ -101,6 +102,7 @@ export default async function AdminPage() {
     { href: "/admin/rack-manage", label: "Racks", meta: "Capacity registry", icon: <Boxes className="size-5" /> },
     { href: "/admin/rack", label: "Rack Layout", meta: "Visual placement", icon: <PanelTop className="size-5" /> },
     { href: "/admin/network/vlans", label: "VLANs", meta: "Network segments", icon: <Network className="size-5" /> },
+    { href: "/admin/ncm", label: "NCM", meta: "Switch backups, baselines, drift reviews", icon: <Router className="size-5" /> },
   ];
 
   const siemShortcuts: Shortcut[] = [
