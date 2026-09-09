@@ -187,22 +187,47 @@ describe("write endpoints (ticket 02 scopes)", () => {
     expect(deleteInit.method).toBe("DELETE");
   });
 
-  it("manages credentials (pass-through, body sent as-is)", async () => {
-    const fetchMock = stubFetch({ ok: true });
+  it("manages credentials (one-way pass-through, create + re-point, secrets never echoed)", async () => {
+    // Every fetch returns { id: 11 } EXCEPT the switches-list GET inside
+    // deleteNcmCredentials, which must be a switches ARRAY carrying
+    // credential_id so the helper can resolve the DELETE target.
+    const payloadFor = (url: unknown): unknown =>
+        String(url).endsWith("/api/v1/switches") ? [{ id: 3, credential_id: 11 }] : { id: 11 };
+    const fetchMock = vi.fn().mockImplementation(async (url: unknown) => {
+      const json = JSON.stringify(payloadFor(url));
+      return { ok: true, status: 200, text: async () => json, json: async () => payloadFor(url) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     await createNcmCredentials(conn, 3, { username: "admin", password: "s3cret!" });
     await updateNcmCredentials(conn, 3, { password: "r0tated!" });
+    mocks.selectResults;
     await deleteNcmCredentials(conn, 3);
 
     const [createUrl, createInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const [updateUrl, updateInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    const [deleteUrl, deleteInit] = fetchMock.mock.calls[2] as [string, RequestInit];
-    expect(createUrl).toBe(`${API_URL}/api/v1/switches/3/credentials`);
+    const [repointUrl, repointInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const [updateUrl, updateInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    const [repoint2Url, repoint2Init] = fetchMock.mock.calls[3] as [string, RequestInit];
+    const [listUrl] = fetchMock.mock.calls[4] as [string];
+    const [deleteUrl, deleteInit] = fetchMock.mock.calls[5] as [string, RequestInit];
+    // create: global /credentials router with the switch-derived name…
+    expect(createUrl).toBe(`${API_URL}/api/v1/credentials`);
     expect(createInit.method).toBe("POST");
-    expect(JSON.parse(createInit.body as string)).toEqual({ username: "admin", password: "s3cret!" });
-    expect(updateUrl).toBe(`${API_URL}/api/v1/switches/3/credentials`);
-    expect(updateInit.method).toBe("PATCH");
-    expect(deleteUrl).toBe(`${API_URL}/api/v1/switches/3/credentials`);
+    const createdBody = JSON.parse(createInit.body as string) as Record<string, unknown>;
+    expect(createdBody.password).toBe("s3cret!");
+    expect(createdBody.name).toBe("dg-switch-3");
+    // …then re-point the switch at the new credential (rotation = one-way write).
+    expect(repointUrl).toBe(`${API_URL}/api/v1/switches/3`);
+    expect(repointInit.method).toBe("PATCH");
+    expect(JSON.parse(repointInit.body as string)).toEqual({ credential_id: 11 });
+    // update = same create + re-point composition.
+    expect(updateUrl).toBe(`${API_URL}/api/v1/credentials`);
+    expect(updateInit.method).toBe("POST");
+    expect(repoint2Url).toBe(`${API_URL}/api/v1/switches/3`);
+    expect(repoint2Init.method).toBe("PATCH");
+    // delete resolves the switch's credential via the switches list.
+    expect(listUrl).toBe(`${API_URL}/api/v1/switches`);
+    expect(deleteUrl).toBe(`${API_URL}/api/v1/credentials/11`);
     expect(deleteInit.method).toBe("DELETE");
   });
 
@@ -227,8 +252,8 @@ describe("write endpoints (ticket 02 scopes)", () => {
     expect(deleteInit.method).toBe("DELETE");
   });
 
-  it("manages baselines (create + refresh + delete)", async () => {
-    const fetchMock = stubFetch([]);
+  it("manages baselines (create resolves kind/switch_id + refresh + delete)", async () => {
+    const fetchMock = stubFetch([{ id: 1 }, { id: 5, switch_id: 3 }, { id: 2 }]);
 
     await fetchNcmBaselines(conn);
     await createNcmBaseline(conn, { backup_id: 5 });
@@ -236,12 +261,16 @@ describe("write endpoints (ticket 02 scopes)", () => {
     await deleteNcmBaseline(conn, 2);
 
     const [readUrl] = fetchMock.mock.calls[0] as [string];
-    const [createUrl, createInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    const [refreshUrl, refreshInit] = fetchMock.mock.calls[2] as [string, RequestInit];
-    const [deleteUrl, deleteInit] = fetchMock.mock.calls[3] as [string, RequestInit];
+    const [backupsUrl] = fetchMock.mock.calls[1] as [string];
+    const [createUrl, createInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    const [refreshUrl, refreshInit] = fetchMock.mock.calls[3] as [string, RequestInit];
+    const [deleteUrl, deleteInit] = fetchMock.mock.calls[4] as [string, RequestInit];
     expect(readUrl).toBe(`${API_URL}/api/v1/baselines`);
+    // backup_id-only body: kind + switch_id are resolved from the backup list.
+    expect(backupsUrl).toBe(`${API_URL}/api/v1/backups`);
     expect(createUrl).toBe(`${API_URL}/api/v1/baselines`);
     expect(createInit.method).toBe("POST");
+    expect(JSON.parse(createInit.body as string)).toEqual({ kind: "switch", backup_id: 5, switch_id: 3 });
     expect(refreshUrl).toBe(`${API_URL}/api/v1/baselines/2/refresh`);
     expect(refreshInit.method).toBe("POST");
     expect(deleteUrl).toBe(`${API_URL}/api/v1/baselines/2`);
@@ -259,8 +288,8 @@ describe("write endpoints (ticket 02 scopes)", () => {
     expect(result).toEqual({ backup_id: 8 });
   });
 
-  it("fetches a review, decides it with a note, and loads its rollback", async () => {
-    const fetchMock = stubFetch([]);
+  it("fetches the review diff, decides it with a note, and loads its rollback", async () => {
+    const fetchMock = stubFetch("--- a\n+++ b");
 
     await fetchNcmReview(conn, 4);
     await decideNcmReview(conn, 4, { decision: "approve", note: "sesuai change request" });
@@ -269,15 +298,27 @@ describe("write endpoints (ticket 02 scopes)", () => {
     const [detailUrl, detailInit] = fetchMock.mock.calls[0] as [string, RequestInit];
     const [decideUrl, decideInit] = fetchMock.mock.calls[1] as [string, RequestInit];
     const [rollbackUrl] = fetchMock.mock.calls[2] as [string];
-    expect(detailUrl).toBe(`${API_URL}/api/v1/reviews/4`);
+    // Detail is the raw-diff text endpoint (no JSON GET /reviews/{id} on NCM).
+    expect(detailUrl).toBe(`${API_URL}/api/v1/reviews/4/diff`);
     expect(detailInit.method ?? "GET").toBe("GET");
-    expect(decideUrl).toBe(`${API_URL}/api/v1/reviews/4`);
-    expect(decideInit.method).toBe("PATCH");
+    // Decision is POST /status (approved|flagged) — NCM's contract for keys.
+    expect(decideUrl).toBe(`${API_URL}/api/v1/reviews/4/status`);
+    expect(decideInit.method).toBe("POST");
     expect(JSON.parse(decideInit.body as string)).toEqual({
-      decision: "approve",
-      note: "sesuai change request",
+      status: "approved",
+      comment: "sesuai change request",
     });
     expect(rollbackUrl).toBe(`${API_URL}/api/v1/reviews/4/rollback`);
+  });
+
+  it("maps a reject decision to the flagged status", async () => {
+    const fetchMock = stubFetch({ status: "flagged" });
+
+    await decideNcmReview(conn, 4, { decision: "reject" });
+
+    const [decideUrl, decideInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(decideUrl).toBe(`${API_URL}/api/v1/reviews/4/status`);
+    expect(JSON.parse(decideInit.body as string)).toEqual({ status: "flagged" });
   });
 
   it("surfaces the status on a failed write", async () => {
