@@ -572,6 +572,10 @@ export const ncmSettings = pgTable("ncm_settings", {
   siteId: integer("site_id").primaryKey().references(() => sites.id, { onDelete: "cascade" }),
   url: text("url"),
   adminApiKey: text("admin_api_key"),
+  // Inbound HMAC-SHA256 secret (X-NCM-Signature) for POST /api/ncm/ingest;
+  // encrypted at rest with lib/crypto.ts (same as admin_api_key). Null =
+  // site rejects every ingest (fail closed).
+  webhookSecret: text("webhook_secret"),
   lastSeenAt: timestamp("last_seen_at"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
