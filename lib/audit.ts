@@ -48,7 +48,12 @@ export type AuditEntity =
     | "site_telegram_chat"
     | "user_site"
     | "threat_intel"
-    | "session";
+    | "session"
+    | "ncm_switch"
+    | "ncm_schedule"
+    | "ncm_backup"
+    | "ncm_baseline"
+    | "ncm_review";
 
 export interface AuditParams {
     action: AuditAction;
