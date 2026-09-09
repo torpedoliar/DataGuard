@@ -5,7 +5,7 @@ Halaman `/admin/ncm` per site dengan 4 area: Switches (CRUD), Backups & Schedule
 
 **Blocked by:** 2: NCM write scopes; 4: DG ncmSettings + lib/ncm.ts.
 
-**Status:** done — UI commit `041d275 feat(ncm): /admin/ncm management UI (ticket 05)` (dep lib: `d062a78`)
+**Status:** done — UI commit `8fae442 feat(ncm): /admin/ncm management UI (ticket 05)` (dep lib: `d062a78`)
 
 - [x] 4 area tampil per site sesuai desain; akses Connection superadmin-only.
 - [x] Setiap aksi (tambah/edit/hapus switch, update password, ubah jadwal, trigger backup, buat baseline, approve/reject review) end-to-end ke NCM test-server.
