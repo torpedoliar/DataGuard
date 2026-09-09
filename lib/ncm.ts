@@ -114,8 +114,25 @@ export async function fetchNcmBaselines(config: NcmConnection): Promise<unknown>
     return ncmGet(config, "baselines");
 }
 
+/** Diff view for one review. NCM serves the raw diff as text at
+ * /reviews/{id}/diff (no JSON GET /reviews/{id} exists). */
 export async function fetchNcmReview(config: NcmConnection, reviewId: number): Promise<unknown> {
-    return ncmGet(config, "reviews/" + reviewId);
+    const base = config.url.replace(/\/+$/, "") + "/api/v1/reviews/" + reviewId + "/diff";
+    let response: Response;
+    try {
+        response = await fetch(base, {
+            headers: { "X-API-Key": config.adminApiKey, Accept: "text/plain" },
+            signal: AbortSignal.timeout(NCM_TIMEOUT_MS),
+        });
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error("Gagal terhubung ke " + base + ": " + reason);
+    }
+    if (!response.ok) {
+        const responseBody = await response.text().catch(() => "");
+        throw new Error("NCM API responded " + response.status + ": " + responseBody.trim().slice(0, 200));
+    }
+    return response.text();
 }
 
 export async function fetchNcmReviewRollback(config: NcmConnection, reviewId: number): Promise<unknown> {
@@ -135,17 +152,43 @@ export async function deleteNcmSwitch(config: NcmConnection, switchId: number): 
 }
 
 // Credentials are a one-way pass-through: the plaintext body goes to NCM
-// (which encrypts at rest) and is never read back here.
+// (which encrypts at rest) and is never read back here. NCM's API only has a
+// global /credentials router — per-switch rotation maps to create + re-point
+// the switch, so these helpers compose those two calls.
 export async function createNcmCredentials(config: NcmConnection, switchId: number, body: Record<string, unknown>): Promise<unknown> {
-    return ncmRequest(config, "POST", "switches/" + switchId + "/credentials", body);
+    const name = (body.name as string | undefined) ?? `dg-switch-${switchId}`;
+    let credential: { id?: number } | null = null;
+    try {
+        credential = (await ncmRequest(config, "POST", "credentials", { ...body, name })) as { id?: number };
+    } catch (error) {
+        // Name collision: NCM requires globally-unique credential names but the
+        // UI only knows switches. Reset the existing credential of that name
+        // instead of failing the rotation. GET /credentials is JWT-only, so
+        // re-create with a deterministic unique name and switch over to it.
+        if (!(error instanceof Error) || !error.message.includes("409")) throw error;
+        const retryName = `${name}-${Date.now()}`;
+        credential = (await ncmRequest(config, "POST", "credentials", { ...body, name: retryName })) as { id?: number };
+    }
+    if (typeof credential?.id !== "number") {
+        throw new Error("NCM tidak mengembalikan id kredensial");
+    }
+    return ncmRequest(config, "PATCH", "switches/" + switchId, { credential_id: credential.id });
 }
 
 export async function updateNcmCredentials(config: NcmConnection, switchId: number, body: Record<string, unknown>): Promise<unknown> {
-    return ncmRequest(config, "PATCH", "switches/" + switchId + "/credentials", body);
+    return createNcmCredentials(config, switchId, body);
 }
 
 export async function deleteNcmCredentials(config: NcmConnection, switchId: number): Promise<unknown> {
-    return ncmRequest(config, "DELETE", "switches/" + switchId + "/credentials");
+    const switches = await ncmGet(config, "switches");
+    const target = Array.isArray(switches)
+        ? switches.find((s) => typeof s === "object" && s !== null && (s as { id?: unknown }).id === switchId)
+        : null;
+    const credentialId = target ? (target as { credential_id?: unknown }).credential_id : null;
+    if (typeof credentialId !== "number") {
+        return null; // switch already credential-less; nothing to delete
+    }
+    return ncmRequest(config, "DELETE", "credentials/" + credentialId);
 }
 
 export async function createNcmJob(config: NcmConnection, body: Record<string, unknown>): Promise<unknown> {
@@ -161,7 +204,35 @@ export async function deleteNcmJob(config: NcmConnection, jobId: number): Promis
 }
 
 export async function createNcmBaseline(config: NcmConnection, body: Record<string, unknown>): Promise<unknown> {
-    return ncmRequest(config, "POST", "baselines", body);
+    // NCM requires kind; backup_id alone implies a switch-level golden snapshot.
+    // switch_id is needed to satisfy the switch-baseline uniqueness check.
+    const payload = { kind: "switch", ...body } as Record<string, unknown>;
+    if (payload.backup_id !== undefined && payload.switch_id === undefined) {
+        const backups = await ncmGet(config, "backups");
+        const source = Array.isArray(backups)
+            ? backups.find((b) => typeof b === "object" && b !== null && (b as { id?: unknown }).id === payload.backup_id)
+            : null;
+        const switchId = source ? (source as { switch_id?: unknown }).switch_id : null;
+        if (typeof switchId !== "number") {
+            throw new Error("Backup tidak ditemukan di NCM untuk membuat baseline");
+        }
+        payload.switch_id = switchId;
+    }
+    try {
+        return await ncmRequest(config, "POST", "baselines", payload);
+    } catch (error) {
+        // The probe flow creates a fresh backup of a fresh switch whose golden
+        // baseline may already exist (409: switch already has a baseline). The
+        // drift-chain review still opens against the existing baseline, so
+        // confirm the baseline list is non-empty and treat that as the golden.
+        if (!(error instanceof Error) || !error.message.includes("409")) throw error;
+        const baselines = await fetchNcmBaselines(config);
+        const match = Array.isArray(baselines)
+            ? baselines.find((b) => typeof b === "object" && b !== null && (b as { switch_id?: unknown }).switch_id === payload.switch_id)
+            : null;
+        if (!match) throw error;
+        return match;
+    }
 }
 
 export async function refreshNcmBaseline(config: NcmConnection, baselineId: number): Promise<unknown> {
@@ -177,7 +248,13 @@ export async function triggerNcmBackup(config: NcmConnection, switchId: number):
 }
 
 export async function decideNcmReview(config: NcmConnection, reviewId: number, body: { decision: string; note?: string }): Promise<unknown> {
-    return ncmRequest(config, "PATCH", "reviews/" + reviewId, body);
+    // NCM's decision endpoint is POST /reviews/{id}/status with status
+    // approved|flagged|dismissed (reject maps to flagged) + comment.
+    const status = body.decision === "approve" ? "approved" : "flagged";
+    return ncmRequest(config, "POST", "reviews/" + reviewId + "/status", {
+        status,
+        ...(body.note ? { comment: body.note } : {}),
+    });
 }
 
 /** Banner offline: baca heartbeat last_seen_at (transient, tidak disync). */
