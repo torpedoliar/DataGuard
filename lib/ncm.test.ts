@@ -66,14 +66,14 @@ afterEach(() => {
 });
 
 describe("fetchNcmSwitches (and backups/reviews wrappers)", () => {
-  it("sends X-API-Key with a 10s timeout to /api/v1/ncm/switches", async () => {
+  it("sends X-API-Key with a 10s timeout to /api/v1/switches", async () => {
     const fetchMock = stubFetch([{ id: 1 }]);
 
     const result = await fetchNcmSwitches({ url: `${API_URL}/`, adminApiKey: API_KEY });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(`${API_URL}/api/v1/ncm/switches`);
+    expect(url).toBe(`${API_URL}/api/v1/switches`);
     expect((init.headers as Record<string, string>)["X-API-Key"]).toBe(API_KEY);
     expect(init.signal).toBeInstanceOf(AbortSignal);
     expect(result).toEqual([{ id: 1 }]);
@@ -84,7 +84,7 @@ describe("fetchNcmSwitches (and backups/reviews wrappers)", () => {
     await fetchNcmBackups({ url: API_URL, adminApiKey: API_KEY });
     await fetchNcmReviews({ url: API_URL, adminApiKey: API_KEY });
     const urls = fetchMock.mock.calls.map((call) => (call as [string])[0]);
-    expect(urls).toEqual([`${API_URL}/api/v1/ncm/backups`, `${API_URL}/api/v1/ncm/reviews`]);
+    expect(urls).toEqual([`${API_URL}/api/v1/backups`, `${API_URL}/api/v1/reviews`]);
   });
 
   it("throws with the status on a non-OK response", async () => {
@@ -96,7 +96,7 @@ describe("fetchNcmSwitches (and backups/reviews wrappers)", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
 
     await expect(fetchNcmSwitches({ url: API_URL, adminApiKey: API_KEY })).rejects.toThrow(
-      `Gagal terhubung ke ${API_URL}/api/v1/ncm/switches`,
+      `Gagal terhubung ke ${API_URL}/api/v1/switches`,
     );
   });
 });

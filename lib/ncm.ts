@@ -5,7 +5,7 @@ import { decryptIfEncrypted } from "./crypto";
 
 // ==================== External API (NCM) ====================
 // Read-only REST surface of the network configuration manager app.
-// GET base + /api/v1/ncm/{switches,backups,reviews} requires scope "read",
+// GET base + /api/v1/{switches,backups,reviews} requires scope "read",
 // auth via X-API-Key or Bearer. Write endpoints land with ticket 02.
 
 export const NCM_TIMEOUT_MS = 10_000;
@@ -55,7 +55,7 @@ export async function resolveNcmConfig(siteId: number): Promise<NcmConfig> {
 async function ncmGet(config: NcmConnection, path: string): Promise<unknown> {
     let base = config.url;
     while (base.endsWith("/")) base = base.slice(0, -1);
-    const url = base + "/api/v1/ncm/" + path;
+    const url = base + "/api/v1/" + path;
     let response: Response;
     try {
         response = await fetch(url, {
