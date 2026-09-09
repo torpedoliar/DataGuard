@@ -338,6 +338,7 @@ export const sitesRelations = relations(sites, ({ many }) => ({
   devicePics: many(devicePics),
   networkDocSettings: many(networkDocSettings),
   siemSettings: many(siemSettings, { relationName: "siemSettingsSite" }),
+  ncmSettings: many(ncmSettings),
 }));
 
 export const siteTelegramChatIdsRelations = relations(siteTelegramChatIds, ({ one }) => ({
@@ -560,6 +561,18 @@ export const networkDocSettings = pgTable("network_doc_settings", {
   url: text("url"),
   apiKey: text("api_key"),
   intervalMs: integer("interval_ms"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ==================== NCM SETTINGS (PER SITE) ====================
+// Each site may point at its own NCM (network configuration manager) API
+// instance for switch backups/reviews. admin_api_key is encrypted at rest
+// (lib/crypto.ts, same as network_doc_settings.api_key).
+export const ncmSettings = pgTable("ncm_settings", {
+  siteId: integer("site_id").primaryKey().references(() => sites.id, { onDelete: "cascade" }),
+  url: text("url"),
+  adminApiKey: text("admin_api_key"),
+  lastSeenAt: timestamp("last_seen_at"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
