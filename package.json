@@ -13,6 +13,8 @@
     "check": "npm run lint && npm run test && npm run build",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
+    "ncm:heartbeat": "tsx scripts/ncm-heartbeat-worker.ts",
+    "ncm:heartbeat:run-once": "tsx scripts/ncm-heartbeat-worker.ts --run-once",
     "seed": "tsx scripts/seed.ts",
     "seed:users": "tsx scripts/seed-users.ts",
     "reset:devices": "tsx scripts/reset-devices.ts",

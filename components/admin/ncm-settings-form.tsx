@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
-import { saveNcmSettings, saveNcmWebhook, testNcmConnection } from "@/actions/ncm-settings";
+import { checkNcmNow, saveNcmSettings, saveNcmWebhook, testNcmConnection } from "@/actions/ncm-settings";
 import type { NcmSettingsData, NcmSiteConfig } from "@/actions/ncm-settings";
 import ActionButton from "@/components/ui/action-button";
 
@@ -81,10 +81,11 @@ function SiteRow({ site }: { site: NcmSiteConfig }) {
     const router = useRouter();
     const [saveState, saveAction, isSaving] = useActionState(saveNcmSettings, undefined);
     const [testState, testAction, isTesting] = useActionState(testNcmConnection, undefined);
+    const [checkState, checkAction, isChecking] = useActionState(checkNcmNow, undefined);
 
     useEffect(() => {
-        if (saveState?.success || testState?.ok) router.refresh();
-    }, [saveState?.success, testState?.ok, router]);
+        if (saveState?.success || testState?.ok || checkState?.ok) router.refresh();
+    }, [saveState?.success, testState?.ok, checkState?.ok, router]);
 
     const lastSeen = formatLastSeen(site.lastSeenAt);
 
@@ -97,6 +98,16 @@ function SiteRow({ site }: { site: NcmSiteConfig }) {
                     {site.apiKeyConfigured && (
                         <span className="inline-flex h-6 items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 text-[11px] font-medium text-emerald-300">
                             Terkonfigurasi
+                        </span>
+                    )}
+                    {site.status === "offline" && (
+                        <span className="inline-flex h-6 items-center rounded-full border border-red-400/25 bg-red-400/10 px-2 text-[11px] font-medium text-red-300">
+                            OFFLINE
+                        </span>
+                    )}
+                    {site.status === "online" && (
+                        <span className="inline-flex h-6 items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 text-[11px] font-medium text-emerald-300">
+                            Online
                         </span>
                     )}
                 </div>
@@ -140,8 +151,14 @@ function SiteRow({ site }: { site: NcmSiteConfig }) {
                     {testState.message}
                 </div>
             )}
+            {checkState && (
+                <div className={`mt-3 rounded-lg border p-3 text-sm ${checkState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
+                    {checkState.message}
+                </div>
+            )}
 
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <ActionButton type="submit" formAction={checkAction} variant="secondary" isPending={isChecking}>Check Now</ActionButton>
                 <ActionButton type="submit" formAction={testAction} variant="secondary" isPending={isTesting}>Test Connection</ActionButton>
                 <ActionButton type="submit" isPending={isSaving}>Simpan Site</ActionButton>
             </div>

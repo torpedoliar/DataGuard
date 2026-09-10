@@ -581,6 +581,11 @@ export const ncmSettings = pgTable("ncm_settings", {
   // url — not a secret; the HMAC key stays in webhook_secret.
   webhookUrl: text("webhook_url"),
   lastSeenAt: timestamp("last_seen_at"),
+  // Ticket 09 fleet heartbeat: status is the last check outcome
+  // (online|offline), missCount the consecutive failed checks. An
+  // unconfigured site has no row at all (same as url/admin_api_key).
+  status: text("status").default("online"),
+  missCount: integer("miss_count").default(0),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

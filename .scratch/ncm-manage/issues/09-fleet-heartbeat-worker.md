@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done (commit 3e0e138)
 
-- [ ] Heartbeat memanggil tiap site NCM terkonfigurasi dan menyimpan last_seen per site.
-- [ ] Site yang tak menjawab berulang → status OFFLINE + insiden High otomatis.
-- [ ] Tombol check-now per site di UI pengaturan NCM.
-- [ ] Test hijau (heartbeat sukses/gagal/offline-threshold) + commit.
+- [x] Heartbeat memanggil tiap site NCM terkonfigurasi dan menyimpan last_seen per site.
+- [x] Site yang tak menjawab berulang → status OFFLINE + insiden High otomatis.
+- [x] Tombol check-now per site di UI pengaturan NCM.
+- [x] Test hijau (heartbeat sukses/gagal/offline-threshold) + commit.

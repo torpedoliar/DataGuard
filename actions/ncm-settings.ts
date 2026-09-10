@@ -9,6 +9,7 @@ import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
 import { encryptString, decryptIfEncrypted } from "../lib/crypto";
 import { fetchNcmSwitches, resolveNcmConfig, setNcmWebhook, touchNcmLastSeen } from "../lib/ncm";
+import { checkNcmSite, ncmHeartbeatDeps, NCM_OFFLINE_THRESHOLD } from "../lib/ncm-heartbeat";
 
 export type NcmSiteConfig = {
     siteId: number;
@@ -18,6 +19,7 @@ export type NcmSiteConfig = {
     webhookUrl: string; // stored value (may be ""); pushed to NCM on save
     webhookConfigured: boolean; // inbound HMAC secret present in ncm_settings
     lastSeenAt: Date | null;
+    status: "online" | "offline" | null; // fleet heartbeat (ticket 09)
 };
 
 export type NcmSettingsData = {
@@ -47,6 +49,7 @@ export async function getNcmSettings(): Promise<NcmSettingsData | { message: str
                 webhookUrl: ncmSettings.webhookUrl,
                 webhookSecret: ncmSettings.webhookSecret,
                 lastSeenAt: ncmSettings.lastSeenAt,
+                status: ncmSettings.status,
             }).from(ncmSettings),
         ]);
         const rowsBySite = new Map(rowList.map((row) => [row.siteId, row]));
@@ -64,6 +67,7 @@ export async function getNcmSettings(): Promise<NcmSettingsData | { message: str
                 webhookUrl: row?.webhookUrl ?? "",
                 webhookConfigured: Boolean(row?.webhookSecret),
                 lastSeenAt: row?.lastSeenAt ?? null,
+                status: (row?.status as "online" | "offline" | null) ?? null,
             });
             if (!url && !row?.adminApiKey) {
                 sitesWithoutConfig.push({ id: site.id, name: site.name });
@@ -177,6 +181,56 @@ export async function testNcmConnection(prevState: unknown, formData: FormData) 
         return { ok: true, message: "OK - NCM terhubung (" + config.url + ")" };
     } catch (error) {
         return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    }
+}
+
+const cronSchema = z.object({
+    ncmSiteId: z.string().refine((value) => Number.isInteger(Number(value)) && Number(value) > 0, {
+        message: "Site ID tidak valid.",
+    }),
+});
+
+/**
+ * Ticket 09: superadmin "check now" — runs the same heartbeat the fleet
+ * worker uses for one site (last_seen/status/miss_count + incident rules),
+ * but surfaces a human-readable message. The UI button calls this with
+ * formAction, exactly like testNcmConnection.
+ */
+export async function checkNcmNow(prevState: unknown, formData: FormData) {
+    void prevState;
+
+    const session = await verifySession();
+    if (!session || session.role !== "superadmin") {
+        return { ok: false, message: "Unauthorized. Only superadmin can run the NCM heartbeat." };
+    }
+
+    const parsed = cronSchema.safeParse({ ncmSiteId: String(formData.get("ncmSiteId") ?? "") });
+    if (!parsed.success) {
+        return { ok: false, message: parsed.error.issues[0]?.message ?? "Site ID tidak valid." };
+    }
+
+    const siteId = Number(parsed.data.ncmSiteId);
+    const [site] = await db.select({ name: sites.name }).from(sites).where(eq(sites.id, siteId));
+    if (!site) {
+        return { ok: false, message: "Site tidak ditemukan." };
+    }
+
+    try {
+        const outcome = await checkNcmSite(ncmHeartbeatDeps, { siteId, siteName: site.name });
+        if (!outcome.configured) {
+            return { ok: false, message: "Belum dikonfigurasi: isi URL + admin API key untuk site, lalu simpan." };
+        }
+        revalidatePath("/admin/settings");
+        if (outcome.ok) {
+            return { ok: true, message: `OK - NCM merespons (status: ${outcome.status}).` };
+        }
+        const misses = outcome.missCount ?? 0;
+        const thresholdNote = misses >= NCM_OFFLINE_THRESHOLD
+            ? ` — OFFLINE, insiden ${outcome.incidentId ? `#${outcome.incidentId}` : "(sudah ada)"} terkait.`
+            : ` (miss ${misses}/${NCM_OFFLINE_THRESHOLD}).`;
+        return { ok: false, message: `Gagal: ${outcome.error}${thresholdNote}` };
+    } catch {
+        return { ok: false, message: "Terjadi kesalahan saat menjalankan heartbeat NCM." };
     }
 }
 

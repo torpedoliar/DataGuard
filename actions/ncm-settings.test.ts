@@ -13,6 +13,10 @@ const mocks = vi.hoisted(() => ({
   setNcmWebhook: vi.fn(async (..._args: unknown[]) => ({ ok: true })),
   fetchNcmSwitches: vi.fn(async (..._args: unknown[]) => []),
   touchNcmLastSeen: vi.fn(async (..._args: unknown[]) => undefined),
+  checkNcmSite: vi.fn(async (..._args: unknown[]) => ({
+    siteId: 1, configured: true, ok: true, status: "online", missCount: 0,
+    incidentId: null, incidentCreated: false, error: null,
+  })),
 }));
 
 vi.mock("../lib/session", () => ({
@@ -55,6 +59,12 @@ vi.mock("../lib/ncm", () => ({
   touchNcmLastSeen: (...args: unknown[]) => mocks.touchNcmLastSeen(...args),
 }));
 
+vi.mock("../lib/ncm-heartbeat", () => ({
+  checkNcmSite: (...args: unknown[]) => mocks.checkNcmSite(...args),
+  NCM_OFFLINE_THRESHOLD: 3,
+  ncmHeartbeatDeps: {},
+}));
+
 const ENCRYPT_PREFIX = "v1:";
 vi.mock("../lib/crypto", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../lib/crypto")>();
@@ -66,7 +76,7 @@ vi.mock("../lib/crypto", async (importOriginal) => {
   };
 });
 
-import { saveNcmWebhook } from "./ncm-settings";
+import { saveNcmWebhook, checkNcmNow } from "./ncm-settings";
 
 function form(values: Record<string, string | number>): FormData {
   const fd = new FormData();
@@ -164,5 +174,60 @@ describe("saveNcmWebhook (ticket 08)", () => {
 
     expect(result).toMatchObject({ ok: false, message: expect.stringContaining("belum terhubung") });
     expect(mocks.setNcmWebhook).not.toHaveBeenCalled();
+  });
+});
+
+describe("checkNcmNow (ticket 09)", () => {
+  it("rejects non-superadmin before touching NCM", async () => {
+    mocks.verifySession.mockResolvedValueOnce({ userId: 2, username: "op", role: "admin" });
+
+    const result = await checkNcmNow(undefined, form({ ncmSiteId: "1" }));
+
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("Unauthorized") });
+    expect(mocks.checkNcmSite).not.toHaveBeenCalled();
+  });
+
+  it("reports OK when NCM answers", async () => {
+    mocks.selectExisting.mockResolvedValueOnce([{ name: "HQ" }] as never);
+
+    const result = await checkNcmNow(undefined, form({ ncmSiteId: "1" }));
+
+    expect(mocks.checkNcmSite).toHaveBeenCalledWith(expect.anything(), { siteId: 1, siteName: "HQ" });
+    expect(result).toMatchObject({ ok: true, message: expect.stringContaining("OK") });
+  });
+
+  it("reports the miss streak when NCM stays silent below threshold", async () => {
+    mocks.selectExisting.mockResolvedValueOnce([{ name: "HQ" }] as never);
+    mocks.checkNcmSite.mockResolvedValueOnce({
+      siteId: 1, configured: true, ok: false, status: "online", missCount: 2,
+      incidentId: null, incidentCreated: false, error: "timeout",
+    } as never);
+
+    const result = await checkNcmNow(undefined, form({ ncmSiteId: "1" }));
+
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("miss 2/3") });
+  });
+
+  it("reports OFFLINE + incident when the threshold is reached", async () => {
+    mocks.selectExisting.mockResolvedValueOnce([{ name: "HQ" }] as never);
+    mocks.checkNcmSite.mockResolvedValueOnce({
+      siteId: 1, configured: true, ok: false, status: "offline", missCount: 3,
+      incidentId: 101, incidentCreated: true, error: "timeout",
+    } as never);
+
+    const result = await checkNcmNow(undefined, form({ ncmSiteId: "1" }));
+
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("OFFLINE") });
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("#101") });
+  });
+
+  it("rejects an invalid site id and an unknown site", async () => {
+    const badId = await checkNcmNow(undefined, form({ ncmSiteId: "abc" }));
+    expect(badId).toMatchObject({ ok: false });
+
+    mocks.selectExisting.mockResolvedValueOnce([] as never);
+    const unknown = await checkNcmNow(undefined, form({ ncmSiteId: "9" }));
+    expect(unknown).toMatchObject({ ok: false, message: expect.stringContaining("tidak ditemukan") });
+    expect(mocks.checkNcmSite).not.toHaveBeenCalledWith(expect.anything(), { siteId: 9, siteName: expect.anything() });
   });
 });

@@ -414,6 +414,13 @@
       "when": 1788404356000,
       "tag": "0059_ncm_webhook_url",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788404357000,
+      "tag": "0060_ncm_heartbeat",
+      "breakpoints": true
     }
   ]
 }
