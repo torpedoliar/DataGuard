@@ -539,6 +539,28 @@ describe("syncNetworkDocs", () => {
     expect(summary.switchesMatched).toBe(1);
   });
 
+  it("reuses the site's NCM connection when no network-doc row or env URL exists (ticket 14 one-key model)", async () => {
+    stubEnv({ NETWORK_DOC_URL: "", NETWORK_DOC_API_KEY: "" });
+    vi.stubEnv("AI_KEY_ENCRYPTION_SECRET", "test-network-doc-secret-32charsxxxx");
+    const fetchMock = stubFetch([SWITCH_A]);
+    // 1st select: no network-doc row; 2nd select: the site's NCM connection.
+    mocks.selectResults.push(
+      [],
+      [{ url: "http://ncm-shared:9443", adminApiKey: encryptString("db-key") }],
+      [DEVICE_IP],
+      [],
+      [],
+    );
+    mocks.insertReturning.push([{ id: 100 }], [{ id: 101 }]);
+
+    const summary = await syncNetworkDocs(7);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://ncm-shared:9443/api/v1/network-doc");
+    expect((init.headers as Record<string, string>)["X-API-Key"]).toBe("db-key");
+    expect(summary.switchesMatched).toBe(1);
+  });
+
   it("skips the write phase when another sync holds the site's advisory lock", async () => {
     stubEnv({});
     stubFetch([SWITCH_A]);

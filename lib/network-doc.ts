@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
-import { devices, vlans, networkPorts, networkDocSettings, globalSettings } from "../db/schema";
+import { devices, vlans, networkPorts, networkDocSettings, ncmSettings, globalSettings } from "../db/schema";
 import { getEnv } from "./env";
 import { decryptIfEncrypted } from "./crypto";
 import { FACEPLATE_MAX_PORTS, parsePortIndex } from "./faceplate";
@@ -125,9 +125,35 @@ export async function resolveNetworkDocConfig(siteId: number): Promise<NetworkDo
         apiKey = env.NETWORK_DOC_API_KEY?.trim() || null;
     }
 
+    // Ticket 14 fallback: the unified NCM settings form has no separate
+    // network-doc key field — when neither a network-doc row nor env provides
+    // the URL, reuse the site's NCM connection (the one-key-per-site model).
+    // The network-doc row still wins; env deployments are unaffected (no
+    // extra query when env provides the URL).
+    const rowUrl = row?.url?.trim() || null;
+    const envUrl = env.NETWORK_DOC_URL?.trim() || null;
+    let ncmUrl: string | null = null;
+    let ncmKey: string | null = null;
+    if (rowUrl === null && envUrl === null) {
+        try {
+            const [ncmRow] = await db.select({ url: ncmSettings.url, adminApiKey: ncmSettings.adminApiKey })
+                .from(ncmSettings).where(eq(ncmSettings.siteId, siteId));
+            if (ncmRow?.url?.trim()) ncmUrl = ncmRow.url.trim();
+            if (apiKey === null && ncmRow?.adminApiKey) {
+                try {
+                    ncmKey = decryptIfEncrypted(ncmRow.adminApiKey) || null;
+                } catch {
+                    ncmKey = null;
+                }
+            }
+        } catch {
+            // ncm_settings unreachable — keep nulls.
+        }
+    }
+
     return {
-        url: row?.url?.trim() || env.NETWORK_DOC_URL?.trim() || null,
-        apiKey,
+        url: row?.url?.trim() || ncmUrl || env.NETWORK_DOC_URL?.trim() || null,
+        apiKey: apiKey ?? ncmKey,
         intervalMs: row?.intervalMs ?? (env.NETWORK_DOC_SYNC_INTERVAL_MS?.trim() ? Number(env.NETWORK_DOC_SYNC_INTERVAL_MS) || null : null),
     };
 }

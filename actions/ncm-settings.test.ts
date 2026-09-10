@@ -65,6 +65,14 @@ vi.mock("../lib/ncm-heartbeat", () => ({
   ncmHeartbeatDeps: {},
 }));
 
+// Ticket 14: saveNcmSettings conditionally calls the real
+// saveNetworkDocSettings when the unified form posts networkDocSiteId.
+// Stub it (its own tests in network-doc-settings cover the logic).
+vi.mock("./network-doc-settings", () => ({
+  saveNetworkDocSettings: vi.fn(async (..._args: unknown[]) => ({ success: true, message: "ok" })),
+  saveNetworkDocWorkerInterval: vi.fn(async (..._args: unknown[]) => ({ success: true, message: "ok" })),
+}));
+
 const ENCRYPT_PREFIX = "v1:";
 vi.mock("../lib/crypto", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../lib/crypto")>();
@@ -76,7 +84,8 @@ vi.mock("../lib/crypto", async (importOriginal) => {
   };
 });
 
-import { saveNcmWebhook, checkNcmNow } from "./ncm-settings";
+import { saveNcmSettings, saveNcmWebhook, checkNcmNow, testNcmConnection } from "./ncm-settings";
+import { saveNetworkDocSettings } from "./network-doc-settings";
 
 function form(values: Record<string, string | number>): FormData {
   const fd = new FormData();
@@ -229,5 +238,45 @@ describe("checkNcmNow (ticket 09)", () => {
     const unknown = await checkNcmNow(undefined, form({ ncmSiteId: "9" }));
     expect(unknown).toMatchObject({ ok: false, message: expect.stringContaining("tidak ditemukan") });
     expect(mocks.checkNcmSite).not.toHaveBeenCalledWith(expect.anything(), { siteId: 9, siteName: expect.anything() });
+  });
+});
+
+describe("ticket 14 — unified form + 403 scope guidance", () => {
+  it("delegates the network-doc fields to saveNetworkDocSettings on the same submit", async () => {
+    const result = await saveNcmSettings(
+      undefined,
+      form({ ncmSiteId: "1", ncmUrl: "http://10.0.0.9:9443", networkDocSiteId: "1", networkDocUrl: "", networkDocApiKey: "" }),
+    );
+
+    expect(saveNetworkDocSettings).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ success: true });
+  });
+
+  it("skips the network-doc delegation when the override fields are absent", async () => {
+    const result = await saveNcmSettings(
+      undefined,
+      form({ ncmSiteId: "1", ncmUrl: "http://10.0.0.9:9443" }),
+    );
+
+    expect(saveNetworkDocSettings).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true });
+  });
+
+  it("turns a 403 into legacy-key scope guidance listing the required scopes", async () => {
+    mocks.fetchNcmSwitches.mockRejectedValueOnce(new Error("NCM API responded 403: API key lacks required scope"));
+
+    const result = await testNcmConnection(undefined, form({ ncmSiteId: "1" }));
+
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("legacy/limited") });
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("system:write") });
+  });
+
+  it("passes non-403 errors through unchanged", async () => {
+    mocks.fetchNcmSwitches.mockRejectedValueOnce(new Error("Gagal terhubung ke http://x: fetch failed"));
+
+    const result = await testNcmConnection(undefined, form({ ncmSiteId: "1" }));
+
+    expect(result).toMatchObject({ ok: false, message: "Gagal terhubung ke http://x: fetch failed" });
+    expect(result.message).not.toContain("legacy/limited");
   });
 });

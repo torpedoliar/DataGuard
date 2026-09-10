@@ -26,4 +26,12 @@ describe("ncm-setup (ticket 13)", () => {
         expect(scopes).toContain("reviews:write");
         expect(scopes).toHaveLength(8);
     });
+
+    it("appends the legacy-key scope guidance for 403 errors", async () => {
+        const { withNcmScopeGuidance } = await import("./ncm-setup");
+        const out = withNcmScopeGuidance("NCM API responded 403: forbidden");
+        expect(out).toContain("legacy/limited");
+        for (const scope of requiredDgScopes()) expect(out).toContain(scope);
+        expect(out).toContain("API Keys");
+    });
 });

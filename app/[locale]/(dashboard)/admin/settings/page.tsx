@@ -5,7 +5,6 @@ import { getNcmSettings } from "@/actions/ncm-settings";
 import SettingsForm from "@/components/admin/settings-form";
 import SiemAiSettingsForm from "@/components/admin/siem-ai-settings-form";
 import SiemIngestSettingsForm from "@/components/admin/siem-ingest-settings-form";
-import NetworkDocSettingsForm from "@/components/admin/network-doc-settings-form";
 import NcmSettingsForm from "@/components/admin/ncm-settings-form";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
@@ -57,8 +56,7 @@ export default async function SettingsPage() {
             <SettingsForm initialData={settings} />
             {!("message" in siemIngestSettings) && <SiemIngestSettingsForm initialData={siemIngestSettings} />}
             {!("message" in siemAiSettings) && <SiemAiSettingsForm initialData={siemAiSettings} />}
-            {!("message" in networkDocSettings) && <NetworkDocSettingsForm initialData={networkDocSettings} />}
-            {!("message" in ncmSettings) && <NcmSettingsForm initialData={ncmSettings} />}
+            {!("message" in ncmSettings) && <NcmSettingsForm initialData={ncmSettings} networkDoc={"message" in networkDocSettings ? undefined : networkDocSettings} />}
         </div>
     );
 }

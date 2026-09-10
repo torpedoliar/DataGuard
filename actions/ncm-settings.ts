@@ -10,6 +10,8 @@ import { logAudit } from "../lib/audit";
 import { encryptString, decryptIfEncrypted } from "../lib/crypto";
 import { fetchNcmSwitches, resolveNcmConfig, setNcmWebhook, touchNcmLastSeen } from "../lib/ncm";
 import { checkNcmSite, ncmHeartbeatDeps, NCM_OFFLINE_THRESHOLD } from "../lib/ncm-heartbeat";
+import { withNcmScopeGuidance } from "../lib/ncm-setup";
+import { saveNetworkDocSettings } from "./network-doc-settings";
 
 export type NcmSiteConfig = {
     siteId: number;
@@ -107,6 +109,13 @@ export async function saveNcmSettings(prevState: unknown, formData: FormData) {
         return { message: "Unauthorized. Only superadmin can modify NCM settings." };
     }
 
+    // Ticket 14: the unified per-site form posts the network-doc fields on the
+    // same submit. Reuse the existing network-doc action verbatim (it keeps
+    // its own table, validation, and audit) — zero backend duplication.
+    if (formData.has("networkDocSiteId")) {
+        await saveNetworkDocSettings(prevState, formData);
+    }
+
     const parsed = siteSchema.safeParse({
         ncmSiteId: String(formData.get("ncmSiteId") ?? ""),
         ncmUrl: String(formData.get("ncmUrl") ?? ""),
@@ -184,7 +193,11 @@ export async function testNcmConnection(prevState: unknown, formData: FormData) 
         await touchNcmLastSeen(siteId);
         return { ok: true, message: "OK - NCM terhubung (" + config.url + ")" };
     } catch (error) {
-        return { ok: false, message: error instanceof Error ? error.message : String(error) };
+        const raw = error instanceof Error ? error.message : String(error);
+        // Ticket 14: legacy/limited NCM keys (created before the scopes
+        // feature, scopes=NULL) surface as 403 "lacks required scope" — tell
+        // the operator exactly which scopes to grant instead of the bare code.
+        return { ok: false, message: raw.includes("403") ? withNcmScopeGuidance(raw) : raw };
     }
 }
 

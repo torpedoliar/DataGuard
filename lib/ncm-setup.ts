@@ -35,3 +35,12 @@ const DG_SCOPES = [
 export function requiredDgScopes(): string[] {
     return [...DG_SCOPES];
 }
+
+/**
+ * Ticket 14 — a 403 "API key lacks required scope" from NCM almost always
+ * means the key predates the scopes feature (legacy key, scopes=NULL).
+ * DG-side fix is operator guidance: update the key's scopes in NCM (API Keys).
+ */
+export function withNcmScopeGuidance(message: string): string {
+    return `${message} — Key NCM Anda legacy/limited: butuh scope ${requiredDgScopes().join(", ")}. Perbarui scope key di NCM (API Keys), lalu coba lagi.`;
+}
