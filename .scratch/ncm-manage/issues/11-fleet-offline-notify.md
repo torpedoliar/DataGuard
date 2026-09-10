@@ -4,9 +4,9 @@
 
 **Blocked by:** 09 (butuh sinyal transisi online↔offline dari heartbeat).
 
-**Status:** ready-for-agent
+**Status:** done (commit 1736bd5)
 
-- [ ] Transisi ke OFFLINE → pesan Telegram (site, sejak kapan, last_seen terakhir).
-- [ ] Transisi kembali ONLINE → pesan pemulihan.
-- [ ] Tidak ada spam: satu pesan per transisi (flapping dijinakkan).
-- [ ] Test hijau + commit.
+- [x] Transisi ke OFFLINE → pesan Telegram (site, sejak kapan, last_seen terakhir).
+- [x] Transisi kembali ONLINE → pesan pemulihan.
+- [x] Tidak ada spam: satu pesan per transisi (flapping dijinakkan).
+- [x] Test hijau + commit.
