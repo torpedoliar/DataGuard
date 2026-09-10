@@ -29,7 +29,9 @@ Login sebagai admin NCM → **API Keys** → buat key dengan scope:
 | `system:write` | Push konfigurasi webhook ke NCM dari UI DG (langkah 3) |
 
 Simpan plaintext key sekali — NCM hanya menyimpan hash. Key tanpa scope
-(legacy) tetap berfungsi untuk integrasi network-doc lama.
+(legacy) **ditolak 403 di semua endpoint** sejak tiket 16 — termasuk
+`/network-doc`. Integrasi network-doc lama harus pakai key minimal scope
+`read` (lihat panduan migrasi di bawah).
 
 ## 2. Daftarkan koneksi di DataGuard
 
@@ -163,3 +165,19 @@ online + insiden auto-resolve + 1 Telegram recovery. Sukses diakhiri
 | Incident tidak muncul | Webhook beda / push gagal | Buka NCM → Settings → NCM: badge per site menunjukkan status; klik Simpan & Push ke NCM ulang; cek log ingest (401 = signature) |
 | Incident dobel | — | Tidak mungkin: dedupe by NCM event ID |
 | Test connection hijau tapi aksi gagal | Scope key kurang untuk aksi tulis | Tambah scope sesuai tabel |
+
+## 8. Migrasi key network-doc lama (tiket 16 — NCM v4.6.0+)
+
+Sejak tiket 16, `GET /api/v1/network-doc` menolak key tanpa scope (403).
+DG memanggil endpoint ini lewat worker **Settings › Network Docs** (key per
+site, tersimpan terenkripsi) dan lewat env fallback. Langkah migrasi produksi:
+
+1. Login admin NCM site → **Settings › API** → buat key baru, scope minimal
+   `read` (atau scope lengkap tabel langkah 1 bila key yang sama dipakai DG
+   management).
+2. DG superadmin → **Settings › Network Docs** (per site) → tempel key baru →
+   **Sync now** → pastikan `switchesMatched` penuh dan tidak ada warning 403.
+3. Revoke key lama di NCM (jangan delete dulu bila ingin jejak auditnya tinggal;
+   revoke cukup untuk menolak request).
+4. Bersihkan env fallback `NETWORK_DOC_API_KEY` (bila dipakai) dan ganti dengan
+   key baru; deploy ulang worker bila perlu.
