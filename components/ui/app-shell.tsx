@@ -35,6 +35,7 @@ import {
   Tag,
   User,
   Users,
+  Waypoints,
   type LucideIcon,
 } from "lucide-react";
 import clsx from "clsx";
@@ -42,6 +43,7 @@ import { logout, switchSite } from "@/actions/auth";
 import { getAppNavigation, type NavGroup, type NavItem } from "@/lib/ui/navigation";
 import ActionButton from "@/components/ui/action-button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import NcmFleetNavBadge from "@/components/admin/ncm-fleet-nav-badge";
 
 type SiteInfo = { id: number; name: string; code: string };
 
@@ -66,6 +68,7 @@ const iconMap: Record<string, LucideIcon> = {
   network: Network,
   cable: Cable,
   router: Router,
+  waypoints: Waypoints,
   tag: Tag,
   "folder-tree": FolderTree,
   "map-pin": MapPin,
@@ -226,7 +229,9 @@ export default function AppShell({
             <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">{groupLabel(group)}</p>
             <div className="space-y-1">
               {group.items.map((item) => (
-                <NavLink key={item.href} item={item} label={itemLabel(item)} active={isActive(item.href)} onNavigate={() => setMobileOpen(false)} />
+                <NavLink key={item.href} item={item} label={itemLabel(item)} active={isActive(item.href)} onNavigate={() => setMobileOpen(false)}>
+                  {item.href === "/admin/ncm/fleet" && <NcmFleetNavBadge />}
+                </NavLink>
               ))}
             </div>
           </div>
@@ -365,11 +370,13 @@ function NavLink({
   label,
   active,
   onNavigate,
+  children,
 }: {
   item: NavItem;
   label: string;
   active: boolean;
   onNavigate: () => void;
+  children?: React.ReactNode;
 }) {
   const Icon = iconMap[item.icon] || Server;
 
@@ -386,6 +393,7 @@ function NavLink({
     >
       <Icon className="size-4 shrink-0" />
       <span className="truncate">{label}</span>
+      {children}
     </Link>
   );
 }

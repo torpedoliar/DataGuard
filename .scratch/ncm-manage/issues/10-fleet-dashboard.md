@@ -4,7 +4,7 @@
 
 **Blocked by:** 09 (butuh last_seen + status offline per site).
 
-**Status:** ready-for-agent
+**Status:** done (commit e8e948b)
 
 - [ ] Halaman fleet menampilkan badge per site: online/offline + drift count.
 - [ ] Satu tabel drift terbuka lintas site (klik baris → detail review site terkait).
