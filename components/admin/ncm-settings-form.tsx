@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
-import { checkNcmNow, saveNcmSettings, saveNcmWebhook, testNcmConnection } from "@/actions/ncm-settings";
+import { checkNcmNow, saveNcmSettings, saveNcmWebhook, setupNcmWebhook, testNcmConnection } from "@/actions/ncm-settings";
 import type { NcmSettingsData, NcmSiteConfig } from "@/actions/ncm-settings";
 import ActionButton from "@/components/ui/action-button";
 
@@ -15,6 +15,7 @@ function formatLastSeen(value: Date | null): string | null {
 
 function WebhookRow({ site }: { site: NcmSiteConfig }) {
     const [saveState, saveAction, isSaving] = useActionState(saveNcmWebhook, undefined);
+    const [setupState, setupAction, isSettingUp] = useActionState(setupNcmWebhook, undefined);
 
     return (
         <form action={saveAction} className="mt-3 rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
@@ -32,9 +33,10 @@ function WebhookRow({ site }: { site: NcmSiteConfig }) {
                 )}
             </div>
             <p className="mt-1 text-xs text-slate-400">
-                URL event target di NCM + secret HMAC-nya di-push ke NCM saat disimpan. Isi URL ingest DG
-                (<span className="font-mono">https://&lt;dg&gt;/api/ncm/ingest</span>) sebagai URL, lalu secret yang
-                sama dengan secret inbound site ini.
+                Cukup 1 API key NCM saja (key admin dengan semua scope; lihat daftar scope di
+                panduan runbook). Satu klik di bawah: DG membuat secret HMAC acak, menyimpan URL
+                ingest + secret terenkripsi, dan langsung push keduanya ke NCM (auto-sync, tanpa
+                langkah manual di NCM).
             </p>
 
             <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -71,8 +73,21 @@ function WebhookRow({ site }: { site: NcmSiteConfig }) {
             )}
 
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <ActionButton type="submit" isPending={isSaving}>Simpan & Push ke NCM</ActionButton>
+                <ActionButton
+                    type="submit"
+                    formAction={setupAction}
+                    variant="secondary"
+                    isPending={isSettingUp}
+                >
+                    Setup Otomatis (1 klik)
+                </ActionButton>
+                <ActionButton type="submit" isPending={isSaving}>Simpan Manual</ActionButton>
             </div>
+            {setupState && (
+                <div className={`mt-3 rounded-lg border p-3 text-sm ${"ok" in setupState && setupState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
+                    {setupState.message}
+                </div>
+            )}
         </form>
     );
 }

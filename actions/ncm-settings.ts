@@ -95,6 +95,10 @@ const siteSchema = z.object({
     ncmAdminApiKey: z.string().max(500).optional(),
 });
 
+export async function saveNcmConnection(prevState: unknown, formData: FormData) {
+    return saveNcmSettings(prevState, formData);
+}
+
 export async function saveNcmSettings(prevState: unknown, formData: FormData) {
     void prevState;
 
@@ -247,6 +251,61 @@ const webhookSchema = z.object({
         }),
     ncmWebhookSecret: z.string().max(500), // NCM caps webhook_secret at 500
 });
+
+/**
+ * Ticket 13 — one-click webhook setup: DG generates the HMAC secret
+ * (crypto random) and pushes URL+secret to NCM in one action; the NCM
+ * never generates the secret, it only verifies. Auto-updates NCM: the same
+ * PATCH /system/notify-settings call the manual form used (scope
+ * system:write) runs here, so the NCM side is in sync the moment this
+ * succeeds. Keeps a stored/derived URL when the field is blank.
+ */
+export async function setupNcmWebhook(prevState: unknown, formData: FormData) {
+    void prevState;
+
+    const session = await verifySession();
+    if (!session || session.role !== "superadmin") {
+        return { ok: false, message: "Unauthorized. Only superadmin can modify NCM webhook settings." };
+    }
+
+    const siteId = Number(formData.get("ncmSiteId"));
+    if (!Number.isInteger(siteId)) {
+        return { ok: false, message: "Site ID tidak valid." };
+    }
+
+    const { resolveNcmConfig } = await import("../lib/ncm");
+    const { generateWebhookSecret, resolveIngestUrl } = await import("../lib/ncm-setup");
+
+    try {
+        const config = await resolveNcmConfig(siteId);
+        if (!config.url || !config.adminApiKey) {
+            return { ok: false, message: "Site belum terhubung ke NCM: isi URL + admin API key, lalu simpan." };
+        }
+        const [existing] = await db.select({ webhookUrl: ncmSettings.webhookUrl, webhookSecret: ncmSettings.webhookSecret })
+            .from(ncmSettings)
+            .where(eq(ncmSettings.siteId, siteId));
+        if (!existing) {
+            return { ok: false, message: "Site belum terhubung ke NCM: isi URL + admin API key, lalu simpan." };
+        }
+        const secret = generateWebhookSecret();
+        const url = existing.webhookUrl?.trim() || resolveIngestUrl();
+        if (!url) {
+            return { ok: false, message: "URL ingest DG belum diketahui: set DG_PUBLIC_URL di env agar DG dapat mengisi otomatis." };
+        }
+        const { setNcmWebhook } = await import("../lib/ncm");
+        await setNcmWebhook({ url: config.url, adminApiKey: config.adminApiKey as string }, url, secret);
+        await db.update(ncmSettings).set({
+            webhookUrl: url,
+            webhookSecret: encryptString(secret),
+            updatedAt: new Date(),
+        }).where(eq(ncmSettings.siteId, siteId));
+        revalidatePath("/admin/settings");
+        await logAudit({ action: "UPDATE", entity: "settings", entityName: "NCM Webhook", entityId: siteId, detail: "Webhook auto-setup pushed to NCM" });
+        return { ok: true, message: "Webhook aktif dan ter-sync ke NCM (" + config.url + ")." };
+    } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    }
+}
 
 /**
  * Ticket 08: webhook NCM dikonfigurasi 100% via UI. Persists the webhook URL
