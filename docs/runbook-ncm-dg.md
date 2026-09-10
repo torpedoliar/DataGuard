@@ -75,7 +75,85 @@ itu, halaman NCM akan gagal membaca konfigurasi.
   dan semua aksi dinonaktifkan — perintah tidak diantrekan; coba lagi
   setelah koneksi pulih.
 
-## 6. Troubleshooting
+## 6. Operasional fleet (`/admin/ncm/fleet`)
+
+Halaman fleet memuat seluruh site dalam satu layar: satu badge per site
+(online/offline + jumlah drift terbuka) dan satu tabel berisi semua review
+drift yang masih terbuka lintas site (klik baris → detail review site
+terkait). Ada badge agregat di navigasi (jumlah site offline / drift
+terbuka). Data diambil langsung dari tiap site saat halaman dibuka
+(transient, tidak disinkron ke DB) — site yang tak terjangkau tampil
+sebagai badge merah, halaman tidak pernah gagal total karenanya.
+
+### 6a. Jadwal heartbeat
+
+Dua jalur menjalankan heartbeat yang sama (`checkNcmSite` per site,
+`last_seen`/`status`/`miss_count` di `ncm_settings`, migrasi `0060`):
+
+| Jalur | Cara | Kapan dipakai |
+|---|---|---|
+| Worker selalu-on | `npm run ncm:heartbeat` (loop; interval `NCM_HEARTBEAT_INTERVAL_MS`, default 5 menit, minimal 1 menit) | Produksi normal — satu proses jalan terus |
+| Cron route eksternal | `GET /api/cron/ncm-heartbeat` via scheduler eksternal (cron/systemd) | Bila worker tidak bisa selalu-on; kirim `Authorization: Bearer <CRON_SECRET>` bila env itu diset (tanpa env = terbuka) |
+| Manual | Tombol **Check Now** di Settings › NCM Connection (superadmin) | Diagnosis per site; menjalankan heartbeat yang sama untuk satu site |
+
+### 6b. Arti status online/offline
+
+- `online`: ping terakhir sukses (`GET /api/v1/switches` menjawab).
+- Miss 1–2: streak `miss_count` bertambah, status tetap seperti semula,
+  belum ada insiden, belum ada Telegram.
+- `offline`: setelah **3 miss berturut-turut** (`NCM_OFFLINE_THRESHOLD`).
+  Saat transisi online→offline: 1 insiden **High** otomatis
+  (`Site NCM offline: <nama>`) + 1 pesan Telegram offline. Miss
+  berikutnya tidak mengarsip ulang (dedupe: maksimal 1 insiden terbuka
+  per site). Saat NCM merespons lagi: status kembali `online`,
+  `miss_count` direset, insiden offline ditutup otomatis (Resolved),
+  + 1 pesan Telegram pemulihan.
+
+### 6c. Cara menambah site baru
+
+1. Pastikan site aktif di DataGuard (tabel `sites`).
+2. Buka **Settings › NCM Connection** (superadmin): isi URL
+   (`http://<host>:8443`) + API key site (langkah 1), lalu simpan.
+3. Klik **Check Now** — sukses berarti roundtrip hidup dan
+   `lastSeenAt` terisi.
+4. Verifikasi badge site di **Admin › NCM Fleet**: hijau `online`.
+5. Konfigurasi webhook (bagian 3) agar event site mengalir sebagai
+   incident.
+
+### 6d. Troubleshooting site offline
+
+| Gejala | Tindakan |
+|---|---|
+| Badge `offline` di fleet | Klik **Check Now** di Settings › NCM Connection untuk ping manual; pesan hasil menyebut miss ke berapa dan insiden terkait |
+| `Gagal terhubung ke …/api/v1/switches` | VPN turun / URL salah / NCM mati — `curl` dari host DG ke NCM; perbaiki URL di Connection |
+| `NCM API responded 401/403` | Key di-revoke / scope kurang — buat ulang key dengan scope lengkap (tabel langkah 1) |
+| Insiden `Site NCM offline` terbuka | Otomatis dari heartbeat (High); tertutup otomatis (Resolved) saat NCM merespons lagi |
+| Telegram offline/recovery tidak masuk | Cek chat-id site (per-site chats + fallback `telegram_chat_id` lama); pesan offline/recovery hanya 1x per transisi |
+| `status`/`miss_count` tidak berubah | Pastikan migrasi `0060` sudah jalan (`npm run db:migrate`) dan worker/cron aktif |
+
+### 6e. Environment
+
+| Env | Default | Keterangan |
+|---|---|---|
+| `CRON_SECRET` | (tidak diset = route cron terbuka) | Bila diset, `GET /api/cron/ncm-heartbeat` wajib `Authorization: Bearer <CRON_SECRET>` |
+| `NCM_HEARTBEAT_INTERVAL_MS` | `300000` (5 menit, minimal 60000) | Interval loop worker `npm run ncm:heartbeat` |
+
+### 6f. Probe e2e fleet (`scripts/ncm-fleet-probe.ts`)
+
+Siklus offline→online melawan HTTP nyata, tanpa Postgres (store
+in-memory ala `lib/ncm-heartbeat.test.ts`, Telegram via seam fake):
+
+```bash
+npx tsx scripts/ncm-fleet-probe.ts
+```
+
+Alur: online (roundtrip nyata lewat client DG sungguhan) → matikan
+stand-in → 3 miss → OFFLINE + 1 insiden High + 1 Telegram offline →
+miss tambahan (dedupe: tetap 1 insiden, 1 notif) → nyalakan lagi →
+online + insiden auto-resolve + 1 Telegram recovery. Sukses diakhiri
+`FLEET PROBE PASSED`.
+
+## 7. Troubleshooting
 
 | Gejala | Sebab umum | Tindakan |
 |---|---|---|
