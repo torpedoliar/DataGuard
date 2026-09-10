@@ -58,6 +58,7 @@ import {
   resolveNcmConfig,
   touchNcmLastSeen,
   triggerNcmBackup,
+  setNcmWebhook,
   updateNcmCredentials,
   updateNcmJob,
   updateNcmSwitch,
@@ -325,6 +326,42 @@ describe("write endpoints (ticket 02 scopes)", () => {
     stubFetch([], false, 403);
 
     await expect(createNcmSwitch(conn, { name: "x" })).rejects.toThrow("403");
+  });
+});
+
+describe("setNcmWebhook (ticket 08)", () => {
+  const conn = { url: API_URL, adminApiKey: API_KEY };
+  it("PATCHes the webhook config to /api/v1/system/notify-settings as JSON", async () => {
+    const fetchMock = stubFetch({ enabled: true, webhook_url: `${API_URL}/api/ncm/ingest` });
+
+    await setNcmWebhook(
+      { url: `${API_URL}/`, adminApiKey: API_KEY },
+      `${API_URL}/api/ncm/ingest`,
+      "hmac-secret",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${API_URL}/api/v1/system/notify-settings`);
+    expect(init.method).toBe("PATCH");
+    expect((init.headers as Record<string, string>)["X-API-Key"]).toBe(API_KEY);
+    expect((init.headers as Record<string, string>)["Content-Type"]).toContain("application/json");
+    expect(JSON.parse(init.body as string)).toEqual({
+      webhook_url: `${API_URL}/api/ncm/ingest`,
+      webhook_secret: "hmac-secret",
+    });
+  });
+
+  it("surfaces the HTTP status on failure", async () => {
+    stubFetch({}, false, 403);
+    await expect(setNcmWebhook(conn, `${API_URL}/api/ncm/ingest`, "x")).rejects.toThrow("403");
+  });
+
+  it("includes the attempted URL when the connection fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+    await expect(setNcmWebhook(conn, `${API_URL}/api/ncm/ingest`, "x")).rejects.toThrow(
+      `Gagal terhubung ke ${API_URL}/api/v1/system/notify-settings`,
+    );
   });
 });
 

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
-import { saveNcmSettings, testNcmConnection } from "@/actions/ncm-settings";
+import { saveNcmSettings, saveNcmWebhook, testNcmConnection } from "@/actions/ncm-settings";
 import type { NcmSettingsData, NcmSiteConfig } from "@/actions/ncm-settings";
 import ActionButton from "@/components/ui/action-button";
 
@@ -11,6 +11,70 @@ function formatLastSeen(value: Date | null): string | null {
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime())) return null;
     return date.toLocaleString();
+}
+
+function WebhookRow({ site }: { site: NcmSiteConfig }) {
+    const [saveState, saveAction, isSaving] = useActionState(saveNcmWebhook, undefined);
+
+    return (
+        <form action={saveAction} className="mt-3 rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
+            <input type="hidden" name="ncmSiteId" value={site.siteId} />
+            <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-white">Webhook NCM → DG</span>
+                {site.webhookConfigured ? (
+                    <span className="inline-flex h-6 items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 text-[11px] font-medium text-emerald-300">
+                        Webhook terkonfigurasi
+                    </span>
+                ) : (
+                    <span className="inline-flex h-6 items-center rounded-full border border-amber-400/25 bg-amber-400/10 px-2 text-[11px] font-medium text-amber-300">
+                        Webhook belum dikonfigurasi
+                    </span>
+                )}
+            </div>
+            <p className="mt-1 text-xs text-slate-400">
+                URL event target di NCM + secret HMAC-nya di-push ke NCM saat disimpan. Isi URL ingest DG
+                (<span className="font-mono">https://&lt;dg&gt;/api/ncm/ingest</span>) sebagai URL, lalu secret yang
+                sama dengan secret inbound site ini.
+            </p>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <label className="space-y-1 text-sm font-medium text-slate-300">
+                    URL Webhook <span className="text-xs font-normal text-slate-500">(kosong = matikan di NCM)</span>
+                    <input
+                        name="ncmWebhookUrl"
+                        defaultValue={site.webhookUrl}
+                        placeholder="https://<dg>/api/ncm/ingest"
+                        className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
+                    />
+                </label>
+                <label className="space-y-1 text-sm font-medium text-slate-300">
+                    Webhook Secret <span className="text-xs font-normal text-slate-500">(kosong = biarkan tersimpan)</span>
+                    <input
+                        name="ncmWebhookSecret"
+                        type="password"
+                        autoComplete="off"
+                        placeholder={site.webhookConfigured ? "Secret tersimpan; isi hanya untuk mengganti" : "HMAC secret untuk NCM"}
+                        className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
+                    />
+                </label>
+            </div>
+
+            {saveState?.errors && (
+                <div className="mt-3 rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">
+                    {Object.values(saveState.errors as Record<string, string[]>).flat().join(" ")}
+                </div>
+            )}
+            {saveState && (
+                <div className={`mt-3 rounded-lg border p-3 text-sm ${"ok" in saveState && saveState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
+                    {saveState.message}
+                </div>
+            )}
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <ActionButton type="submit" isPending={isSaving}>Simpan & Push ke NCM</ActionButton>
+            </div>
+        </form>
+    );
 }
 
 function SiteRow({ site }: { site: NcmSiteConfig }) {
@@ -103,7 +167,10 @@ export default function NcmSettingsForm({ initialData }: { initialData: NcmSetti
 
             <div className="space-y-3">
                 {initialData.sites.map((site) => (
-                    <SiteRow key={site.siteId} site={site} />
+                    <div key={site.siteId}>
+                        <SiteRow site={site} />
+                        <WebhookRow site={site} />
+                    </div>
                 ))}
             </div>
         </div>

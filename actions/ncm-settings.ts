@@ -7,14 +7,16 @@ import { db } from "../db";
 import { ncmSettings, sites } from "../db/schema";
 import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
-import { encryptString } from "../lib/crypto";
-import { fetchNcmSwitches, resolveNcmConfig, touchNcmLastSeen } from "../lib/ncm";
+import { encryptString, decryptIfEncrypted } from "../lib/crypto";
+import { fetchNcmSwitches, resolveNcmConfig, setNcmWebhook, touchNcmLastSeen } from "../lib/ncm";
 
 export type NcmSiteConfig = {
     siteId: number;
     siteName: string;
     url: string; // stored value (may be "")
     apiKeyConfigured: boolean;
+    webhookUrl: string; // stored value (may be ""); pushed to NCM on save
+    webhookConfigured: boolean; // inbound HMAC secret present in ncm_settings
     lastSeenAt: Date | null;
 };
 
@@ -42,6 +44,8 @@ export async function getNcmSettings(): Promise<NcmSettingsData | { message: str
                 siteId: ncmSettings.siteId,
                 url: ncmSettings.url,
                 adminApiKey: ncmSettings.adminApiKey,
+                webhookUrl: ncmSettings.webhookUrl,
+                webhookSecret: ncmSettings.webhookSecret,
                 lastSeenAt: ncmSettings.lastSeenAt,
             }).from(ncmSettings),
         ]);
@@ -57,6 +61,8 @@ export async function getNcmSettings(): Promise<NcmSettingsData | { message: str
                 siteName: site.name,
                 url,
                 apiKeyConfigured: Boolean(row?.adminApiKey),
+                webhookUrl: row?.webhookUrl ?? "",
+                webhookConfigured: Boolean(row?.webhookSecret),
                 lastSeenAt: row?.lastSeenAt ?? null,
             });
             if (!url && !row?.adminApiKey) {
@@ -172,4 +178,89 @@ export async function testNcmConnection(prevState: unknown, formData: FormData) 
     } catch (error) {
         return { ok: false, message: error instanceof Error ? error.message : String(error) };
     }
+}
+
+const webhookSchema = z.object({
+    ncmSiteId: z.string().refine((value) => Number.isInteger(Number(value)), {
+        message: "Site ID harus berupa angka.",
+    }),
+    ncmWebhookUrl: z
+        .string()
+        .max(500) // NCM NotifySettingsPatch caps webhook_url at 500
+        .transform((value) => value.trim())
+        .refine((value) => value === "" || /^https?:\/\/.+/.test(value), {
+            message: "URL webhook harus http(s)://.. atau kosong untuk menghapus.",
+        }),
+    ncmWebhookSecret: z.string().max(500), // NCM caps webhook_secret at 500
+});
+
+/**
+ * Ticket 08: webhook NCM dikonfigurasi 100% via UI. Persists the webhook URL
+ * + HMAC secret per site (secret encrypted at-rest, same envelope as the
+ * admin API key), then pushes both into NCM's notify settings with the
+ * stored admin API key (scope system:write). The DB write wins: if the NCM
+ * push fails, the form shows the NCM error and a retry is one click away.
+ */
+export async function saveNcmWebhook(prevState: unknown, formData: FormData) {
+    void prevState;
+
+    const session = await verifySession();
+    if (!session || session.role !== "superadmin") {
+        return { ok: false, message: "Unauthorized. Only superadmin can modify NCM webhook settings." };
+    }
+
+    const parsed = webhookSchema.safeParse({
+        ncmSiteId: String(formData.get("ncmSiteId") ?? ""),
+        ncmWebhookUrl: String(formData.get("ncmWebhookUrl") ?? ""),
+        ncmWebhookSecret: String(formData.get("ncmWebhookSecret") ?? ""),
+    });
+    if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0]?.message ?? "Data webhook tidak valid.";
+        return { ok: false, message: firstIssue, errors: parsed.error.flatten().fieldErrors };
+    }
+
+    const siteId = Number(parsed.data.ncmSiteId);
+    const webhookUrl = parsed.data.ncmWebhookUrl;
+    const webhookSecret = parsed.data.ncmWebhookSecret.trim();
+    let storedSecret: string | null = null;
+
+    try {
+        const [existing] = await db.select({
+            adminApiKey: ncmSettings.adminApiKey,
+            webhookSecret: ncmSettings.webhookSecret,
+        })
+            .from(ncmSettings)
+            .where(eq(ncmSettings.siteId, siteId));
+        if (!existing) {
+            return { ok: false, message: "Site belum terhubung ke NCM: isi URL + admin API key, lalu simpan." };
+        }
+        storedSecret = existing.webhookSecret;
+
+        const update: Partial<typeof ncmSettings.$inferInsert> = { updatedAt: new Date() };
+        if (webhookUrl !== "") update.webhookUrl = webhookUrl;
+        else update.webhookUrl = null;
+        if (webhookSecret !== "") update.webhookSecret = encryptString(webhookSecret);
+        await db.update(ncmSettings).set(update).where(eq(ncmSettings.siteId, siteId));
+        revalidatePath("/admin/settings");
+    } catch {
+        console.error("Save NCM webhook settings error:");
+        return { ok: false, message: "Terjadi kesalahan saat menyimpan pengaturan webhook." };
+    }
+
+    const config = await resolveNcmConfig(siteId);
+    if (!config.url || !config.adminApiKey) {
+        return { ok: false, message: "Tersimpan lokal, tapi NCM belum terkonfigurasi (URL + admin API key) untuk push." };
+    }
+
+    // Secret: keep the stored one when the field is left blank (same UX as
+    // the admin API key); blank + nothing stored clears the NCM side.
+    const effectiveSecret = webhookSecret !== "" ? webhookSecret : (decryptIfEncrypted(storedSecret) ?? "");
+    try {
+        await setNcmWebhook({ url: config.url, adminApiKey: config.adminApiKey }, webhookUrl, effectiveSecret);
+    } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    }
+
+    await logAudit({ action: "UPDATE", entity: "settings", entityName: "NCM Webhook", entityId: siteId, detail: "Webhook config pushed to NCM" });
+    return { ok: true, message: "Webhook dikonfigurasi di NCM (" + config.url + ")." };
 }

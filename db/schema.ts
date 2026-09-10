@@ -576,6 +576,10 @@ export const ncmSettings = pgTable("ncm_settings", {
   // encrypted at rest with lib/crypto.ts (same as admin_api_key). Null =
   // site rejects every ingest (fail closed).
   webhookSecret: text("webhook_secret"),
+  // Outbound target pushed to NCM (PATCH /system/notify-settings, ticket 08):
+  // DG's own public ingest URL (https://<dg>/api/ncm/ingest). Plaintext like
+  // url — not a secret; the HMAC key stays in webhook_secret.
+  webhookUrl: text("webhook_url"),
   lastSeenAt: timestamp("last_seen_at"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

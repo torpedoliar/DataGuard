@@ -151,6 +151,17 @@ export async function deleteNcmSwitch(config: NcmConnection, switchId: number): 
     return ncmRequest(config, "DELETE", "switches/" + switchId);
 }
 
+/** Push DG-owned webhook config into NCM runtime settings
+ * (PATCH /system/notify-settings, scope system:write). Empty strings clear
+ * the NCM side (webhook disabled there); error mapping comes free via
+ * ncmRequest (10s timeout, status in message). */
+export async function setNcmWebhook(config: NcmConnection, webhookUrl: string, webhookSecret: string): Promise<unknown> {
+    return ncmRequest(config, "PATCH", "system/notify-settings", {
+        webhook_url: webhookUrl,
+        webhook_secret: webhookSecret,
+    });
+}
+
 // Credentials are a one-way pass-through: the plaintext body goes to NCM
 // (which encrypts at rest) and is never read back here. NCM's API only has a
 // global /credentials router — per-switch rotation maps to create + re-point
