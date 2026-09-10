@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { checkNcmSite, NCM_OFFLINE_THRESHOLD, runHeartbeatAllSites, type NcmHeartbeatDeps } from "./ncm-heartbeat";
+import {
+    buildNcmHeartbeatTelegramMessage,
+    checkNcmSite,
+    NCM_OFFLINE_THRESHOLD,
+    runHeartbeatAllSites,
+    type NcmHeartbeatDeps,
+    type NcmHeartbeatNotifyEvent,
+    type NcmHeartbeatOutcome,
+} from "./ncm-heartbeat";
 
 // Pure deps fakes — same shape as the ncm-ingest tests. A tiny in-memory
 // store stands in for the ncm_settings row + open incident.
@@ -11,9 +19,10 @@ function makeDeps(overrides: Partial<NcmHeartbeatDeps> = {}) {
         incidents: [] as { siteId: number; deviceId: number; title: string; severity: string }[],
         updates: [] as { incidentId: number; note: string; newStatus: string }[],
         resolved: [] as { incidentId: number; note: string }[],
+        notifies: [] as NcmHeartbeatNotifyEvent[],
     };
 
-    let row: { status: "online" | "offline"; missCount: number } | null = null;
+    let row: { status: "online" | "offline"; missCount: number; lastSeenAt?: Date | null } | null = null;
     let openIncident: { id: number; title: string } | null = null;
     let nextIncidentId = 101;
 
@@ -28,7 +37,9 @@ function makeDeps(overrides: Partial<NcmHeartbeatDeps> = {}) {
         }),
         getHeartbeatRow: vi.fn(async () => row),
         setHeartbeatRow: vi.fn(async (_siteId, values) => {
-            row = { status: values.status, missCount: values.missCount };
+            // Preserve last_seen on misses like the real UPDATE (which only
+            // writes the columns it is given).
+            row = { ...row, status: values.status, missCount: values.missCount, ...(values.lastSeenAt ? { lastSeenAt: values.lastSeenAt } : {}) };
             calls.rows.push({ ...values });
         }),
         findDevicesBySite: vi.fn(async () => [{ id: 55, name: "SW-CORE-01" }]),
@@ -46,9 +57,12 @@ function makeDeps(overrides: Partial<NcmHeartbeatDeps> = {}) {
             calls.resolved.push({ incidentId, note });
             openIncident = null;
         }),
+        notifyEvent: vi.fn(async (event: NcmHeartbeatNotifyEvent) => {
+            calls.notifies.push({ ...event });
+        }),
         ...overrides,
     };
-    return { deps, calls, getRow: () => row, setRow: (next: { status: "online" | "offline"; missCount: number } | null) => { row = next; } };
+    return { deps, calls, getRow: () => row, setRow: (next: { status: "online" | "offline"; missCount: number; lastSeenAt?: Date | null } | null) => { row = next; } };
 }
 
 beforeEach(() => {
@@ -187,5 +201,104 @@ describe("checkNcmSite (ticket 09)", () => {
 
         const crashed = await runHeartbeatAllSites(crashing.deps, { sites: [{ id: 3, name: "C" }] });
         expect(crashed).toHaveLength(0);
+    });
+});
+
+describe("Telegram notify on transitions (ticket 11)", () => {
+    const LAST_SEEN = new Date("2026-09-10T01:00:00Z");
+
+    it("below threshold: none; offline transition: exactly one; repeat miss: none; recovery: one", async () => {
+        let fail = true;
+        const { deps, calls, setRow } = makeDeps({
+            pingNcm: vi.fn(async () => {
+                if (fail) throw new Error("timeout");
+                return [];
+            }),
+        });
+        setRow({ status: "online", missCount: 0, lastSeenAt: LAST_SEEN });
+
+        await checkNcmSite(deps, { siteId: 1, siteName: "HQ" });
+        await checkNcmSite(deps, { siteId: 1, siteName: "HQ" });
+        expect(calls.notifies).toHaveLength(0);
+
+        const third = await checkNcmSite(deps, { siteId: 1, siteName: "HQ" });
+        expect(third).toMatchObject({ status: "offline", incidentCreated: true });
+        expect(calls.notifies).toHaveLength(1);
+        expect(calls.notifies[0]).toMatchObject({ siteId: 1, siteName: "HQ", kind: "offline", lastSeenAt: LAST_SEEN, error: "timeout" });
+
+        await checkNcmSite(deps, { siteId: 1, siteName: "HQ" }); // 4th miss: still offline, still one
+        expect(calls.notifies).toHaveLength(1);
+
+        fail = false;
+        const recovered = await checkNcmSite(deps, { siteId: 1, siteName: "HQ" });
+        expect(recovered).toMatchObject({ ok: true, status: "online" });
+        expect(calls.notifies).toHaveLength(2);
+        expect(calls.notifies[1]).toMatchObject({ siteId: 1, siteName: "HQ", kind: "recovered", error: null });
+    });
+
+    it("recovery notif fires even when the open incident was already closed manually", async () => {
+        const { deps, calls, setRow } = makeDeps({ findOpenOfflineIncident: vi.fn(async () => null) });
+        setRow({ status: "offline", missCount: 5, lastSeenAt: LAST_SEEN });
+
+        const outcome = await checkNcmSite(deps, { siteId: 1, siteName: "HQ" });
+
+        expect(outcome).toMatchObject({ ok: true, status: "online" });
+        expect(calls.resolved).toHaveLength(0);
+        expect(calls.notifies).toHaveLength(1);
+        expect(calls.notifies[0]).toMatchObject({ kind: "recovered" });
+    });
+
+    it("a failing notifier never fails the heartbeat itself", async () => {
+        let fail = true;
+        const { deps, calls } = makeDeps({
+            pingNcm: vi.fn(async () => {
+                if (fail) throw new Error("timeout");
+                return [];
+            }),
+            notifyEvent: vi.fn(async () => {
+                throw new Error("telegram down");
+            }),
+        });
+
+        const outcomes: NcmHeartbeatOutcome[] = [];
+        for (let i = 0; i < NCM_OFFLINE_THRESHOLD; i++) {
+            outcomes.push(await checkNcmSite(deps, { siteId: 1, siteName: "HQ" }));
+        }
+        expect(outcomes[outcomes.length - 1]).toMatchObject({ status: "offline", incidentCreated: true, missCount: NCM_OFFLINE_THRESHOLD });
+        expect(calls.incidents).toHaveLength(1); // incident still filed
+        expect(calls.notifies).toHaveLength(0); // notifier rejected; nothing recorded
+
+        fail = false;
+        const recovered = await checkNcmSite(deps, { siteId: 1, siteName: "HQ" });
+        expect(recovered).toMatchObject({ ok: true, status: "online", missCount: 0 });
+        expect(calls.resolved).toHaveLength(1); // resolve still ran despite the notifier failure
+    });
+
+    it("buildNcmHeartbeatTelegramMessage: offline carries site/waktu/last_seen/error; recovered is the recovery note", () => {
+        const offline = buildNcmHeartbeatTelegramMessage({
+            siteId: 1,
+            siteName: "HQ <b>",
+            kind: "offline",
+            occurredAt: new Date("2026-09-10T02:00:00Z"),
+            lastSeenAt: LAST_SEEN,
+            error: "fetch failed",
+        });
+        expect(offline).toContain("Site: HQ &lt;b&gt;");
+        expect(offline).toContain("Waktu: 2026-09-10T02:00:00.000Z");
+        expect(offline).toContain(`Terakhir terlihat: ${LAST_SEEN.toISOString()}`);
+        expect(offline).toContain("Error terakhir: fetch failed");
+        expect(offline).toContain("OFFLINE");
+
+        const recovered = buildNcmHeartbeatTelegramMessage({
+            siteId: 1,
+            siteName: "HQ",
+            kind: "recovered",
+            occurredAt: new Date("2026-09-10T02:00:00Z"),
+            lastSeenAt: null,
+            error: null,
+        });
+        expect(recovered).toContain("Site: HQ");
+        expect(recovered).toContain("pulih");
+        expect(recovered).toContain("Waktu: 2026-09-10T02:00:00.000Z");
     });
 });

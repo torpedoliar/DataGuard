@@ -1,7 +1,8 @@
 import { and, eq, like, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { devices, incidentUpdates, incidents, ncmSettings } from "@/db/schema";
+import { devices, incidentUpdates, incidents, ncmSettings, siteTelegramChatIds, sites } from "@/db/schema";
 import { resolveNcmConfig, fetchNcmSwitches, touchNcmLastSeen } from "@/lib/ncm";
+import { escapeTelegramHtml, sendTelegramAlert } from "@/lib/telegram";
 import type { IncidentSeverity } from "@/lib/incidents";
 
 // ==================== NCM fleet heartbeat (ticket 09) ====================
@@ -9,8 +10,10 @@ import type { IncidentSeverity } from "@/lib/incidents";
 // status online (and auto-resolve the open offline incident); failure → miss
 // streak, at NCM_OFFLINE_THRESHOLD consecutive misses flip status to offline
 // and file one High incident (dedupe: at most one open offline incident per
-// site). Scheduling (worker script / cron route / check-now action) lives in
-// its callers; tests fake the deps.
+// site). Ticket 11: each online→offline / offline→online transition also fires
+// one Telegram alert through the notifyEvent seam (same fan-out as the ingest
+// webhook; no-op-able in tests). Scheduling (worker script / cron route /
+// check-now action) lives in its callers; tests fake the deps.
 
 export const NCM_OFFLINE_THRESHOLD = 3;
 
@@ -27,12 +30,24 @@ export type NcmHeartbeatOutcome = {
     error: string | null;
 };
 
+/** Ticket 11: one Telegram message per online↔offline transition. */
+export type NcmHeartbeatNotifyEvent = {
+    siteId: number;
+    siteName: string;
+    kind: "offline" | "recovered";
+    occurredAt: Date;
+    /** Last successful-contact stamp before the outage (offline only). */
+    lastSeenAt: Date | null;
+    /** Last ping error (offline only). */
+    error: string | null;
+};
+
 /** Minimal DB surface checkNcmSite needs — trivially faked in tests. */
 export type NcmHeartbeatDeps = {
     resolveNcmConfig(siteId: number): Promise<{ url: string | null; adminApiKey: string | null }>;
     pingNcm(config: { url: string; adminApiKey: string }): Promise<unknown>;
     touchNcmLastSeen(siteId: number): Promise<void>;
-    getHeartbeatRow(siteId: number): Promise<{ status: string | null; missCount: number | null } | null>;
+    getHeartbeatRow(siteId: number): Promise<{ status: string | null; missCount: number | null; lastSeenAt?: Date | null } | null>;
     setHeartbeatRow(siteId: number, values: { status: "online" | "offline"; missCount: number; lastSeenAt?: Date }): Promise<void>;
     findDevicesBySite(siteId: number): Promise<{ id: number; name: string }[]>;
     findOpenOfflineIncident(siteId: number): Promise<{ id: number; title: string } | null>;
@@ -45,6 +60,9 @@ export type NcmHeartbeatDeps = {
     }): Promise<{ id: number; title: string }>;
     insertIncidentUpdate(values: { incidentId: number; note: string; newStatus: string }): Promise<void>;
     resolveIncident(incidentId: number, note: string): Promise<void>;
+    /** Ticket 11: Telegram fan-out on transitions — same path as the ingest
+     * webhook notifyTelegram; overridden (no-op) in tests. */
+    notifyEvent(event: NcmHeartbeatNotifyEvent): Promise<void>;
 };
 
 const OFFLINE_MARKER = "ncm_site_offline";
@@ -52,6 +70,40 @@ const OFFLINE_MARKER = "ncm_site_offline";
 /** Dedupe marker: at most one open "Site offline" incident per site. */
 function offlineIncidentTitle(siteName: string): string {
     return `Site NCM offline: ${siteName}`;
+}
+
+// ==================== Ticket 11: Telegram notify on transitions ====================
+// Same fan-out helpers as the ingest webhook (escapeTelegramHtml +
+// sendTelegramAlert, per-site chat ids with severity filter, legacy fallback) —
+// only the message differs; no new sender.
+
+/** One message per online↔offline transition; rendered HTML for Telegram. */
+export function buildNcmHeartbeatTelegramMessage(event: NcmHeartbeatNotifyEvent): string {
+    const esc = escapeTelegramHtml;
+    if (event.kind === "offline") {
+        return [
+            "<b>NCM Site OFFLINE</b>",
+            `Site: ${esc(event.siteName)}`,
+            `Waktu: ${event.occurredAt.toISOString()}`,
+            `Terakhir terlihat: ${event.lastSeenAt ? event.lastSeenAt.toISOString() : "-"}`,
+            `Error terakhir: ${esc(event.error ?? "-")}`,
+        ].join("\n");
+    }
+    return [
+        "<b>NCM Site ONLINE (pulih)</b>",
+        `Site: ${esc(event.siteName)}`,
+        `Waktu: ${event.occurredAt.toISOString()}`,
+        "NCM merespons kembali (heartbeat).",
+    ].join("\n");
+}
+
+/** A notification failure must never fail the heartbeat itself. */
+async function safeNotify(deps: NcmHeartbeatDeps, event: NcmHeartbeatNotifyEvent): Promise<void> {
+    try {
+        await deps.notifyEvent(event);
+    } catch (error) {
+        console.error(`[ncm-heartbeat] telegram notify failed for site "${event.siteName}" (${event.kind}):`, error);
+    }
 }
 
 export async function checkNcmSite(
@@ -84,6 +136,8 @@ export async function checkNcmSite(
             if (open) {
                 await deps.resolveIncident(open.id, "Auto-resolved: NCM merespons kembali (heartbeat).");
             }
+            // Ticket 11: one recovery message per offline→online transition.
+            await safeNotify(deps, { siteId, siteName, kind: "recovered", occurredAt: new Date(), lastSeenAt: null, error: null });
         }
         await deps.setHeartbeatRow(siteId, { status: "online", missCount: 0, lastSeenAt: new Date() });
         return { siteId, configured: true, ok: true, status: "online", missCount: 0, incidentId: null, incidentCreated: false, error: null };
@@ -96,6 +150,16 @@ export async function checkNcmSite(
     if (missCount >= NCM_OFFLINE_THRESHOLD) {
         await deps.setHeartbeatRow(siteId, { status: "offline", missCount });
         if (!wasOffline) {
+            // Ticket 11: one alert on the online→offline transition, sent
+            // before incident filing so a device-less site still notifies.
+            await safeNotify(deps, {
+                siteId,
+                siteName,
+                kind: "offline",
+                occurredAt: new Date(),
+                lastSeenAt: row?.lastSeenAt ?? null,
+                error: pingError,
+            });
             // Dedupe: only the transition online→offline files the incident;
             // later misses keep the site offline without re-filing.
             const open = await deps.findOpenOfflineIncident(siteId);
@@ -159,7 +223,7 @@ export const ncmHeartbeatDeps: NcmHeartbeatDeps = {
     touchNcmLastSeen,
 
     async getHeartbeatRow(siteId) {
-        const rows = await db.select({ status: ncmSettings.status, missCount: ncmSettings.missCount })
+        const rows = await db.select({ status: ncmSettings.status, missCount: ncmSettings.missCount, lastSeenAt: ncmSettings.lastSeenAt })
             .from(ncmSettings).where(eq(ncmSettings.siteId, siteId));
         return rows[0] ?? null;
     },
@@ -224,5 +288,34 @@ export const ncmHeartbeatDeps: NcmHeartbeatDeps = {
                 newStatus: "Resolved",
             });
         });
+    },
+
+    // Recipient resolution identical to the ingest webhook Telegram fan-out:
+    // enabled per-site chats with severity filter (the offline incident is
+    // High), falling back to the legacy sites.telegram_chat_id. Sends are
+    // detached and best-effort — sendTelegramAlert never throws.
+    async notifyEvent(event) {
+        const [site] = await db.select({ telegramChatId: sites.telegramChatId })
+            .from(sites).where(eq(sites.id, event.siteId)).limit(1);
+        if (!site) return;
+
+        const recipients = await db
+            .select({ chatId: siteTelegramChatIds.chatId, severityFilter: siteTelegramChatIds.severityFilter })
+            .from(siteTelegramChatIds)
+            .where(and(eq(siteTelegramChatIds.siteId, event.siteId), eq(siteTelegramChatIds.enabled, true)));
+        const allowed = recipients
+            .filter((r) => {
+                if (!r.severityFilter) return true;
+                const list = r.severityFilter.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+                return list.includes("High");
+            })
+            .map((r) => r.chatId);
+        if (allowed.length === 0 && site.telegramChatId?.trim()) allowed.push(site.telegramChatId.trim());
+        if (allowed.length === 0) return;
+
+        const message = buildNcmHeartbeatTelegramMessage(event);
+        for (const chatId of allowed) {
+            void sendTelegramAlert(chatId, message);
+        }
     },
 };
