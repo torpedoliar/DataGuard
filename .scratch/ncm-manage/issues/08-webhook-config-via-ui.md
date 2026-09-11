@@ -10,10 +10,5 @@
 - Runbook + UI text diperbarui; hilangkan instruksi "isi via SQL/API manual".
 
 **Blocked by:** — (semua tiket 01-07 selesai)
-**Status:** done (NCM 8a993d8, DG 26436f5)
 
-- [ ] NCM: scope `system:write` valid + PATCH /system/notify-settings menerima API key berscope itu (role check tetap untuk JWT).
-- [ ] DG: form NCM Connection punya field webhook URL + secret per site (terenkripsi at-rest di DG, dikirim ke NCM saat save).
-- [ ] DG: action `saveNcmWebhook` memanggil PATCH notify-settings NCM pakai admin API key tersimpan; error NCM ditampilkan di form.
-- [ ] UI tidak lagi menyebut SQL/manual API; runbook di-update.
-- [ ] Test: DG vitest untuk action; NCM pytest untuk scope baru.
+**Status:** done (NCM `8a993d8` scope system:write; DG `26436f5` push via UI; kemudian HMAC 1-klik di T13/T14 `d50c935`+`0e38e2d`)

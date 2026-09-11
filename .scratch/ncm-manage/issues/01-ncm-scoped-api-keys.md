@@ -5,9 +5,9 @@ Admin NCM dapat membuat API key dengan scope granular dari UI/API NCM. Key bersc
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done (NCM `4beb5ef`; salinan brief sisi DG, status otoritatif di repo NCM)
 
-- [ ] Model API key punya kolom `scopes` (list scope).
-- [ ] Matrix test scope×endpoint: key tiap scope vs tiap endpoint — hasil sesuai desain (hijau).
-- [ ] Key lama (tanpa kolom scope / kosong) berperilaku persis seperti sekarang (hanya network-doc) — regresi test hijau.
-- [ ] Endpoint read mengembalikan 403 tanpa scope `read`; 200 dengan scope `read`.
+- [x] Model API key punya kolom `scopes` (list scope). (KNOWN_SCOPES 8 scope di repository.py.)
+- [x] Matrix test scope×endpoint: key tiap scope vs tiap endpoint — hasil sesuai desain (hijau). (test_scoped_api_keys.py.)
+- [x] Key lama (tanpa kolom scope / kosong) berperilaku persis seperti sekarang (hanya network-doc) — regresi test hijau. (Catatan tiket 16: kemudian diperketat, legacy key 403 juga di network-doc.)
+- [x] Endpoint read mengembalikan 403 tanpa scope `read`; 200 dengan scope `read`.

@@ -5,10 +5,10 @@ DataGuard bisa mengelola penuh NCM lewat API: CRUD switch, set/update kredensial
 
 **Blocked by:** 1: NCM scoped API keys + combined auth.
 
-**Status:** ready-for-agent
+**Status:** done (NCM `33df745`; salinan brief sisi DG, status otoritatif di repo NCM)
 
-- [ ] CRUD switch via API key `switches:write`; tanpa scope = 403.
-- [ ] Set/update kredensial menerima plaintext sekali jalan; tersimpan terenkripsi; TIDAK ADA endpoint yang mengembalikan plaintext (audit: aksi tercatat tanpa nilai).
-- [ ] Update jadwal via `schedules:write`; buat baseline via `baselines:write`.
-- [ ] Trigger backup on-demand via `backup:write`.
-- [ ] Semua operasi tulis tercatat di audit log NCM (tanpa nilai password).
+- [x] CRUD switch via API key `switches:write`; tanpa scope = 403.
+- [x] Set/update kredensial menerima plaintext sekali jalan; tersimpan terenkripsi; TIDAK ADA endpoint yang mengembalikan plaintext (audit: aksi tercatat tanpa nilai).
+- [x] Update jadwal via `schedules:write`; buat baseline via `baselines:write`.
+- [x] Trigger backup on-demand via `backup:write`.
+- [x] Semua operasi tulis tercatat di audit log NCM (tanpa nilai password).

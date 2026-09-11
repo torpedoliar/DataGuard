@@ -5,9 +5,9 @@ Event NCM (`backup_failed`, `backup_ok`, `drift`, `review_opened`, `review_decid
 
 **Blocked by:** 1: NCM scoped API keys + combined auth.
 
-**Status:** ready-for-agent
+**Status:** done (NCM `83252cb`; salinan brief sisi DG, status otoritatif di repo NCM)
 
-- [ ] Dispatcher mempublikasikan 6 jenis event ke Notifier.webhook (payload JSON, signature HMAC-SHA256 di header).
-- [ ] Test: event → payload + HMAC terverifikasi dengan secret yang sama.
-- [ ] `webhook_secret` dapat diset/diubah via system API.
-- [ ] Tanpa URL/secret: tidak ada attempt kirim, tidak ada error di log aplikasi.
+- [x] Dispatcher mempublikasikan 6 jenis event ke Notifier.webhook (payload JSON, signature HMAC-SHA256 di header). (Fanout di EventHub.broadcast; WEBHOOK_EVENT_MAP.)
+- [x] Test: event → payload + HMAC terverifikasi dengan secret yang sama. (test_webhook_dispatcher.py, 5 test.)
+- [x] `webhook_secret` dapat diset/diubah via system API. (Kemudian dibuka lewat scope `system:write` di tiket 08.)
+- [x] Tanpa URL/secret: tidak ada attempt kirim, tidak ada error di log aplikasi.
