@@ -113,6 +113,15 @@ export async function saveNcmSettings(prevState: unknown, formData: FormData) {
     // same submit. Reuse the existing network-doc action verbatim (it keeps
     // its own table, validation, and audit) — zero backend duplication.
     if (formData.has("networkDocSiteId")) {
+        // If separate networkDoc fields were not explicitly provided, mirror the unified NCM credentials
+        const ncmUrlVal = String(formData.get("ncmUrl") ?? "");
+        const ncmKeyVal = String(formData.get("ncmAdminApiKey") ?? "");
+        if (!formData.has("networkDocUrl") || !formData.get("networkDocUrl")) {
+            formData.set("networkDocUrl", ncmUrlVal);
+        }
+        if (!formData.has("networkDocApiKey") && ncmKeyVal) {
+            formData.set("networkDocApiKey", ncmKeyVal);
+        }
         await saveNetworkDocSettings(prevState, formData);
     }
 
@@ -287,21 +296,34 @@ export async function setupNcmWebhook(prevState: unknown, formData: FormData) {
     }
 
     const { resolveNcmConfig } = await import("../lib/ncm");
-    const { generateWebhookSecret, resolveIngestUrl } = await import("../lib/ncm-setup");
+    const { generateWebhookSecret, resolveIngestUrl, withNcmScopeGuidance } = await import("../lib/ncm-setup");
 
     try {
         const config = await resolveNcmConfig(siteId);
         if (!config.url || !config.adminApiKey) {
-            return { ok: false, message: "Site belum terhubung ke NCM: isi URL + admin API key, lalu simpan." };
+            return { ok: false, message: "Site belum terhubung ke NCM: isi URL API NCM dan Admin API key pada form di atas, lalu simpan site terlebih dahulu." };
         }
         const [existing] = await db.select({ webhookUrl: ncmSettings.webhookUrl, webhookSecret: ncmSettings.webhookSecret })
             .from(ncmSettings)
             .where(eq(ncmSettings.siteId, siteId));
         if (!existing) {
-            return { ok: false, message: "Site belum terhubung ke NCM: isi URL + admin API key, lalu simpan." };
+            return { ok: false, message: "Site belum terhubung ke NCM: isi URL API NCM dan Admin API key pada form di atas, lalu simpan site terlebih dahulu." };
         }
         const secret = generateWebhookSecret();
-        const url = existing.webhookUrl?.trim() || resolveIngestUrl();
+        let url = existing.webhookUrl?.trim() || resolveIngestUrl();
+        if (!url) {
+            try {
+                const { headers } = await import("next/headers");
+                const h = await headers();
+                const proto = h.get("x-forwarded-proto") || "http";
+                const host = h.get("x-forwarded-host") || h.get("host");
+                if (host) {
+                    url = `${proto}://${host}/api/ncm/ingest`;
+                }
+            } catch {
+                // outside request
+            }
+        }
         if (!url) {
             return { ok: false, message: "URL ingest DG belum diketahui: set DG_PUBLIC_URL di env agar DG dapat mengisi otomatis." };
         }
@@ -316,7 +338,8 @@ export async function setupNcmWebhook(prevState: unknown, formData: FormData) {
         await logAudit({ action: "UPDATE", entity: "settings", entityName: "NCM Webhook", entityId: siteId, detail: "Webhook auto-setup pushed to NCM" });
         return { ok: true, message: "Webhook aktif dan ter-sync ke NCM (" + config.url + ")." };
     } catch (error) {
-        return { ok: false, message: error instanceof Error ? error.message : String(error) };
+        const raw = error instanceof Error ? error.message : String(error);
+        return { ok: false, message: raw.includes("403") ? withNcmScopeGuidance(raw) : raw };
     }
 }
 
@@ -384,7 +407,9 @@ export async function saveNcmWebhook(prevState: unknown, formData: FormData) {
     try {
         await setNcmWebhook({ url: config.url, adminApiKey: config.adminApiKey }, webhookUrl, effectiveSecret);
     } catch (error) {
-        return { ok: false, message: error instanceof Error ? error.message : String(error) };
+        const raw = error instanceof Error ? error.message : String(error);
+        const { withNcmScopeGuidance } = await import("../lib/ncm-setup");
+        return { ok: false, message: raw.includes("403") ? withNcmScopeGuidance(raw) : raw };
     }
 
     await logAudit({ action: "UPDATE", entity: "settings", entityName: "NCM Webhook", entityId: siteId, detail: "Webhook config pushed to NCM" });

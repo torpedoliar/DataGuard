@@ -28,6 +28,8 @@ export async function syncNetworkDocsAction(): Promise<NetworkDocSyncSummary | {
 
         return summary;
     } catch (error) {
-        return { message: error instanceof Error ? error.message : String(error) };
+        const raw = error instanceof Error ? error.message : String(error);
+        const { withNcmScopeGuidance } = await import("@/lib/ncm-setup");
+        return { message: raw.includes("403") ? withNcmScopeGuidance(raw) : raw };
     }
 }

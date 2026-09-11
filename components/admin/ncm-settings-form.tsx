@@ -16,11 +16,6 @@ function formatLastSeen(value: Date | null): string | null {
     return date.toLocaleString();
 }
 
-// Ticket 14 — one form per site: the NCM connection (URL + admin API key,
-// used for backups/reviews AND the network-doc sync) plus the network-doc
-// section (interval + per-site override) plus the webhook. The backend
-// network-doc table/actions are untouched; saveNcmSettings reuses
-// saveNetworkDocSettings verbatim when the form posts networkDocSiteId.
 const INTERVAL_OPTIONS = [
     { value: "", label: "Default (1 jam)" },
     { value: "3600000", label: "1 jam" },
@@ -39,7 +34,7 @@ function WebhookSection({ site }: { site: NcmSiteConfig }) {
                 <input type="hidden" name="ncmSiteId" value={site.siteId} />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-white">Webhook NCM → DG</span>
+                        <span className="text-sm font-semibold text-white">Webhook NCM → DG ({site.siteName})</span>
                         {site.webhookConfigured ? (
                             <span className="inline-flex h-6 items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 text-[11px] font-medium text-emerald-300">
                                 Webhook terkonfigurasi
@@ -54,7 +49,7 @@ function WebhookSection({ site }: { site: NcmSiteConfig }) {
                 </div>
                 <p className="mt-1 text-xs text-slate-400">
                     DG membuat secret HMAC acak, mengisi URL ingest otomatis dari
-                    DG_PUBLIC_URL, dan langsung push keduanya ke NCM — tanpa mengetik URL.
+                    DG_PUBLIC_URL / host aktif, dan langsung push keduanya ke NCM — tanpa mengetik URL.
                 </p>
                 {setupState && (
                     <div className={`mt-3 rounded-lg border p-3 text-sm ${"ok" in setupState && setupState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
@@ -99,7 +94,15 @@ function WebhookSection({ site }: { site: NcmSiteConfig }) {
     );
 }
 
-function SiteRow({ site, networkDocUrl, networkDocKeySet }: { site: NcmSiteConfig; networkDocUrl: string; networkDocKeySet: boolean }) {
+function SiteCard({
+    site,
+    networkDocUrl,
+    networkDocKeySet,
+}: {
+    site: NcmSiteConfig;
+    networkDocUrl: string;
+    networkDocKeySet: boolean;
+}) {
     const router = useRouter();
     const [saveState, saveAction, isSaving] = useActionState(saveNcmSettings, undefined);
     const [testState, testAction, isTesting] = useActionState(testNcmConnection, undefined);
@@ -112,12 +115,11 @@ function SiteRow({ site, networkDocUrl, networkDocKeySet }: { site: NcmSiteConfi
     const lastSeen = formatLastSeen(site.lastSeenAt);
 
     return (
-        <form action={saveAction} className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <input type="hidden" name="ncmSiteId" value={site.siteId} />
-                <input type="hidden" name="networkDocSiteId" value={site.siteId} />
+        <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-5 space-y-4">
+            {/* Header Site */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/40 pb-3">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-white">{site.siteName}</span>
+                    <span className="text-base font-bold text-white">{site.siteName}</span>
                     {site.apiKeyConfigured && (
                         <span className="inline-flex h-6 items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 text-[11px] font-medium text-emerald-300">
                             Terkonfigurasi
@@ -133,84 +135,78 @@ function SiteRow({ site, networkDocUrl, networkDocKeySet }: { site: NcmSiteConfi
                             Online
                         </span>
                     )}
+                    {site.webhookConfigured && (
+                        <span className="inline-flex h-6 items-center rounded-full border border-sky-400/25 bg-sky-400/10 px-2 text-[11px] font-medium text-sky-300">
+                            Webhook Aktif
+                        </span>
+                    )}
                 </div>
                 {lastSeen && (
                     <span className="text-[11px] text-slate-400">Terakhir terlihat: {lastSeen}</span>
                 )}
             </div>
 
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <label className="space-y-1 text-sm font-medium text-slate-300">
-                    URL API NCM <span className="text-xs font-normal text-slate-500">(kosong = tidak aktif; dipakai NCM + Network Docs)</span>
-                    <input
-                        name="ncmUrl"
-                        defaultValue={site.url}
-                        placeholder="http://10.10.6.10:9443"
-                        className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
-                    />
-                </label>
-                <label className="space-y-1 text-sm font-medium text-slate-300">
-                    Admin API Key <span className="text-xs font-normal text-slate-500">(kosong = biarkan tersimpan; dipakai NCM + Network Docs)</span>
-                    <input
-                        name="ncmAdminApiKey"
-                        type="password"
-                        autoComplete="off"
-                        placeholder={site.apiKeyConfigured ? "Key tersimpan; isi hanya untuk mengganti" : "Admin API key aplikasi NCM"}
-                        className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
-                    />
-                </label>
-            </div>
+            {/* Form Koneksi Terpadu (NCM + Network Docs) */}
+            <form action={saveAction} className="space-y-4">
+                <input type="hidden" name="ncmSiteId" value={site.siteId} />
+                <input type="hidden" name="networkDocSiteId" value={site.siteId} />
 
-            <div className="mt-3 rounded-lg border border-slate-700/50 bg-slate-950/40 p-3">
-                <div className="text-xs font-semibold text-slate-200">Network Docs Sync</div>
-                <div className="mt-2 grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2">
                     <label className="space-y-1 text-sm font-medium text-slate-300">
-                        URL override <span className="text-xs font-normal text-slate-500">(kosong = pakai URL NCM di atas; isi hanya bila Network Docs beda host)</span>
+                        URL API NCM &amp; Network Docs <span className="text-xs font-normal text-slate-500">(kosong = tidak aktif; dipakai NCM fleet + Network Docs sync)</span>
                         <input
-                            name="networkDocUrl"
-                            defaultValue={networkDocUrl}
-                            placeholder={site.url || "http://10.10.6.9:8443"}
+                            name="ncmUrl"
+                            defaultValue={site.url || networkDocUrl}
+                            placeholder="http://192.168.2.3:8443"
                             className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
                         />
                     </label>
                     <label className="space-y-1 text-sm font-medium text-slate-300">
-                        API key override <span className="text-xs font-normal text-slate-500">(kosong = pakai Admin API key di atas)</span>
+                        Admin API Key <span className="text-xs font-normal text-slate-500">(kosong = biarkan tersimpan; dipakai NCM + Network Docs)</span>
                         <input
-                            name="networkDocApiKey"
+                            name="ncmAdminApiKey"
                             type="password"
                             autoComplete="off"
-                            placeholder={networkDocKeySet ? "Key tersimpan; isi hanya untuk mengganti" : "Sama dengan Admin API key bila kosong"}
+                            placeholder={site.apiKeyConfigured || networkDocKeySet ? "Key tersimpan; isi hanya untuk mengganti" : "Admin API key aplikasi NCM"}
                             className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-white"
                         />
                     </label>
                 </div>
-            </div>
 
-            {saveState?.errors && (
-                <div className="mt-3 rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">
-                    {Object.values(saveState.errors as Record<string, string[]>).flat().join(" ")}
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <span className="material-symbols-outlined text-slate-500 text-sm">sync</span>
+                    <span>Satu form terpadu: URL &amp; API key di atas otomatis digunakan untuk <strong>NCM Fleet Management</strong> dan sinkronisasi <strong>Network Docs Sync</strong>.</span>
                 </div>
-            )}
-            {saveState?.message && !saveState.success && (
-                <div className="mt-3 rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">{saveState.message}</div>
-            )}
-            {testState && (
-                <div className={`mt-3 rounded-lg border p-3 text-sm ${testState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
-                    {testState.message}
-                </div>
-            )}
-            {checkState && (
-                <div className={`mt-3 rounded-lg border p-3 text-sm ${checkState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
-                    {checkState.message}
-                </div>
-            )}
 
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <ActionButton type="submit" formAction={checkAction} variant="secondary" isPending={isChecking}>Check Now</ActionButton>
-                <ActionButton type="submit" formAction={testAction} variant="secondary" isPending={isTesting}>Test Connection</ActionButton>
-                <ActionButton type="submit" isPending={isSaving}>Simpan Site</ActionButton>
-            </div>
-        </form>
+                {saveState?.errors && (
+                    <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">
+                        {Object.values(saveState.errors as Record<string, string[]>).flat().join(" ")}
+                    </div>
+                )}
+                {saveState?.message && !saveState.success && (
+                    <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">{saveState.message}</div>
+                )}
+                {testState && (
+                    <div className={`rounded-lg border p-3 text-sm ${testState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
+                        {testState.message}
+                    </div>
+                )}
+                {checkState && (
+                    <div className={`rounded-lg border p-3 text-sm ${checkState.ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"}`}>
+                        {checkState.message}
+                    </div>
+                )}
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end pt-2">
+                    <ActionButton type="submit" formAction={checkAction} variant="secondary" isPending={isChecking}>Check Now</ActionButton>
+                    <ActionButton type="submit" formAction={testAction} variant="secondary" isPending={isTesting}>Test Connection</ActionButton>
+                    <ActionButton type="submit" isPending={isSaving}>Simpan Site</ActionButton>
+                </div>
+            </form>
+
+            {/* Webhook Section Khusus Site Ini */}
+            <WebhookSection site={site} />
+        </div>
     );
 }
 
@@ -230,13 +226,12 @@ export default function NcmSettingsForm({ initialData, networkDoc }: { initialDa
     const intervalOptions = [...INTERVAL_OPTIONS, ...customInterval];
 
     return (
-        <div className="mt-6 max-w-5xl space-y-4 rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
+        <div className="mt-6 max-w-5xl space-y-5 rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
             <div>
                 <h2 className="text-sm font-semibold text-white">NCM Connection</h2>
                 <p className="mt-1 text-xs text-slate-400">
-                    Satu koneksi per site ke aplikasi NCM (switch backups/reviews + Network Docs
-                    sync): URL + Admin API key dipakai keduanya, tersimpan terenkripsi.
-                    Tombol Test Connection memakai config site tersebut.
+                    Satu konfigurasi terpadu per site ke aplikasi NCM (switch backups, drift reviews, dan Network Docs
+                    sync). URL + Admin API key digunakan bersama untuk kedua fitur tersebut dan tersimpan aman terenkripsi.
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
                     Catatan Docker: <span className="font-mono">localhost</span> dari dalam container menunjuk ke container itu
@@ -252,14 +247,16 @@ export default function NcmSettingsForm({ initialData, networkDoc }: { initialDa
                 scope&quot; — cek/mutakhirkan scope key di UI API Keys NCM.
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
                 {initialData.sites.map((site) => {
                     const doc = networkDocBySite.get(site.siteId);
                     return (
-                        <div key={site.siteId} className="space-y-3">
-                            <SiteRow site={site} networkDocUrl={doc?.url ?? ""} networkDocKeySet={doc?.apiKeyConfigured ?? false} />
-                            <WebhookSection site={site} />
-                        </div>
+                        <SiteCard
+                            key={site.siteId}
+                            site={site}
+                            networkDocUrl={doc?.url ?? ""}
+                            networkDocKeySet={doc?.apiKeyConfigured ?? false}
+                        />
                     );
                 })}
             </div>
