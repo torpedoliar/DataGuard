@@ -7,6 +7,7 @@ import {
   Activity,
   Clock,
   DatabaseBackup,
+  FileText,
   GitCompareArrows,
   KeyRound,
   Layers,
@@ -15,17 +16,22 @@ import {
   Router,
   Server,
   ShieldCheck,
+  Trash2,
   WifiOff,
 } from "lucide-react";
 import ActionButton from "@/components/ui/action-button";
 import {
+  addNcmCredential,
   addNcmSwitch,
   createNcmBaseline,
   decideNcmReview,
+  deleteNcmCredentialAction,
   deleteNcmSwitch,
+  getNcmBackupContent,
   getNcmReviewDetail,
   rotateNcmCredentials,
   triggerNcmBackup,
+  updateNcmCredentialAction,
   updateNcmSchedule,
   updateNcmSwitch,
   type NcmOverview,
@@ -181,7 +187,7 @@ function SwitchArea({
 
   return (
     <section className={`${cardClass} space-y-3`}>
-      <SectionHeader icon={<Server className="size-4" />} title="Switches" subtitle="Tambah, edit, hapus switch dan pengaturan kredensial backup" meta={`${switches.length} switch`} />
+      <SectionHeader icon={<Server className="size-4" />} title="Switches" subtitle="Tambah, edit, hapus switch dan tautkan kredensial backup" meta={`${switches.length} switch`} />
       <ResultBanner state={addState} />
       <ResultBanner state={editState} />
       <ResultBanner state={deleteState} />
@@ -349,16 +355,6 @@ function SwitchArea({
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
             <span className="font-semibold text-slate-200">Pengaturan Credential Backup:</span>
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
-                <input
-                  type="radio"
-                  name="credModeSelection"
-                  checked={credMode === "new"}
-                  onChange={() => setCredMode("new")}
-                  className="size-3.5"
-                />
-                Buat Kredensial Baru
-              </label>
               {credentials.length > 0 && (
                 <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
                   <input
@@ -368,13 +364,42 @@ function SwitchArea({
                     onChange={() => setCredMode("existing")}
                     className="size-3.5"
                   />
-                  Gunakan Profil NCM yang Ada ({credentials.length})
+                  Gunakan Profil Kredensial Tersimpan ({credentials.length})
                 </label>
               )}
+              <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
+                <input
+                  type="radio"
+                  name="credModeSelection"
+                  checked={credMode === "new"}
+                  onChange={() => setCredMode("new")}
+                  className="size-3.5"
+                />
+                Buat Kredensial Baru Langsung
+              </label>
             </div>
           </div>
 
-          {credMode === "new" ? (
+          {credMode === "existing" && credentials.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2 pt-1">
+              <label className={labelClass}>
+                Pilih Profil Kredensial NCM *
+                <select name="credentialId" required className={inputClass}>
+                  <option value="">Pilih profil kredensial…</option>
+                  {credentials.map((c) => {
+                    const cId = pick(c, "id");
+                    const cName = pick(c, "name");
+                    const cUser = pick(c, "username");
+                    return (
+                      <option key={cId} value={cId}>
+                        {cName} {cUser ? `(user: ${cUser})` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+            </div>
+          ) : (
             <div className="grid gap-3 sm:grid-cols-3 pt-1">
               <label className={labelClass}>
                 Username Backup *
@@ -406,25 +431,6 @@ function SwitchArea({
                   placeholder="Enable secret (bila ada)"
                   className={inputClass}
                 />
-              </label>
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 pt-1">
-              <label className={labelClass}>
-                Pilih Profil Kredensial NCM *
-                <select name="credentialId" required className={inputClass}>
-                  <option value="">Pilih profil kredensial…</option>
-                  {credentials.map((c) => {
-                    const cId = pick(c, "id");
-                    const cName = pick(c, "name");
-                    const cUser = pick(c, "username");
-                    return (
-                      <option key={cId} value={cId}>
-                        {cName} {cUser ? `(user: ${cUser})` : ""}
-                      </option>
-                    );
-                  })}
-                </select>
               </label>
             </div>
           )}
@@ -501,7 +507,191 @@ function SwitchArea({
   );
 }
 
-// ==================== Area 2: Backups & Schedules ====================
+// ==================== Area 2: Credentials Management ====================
+
+function CredentialArea({
+  credentials,
+  switches,
+}: {
+  credentials: Row[];
+  switches: Row[];
+}) {
+  const router = useRouter();
+  const [addState, addAction, isAdding] = useActionState(addNcmCredential, undefined);
+  const [editState, editAction, isEditing] = useActionState(updateNcmCredentialAction, undefined);
+  const [delState, delAction, isDeleting] = useActionState(deleteNcmCredentialAction, undefined);
+  const [editingCred, setEditingCred] = useState<Row | null>(null);
+
+  useEffect(() => {
+    if (addState?.success || editState?.success || delState?.success) {
+      setEditingCred(null);
+      router.refresh();
+    }
+  }, [addState?.success, editState?.success, delState?.success, router]);
+
+  // Group switches by credential_id
+  const switchesByCred = useMemo(() => {
+    const map = new Map<string, Row[]>();
+    for (const sw of switches) {
+      const credId = pick(sw, "credential_id", "credentialId");
+      if (credId) {
+        const list = map.get(credId) || [];
+        list.push(sw);
+        map.set(credId, list);
+      }
+    }
+    return map;
+  }, [switches]);
+
+  return (
+    <section className={`${cardClass} space-y-3`}>
+      <SectionHeader
+        icon={<KeyRound className="size-4" />}
+        title="Credentials Management"
+        subtitle="Kelola profil kredensial login switch (username & password) untuk backup manual dan terjadwal"
+        meta={`${credentials.length} profil`}
+      />
+      <ResultBanner state={addState} />
+      <ResultBanner state={editState} />
+      <ResultBanner state={delState} />
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs uppercase tracking-wide text-ops-muted">
+              <th className="py-2 pr-3">ID</th>
+              <th className="py-2 pr-3">Nama Profil</th>
+              <th className="py-2 pr-3">Username Login</th>
+              <th className="py-2 pr-3">Digunakan Oleh Switch</th>
+              <th className="py-2 pr-3">Dibuat / Diperbarui</th>
+              <th className="py-2 pr-3 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {credentials.length === 0 && (
+              <tr><td colSpan={6} className="py-3 text-sm text-ops-muted">Belum ada profil kredensial tersimpan di NCM.</td></tr>
+            )}
+            {credentials.map((c) => {
+              const id = pick(c, "id");
+              const name = pick(c, "name");
+              const username = pick(c, "username") || "-";
+              const usingSwitches = switchesByCred.get(id) || [];
+              const inUse = usingSwitches.length > 0;
+              const dateStr = formatDate(pick(c, "updated_at", "created_at"));
+
+              return (
+                <tr key={id} className="border-t border-slate-800">
+                  <td className="py-2 pr-3 font-mono font-medium text-white">#{id}</td>
+                  <td className="py-2 pr-3 font-semibold text-white">{name}</td>
+                  <td className="py-2 pr-3 font-mono text-xs text-slate-300">{username}</td>
+                  <td className="py-2 pr-3">
+                    {inUse ? (
+                      <div className="flex flex-wrap gap-1">
+                        {usingSwitches.map((sw) => (
+                          <span
+                            key={pick(sw, "id")}
+                            className="inline-flex items-center rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 text-xs text-slate-200"
+                          >
+                            {pick(sw, "name", "hostname")}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-ops-muted italic">Belum digunakan</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-slate-300 text-xs">{dateStr}</td>
+                  <td className="py-2 pr-3">
+                    <div className="flex justify-end gap-1">
+                      <ActionButton
+                        size="sm"
+                        variant="secondary"
+                        title="Edit atau rotasi password kredensial ini"
+                        onClick={() => setEditingCred(c)}
+                      >
+                        Edit
+                      </ActionButton>
+                      <form action={delAction} className="inline-flex">
+                        <input type="hidden" name="credId" value={id} />
+                        <ActionButton
+                          type="submit"
+                          size="sm"
+                          variant="danger"
+                          disabled={inUse || isDeleting}
+                          title={inUse ? "Tidak dapat dihapus karena masih digunakan switch" : "Hapus profil kredensial ini"}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </ActionButton>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* FORM TAMBAH KREDENSIAL */}
+      <form action={addAction} className="grid gap-3 border-t border-slate-800 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className={labelClass}>
+          Nama Profil Kredensial *
+          <input name="name" required placeholder="e.g. Allied-Admin-SSH" className={inputClass} />
+        </label>
+        <label className={labelClass}>
+          Username Login *
+          <input name="username" required autoComplete="off" placeholder="manager / admin" className={inputClass} />
+        </label>
+        <label className={labelClass}>
+          Password *
+          <input name="password" type="password" required autoComplete="new-password" placeholder="Password switch" className={inputClass} />
+        </label>
+        <label className={labelClass}>
+          Enable Password (opsional)
+          <input name="enablePassword" type="password" autoComplete="new-password" placeholder="Enable secret" className={inputClass} />
+        </label>
+        <div className="flex justify-end sm:col-span-2 lg:col-span-4">
+          <ActionButton type="submit" isPending={isAdding}>
+            <Plus className="size-4" />
+            Tambah Kredensial
+          </ActionButton>
+        </div>
+      </form>
+
+      {/* MODAL EDIT KREDENSIAL */}
+      {editingCred && (
+        <form action={editAction} className="grid gap-3 rounded-lg border border-ops-accent/30 bg-ops-accent/5 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <input type="hidden" name="credId" value={pick(editingCred, "id")} />
+          <div className="sm:col-span-2 lg:col-span-4 text-xs font-semibold uppercase tracking-wider text-ops-accent">
+            Edit Profil Kredensial #{pick(editingCred, "id")}
+          </div>
+          <label className={labelClass}>
+            Nama Profil *
+            <input name="name" defaultValue={pick(editingCred, "name")} required className={inputClass} />
+          </label>
+          <label className={labelClass}>
+            Username *
+            <input name="username" defaultValue={pick(editingCred, "username")} required autoComplete="off" className={inputClass} />
+          </label>
+          <label className={labelClass}>
+            Password Baru (kosong = tidak diubah)
+            <input name="password" type="password" autoComplete="new-password" placeholder="Biarkan kosong bila sama" className={inputClass} />
+          </label>
+          <label className={labelClass}>
+            Enable Password Baru (opsional)
+            <input name="enablePassword" type="password" autoComplete="new-password" placeholder="Biarkan kosong bila sama" className={inputClass} />
+          </label>
+          <div className="flex justify-end gap-2 sm:col-span-2 lg:col-span-4 pt-1">
+            <ActionButton type="button" variant="ghost" onClick={() => setEditingCred(null)}>Batal</ActionButton>
+            <ActionButton type="submit" isPending={isEditing}>Simpan Perubahan</ActionButton>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+// ==================== Area 3: Backups & Schedules ====================
 
 function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[]; backups: Row[] }) {
   const router = useRouter();
@@ -564,7 +754,16 @@ function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[];
                   <td className="py-2 pr-3 text-right">
                     <form action={baselineAction} className="inline-flex">
                       <input type="hidden" name="backupId" value={id} />
-                      <ActionButton size="sm" variant="secondary" isPending={isBaseline} title="Buat baseline golden dari backup ini"><Layers className="size-3.5" />Baseline</ActionButton>
+                      <ActionButton
+                        type="submit"
+                        size="sm"
+                        variant="secondary"
+                        isPending={isBaseline}
+                        title="Jadikan backup ini sebagai baseline golden"
+                      >
+                        <Layers className="size-3.5" />
+                        Baseline
+                      </ActionButton>
                     </form>
                   </td>
                 </tr>
@@ -578,7 +777,8 @@ function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[];
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-ops-muted">
-              <th className="py-2 pr-3">Job</th>
+              <th className="py-2 pr-3">Job ID</th>
+              <th className="py-2 pr-3">Target Switch &amp; Kredensial</th>
               <th className="py-2 pr-3">Jadwal (cron)</th>
               <th className="py-2 pr-3">Status</th>
               <th className="py-2 pr-3 text-right">Aksi</th>
@@ -586,14 +786,27 @@ function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[];
           </thead>
           <tbody>
             {jobs.length === 0 && (
-              <tr><td colSpan={4} className="py-3 text-sm text-ops-muted">Belum ada job terjadwal.</td></tr>
+              <tr><td colSpan={5} className="py-3 text-sm text-ops-muted">Belum ada job terjadwal.</td></tr>
             )}
             {jobs.map((job) => {
               const id = pick(job, "id", "job_id", "jobId");
+              const swId = pick(job, "switch_id", "switchId");
+              const sw = switchMap.get(swId);
+              const swName = sw ? pick(sw, "name", "hostname") : `Switch #${swId}`;
+              const credName = sw ? ((sw.credential as { name?: string } | undefined)?.name || pick(sw, "credential_name")) : "";
               const enabled = pick(job, "enabled", "is_enabled") === "true";
               return (
                 <tr key={id} className="border-t border-slate-800">
-                  <td className="py-2 pr-3 font-medium text-white">#{id} {pick(job, "job_type", "type", "name")}</td>
+                  <td className="py-2 pr-3 font-mono font-medium text-white">#{id}</td>
+                  <td className="py-2 pr-3">
+                    <div className="font-semibold text-white">{swName}</div>
+                    {credName && (
+                      <div className="text-[11px] text-ops-muted flex items-center gap-1">
+                        <KeyRound className="size-3 text-ops-accent" />
+                        <span>Kredensial: {credName}</span>
+                      </div>
+                    )}
+                  </td>
                   <td className="py-2 pr-3 font-mono text-xs text-slate-300">{pick(job, "schedule", "cron") || "-"}</td>
                   <td className="py-2 pr-3">
                     <span className={`inline-flex h-6 items-center rounded-full border px-2 text-[11px] font-medium ${enabled ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-slate-600 bg-slate-800 text-slate-400"}`}>
@@ -625,6 +838,7 @@ function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[];
         </form>
       )}
 
+      {/* FORM PICU BACKUP DENGAN DETAIL SWITCH & KREDENSIAL */}
       <form action={backupAction} className="flex flex-wrap items-end gap-3 border-t border-slate-800 pt-3">
         <label className={`${labelClass} min-w-56 flex-1`}>
           Picu backup on-demand
@@ -633,7 +847,12 @@ function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[];
             {switches.map((sw) => {
               const id = pick(sw, "id", "switch_id", "switchId");
               const model = pick(sw, "model", "switch_model");
-              return <option key={id} value={id}>{pick(sw, "name", "hostname") || `#${id}`} {model ? `(${model})` : ""}</option>;
+              const cred = (sw.credential as { name?: string } | undefined)?.name || pick(sw, "credential_name");
+              return (
+                <option key={id} value={id}>
+                  {pick(sw, "name", "hostname") || `#${id}`} {model ? `(${model})` : ""} {cred ? `[Kredensial: ${cred}]` : ""}
+                </option>
+              );
             })}
           </select>
         </label>
@@ -643,7 +862,7 @@ function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[];
   );
 }
 
-// ==================== Area 3: Baselines & Reviews ====================
+// ==================== Area 4: Baselines & Reviews ====================
 
 function ReviewArea({
   baselines,
@@ -661,6 +880,12 @@ function ReviewArea({
   const [loadingDiff, setLoadingDiff] = useState<number | null>(null);
   const [note, setNote] = useState("");
 
+  // Baseline config inspection
+  const [viewingConfigId, setViewingConfigId] = useState<number | null>(null);
+  const [configContent, setConfigContent] = useState<string | null>(null);
+  const [loadingConfig, setLoadingConfig] = useState<number | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
+
   const switchMap = useMemo(() => {
     return new Map(switches.map((s) => [pick(s, "id", "switch_id", "switchId"), s]));
   }, [switches]);
@@ -670,21 +895,50 @@ function ReviewArea({
   }, [decideState?.success, router]);
 
   async function loadDiff(reviewId: number) {
+    if (detail && Number(detail.id) === reviewId) {
+      setDetail(null);
+      return;
+    }
     setLoadingDiff(reviewId);
     setDetailError(null);
     try {
-      const result = (await getNcmReviewDetail(reviewId)) as Row;
+      const result = await getNcmReviewDetail(reviewId);
       if (result.message) {
         setDetailError(String(result.message));
         setDetail(null);
       } else {
-        setDetail(result);
+        setDetail(result as Row);
       }
     } catch (error) {
       setDetailError(error instanceof Error ? error.message : String(error));
       setDetail(null);
     } finally {
       setLoadingDiff(null);
+    }
+  }
+
+  async function loadConfig(backupId: number) {
+    if (viewingConfigId === backupId) {
+      setViewingConfigId(null);
+      setConfigContent(null);
+      return;
+    }
+    setLoadingConfig(backupId);
+    setConfigError(null);
+    try {
+      const result = await getNcmBackupContent(backupId);
+      if (result.message) {
+        setConfigError(result.message);
+        setConfigContent(null);
+      } else {
+        setViewingConfigId(backupId);
+        setConfigContent(result.content || "(file konfigurasi kosong)");
+      }
+    } catch (err) {
+      setConfigError(err instanceof Error ? err.message : String(err));
+      setConfigContent(null);
+    } finally {
+      setLoadingConfig(null);
     }
   }
 
@@ -703,11 +957,12 @@ function ReviewArea({
               <th className="py-2 pr-3">Dari Backup</th>
               <th className="py-2 pr-3">Dibuat</th>
               <th className="py-2 pr-3">Status Review / Reviewer</th>
+              <th className="py-2 pr-3 text-right">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {baselines.length === 0 && (
-              <tr><td colSpan={6} className="py-3 text-sm text-ops-muted">Belum ada baseline golden.</td></tr>
+              <tr><td colSpan={7} className="py-3 text-sm text-ops-muted">Belum ada baseline golden.</td></tr>
             )}
             {baselines.map((bl) => {
               const id = pick(bl, "id", "baseline_id", "baselineId");
@@ -741,12 +996,40 @@ function ReviewArea({
                     )}
                     {reviewer && <div className="text-[11px] text-slate-400 mt-0.5">Oleh: {reviewer}</div>}
                   </td>
+                  <td className="py-2 pr-3 text-right">
+                    {backupId !== "—" && (
+                      <ActionButton
+                        size="sm"
+                        variant="secondary"
+                        isPending={loadingConfig === Number(backupId)}
+                        onClick={() => loadConfig(Number(backupId))}
+                        title="Lihat isi konfigurasi baseline ini"
+                      >
+                        <FileText className="size-3.5" />
+                        {viewingConfigId === Number(backupId) ? "Tutup" : "Lihat Config"}
+                      </ActionButton>
+                    )}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {/* INSPEKSI ISI CONFIG BASELINE */}
+      {viewingConfigId && configContent && (
+        <div className="rounded-lg border border-slate-700 bg-slate-950 p-3 mt-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs text-ops-muted">
+            <span className="font-semibold text-white">Isi Konfigurasi Golden Baseline (dari Backup #{viewingConfigId}):</span>
+            <button type="button" onClick={() => setViewingConfigId(null)} className="text-slate-400 hover:text-white">Tutup</button>
+          </div>
+          <pre className="mt-2 max-h-80 overflow-auto font-mono text-xs text-slate-300 whitespace-pre-wrap">
+            {configContent}
+          </pre>
+        </div>
+      )}
+      {configError && <p className="mt-2 text-sm text-red-300">{configError}</p>}
 
       <div className="space-y-3 border-t border-slate-800 pt-2">
         {reviews.length === 0 && <p className="text-sm text-ops-muted">Tidak ada review menunggu keputusan.</p>}
@@ -756,6 +1039,8 @@ function ReviewArea({
           const swId = pick(rv, "switch_id", "switchId");
           const sw = switchMap.get(swId);
           const switchName = pick(rv, "switch_name", "switchName") || (sw ? pick(sw, "name", "hostname") : "") || (swId ? `Switch #${swId}` : "");
+          const isDetailOpen = detail && String(detail.id) === String(id);
+
           return (
             <div key={id} className="rounded-lg border border-slate-700/50 bg-slate-900/60 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -767,12 +1052,21 @@ function ReviewArea({
                   )}
                 </div>
                 <ActionButton size="sm" variant="secondary" isPending={loadingDiff === Number(id)} onClick={() => loadDiff(Number(id))}>
-                  <GitCompareArrows className="size-3.5" />Lihat Diff
+                  <GitCompareArrows className="size-3.5" />
+                  {isDetailOpen ? "Tutup Diff" : "Lihat Diff"}
                 </ActionButton>
               </div>
 
-              {detail && pick(detail, "id") === id && (
-                <pre className="mt-2 max-h-72 overflow-auto rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-xs text-slate-300">{pick(detail, "diff", "config_diff", "patch") || "(diff kosong)"}</pre>
+              {isDetailOpen && (
+                <div className="mt-3 rounded-lg border border-slate-700 bg-slate-950 p-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs text-ops-muted">
+                    <span className="font-semibold text-white">Perbedaan Konfigurasi (Diff Review #{id}):</span>
+                    <button type="button" onClick={() => setDetail(null)} className="text-slate-400 hover:text-white">Tutup</button>
+                  </div>
+                  <pre className="mt-2 max-h-80 overflow-auto font-mono text-xs text-slate-300 whitespace-pre-wrap">
+                    {String(detail.diff || "(diff kosong / tidak ada perbedaan)")}
+                  </pre>
+                </div>
               )}
               {detailError && <p className="mt-2 text-sm text-red-300">{detailError}</p>}
 
@@ -796,7 +1090,7 @@ function ReviewArea({
   );
 }
 
-// ==================== Area 4: Connection (superadmin-only) ====================
+// ==================== Area 5: Connection (superadmin-only) ====================
 
 function ConnectionArea({ overview, isSuperadmin }: { overview: NcmOverview & { status: "online" | "offline" | "unconfigured" }; isSuperadmin: boolean }) {
   const url = "url" in overview ? overview.url : null;
@@ -870,6 +1164,10 @@ export default function NcmDashboard({
         switches={switches}
         credentials={credentials}
         inventoryDevices={inventoryDevices}
+      />
+      <CredentialArea
+        credentials={credentials}
+        switches={switches}
       />
       <BackupArea
         switches={switches}

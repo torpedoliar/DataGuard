@@ -17,10 +17,14 @@ const mocks = vi.hoisted(() => ({
   updateNcmSwitch: vi.fn(async (..._args: unknown[]) => ({ ok: true })),
   deleteNcmSwitch: vi.fn(async (..._args: unknown[]) => null),
   updateNcmCredentials: vi.fn(async (..._args: unknown[]) => ({ ok: true })),
+  createNcmCredential: vi.fn(async (..._args: unknown[]) => ({ id: 1 })),
+  updateNcmCredential: vi.fn(async (..._args: unknown[]) => ({ id: 1 })),
+  deleteNcmCredential: vi.fn(async (..._args: unknown[]) => null),
+  fetchNcmBackupContent: vi.fn(async (..._args: unknown[]) => "hostname SW-CORE-01"),
   updateNcmJob: vi.fn(async (..._args: unknown[]) => ({ ok: true })),
   triggerNcmBackup: vi.fn(async (..._args: unknown[]) => ({ backup_id: 8 })),
   createNcmBaseline: vi.fn(async (..._args: unknown[]) => ({ id: 2 })),
-  fetchNcmReview: vi.fn(async (..._args: unknown[]) => ({ id: 4, diff: "--- a\n+++ b" })),
+  fetchNcmReview: vi.fn(async (..._args: unknown[]) => "--- a\n+++ b"),
   decideNcmReview: vi.fn(async (..._args: unknown[]) => ({ ok: true })),
   getNcmLastSeen: vi.fn(async (..._args: unknown[]) => null),
   touchNcmLastSeen: vi.fn(async (..._args: unknown[]) => undefined),
@@ -46,6 +50,10 @@ vi.mock("@/lib/ncm", () => ({
   updateNcmSwitch: (...args: unknown[]) => mocks.updateNcmSwitch(...args),
   deleteNcmSwitch: (...args: unknown[]) => mocks.deleteNcmSwitch(...args),
   updateNcmCredentials: (...args: unknown[]) => mocks.updateNcmCredentials(...args),
+  createNcmCredential: (...args: unknown[]) => mocks.createNcmCredential(...args),
+  updateNcmCredential: (...args: unknown[]) => mocks.updateNcmCredential(...args),
+  deleteNcmCredential: (...args: unknown[]) => mocks.deleteNcmCredential(...args),
+  fetchNcmBackupContent: (...args: unknown[]) => mocks.fetchNcmBackupContent(...args),
   updateNcmJob: (...args: unknown[]) => mocks.updateNcmJob(...args),
   triggerNcmBackup: (...args: unknown[]) => mocks.triggerNcmBackup(...args),
   createNcmBaseline: (...args: unknown[]) => mocks.createNcmBaseline(...args),
@@ -64,14 +72,18 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  addNcmCredential,
   addNcmSwitch,
   createNcmBaseline,
   decideNcmReview,
+  deleteNcmCredentialAction,
   deleteNcmSwitch,
+  getNcmBackupContent,
   getNcmOverview,
   getNcmReviewDetail,
   rotateNcmCredentials,
   triggerNcmBackup,
+  updateNcmCredentialAction,
   updateNcmSchedule,
   updateNcmSwitch,
 } from "./ncm";
@@ -236,6 +248,40 @@ describe("write actions", () => {
   it("loads a review detail for the diff view", async () => {
     const result = await getNcmReviewDetail(4);
 
-    expect(result).toMatchObject({ id: 4 });
+    expect(result).toMatchObject({ id: 4, diff: "--- a\n+++ b" });
+  });
+
+  it("loads backup content for golden baseline inspection", async () => {
+    const result = await getNcmBackupContent(10);
+
+    expect(result).toMatchObject({ backupId: 10, content: "hostname SW-CORE-01" });
+  });
+
+  it("adds, updates, and deletes credentials", async () => {
+    await okForm(
+      addNcmCredential(
+        undefined,
+        form({ name: "cred-lab", username: "admin", password: "secret-password" }),
+      ),
+    );
+    expect(mocks.createNcmCredential).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: "cred-lab", username: "admin", password: "secret-password" }),
+    );
+
+    await okForm(
+      updateNcmCredentialAction(
+        undefined,
+        form({ credId: "1", name: "cred-lab-v2", password: "new-password" }),
+      ),
+    );
+    expect(mocks.updateNcmCredential).toHaveBeenCalledWith(
+      expect.anything(),
+      1,
+      expect.objectContaining({ name: "cred-lab-v2", password: "new-password" }),
+    );
+
+    await okForm(deleteNcmCredentialAction(undefined, form({ credId: "1" })));
+    expect(mocks.deleteNcmCredential).toHaveBeenCalledWith(expect.anything(), 1);
   });
 });

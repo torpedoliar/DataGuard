@@ -118,6 +118,37 @@ export async function fetchNcmCredentials(config: NcmConnection): Promise<unknow
     return ncmGet(config, "credentials");
 }
 
+export async function createNcmCredential(config: NcmConnection, body: Record<string, unknown>): Promise<unknown> {
+    return ncmRequest(config, "POST", "credentials", body);
+}
+
+export async function updateNcmCredential(config: NcmConnection, credId: number, body: Record<string, unknown>): Promise<unknown> {
+    return ncmRequest(config, "PATCH", "credentials/" + credId, body);
+}
+
+export async function deleteNcmCredential(config: NcmConnection, credId: number): Promise<unknown> {
+    return ncmRequest(config, "DELETE", "credentials/" + credId);
+}
+
+export async function fetchNcmBackupContent(config: NcmConnection, backupId: number): Promise<string> {
+    const base = config.url.replace(/\/+$/, "") + "/api/v1/backups/" + backupId + "/content";
+    let response: Response;
+    try {
+        response = await fetch(base, {
+            headers: { "X-API-Key": config.adminApiKey, Accept: "text/plain" },
+            signal: AbortSignal.timeout(NCM_TIMEOUT_MS),
+        });
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error("Gagal terhubung ke " + base + ": " + reason);
+    }
+    if (!response.ok) {
+        const responseBody = await response.text().catch(() => "");
+        throw new Error("NCM API responded " + response.status + ": " + responseBody.trim().slice(0, 200));
+    }
+    return response.text();
+}
+
 /** Diff view for one review. NCM serves the raw diff as text at
  * /reviews/{id}/diff (no JSON GET /reviews/{id} exists). */
 export async function fetchNcmReview(config: NcmConnection, reviewId: number): Promise<unknown> {
@@ -250,7 +281,7 @@ export async function deleteNcmJob(config: NcmConnection, jobId: number): Promis
 export async function createNcmBaseline(config: NcmConnection, body: Record<string, unknown>): Promise<unknown> {
     // NCM requires kind; backup_id alone implies a switch-level golden snapshot.
     // switch_id is needed to satisfy the switch-baseline uniqueness check.
-    const payload = { kind: "switch", ...body } as Record<string, unknown>;
+    const payload = { kind: "switch", repoint: true, ...body } as Record<string, unknown>;
     if (payload.backup_id !== undefined && payload.switch_id === undefined) {
         const backups = await ncmGet(config, "backups");
         const source = Array.isArray(backups)
@@ -262,21 +293,7 @@ export async function createNcmBaseline(config: NcmConnection, body: Record<stri
         }
         payload.switch_id = switchId;
     }
-    try {
-        return await ncmRequest(config, "POST", "baselines", payload);
-    } catch (error) {
-        // The probe flow creates a fresh backup of a fresh switch whose golden
-        // baseline may already exist (409: switch already has a baseline). The
-        // drift-chain review still opens against the existing baseline, so
-        // confirm the baseline list is non-empty and treat that as the golden.
-        if (!(error instanceof Error) || !error.message.includes("409")) throw error;
-        const baselines = await fetchNcmBaselines(config);
-        const match = Array.isArray(baselines)
-            ? baselines.find((b) => typeof b === "object" && b !== null && (b as { switch_id?: unknown }).switch_id === payload.switch_id)
-            : null;
-        if (!match) throw error;
-        return match;
-    }
+    return ncmRequest(config, "POST", "baselines", payload);
 }
 
 export async function refreshNcmBaseline(config: NcmConnection, baselineId: number): Promise<unknown> {

@@ -14,7 +14,7 @@ export type NcmWriteResult = { success: true; message: string } | { success?: fa
 
 async function runNcmWrite(
   action: "CREATE" | "UPDATE" | "DELETE" | "BACKUP",
-  entity: "ncm_switch" | "ncm_schedule" | "ncm_backup" | "ncm_baseline" | "ncm_review",
+  entity: "ncm_switch" | "ncm_schedule" | "ncm_backup" | "ncm_baseline" | "ncm_review" | "ncm_credential",
   entityName: string,
   entityId: number | undefined,
   detail: string,
@@ -253,6 +253,76 @@ export async function decideNcmReview(_prev: unknown, formData: FormData): Promi
   );
 }
 
+const standaloneCredSchema = z.object({
+  name: z.string().trim().min(1, "Nama profil kredensial wajib diisi.").max(100),
+  username: z.string().trim().min(1, "Username wajib diisi.").max(128),
+  password: z.string().min(1, "Password wajib diisi.").max(256),
+  enablePassword: z.string().max(256).optional(),
+});
+
+const updateCredSchema = z.object({
+  credId: idString,
+  name: z.string().trim().min(1, "Nama profil wajib diisi.").max(100).optional(),
+  username: z.string().trim().min(1, "Username wajib diisi.").max(128).optional(),
+  password: z.string().max(256).optional(),
+  enablePassword: z.string().max(256).optional(),
+});
+
+export async function addNcmCredential(_prev: unknown, formData: FormData): Promise<NcmWriteResult> {
+  void _prev;
+  const parsed = standaloneCredSchema.safeParse({
+    name: String(formData.get("name") ?? ""),
+    username: String(formData.get("username") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    enablePassword: formData.get("enablePassword") ? String(formData.get("enablePassword")) : undefined,
+  });
+  if (!parsed.success) {
+    return { message: parsed.error.issues[0]?.message ?? "Data tidak valid." };
+  }
+  return runNcmWrite("CREATE", "ncm_credential", parsed.data.name, undefined, "Profil kredensial ditambahkan via /admin/ncm", (config) =>
+    ncmLib.createNcmCredential(config, {
+      name: parsed.data.name,
+      username: parsed.data.username,
+      password: parsed.data.password,
+      enable_password: parsed.data.enablePassword || "",
+    }),
+  );
+}
+
+export async function updateNcmCredentialAction(_prev: unknown, formData: FormData): Promise<NcmWriteResult> {
+  void _prev;
+  const parsed = updateCredSchema.safeParse({
+    credId: String(formData.get("credId") ?? ""),
+    name: formData.get("name") ? String(formData.get("name")) : undefined,
+    username: formData.get("username") ? String(formData.get("username")) : undefined,
+    password: formData.get("password") ? String(formData.get("password")) : undefined,
+    enablePassword: formData.get("enablePassword") ? String(formData.get("enablePassword")) : undefined,
+  });
+  if (!parsed.success) {
+    return { message: parsed.error.issues[0]?.message ?? "Data tidak valid." };
+  }
+  const credId = Number(parsed.data.credId);
+  const payload: Record<string, unknown> = {};
+  if (parsed.data.name) payload.name = parsed.data.name;
+  if (parsed.data.username) payload.username = parsed.data.username;
+  if (parsed.data.password) payload.password = parsed.data.password;
+  if (parsed.data.enablePassword !== undefined) payload.enable_password = parsed.data.enablePassword;
+
+  return runNcmWrite("UPDATE", "ncm_credential", `Kredensial #${credId}`, credId, "Profil kredensial diperbarui via /admin/ncm", (config) =>
+    ncmLib.updateNcmCredential(config, credId, payload),
+  );
+}
+
+export async function deleteNcmCredentialAction(_prev: unknown, formData: FormData): Promise<NcmWriteResult> {
+  void _prev;
+  const idParsed = idString.safeParse(String(formData.get("credId") ?? ""));
+  if (!idParsed.success) return { message: "ID kredensial tidak valid." };
+  const credId = Number(idParsed.data);
+  return runNcmWrite("DELETE", "ncm_credential", `Kredensial #${credId}`, credId, "Profil kredensial dihapus via /admin/ncm", (config) =>
+    ncmLib.deleteNcmCredential(config, credId),
+  );
+}
+
 
 // ==================== Read side ====================
 
@@ -297,7 +367,7 @@ export async function getNcmOverview(): Promise<NcmOverview> {
 }
 
 /** Detail satu review (diff) untuk tampilan UI. */
-export async function getNcmReviewDetail(reviewId: number): Promise<Record<string, unknown>> {
+export async function getNcmReviewDetail(reviewId: number): Promise<{ id?: number; diff?: string; message?: string }> {
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { message: auth.message };
 
@@ -307,7 +377,26 @@ export async function getNcmReviewDetail(reviewId: number): Promise<Record<strin
   }
 
   try {
-    return (await ncmLib.fetchNcmReview({ url: config.url, adminApiKey: config.adminApiKey }, reviewId)) as Record<string, unknown>;
+    const text = (await ncmLib.fetchNcmReview({ url: config.url, adminApiKey: config.adminApiKey }, reviewId)) as string;
+    return { id: reviewId, diff: text };
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Detail isi file konfigurasi backup untuk tampilan UI. */
+export async function getNcmBackupContent(backupId: number): Promise<{ backupId?: number; content?: string; message?: string }> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) {
+    return { message: "NCM belum dikonfigurasi untuk site ini. Hubungi superadmin." };
+  }
+
+  try {
+    const text = await ncmLib.fetchNcmBackupContent({ url: config.url, adminApiKey: config.adminApiKey }, backupId);
+    return { backupId, content: text };
   } catch (error) {
     return { message: error instanceof Error ? error.message : String(error) };
   }

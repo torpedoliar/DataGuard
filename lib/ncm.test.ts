@@ -271,7 +271,7 @@ describe("write endpoints (ticket 02 scopes)", () => {
     expect(backupsUrl).toBe(`${API_URL}/api/v1/backups`);
     expect(createUrl).toBe(`${API_URL}/api/v1/baselines`);
     expect(createInit.method).toBe("POST");
-    expect(JSON.parse(createInit.body as string)).toEqual({ kind: "switch", backup_id: 5, switch_id: 3 });
+    expect(JSON.parse(createInit.body as string)).toEqual({ kind: "switch", repoint: true, backup_id: 5, switch_id: 3 });
     expect(refreshUrl).toBe(`${API_URL}/api/v1/baselines/2/refresh`);
     expect(refreshInit.method).toBe("POST");
     expect(deleteUrl).toBe(`${API_URL}/api/v1/baselines/2`);
