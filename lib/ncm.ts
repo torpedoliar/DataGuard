@@ -114,6 +114,10 @@ export async function fetchNcmBaselines(config: NcmConnection): Promise<unknown>
     return ncmGet(config, "baselines");
 }
 
+export async function fetchNcmCredentials(config: NcmConnection): Promise<unknown> {
+    return ncmGet(config, "credentials");
+}
+
 /** Diff view for one review. NCM serves the raw diff as text at
  * /reviews/{id}/diff (no JSON GET /reviews/{id} exists). */
 export async function fetchNcmReview(config: NcmConnection, reviewId: number): Promise<unknown> {
@@ -140,7 +144,36 @@ export async function fetchNcmReviewRollback(config: NcmConnection, reviewId: nu
 }
 
 export async function createNcmSwitch(config: NcmConnection, body: Record<string, unknown>): Promise<unknown> {
-    return ncmRequest(config, "POST", "switches", body);
+    const payload = { ...body };
+    if (!payload.credential_id && payload.username && payload.password) {
+        const credName = (payload.credential_name as string) || `cred-${payload.name || Date.now()}`;
+        let credential: { id?: number } | null = null;
+        try {
+            credential = (await ncmRequest(config, "POST", "credentials", {
+                name: credName,
+                username: payload.username,
+                password: payload.password,
+                enable_password: payload.enable_password || "",
+            })) as { id?: number };
+        } catch (error) {
+            if (error instanceof Error && error.message.includes("409")) {
+                const retryName = `${credName}-${Date.now()}`;
+                credential = (await ncmRequest(config, "POST", "credentials", {
+                    name: retryName,
+                    username: payload.username,
+                    password: payload.password,
+                    enable_password: payload.enable_password || "",
+                })) as { id?: number };
+            } else {
+                throw error;
+            }
+        }
+        if (credential?.id) {
+            payload.credential_id = credential.id;
+        }
+    }
+    const { username, password, enable_password, credential_name, ...switchData } = payload;
+    return ncmRequest(config, "POST", "switches", switchData);
 }
 
 export async function updateNcmSwitch(config: NcmConnection, switchId: number, body: Record<string, unknown>): Promise<unknown> {

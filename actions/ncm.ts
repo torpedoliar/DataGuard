@@ -54,8 +54,13 @@ const switchSchema = z.object({
       message: "IP harus berupa IPv4 yang valid.",
     })
     .transform((value) => value || undefined),
-  protocol: z.enum(["ssh", "telnet", "snmp"]).optional(),
+  model: z.string().trim().max(100).optional().transform((value) => value || undefined),
+  protocol: z.enum(["ssh", "telnet", "http", "https", "websmart", "websmart-v2", "snmp"]).optional().default("ssh"),
   port: z.coerce.number().int().min(1).max(65535).optional(),
+  credentialId: z.coerce.number().int().optional(),
+  username: z.string().trim().max(128).optional(),
+  password: z.string().max(256).optional(),
+  enablePassword: z.string().max(256).optional(),
 });
 
 export async function addNcmSwitch(_prev: unknown, formData: FormData): Promise<NcmWriteResult> {
@@ -63,14 +68,47 @@ export async function addNcmSwitch(_prev: unknown, formData: FormData): Promise<
   const parsed = switchSchema.safeParse({
     name: String(formData.get("name") ?? ""),
     ip: String(formData.get("ip") ?? ""),
-    protocol: formData.get("protocol") ? String(formData.get("protocol")) : undefined,
+    model: formData.get("model") ? String(formData.get("model")) : undefined,
+    protocol: formData.get("protocol") ? String(formData.get("protocol")) : "ssh",
     port: formData.get("port") ? String(formData.get("port")) : undefined,
+    credentialId: formData.get("credentialId") ? String(formData.get("credentialId")) : undefined,
+    username: formData.get("username") ? String(formData.get("username")) : undefined,
+    password: formData.get("password") ? String(formData.get("password")) : undefined,
+    enablePassword: formData.get("enablePassword") ? String(formData.get("enablePassword")) : undefined,
   });
   if (!parsed.success) {
     return { message: parsed.error.issues[0]?.message ?? "Data tidak valid." };
   }
+
+  const defaultPorts: Record<string, number> = {
+    ssh: 22,
+    telnet: 23,
+    http: 80,
+    https: 443,
+    websmart: 80,
+    "websmart-v2": 80,
+    snmp: 161,
+  };
+  const port = parsed.data.port || defaultPorts[parsed.data.protocol] || 22;
+
+  const payload: Record<string, unknown> = {
+    name: parsed.data.name,
+    ip: parsed.data.ip,
+    model: parsed.data.model,
+    protocol: parsed.data.protocol,
+    port,
+  };
+  if (parsed.data.credentialId) {
+    payload.credential_id = parsed.data.credentialId;
+  }
+  if (parsed.data.username && parsed.data.password) {
+    payload.username = parsed.data.username;
+    payload.password = parsed.data.password;
+    payload.enable_password = parsed.data.enablePassword || "";
+  }
+
   return runNcmWrite("CREATE", "ncm_switch", parsed.data.name, undefined, "Switch ditambahkan via /admin/ncm", (config) =>
-    ncmLib.createNcmSwitch(config, parsed.data),
+    ncmLib.createNcmSwitch(config, payload),
   );
 }
 
@@ -81,15 +119,27 @@ export async function updateNcmSwitch(_prev: unknown, formData: FormData): Promi
   const parsed = switchSchema.safeParse({
     name: String(formData.get("name") ?? ""),
     ip: String(formData.get("ip") ?? ""),
+    model: formData.get("model") ? String(formData.get("model")) : undefined,
     protocol: formData.get("protocol") ? String(formData.get("protocol")) : undefined,
     port: formData.get("port") ? String(formData.get("port")) : undefined,
+    credentialId: formData.get("credentialId") ? String(formData.get("credentialId")) : undefined,
   });
   if (!parsed.success) {
     return { message: parsed.error.issues[0]?.message ?? "Data tidak valid." };
   }
   const switchId = Number(idParsed.data);
+  const payload: Record<string, unknown> = {
+    name: parsed.data.name,
+    ip: parsed.data.ip,
+    model: parsed.data.model,
+    protocol: parsed.data.protocol,
+    port: parsed.data.port,
+  };
+  if (parsed.data.credentialId) {
+    payload.credential_id = parsed.data.credentialId;
+  }
   return runNcmWrite("UPDATE", "ncm_switch", parsed.data.name, switchId, "Switch diperbarui via /admin/ncm", (config) =>
-    ncmLib.updateNcmSwitch(config, switchId, parsed.data),
+    ncmLib.updateNcmSwitch(config, switchId, payload),
   );
 }
 
@@ -208,7 +258,7 @@ export async function decideNcmReview(_prev: unknown, formData: FormData): Promi
 
 export type NcmOverview =
   | { status: "unconfigured"; message: string }
-  | { status: "online"; url: string | null; switches: unknown; jobs: unknown; backups: unknown; baselines: unknown; reviews: unknown }
+  | { status: "online"; url: string | null; switches: unknown; jobs: unknown; backups: unknown; baselines: unknown; reviews: unknown; credentials: unknown }
   | { status: "offline"; url: string | null; lastSeenAt: string | null; error: string };
 
 /** Snapshot fleet live dari NCM (transient — tidak disinkron ke DB). */
@@ -223,15 +273,18 @@ export async function getNcmOverview(): Promise<NcmOverview> {
 
   const connection = { url: config.url, adminApiKey: config.adminApiKey };
   try {
-    const [switches, jobs, backups, baselines, reviews] = await Promise.all([
+    const [switches, jobs, backups, baselines, reviews, credentials] = await Promise.all([
       ncmLib.fetchNcmSwitches(connection),
       ncmLib.fetchNcmJobs(connection),
       ncmLib.fetchNcmBackups(connection),
       ncmLib.fetchNcmBaselines(connection),
       ncmLib.fetchNcmReviews(connection),
+      typeof ncmLib.fetchNcmCredentials === "function"
+        ? ncmLib.fetchNcmCredentials(connection).catch(() => [])
+        : Promise.resolve([]),
     ]);
     await ncmLib.touchNcmLastSeen(auth.activeSiteId);
-    return { status: "online", url: config.url, switches, jobs, backups, baselines, reviews };
+    return { status: "online", url: config.url, switches, jobs, backups, baselines, reviews, credentials };
   } catch (error) {
     const lastSeen = await ncmLib.getNcmLastSeen(auth.activeSiteId);
     return {

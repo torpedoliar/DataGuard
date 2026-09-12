@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { verifySession } from "@/lib/session";
 import { getNcmOverview } from "@/actions/ncm";
+import { getDevices } from "@/actions/master-data";
 import NcmDashboard from "@/components/admin/ncm-dashboard";
 import PageHeader from "@/components/ui/page-header";
 
@@ -14,12 +15,15 @@ export default async function NcmPage() {
 
   // Page-level degrade: a failed overview must render the offline banner,
   // never a 500 (getNcmOverview already catches NCM errors internally).
-  const overview = await getNcmOverview().catch(() => ({
-    status: "offline" as const,
-    url: null,
-    lastSeenAt: null,
-    error: "Gagal memuat status NCM.",
-  }));
+  const [overview, inventoryDevices] = await Promise.all([
+    getNcmOverview().catch(() => ({
+      status: "offline" as const,
+      url: null,
+      lastSeenAt: null,
+      error: "Gagal memuat status NCM.",
+    })),
+    getDevices().catch(() => []),
+  ]);
 
   return (
     <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
@@ -28,7 +32,11 @@ export default async function NcmPage() {
         title="NCM Management"
         description="Kelola switch, backup terjadwal, baseline golden, dan review drift dari aplikasi NCM site aktif. Semua aksi tercatat di audit log; kredensial tidak pernah ditampilkan kembali."
       />
-      <NcmDashboard overview={overview} isSuperadmin={session.role === "superadmin"} />
+      <NcmDashboard
+        overview={overview}
+        inventoryDevices={inventoryDevices}
+        isSuperadmin={session.role === "superadmin"}
+      />
     </main>
   );
 }
