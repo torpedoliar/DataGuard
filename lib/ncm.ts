@@ -102,8 +102,8 @@ export async function fetchNcmBackups(config: NcmConnection): Promise<unknown> {
     return ncmGet(config, "backups");
 }
 
-export async function fetchNcmReviews(config: NcmConnection): Promise<unknown> {
-    return ncmGet(config, "reviews");
+export async function fetchNcmReviews(config: NcmConnection, includeNotes: boolean = false): Promise<unknown> {
+    return ncmGet(config, includeNotes ? "reviews?include_notes=true" : "reviews");
 }
 
 export async function fetchNcmJobs(config: NcmConnection): Promise<unknown> {
@@ -308,14 +308,54 @@ export async function triggerNcmBackup(config: NcmConnection, switchId: number):
     return ncmRequest(config, "POST", "switches/" + switchId + "/backup", {});
 }
 
-export async function decideNcmReview(config: NcmConnection, reviewId: number, body: { decision: string; note?: string }): Promise<unknown> {
+export async function decideNcmReview(config: NcmConnection, reviewId: number, body: { decision: string; note?: string; reset_baseline_cycle?: boolean }): Promise<unknown> {
     // NCM's decision endpoint is POST /reviews/{id}/status with status
     // approved|flagged|dismissed (reject maps to flagged) + comment.
     const status = body.decision === "approve" ? "approved" : "flagged";
-    return ncmRequest(config, "POST", "reviews/" + reviewId + "/status", {
+    const payload: Record<string, unknown> = {
         status,
         ...(body.note ? { comment: body.note } : {}),
-    });
+    };
+    if (body.reset_baseline_cycle !== undefined) {
+        payload.reset_baseline_cycle = body.reset_baseline_cycle;
+    }
+    return ncmRequest(config, "POST", "reviews/" + reviewId + "/status", payload);
+}
+
+export async function startNcmReview(config: NcmConnection, reviewId: number): Promise<unknown> {
+    return ncmRequest(config, "POST", "reviews/" + reviewId + "/start", {});
+}
+
+export async function promoteNcmReview(config: NcmConnection, reviewId: number, reason: string, comment?: string): Promise<unknown> {
+    return ncmRequest(config, "POST", "reviews/" + reviewId + "/promote-baseline", { reason, comment });
+}
+
+export async function updateNcmReviewStatus(config: NcmConnection, reviewId: number, body: { status: string; comment?: string; reset_baseline_cycle?: boolean }): Promise<unknown> {
+    return ncmRequest(config, "POST", "reviews/" + reviewId + "/status", body);
+}
+
+export async function fetchNcmReviewNotes(config: NcmConnection, reviewId: number): Promise<unknown> {
+    return ncmGet(config, "reviews/" + reviewId + "/notes");
+}
+
+export async function addNcmReviewNote(config: NcmConnection, reviewId: number, body: string): Promise<unknown> {
+    return ncmRequest(config, "POST", "reviews/" + reviewId + "/notes", { body });
+}
+
+export async function prepareNcmBaselineReview(config: NcmConnection, baselineId: number): Promise<unknown> {
+    return ncmRequest(config, "POST", "baselines/" + baselineId + "/prepare-review", {});
+}
+
+export async function fetchNcmCompliance(config: NcmConnection): Promise<unknown> {
+    return ncmGet(config, "reviews/compliance");
+}
+
+export async function runNcmReviewCycle(config: NcmConnection): Promise<unknown> {
+    return ncmRequest(config, "POST", "reviews/run-cycle", {});
+}
+
+export async function sendNcmReviewReminder(config: NcmConnection): Promise<unknown> {
+    return ncmRequest(config, "POST", "reviews/reminder", {});
 }
 
 /** Banner offline: baca heartbeat last_seen_at (transient, tidak disync). */

@@ -16,7 +16,7 @@ const publicRoutes = ["/login"];
 
 // Routes that bypass CSRF protection: health/metrics are public-ish probes,
 // and /api/siem-ingest is an inbound channel from external sources.
-const csrfExemptPrefixes = ["/api/health", "/api/metrics", "/api/siem-ingest", "/api/ncm/ingest"];
+const csrfExemptPrefixes = ["/api/health", "/api/metrics", "/api/siem-ingest", "/api/ncm/ingest", "/api/ncm/devices"];
 
 // next-intl middleware: locale detection + URL rewriting.
 // Runs FIRST so downstream auth/rate-limit logic sees the resolved pathname

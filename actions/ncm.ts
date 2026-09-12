@@ -2,6 +2,9 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { and, eq, isNotNull } from "drizzle-orm";
+import { db } from "@/db";
+import { brands, devices } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import * as ncmLib from "@/lib/ncm";
 import { logAudit } from "@/lib/audit";
@@ -348,7 +351,7 @@ export async function getNcmOverview(): Promise<NcmOverview> {
       ncmLib.fetchNcmJobs(connection),
       ncmLib.fetchNcmBackups(connection),
       ncmLib.fetchNcmBaselines(connection),
-      ncmLib.fetchNcmReviews(connection),
+      ncmLib.fetchNcmReviews(connection, true),
       typeof ncmLib.fetchNcmCredentials === "function"
         ? ncmLib.fetchNcmCredentials(connection).catch(() => [])
         : Promise.resolve([]),
@@ -399,5 +402,212 @@ export async function getNcmBackupContent(backupId: number): Promise<{ backupId?
     return { backupId, content: text };
   } catch (error) {
     return { message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Sinkronkan nama perangkat dari DataGuard ke NCM berdasarkan IP address. */
+export async function syncNcmDeviceNamesAction(): Promise<NcmWriteResult> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) {
+    return { message: "NCM belum dikonfigurasi untuk site ini. Hubungi superadmin." };
+  }
+
+  try {
+    const connection = { url: config.url, adminApiKey: config.adminApiKey };
+    const siteDevices = await db
+      .select({
+        id: devices.id,
+        name: devices.name,
+        ip: devices.ipAddress,
+        description: devices.description,
+        brandName: brands.name,
+      })
+      .from(devices)
+      .leftJoin(brands, eq(devices.brandId, brands.id))
+      .where(and(eq(devices.siteId, auth.activeSiteId), isNotNull(devices.ipAddress)));
+
+    const ncmSwitchesRaw = (await ncmLib.fetchNcmSwitches(connection)) as Record<string, unknown>[];
+    const ncmSwitches = Array.isArray(ncmSwitchesRaw) ? ncmSwitchesRaw : [];
+
+    let updatedCount = 0;
+    for (const sw of ncmSwitches) {
+      const swId = Number(sw.id ?? sw.switch_id);
+      const swIp = String(sw.ip_address ?? sw.ip ?? "").trim();
+      if (!swId || !swIp) continue;
+
+      const matchingDev = siteDevices.find((d) => d.ip && d.ip.trim() === swIp);
+      if (matchingDev) {
+        const currentName = String(sw.name ?? "").trim();
+        const brand = matchingDev.brandName ? matchingDev.brandName.trim() : "";
+        const desc = matchingDev.description ? matchingDev.description.trim() : "";
+        const devModel = [brand, desc].filter(Boolean).join(" ") || brand || desc;
+
+        if (currentName !== matchingDev.name || (devModel && sw.model !== devModel)) {
+          await ncmLib.updateNcmSwitch(connection, swId, {
+            name: matchingDev.name,
+            model: devModel || undefined,
+          });
+          updatedCount++;
+        }
+      }
+    }
+
+    await logAudit({
+      action: "UPDATE",
+      entity: "ncm_switch",
+      entityName: "Sync Device Names",
+      detail: `Sinkronisasi nama perangkat dari DG ke NCM: ${updatedCount} switch diperbarui dari ${siteDevices.length} device DG.`,
+    });
+    revalidatePath("/admin/ncm");
+    return {
+      success: true,
+      message: `Sinkronisasi selesai: ${updatedCount} nama switch di NCM berhasil diselaraskan dengan data perangkat DataGuard.`,
+    };
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function startNcmReviewAction(reviewId: number): Promise<NcmWriteResult> {
+  return runNcmWrite("UPDATE", "ncm_review", `Review #${reviewId}`, reviewId, "Review dimulai (in_review)", (config) =>
+    ncmLib.startNcmReview(config, reviewId),
+  );
+}
+
+export async function promoteNcmReviewAction(
+  reviewId: number,
+  reason: string,
+  comment?: string,
+): Promise<NcmWriteResult> {
+  return runNcmWrite(
+    "UPDATE",
+    "ncm_review",
+    `Review #${reviewId}`,
+    reviewId,
+    `Approve & Promote ke Baseline (${reason})`,
+    (config) => ncmLib.promoteNcmReview(config, reviewId, reason, comment),
+  );
+}
+
+export async function updateNcmReviewStatusAction(
+  reviewId: number,
+  status: string,
+  comment?: string,
+  resetBaselineCycle: boolean = true,
+): Promise<NcmWriteResult> {
+  return runNcmWrite(
+    "UPDATE",
+    "ncm_review",
+    `Review #${reviewId}`,
+    reviewId,
+    `Status review diubah -> ${status}${comment ? ` (${comment})` : ""}`,
+    (config) =>
+      ncmLib.updateNcmReviewStatus(config, reviewId, {
+        status,
+        comment,
+        reset_baseline_cycle: resetBaselineCycle,
+      }),
+  );
+}
+
+export async function addNcmReviewNoteAction(reviewId: number, body: string): Promise<NcmWriteResult> {
+  return runNcmWrite("UPDATE", "ncm_review", `Review #${reviewId}`, reviewId, "Catatan audit ditambahkan ke review", (config) =>
+    ncmLib.addNcmReviewNote(config, reviewId, body),
+  );
+}
+
+export async function getNcmReviewNotesAction(reviewId: number): Promise<unknown[] | { message: string }> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) return { message: "NCM belum dikonfigurasi." };
+  try {
+    const res = await ncmLib.fetchNcmReviewNotes({ url: config.url, adminApiKey: config.adminApiKey }, reviewId);
+    return Array.isArray(res) ? res : [];
+  } catch (err) {
+    return { message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function getNcmReviewRollbackAction(reviewId: number): Promise<string | { message: string }> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) return { message: "NCM belum dikonfigurasi." };
+  try {
+    const res = await ncmLib.fetchNcmReviewRollback({ url: config.url, adminApiKey: config.adminApiKey }, reviewId);
+    return typeof res === "string" ? res : JSON.stringify(res);
+  } catch (err) {
+    return { message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function prepareNcmBaselineReviewAction(
+  baselineId: number,
+): Promise<{ review_id?: number; message?: string; success?: boolean }> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) return { message: "NCM belum dikonfigurasi." };
+  try {
+    const res = (await ncmLib.prepareNcmBaselineReview(
+      { url: config.url, adminApiKey: config.adminApiKey },
+      baselineId,
+    )) as { review_id?: number };
+    revalidatePath("/admin/ncm");
+    return { success: true, review_id: res?.review_id };
+  } catch (err) {
+    return { message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function getNcmComplianceAction(): Promise<Record<string, unknown> | { message: string }> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) return { message: "NCM belum dikonfigurasi." };
+  try {
+    return (await ncmLib.fetchNcmCompliance({ url: config.url, adminApiKey: config.adminApiKey })) as Record<
+      string,
+      unknown
+    >;
+  } catch (err) {
+    return { message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function runNcmReviewCycleAction(): Promise<NcmWriteResult & { data?: unknown }> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) return { message: "NCM belum dikonfigurasi." };
+  try {
+    const data = await ncmLib.runNcmReviewCycle({ url: config.url, adminApiKey: config.adminApiKey });
+    await logAudit({
+      action: "UPDATE",
+      entity: "ncm_review",
+      entityName: "Fleet Review Cycle",
+      detail: "Siklus review fleet dijalankan on-demand via DG",
+    });
+    revalidatePath("/admin/ncm");
+    return { success: true, message: "Siklus review berhasil dijalankan.", data };
+  } catch (err) {
+    return { message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function sendNcmReviewReminderAction(): Promise<NcmWriteResult> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { message: auth.message };
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) return { message: "NCM belum dikonfigurasi." };
+  try {
+    await ncmLib.sendNcmReviewReminder({ url: config.url, adminApiKey: config.adminApiKey });
+    return { success: true, message: "Email reminder review berhasil dikirim ke administrator." };
+  } catch (err) {
+    return { message: err instanceof Error ? err.message : String(err) };
   }
 }

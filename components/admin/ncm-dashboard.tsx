@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Activity,
+  CheckCircle2,
   Clock,
   DatabaseBackup,
   FileText,
@@ -16,6 +17,7 @@ import {
   Router,
   Server,
   ShieldCheck,
+  Sparkles,
   Trash2,
   WifiOff,
 } from "lucide-react";
@@ -29,7 +31,9 @@ import {
   deleteNcmSwitch,
   getNcmBackupContent,
   getNcmReviewDetail,
+  prepareNcmBaselineReviewAction,
   rotateNcmCredentials,
+  syncNcmDeviceNamesAction,
   triggerNcmBackup,
   updateNcmCredentialAction,
   updateNcmSchedule,
@@ -37,6 +41,7 @@ import {
   type NcmOverview,
   type NcmWriteResult,
 } from "@/actions/ncm";
+import { NcmConfigReview } from "./ncm-config-review";
 
 type Row = Record<string, unknown>;
 
@@ -104,7 +109,19 @@ function ResultBanner({ state }: { state: NcmWriteResult | null | undefined }) {
   );
 }
 
-function SectionHeader({ icon, title, subtitle, meta }: { icon: React.ReactNode; title: string; subtitle: string; meta?: string }) {
+function SectionHeader({
+  icon,
+  title,
+  subtitle,
+  meta,
+  actions,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  meta?: string;
+  actions?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2">
@@ -114,7 +131,10 @@ function SectionHeader({ icon, title, subtitle, meta }: { icon: React.ReactNode;
           <p className="text-xs text-ops-muted">{subtitle}</p>
         </div>
       </div>
-      {meta && <span className="text-xs text-ops-muted">{meta}</span>}
+      <div className="flex items-center gap-2">
+        {meta && <span className="text-xs text-ops-muted">{meta}</span>}
+        {actions}
+      </div>
     </div>
   );
 }
@@ -137,6 +157,9 @@ function SwitchArea({
   const [credState, credAction, isCred] = useActionState(rotateNcmCredentials, undefined);
   const [editing, setEditing] = useState<Row | null>(null);
   const [credFor, setCredFor] = useState<Row | null>(null);
+
+  const [isSyncingNames, setIsSyncingNames] = useState(false);
+  const [syncBanner, setSyncBanner] = useState<{ success: boolean; message: string } | null>(null);
 
   // Form states for Add Switch
   const [selectedInventoryId, setSelectedInventoryId] = useState<string>("");
@@ -183,15 +206,61 @@ function SwitchArea({
     }
   }
 
+  async function handleSyncFromDg() {
+    setIsSyncingNames(true);
+    setSyncBanner(null);
+    try {
+      const res = await syncNcmDeviceNamesAction();
+      setSyncBanner({ success: Boolean(res.success), message: res.message });
+      if (res.success) router.refresh();
+    } catch (err) {
+      setSyncBanner({ success: false, message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setIsSyncingNames(false);
+    }
+  }
+
   const busy = isAdding || isEditing || isDeleting || isCred;
 
   return (
     <section className={`${cardClass} space-y-3`}>
-      <SectionHeader icon={<Server className="size-4" />} title="Switches" subtitle="Tambah, edit, hapus switch dan tautkan kredensial backup" meta={`${switches.length} switch`} />
+      <SectionHeader
+        icon={<Server className="size-4" />}
+        title="Switches"
+        subtitle="Tambah, edit, hapus switch dan tautkan kredensial backup"
+        meta={`${switches.length} switch`}
+        actions={
+          <ActionButton
+            type="button"
+            variant="secondary"
+            size="sm"
+            isPending={isSyncingNames}
+            onClick={handleSyncFromDg}
+            title="Sinkronkan nama dan model switch di NCM berdasarkan IP dari database DataGuard"
+          >
+            <RefreshCw className="size-3.5 text-ops-accent" />
+            Sync Nama dari DG
+          </ActionButton>
+        }
+      />
       <ResultBanner state={addState} />
       <ResultBanner state={editState} />
       <ResultBanner state={deleteState} />
       <ResultBanner state={credState} />
+      {syncBanner && (
+        <div
+          className={`rounded-lg border p-3 text-sm flex items-center justify-between ${
+            syncBanner.success
+              ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+              : "border-red-400/20 bg-red-400/10 text-red-300"
+          }`}
+        >
+          <span>{syncBanner.message}</span>
+          <button type="button" onClick={() => setSyncBanner(null)} className="ml-2 text-xs opacity-70 hover:opacity-100">
+            Tutup
+          </button>
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -529,7 +598,6 @@ function CredentialArea({
     }
   }, [addState?.success, editState?.success, delState?.success, router]);
 
-  // Group switches by credential_id
   const switchesByCred = useMemo(() => {
     const map = new Map<string, Row[]>();
     for (const sw of switches) {
@@ -693,27 +761,111 @@ function CredentialArea({
 
 // ==================== Area 3: Backups & Schedules ====================
 
-function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[]; backups: Row[] }) {
+function BackupArea({
+  switches,
+  jobs,
+  backups,
+}: {
+  switches: Row[];
+  jobs: Row[];
+  backups: Row[];
+}) {
   const router = useRouter();
   const [schedState, schedAction, isSched] = useActionState(updateNcmSchedule, undefined);
   const [backupState, backupAction, isBackup] = useActionState(triggerNcmBackup, undefined);
   const [baselineState, baselineAction, isBaseline] = useActionState(createNcmBaseline, undefined);
   const [editingJob, setEditingJob] = useState<Row | null>(null);
 
+  // Animation states
+  const [selectedSwitchToBackup, setSelectedSwitchToBackup] = useState<string>("");
+  const [backupElapsed, setBackupElapsed] = useState<number>(0);
+
   const switchMap = useMemo(() => {
     return new Map(switches.map((s) => [pick(s, "id", "switch_id", "switchId"), s]));
   }, [switches]);
+
+  // Live timer tick during backup
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isBackup) {
+      setBackupElapsed(0);
+      interval = setInterval(() => {
+        setBackupElapsed((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (interval) clearInterval(interval);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isBackup]);
 
   useEffect(() => {
     if (schedState?.success || backupState?.success || baselineState?.success) router.refresh();
   }, [schedState?.success, backupState?.success, baselineState?.success, router]);
 
+  const triggeredSwitch = switchMap.get(selectedSwitchToBackup);
+
   return (
     <section className={`${cardClass} space-y-3`}>
       <SectionHeader icon={<DatabaseBackup className="size-4" />} title="Backups & Schedules" subtitle="Ubah jadwal, picu backup on-demand, buat baseline dari backup" meta={`${backups.length} backup · ${jobs.length} job`} />
       <ResultBanner state={schedState} />
-      <ResultBanner state={backupState} />
       <ResultBanner state={baselineState} />
+
+      {/* LIVE ANIMATED BACKUP PROGRESS WIDGET */}
+      {isBackup && (
+        <div className="rounded-xl border border-amber-500/50 bg-amber-500/10 p-5 space-y-3 ncm-backup-glow shadow-lg shadow-amber-500/10">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="relative flex size-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full size-4 bg-amber-500"></span>
+              </span>
+              <div>
+                <h4 className="text-sm font-bold text-amber-300">
+                  Sedang Menjalankan Backup Switch: {triggeredSwitch ? pick(triggeredSwitch, "name", "hostname") : "Perangkat Terpilih"}
+                </h4>
+                <p className="text-xs text-amber-200/80">
+                  NCM sedang menghubungi switch via protocol jaringan, mengunduh running-config, dan menghitung hash delta...
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded bg-amber-500/20 px-3 py-1 font-mono text-xs font-bold text-amber-300 border border-amber-500/30">
+              <Clock className="size-3.5 animate-spin text-amber-400" />
+              <span>00:{String(backupElapsed).padStart(2, "0")}</span>
+            </div>
+          </div>
+
+          <div className="h-2.5 w-full rounded-full bg-slate-950 overflow-hidden border border-amber-500/30">
+            <div className="h-full w-full ncm-backup-stripes bg-amber-500 rounded-full" />
+          </div>
+
+          <div className="flex justify-between text-[11px] text-amber-200/70 font-mono">
+            <span>Fase: Handshake &amp; Fetch Running Config</span>
+            <span>Status: Menunggu respons switch...</span>
+          </div>
+        </div>
+      )}
+
+      {/* BACKUP RESULT BANNER */}
+      {backupState && !isBackup && (
+        <div
+          className={`rounded-lg border p-3.5 text-sm flex items-center justify-between ${
+            backupState.success
+              ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+              : "border-red-400/30 bg-red-500/10 text-red-300"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {backupState.success ? <CheckCircle2 className="size-5 text-emerald-400" /> : <Activity className="size-5 text-red-400" />}
+            <div>
+              <div className="font-semibold">{backupState.success ? "Backup Berhasil!" : "Backup Gagal"}</div>
+              <div className="text-xs opacity-90">{backupState.message}</div>
+            </div>
+          </div>
+          <span className="font-mono text-xs opacity-75">Selesai</span>
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -842,7 +994,13 @@ function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[];
       <form action={backupAction} className="flex flex-wrap items-end gap-3 border-t border-slate-800 pt-3">
         <label className={`${labelClass} min-w-56 flex-1`}>
           Picu backup on-demand
-          <select name="switchId" className={inputClass} required>
+          <select
+            name="switchId"
+            value={selectedSwitchToBackup}
+            onChange={(e) => setSelectedSwitchToBackup(e.target.value)}
+            className={inputClass}
+            required
+          >
             <option value="">Pilih switch…</option>
             {switches.map((sw) => {
               const id = pick(sw, "id", "switch_id", "switchId");
@@ -862,23 +1020,23 @@ function BackupArea({ switches, jobs, backups }: { switches: Row[]; jobs: Row[];
   );
 }
 
-// ==================== Area 4: Baselines & Reviews ====================
+// ==================== Area 4: Baselines & Quick Reviews ====================
 
 function ReviewArea({
   baselines,
   reviews,
   switches,
+  onOpenReview,
 }: {
   baselines: Row[];
   reviews: Row[];
   switches: Row[];
+  onOpenReview: (reviewId: number) => void;
 }) {
   const router = useRouter();
   const [decideState, decideAction, isDeciding] = useActionState(decideNcmReview, undefined);
-  const [detail, setDetail] = useState<Row | null>(null);
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [loadingDiff, setLoadingDiff] = useState<number | null>(null);
-  const [note, setNote] = useState("");
+  const [preparingId, setPreparingId] = useState<number | null>(null);
+  const [prepareError, setPrepareError] = useState<string | null>(null);
 
   // Baseline config inspection
   const [viewingConfigId, setViewingConfigId] = useState<number | null>(null);
@@ -894,26 +1052,20 @@ function ReviewArea({
     if (decideState?.success) router.refresh();
   }, [decideState?.success, router]);
 
-  async function loadDiff(reviewId: number) {
-    if (detail && Number(detail.id) === reviewId) {
-      setDetail(null);
-      return;
-    }
-    setLoadingDiff(reviewId);
-    setDetailError(null);
+  async function handleReviewBaseline(baselineId: number) {
+    setPreparingId(baselineId);
+    setPrepareError(null);
     try {
-      const result = await getNcmReviewDetail(reviewId);
-      if (result.message) {
-        setDetailError(String(result.message));
-        setDetail(null);
+      const res = await prepareNcmBaselineReviewAction(baselineId);
+      if (res.review_id) {
+        onOpenReview(res.review_id);
       } else {
-        setDetail(result as Row);
+        setPrepareError(res.message || "Gagal membuka sesi review.");
       }
-    } catch (error) {
-      setDetailError(error instanceof Error ? error.message : String(error));
-      setDetail(null);
+    } catch (err) {
+      setPrepareError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoadingDiff(null);
+      setPreparingId(null);
     }
   }
 
@@ -944,8 +1096,14 @@ function ReviewArea({
 
   return (
     <section className={`${cardClass} space-y-3`}>
-      <SectionHeader icon={<GitCompareArrows className="size-4" />} title="Baselines & Reviews" subtitle="Baseline golden dan antrian review drift" meta={`${baselines.length} baseline · ${reviews.length} review`} />
+      <SectionHeader
+        icon={<GitCompareArrows className="size-4" />}
+        title="Baselines & Quick Reviews"
+        subtitle="Baseline golden yang terdaftar dan antrian review drift terkini"
+        meta={`${baselines.length} baseline · ${reviews.length} review`}
+      />
       <ResultBanner state={decideState} />
+      {prepareError && <p className="text-sm text-red-300">{prepareError}</p>}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -965,7 +1123,7 @@ function ReviewArea({
               <tr><td colSpan={7} className="py-3 text-sm text-ops-muted">Belum ada baseline golden.</td></tr>
             )}
             {baselines.map((bl) => {
-              const id = pick(bl, "id", "baseline_id", "baselineId");
+              const id = Number(pick(bl, "id", "baseline_id", "baselineId"));
               const swId = pick(bl, "switch_id", "switchId");
               const sw = switchMap.get(swId);
               const kind = pick(bl, "kind") || "switch";
@@ -997,18 +1155,30 @@ function ReviewArea({
                     {reviewer && <div className="text-[11px] text-slate-400 mt-0.5">Oleh: {reviewer}</div>}
                   </td>
                   <td className="py-2 pr-3 text-right">
-                    {backupId !== "—" && (
+                    <div className="flex items-center justify-end gap-1.5">
                       <ActionButton
                         size="sm"
-                        variant="secondary"
-                        isPending={loadingConfig === Number(backupId)}
-                        onClick={() => loadConfig(Number(backupId))}
-                        title="Lihat isi konfigurasi baseline ini"
+                        onClick={() => handleReviewBaseline(id)}
+                        isPending={preparingId === id}
+                        className="bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
+                        title="Bandingkan Golden Baseline vs Backup Terakhir di layar Config Review"
                       >
-                        <FileText className="size-3.5" />
-                        {viewingConfigId === Number(backupId) ? "Tutup" : "Lihat Config"}
+                        <GitCompareArrows className="size-3.5" />
+                        Review
                       </ActionButton>
-                    )}
+                      {backupId !== "—" && (
+                        <ActionButton
+                          size="sm"
+                          variant="secondary"
+                          isPending={loadingConfig === Number(backupId)}
+                          onClick={() => loadConfig(Number(backupId))}
+                          title="Lihat isi konfigurasi golden baseline ini"
+                        >
+                          <FileText className="size-3.5" />
+                          {viewingConfigId === Number(backupId) ? "Tutup" : "Config"}
+                        </ActionButton>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -1030,62 +1200,6 @@ function ReviewArea({
         </div>
       )}
       {configError && <p className="mt-2 text-sm text-red-300">{configError}</p>}
-
-      <div className="space-y-3 border-t border-slate-800 pt-2">
-        {reviews.length === 0 && <p className="text-sm text-ops-muted">Tidak ada review menunggu keputusan.</p>}
-        {reviews.map((rv) => {
-          const id = pick(rv, "id", "review_id", "reviewId");
-          const status = pick(rv, "status", "state") || "pending";
-          const swId = pick(rv, "switch_id", "switchId");
-          const sw = switchMap.get(swId);
-          const switchName = pick(rv, "switch_name", "switchName") || (sw ? pick(sw, "name", "hostname") : "") || (swId ? `Switch #${swId}` : "");
-          const isDetailOpen = detail && String(detail.id) === String(id);
-
-          return (
-            <div key={id} className="rounded-lg border border-slate-700/50 bg-slate-900/60 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm text-slate-300">
-                  <span className="font-semibold text-white">Review #{id}</span>
-                  <span className="ml-2 inline-flex h-6 items-center rounded-full border border-amber-400/25 bg-amber-400/10 px-2 text-[11px] font-medium text-amber-300">{status}</span>
-                  {switchName && (
-                    <span className="ml-2 text-xs text-ops-muted">{switchName}</span>
-                  )}
-                </div>
-                <ActionButton size="sm" variant="secondary" isPending={loadingDiff === Number(id)} onClick={() => loadDiff(Number(id))}>
-                  <GitCompareArrows className="size-3.5" />
-                  {isDetailOpen ? "Tutup Diff" : "Lihat Diff"}
-                </ActionButton>
-              </div>
-
-              {isDetailOpen && (
-                <div className="mt-3 rounded-lg border border-slate-700 bg-slate-950 p-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs text-ops-muted">
-                    <span className="font-semibold text-white">Perbedaan Konfigurasi (Diff Review #{id}):</span>
-                    <button type="button" onClick={() => setDetail(null)} className="text-slate-400 hover:text-white">Tutup</button>
-                  </div>
-                  <pre className="mt-2 max-h-80 overflow-auto font-mono text-xs text-slate-300 whitespace-pre-wrap">
-                    {String(detail.diff || "(diff kosong / tidak ada perbedaan)")}
-                  </pre>
-                </div>
-              )}
-              {detailError && <p className="mt-2 text-sm text-red-300">{detailError}</p>}
-
-              {status === "pending" && (
-                <form action={decideAction} className="mt-2 flex flex-wrap items-center gap-2">
-                  <input type="hidden" name="reviewId" value={id} />
-                  <input name="note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Catatan (opsional)" className={`${inputClass} h-8 max-w-64 flex-1`} />
-                  <button type="submit" name="decision" value="approve" disabled={isDeciding} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-transparent bg-ops-accent px-3 text-xs font-semibold text-slate-950 transition-colors hover:bg-[#0a7a6f] disabled:opacity-55">
-                    <ShieldCheck className="size-3.5" />Approve
-                  </button>
-                  <button type="submit" name="decision" value="reject" disabled={isDeciding} className="inline-flex h-8 items-center rounded-md border border-red-500/30 bg-red-500/12 px-3 text-xs font-semibold text-red-600 transition-colors hover:bg-red-500/20 disabled:opacity-55 dark:text-red-200">
-                    Reject
-                  </button>
-                </form>
-              )}
-            </div>
-          );
-        })}
-      </div>
     </section>
   );
 }
@@ -1111,7 +1225,7 @@ function ConnectionArea({ overview, isSuperadmin }: { overview: NcmOverview & { 
   );
 }
 
-// ==================== Root ====================
+// ==================== Root Component With Tabs ====================
 
 export default function NcmDashboard({
   overview,
@@ -1123,6 +1237,9 @@ export default function NcmDashboard({
   isSuperadmin: boolean;
 }) {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"fleet" | "review" | "credentials">("fleet");
+  const [reviewIdToOpen, setReviewIdToOpen] = useState<number | null>(null);
+
   if (overview.status === "unconfigured") {
     return (
       <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-amber-200">
@@ -1158,28 +1275,98 @@ export default function NcmDashboard({
   const reviews = asRows(overview.reviews);
   const credentials = asRows(overview.credentials);
 
+  const pendingReviewsCount = reviews.filter((r) => (pick(r, "status") || "pending") === "pending").length;
+
+  function handleOpenReviewFromBaseline(reviewId: number) {
+    setReviewIdToOpen(reviewId);
+    setActiveTab("review");
+  }
+
   return (
-    <div className="space-y-4">
-      <SwitchArea
-        switches={switches}
-        credentials={credentials}
-        inventoryDevices={inventoryDevices}
-      />
-      <CredentialArea
-        credentials={credentials}
-        switches={switches}
-      />
-      <BackupArea
-        switches={switches}
-        jobs={jobs}
-        backups={backups}
-      />
-      <ReviewArea
-        baselines={baselines}
-        reviews={reviews}
-        switches={switches}
-      />
-      <ConnectionArea overview={overview} isSuperadmin={isSuperadmin} />
+    <div className="space-y-5">
+      {/* TOP NAVIGATION TABS */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab("fleet")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            activeTab === "fleet" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+          }`}
+        >
+          <Server className="size-4" />
+          <span>Fleet Management</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("review")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors relative ${
+            activeTab === "review" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+          }`}
+        >
+          <ShieldCheck className="size-4" />
+          <span>Config Review (ISO 27001)</span>
+          {pendingReviewsCount > 0 && (
+            <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+              activeTab === "review" ? "bg-slate-950 text-amber-400" : "bg-amber-500 text-slate-950"
+            }`}>
+              {pendingReviewsCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("credentials")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            activeTab === "credentials" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+          }`}
+        >
+          <KeyRound className="size-4" />
+          <span>Credentials ({credentials.length})</span>
+        </button>
+      </div>
+
+      {/* TAB 1: FLEET MANAGEMENT */}
+      {activeTab === "fleet" && (
+        <div className="space-y-4">
+          <SwitchArea
+            switches={switches}
+            credentials={credentials}
+            inventoryDevices={inventoryDevices}
+          />
+          <BackupArea
+            switches={switches}
+            jobs={jobs}
+            backups={backups}
+          />
+          <ReviewArea
+            baselines={baselines}
+            reviews={reviews}
+            switches={switches}
+            onOpenReview={handleOpenReviewFromBaseline}
+          />
+          <ConnectionArea overview={overview} isSuperadmin={isSuperadmin} />
+        </div>
+      )}
+
+      {/* TAB 2: FULL CONFIG REVIEW (ISO 27001) IDENTIK DENGAN NCM */}
+      {activeTab === "review" && (
+        <NcmConfigReview
+          reviews={reviews}
+          baselines={baselines}
+          switches={switches}
+          initialSelectedId={reviewIdToOpen}
+        />
+      )}
+
+      {/* TAB 3: CREDENTIALS MANAGEMENT */}
+      {activeTab === "credentials" && (
+        <CredentialArea
+          credentials={credentials}
+          switches={switches}
+        />
+      )}
     </div>
   );
 }
