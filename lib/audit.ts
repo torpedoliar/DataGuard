@@ -53,7 +53,8 @@ export type AuditEntity =
     | "ncm_schedule"
     | "ncm_backup"
     | "ncm_baseline"
-    | "ncm_review";
+    | "ncm_review"
+    | "ncm_credential";
 
 export interface AuditParams {
     action: AuditAction;
