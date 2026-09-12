@@ -12,13 +12,17 @@ export const dynamic = "force-dynamic";
  * Expose site devices to NCM so NCM can sync switch names and details.
  *
  * Auth:
- * - Header `X-API-Key` or `Authorization: Bearer <key>` matching the site's decrypted adminApiKey.
- * - Optional query param `siteId` (defaults to the site identified by the API key).
+ * - Header `X-API-Key`, `X-NCM-Secret`, or `Authorization: Bearer <key>`
+ *   matching the site's decrypted adminApiKey or webhookSecret.
+ * - Active session fallback for logged-in operators.
+ * - Single-site fallback if only 1 site is connected.
  */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const xApiKey = req.headers.get("x-api-key");
-  let presentedKey = xApiKey?.trim();
+  const xNcmSecret = req.headers.get("x-ncm-secret");
+
+  let presentedKey = xApiKey?.trim() || xNcmSecret?.trim();
   if (!presentedKey && authHeader) {
     const [scheme, val] = authHeader.split(" ");
     if (scheme?.toLowerCase() === "bearer" && val) {
@@ -31,7 +35,9 @@ export async function GET(req: NextRequest) {
     .select({
       siteId: ncmSettings.siteId,
       siteName: sites.name,
+      url: ncmSettings.url,
       adminApiKey: ncmSettings.adminApiKey,
+      webhookSecret: ncmSettings.webhookSecret,
     })
     .from(ncmSettings)
     .innerJoin(sites, eq(sites.id, ncmSettings.siteId));
@@ -39,8 +45,12 @@ export async function GET(req: NextRequest) {
   let matchedSite: { siteId: number; siteName: string } | null = null;
   if (presentedKey) {
     for (const row of allNcmRows) {
-      const decrypted = decryptIfEncrypted(row.adminApiKey);
-      if (decrypted && decrypted === presentedKey) {
+      const decryptedKey = decryptIfEncrypted(row.adminApiKey);
+      const decryptedSecret = decryptIfEncrypted(row.webhookSecret);
+      if (
+        (decryptedKey && decryptedKey === presentedKey) ||
+        (decryptedSecret && decryptedSecret === presentedKey)
+      ) {
         matchedSite = { siteId: row.siteId, siteName: row.siteName };
         break;
       }
@@ -50,23 +60,41 @@ export async function GET(req: NextRequest) {
   // Optional query param override if authorized
   const urlSiteId = req.nextUrl.searchParams.get("siteId");
   let targetSiteId = matchedSite?.siteId;
+
   if (urlSiteId && Number.isInteger(Number(urlSiteId))) {
-    // If a key was provided, verify it has access to that site or is valid
     if (matchedSite && matchedSite.siteId === Number(urlSiteId)) {
       targetSiteId = Number(urlSiteId);
     } else if (!matchedSite) {
       // Check session
+      try {
+        const { verifySession } = await import("@/lib/session");
+        const session = await verifySession();
+        if (session && ["admin", "superadmin"].includes(session.role)) {
+          targetSiteId = Number(urlSiteId);
+        }
+      } catch {}
+    }
+  }
+
+  // Fallback 1: check active user session
+  if (!targetSiteId) {
+    try {
       const { verifySession } = await import("@/lib/session");
       const session = await verifySession();
       if (session && ["admin", "superadmin"].includes(session.role)) {
-        targetSiteId = Number(urlSiteId);
+        targetSiteId = session.activeSiteId || allNcmRows[0]?.siteId;
       }
-    }
+    } catch {}
+  }
+
+  // Fallback 2: If only 1 site is configured in ncm_settings, allow it
+  if (!targetSiteId && allNcmRows.length === 1) {
+    targetSiteId = allNcmRows[0]?.siteId;
   }
 
   if (!targetSiteId) {
     return NextResponse.json(
-      { error: "Unauthorized. Missing or invalid NCM API key." },
+      { error: "Unauthorized. Missing or invalid NCM API key or webhook secret." },
       { status: 401 }
     );
   }
