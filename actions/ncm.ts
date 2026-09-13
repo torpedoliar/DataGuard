@@ -21,7 +21,7 @@ async function runNcmWrite(
   entityName: string,
   entityId: number | undefined,
   detail: string,
-  run: (config: { url: string; adminApiKey: string }) => Promise<unknown>,
+  run: (config: { url: string; adminApiKey: string }, username: string) => Promise<unknown>,
 ): Promise<NcmWriteResult> {
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { message: auth.message };
@@ -32,7 +32,7 @@ async function runNcmWrite(
   }
 
   try {
-    await run({ url: config.url, adminApiKey: config.adminApiKey });
+    await run({ url: config.url, adminApiKey: config.adminApiKey }, auth.session.username);
   } catch (error) {
     return { message: error instanceof Error ? error.message : String(error) };
   }
@@ -472,8 +472,8 @@ export async function syncNcmDeviceNamesAction(): Promise<NcmWriteResult> {
 }
 
 export async function startNcmReviewAction(reviewId: number): Promise<NcmWriteResult> {
-  return runNcmWrite("UPDATE", "ncm_review", `Review #${reviewId}`, reviewId, "Review dimulai (in_review)", (config) =>
-    ncmLib.startNcmReview(config, reviewId),
+  return runNcmWrite("UPDATE", "ncm_review", `Review #${reviewId}`, reviewId, "Review dimulai (in_review)", (config, username) =>
+    ncmLib.startNcmReview(config, reviewId, username),
   );
 }
 
@@ -488,7 +488,7 @@ export async function promoteNcmReviewAction(
     `Review #${reviewId}`,
     reviewId,
     `Approve & Promote ke Baseline (${reason})`,
-    (config) => ncmLib.promoteNcmReview(config, reviewId, reason, comment),
+    (config, username) => ncmLib.promoteNcmReview(config, reviewId, reason, comment, username),
   );
 }
 
@@ -504,18 +504,25 @@ export async function updateNcmReviewStatusAction(
     `Review #${reviewId}`,
     reviewId,
     `Status review diubah -> ${status}${comment ? ` (${comment})` : ""}`,
-    (config) =>
+    (config, username) =>
       ncmLib.updateNcmReviewStatus(config, reviewId, {
         status,
         comment,
         reset_baseline_cycle: resetBaselineCycle,
+        reviewer_name: username,
       }),
   );
 }
 
 export async function addNcmReviewNoteAction(reviewId: number, body: string): Promise<NcmWriteResult> {
-  return runNcmWrite("UPDATE", "ncm_review", `Review #${reviewId}`, reviewId, "Catatan audit ditambahkan ke review", (config) =>
-    ncmLib.addNcmReviewNote(config, reviewId, body),
+  return runNcmWrite("UPDATE", "ncm_review", `Review #${reviewId}`, reviewId, "Catatan audit ditambahkan ke review", (config, username) =>
+    ncmLib.addNcmReviewNote(config, reviewId, `[${username}] ${body}`),
+  );
+}
+
+export async function deleteNcmReviewAction(reviewId: number): Promise<NcmWriteResult> {
+  return runNcmWrite("DELETE", "ncm_review", `Review #${reviewId}`, reviewId, "Riwayat tiket review dihapus", (config) =>
+    ncmLib.deleteNcmReview(config, reviewId),
   );
 }
 

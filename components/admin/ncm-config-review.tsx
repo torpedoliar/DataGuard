@@ -21,12 +21,14 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserCheck,
   X,
 } from "lucide-react";
 import ActionButton from "@/components/ui/action-button";
 import {
   addNcmReviewNoteAction,
+  deleteNcmReviewAction,
   getNcmComplianceAction,
   getNcmReviewDetail,
   getNcmReviewNotesAction,
@@ -295,6 +297,7 @@ export function NcmConfigReview({
   // Action states & Modals
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
   const [promoteReviewId, setPromoteReviewId] = useState<number | null>(null);
@@ -450,6 +453,27 @@ export function NcmConfigReview({
       }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleDeleteReview(reviewId: number, switchName: string) {
+    if (!window.confirm(`Hapus riwayat review #${reviewId} (${switchName})? Tindakan ini akan menghapus riwayat audit dan catatan review secara permanen.`)) {
+      return;
+    }
+    setDeletingId(reviewId);
+    setActionError(null);
+    try {
+      const res = await deleteNcmReviewAction(reviewId);
+      if (res.success) {
+        if (selected === reviewId) setSelected(null);
+        router.refresh();
+      } else {
+        setActionError(res.message);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -724,6 +748,8 @@ export function NcmConfigReview({
               const status = pick(r, "status", "state") || "pending";
               const reviewerName = pick(r, "reviewed_by_name", "reviewedByName");
               const starterName = pick(r, "started_by_name", "startedByName");
+              const reviewedAt = pick(r, "reviewed_at", "reviewedAt");
+              const startedAt = pick(r, "started_at", "startedAt");
               const diffSum = (r.diff_summary as Record<string, unknown>) || {};
               const isCurrentSelected = selected === id;
 
@@ -746,12 +772,40 @@ export function NcmConfigReview({
                     >
                       {STATUS_LABEL[status] ?? status.toUpperCase()}
                     </span>
+                    {status === "approved" && reviewedAt && (
+                      <div className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                        <CheckCircle2 className="size-3 text-emerald-400" />
+                        {formatDate(reviewedAt)}
+                      </div>
+                    )}
+                    {status === "flagged" && reviewedAt && (
+                      <div className="text-[10px] text-red-400 font-mono mt-1 flex items-center gap-1">
+                        <AlertTriangle className="size-3 text-red-400" />
+                        {formatDate(reviewedAt)}
+                      </div>
+                    )}
+                    {status === "in_review" && startedAt && (
+                      <div className="text-[10px] text-sky-400 font-mono mt-1 flex items-center gap-1">
+                        <Clock className="size-3 text-sky-400" />
+                        {formatDate(startedAt)}
+                      </div>
+                    )}
                   </td>
                   <td className="py-2.5 px-3">
-                    {reviewerName ? (
-                      <span className="font-semibold text-amber-400 text-xs">{reviewerName}</span>
-                    ) : starterName ? (
-                      <span className="text-sky-400 text-xs italic">in review: {starterName}</span>
+                    {status === "approved" ? (
+                      <div>
+                        <span className="font-semibold text-emerald-400 text-xs">{reviewerName || "operator"}</span>
+                        <div className="text-[10px] text-slate-400">Disetujui</div>
+                      </div>
+                    ) : status === "flagged" ? (
+                      <div>
+                        <span className="font-semibold text-red-400 text-xs">{reviewerName || "operator"}</span>
+                        <div className="text-[10px] text-slate-400">Ditandai</div>
+                      </div>
+                    ) : status === "in_review" ? (
+                      <div>
+                        <span className="text-sky-400 text-xs italic">In review: {starterName || reviewerName || "operator"}</span>
+                      </div>
                     ) : (
                       <span className="text-slate-500 text-xs">—</span>
                     )}
@@ -810,6 +864,17 @@ export function NcmConfigReview({
                       ) : (
                         <span className="text-xs text-ops-muted italic">{pick(r, "comment") ? "has note" : "selesai"}</span>
                       )}
+
+                      <ActionButton
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteReview(id, switchName)}
+                        isPending={deletingId === id}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5"
+                        title="Hapus riwayat review ini"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </ActionButton>
                     </div>
                   </td>
                 </tr>
@@ -832,12 +897,32 @@ export function NcmConfigReview({
               <div className="mt-1.5 flex flex-wrap gap-4 text-xs text-ops-muted">
                 <span>Golden Baseline: <strong className="font-mono text-slate-200">#{pick(selectedReview || {}, "baseline_backup_id", "baseline_id") || "?"}</strong></span>
                 <span>Detected Backup: <strong className="font-mono text-slate-200">#{pick(selectedReview || {}, "backup_id")}</strong></span>
-                {pick(selectedReview || {}, "reviewed_by_name") ? (
-                  <span>Reviewer: <strong className="text-amber-400">{pick(selectedReview || {}, "reviewed_by_name")}</strong> ({formatDate(pick(selectedReview || {}, "reviewed_at"))})</span>
-                ) : pick(selectedReview || {}, "started_by_name") ? (
-                  <span>In Review by: <strong className="text-sky-400">{pick(selectedReview || {}, "started_by_name")}</strong> ({formatDate(pick(selectedReview || {}, "started_at"))})</span>
+                {pick(selectedReview || {}, "status") === "approved" ? (
+                  <span className="flex items-center gap-1 text-emerald-400">
+                    <CheckCircle2 className="size-3.5 text-emerald-400" />
+                    <span>Disetujui oleh: <strong className="text-emerald-400">{pick(selectedReview || {}, "reviewed_by_name") || "operator"}</strong></span>
+                    {pick(selectedReview || {}, "reviewed_at") && (
+                      <span className="text-slate-300 font-mono">pada {formatDate(pick(selectedReview || {}, "reviewed_at"))}</span>
+                    )}
+                  </span>
+                ) : pick(selectedReview || {}, "status") === "flagged" ? (
+                  <span className="flex items-center gap-1 text-red-400">
+                    <AlertTriangle className="size-3.5 text-red-400" />
+                    <span>Ditandai oleh: <strong className="text-red-400">{pick(selectedReview || {}, "reviewed_by_name") || "operator"}</strong></span>
+                    {pick(selectedReview || {}, "reviewed_at") && (
+                      <span className="text-slate-300 font-mono">pada {formatDate(pick(selectedReview || {}, "reviewed_at"))}</span>
+                    )}
+                  </span>
+                ) : pick(selectedReview || {}, "status") === "in_review" ? (
+                  <span className="flex items-center gap-1 text-sky-400">
+                    <Clock className="size-3.5 text-sky-400" />
+                    <span>In Review by: <strong className="text-sky-400">{pick(selectedReview || {}, "started_by_name") || "operator"}</strong></span>
+                    {pick(selectedReview || {}, "started_at") && (
+                      <span className="text-slate-300 font-mono">sejak {formatDate(pick(selectedReview || {}, "started_at"))}</span>
+                    )}
+                  </span>
                 ) : (
-                  <span>Status: <strong className="text-amber-400 uppercase">{pick(selectedReview || {}, "status")}</strong></span>
+                  <span>Status: <strong className="text-amber-400 uppercase">PENDING REVIEW</strong></span>
                 )}
                 {pick(selectedReview || {}, "comment") && (
                   <span>Catatan: <em className="text-slate-300">&quot;{pick(selectedReview || {}, "comment")}&quot;</em></span>

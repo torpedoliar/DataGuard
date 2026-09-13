@@ -322,16 +322,23 @@ export async function decideNcmReview(config: NcmConnection, reviewId: number, b
     return ncmRequest(config, "POST", "reviews/" + reviewId + "/status", payload);
 }
 
-export async function startNcmReview(config: NcmConnection, reviewId: number): Promise<unknown> {
-    return ncmRequest(config, "POST", "reviews/" + reviewId + "/start", {});
+export async function startNcmReview(config: NcmConnection, reviewId: number, starterName?: string): Promise<unknown> {
+    return ncmRequest(config, "POST", "reviews/" + reviewId + "/start", starterName ? { starter_name: starterName } : {});
 }
 
-export async function promoteNcmReview(config: NcmConnection, reviewId: number, reason: string, comment?: string): Promise<unknown> {
-    return ncmRequest(config, "POST", "reviews/" + reviewId + "/promote-baseline", { reason, comment });
+export async function promoteNcmReview(config: NcmConnection, reviewId: number, reason: string, comment?: string, reviewerName?: string): Promise<unknown> {
+    const payload: Record<string, unknown> = { reason };
+    if (comment) payload.comment = comment;
+    if (reviewerName) payload.reviewer_name = reviewerName;
+    return ncmRequest(config, "POST", "reviews/" + reviewId + "/promote-baseline", payload);
 }
 
-export async function updateNcmReviewStatus(config: NcmConnection, reviewId: number, body: { status: string; comment?: string; reset_baseline_cycle?: boolean }): Promise<unknown> {
+export async function updateNcmReviewStatus(config: NcmConnection, reviewId: number, body: { status: string; comment?: string; reset_baseline_cycle?: boolean; reviewer_name?: string }): Promise<unknown> {
     return ncmRequest(config, "POST", "reviews/" + reviewId + "/status", body);
+}
+
+export async function deleteNcmReview(config: NcmConnection, reviewId: number): Promise<unknown> {
+    return ncmRequest(config, "DELETE", "reviews/" + reviewId);
 }
 
 export async function fetchNcmReviewNotes(config: NcmConnection, reviewId: number): Promise<unknown> {

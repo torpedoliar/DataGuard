@@ -1133,6 +1133,7 @@ function ReviewArea({
               const createdAt = formatDate(pick(bl, "created_at", "createdAt"));
               const reviewer = pick(bl, "last_reviewed_by_name", "lastReviewedByName");
               const reviewStatus = pick(bl, "last_review_status", "lastReviewStatus");
+              const lastReviewedAt = pick(bl, "last_reviewed_at", "lastReviewedAt");
 
               return (
                 <tr key={id} className="border-t border-slate-800">
@@ -1152,7 +1153,16 @@ function ReviewArea({
                     ) : (
                       <span className="text-xs text-ops-muted">Aktif</span>
                     )}
-                    {reviewer && <div className="text-[11px] text-slate-400 mt-0.5">Oleh: {reviewer}</div>}
+                    {reviewer && (
+                      <div className="text-[11px] text-slate-300 mt-0.5">
+                        Oleh: <span className="text-amber-400 font-semibold">{reviewer}</span>
+                      </div>
+                    )}
+                    {lastReviewedAt && (
+                      <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                        {formatDate(lastReviewedAt)}
+                      </div>
+                    )}
                   </td>
                   <td className="py-2 pr-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
