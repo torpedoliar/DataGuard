@@ -1,34 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
   AlertTriangle,
-  ArrowRight,
   CheckCircle2,
   Clock,
   Copy,
-  Download,
-  FileCheck,
-  FileText,
   Filter,
   GitCompareArrows,
   Mail,
   MessageSquare,
   Play,
-  RotateCcw,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Trash2,
-  UserCheck,
   X,
 } from "lucide-react";
 import ActionButton from "@/components/ui/action-button";
 import {
   addNcmReviewNoteAction,
   deleteNcmReviewAction,
+  getNcmBackupDecodeAction,
   getNcmComplianceAction,
   getNcmReviewDetail,
   getNcmReviewNotesAction,
@@ -56,6 +49,106 @@ function formatDate(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
 }
 
+function formatDateShort(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+interface DiffDisplayLine {
+  lineNum: number;
+  sign: string;
+  type: "equal" | "delete" | "insert";
+  content: string;
+}
+
+function parseUnifiedDiffForDisplay(rawDiff: string, hideNoise: boolean): {
+  lines: DiffDisplayLine[];
+  addedCount: number;
+  deletedCount: number;
+} {
+  const rawLines = rawDiff.split("\n");
+  const lines: DiffDisplayLine[] = [];
+  let addedCount = 0;
+  let deletedCount = 0;
+
+  let oldLine = 1;
+  let newLine = 1;
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const raw = rawLines[i];
+    if (raw.startsWith("---") || raw.startsWith("+++")) {
+      continue;
+    }
+    const hunkMatch = raw.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunkMatch) {
+      oldLine = parseInt(hunkMatch[1], 10);
+      newLine = parseInt(hunkMatch[2], 10);
+      continue;
+    }
+
+    if (raw.startsWith("-")) {
+      const content = raw.slice(1);
+      if (hideNoise) {
+        const lower = content.toLowerCase();
+        if (
+          lower.includes("ntp clock-period") ||
+          lower.includes("uptime") ||
+          lower.includes("last configuration change") ||
+          lower.includes("nvram config last updated")
+        ) {
+          oldLine++;
+          continue;
+        }
+      }
+      deletedCount++;
+      lines.push({
+        lineNum: oldLine,
+        sign: "-",
+        type: "delete",
+        content,
+      });
+      oldLine++;
+    } else if (raw.startsWith("+")) {
+      const content = raw.slice(1);
+      if (hideNoise) {
+        const lower = content.toLowerCase();
+        if (
+          lower.includes("ntp clock-period") ||
+          lower.includes("uptime") ||
+          lower.includes("last configuration change") ||
+          lower.includes("nvram config last updated")
+        ) {
+          newLine++;
+          continue;
+        }
+      }
+      addedCount++;
+      lines.push({
+        lineNum: newLine,
+        sign: "+",
+        type: "insert",
+        content,
+      });
+      newLine++;
+    } else {
+      const content = raw.startsWith(" ") ? raw.slice(1) : raw;
+      if (i === rawLines.length - 1 && !raw.trim()) continue;
+      lines.push({
+        lineNum: newLine,
+        sign: "",
+        type: "equal",
+        content,
+      });
+      oldLine++;
+      newLine++;
+    }
+  }
+
+  return { lines, addedCount, deletedCount };
+}
+
 const STATUS_LABEL: Record<string, string> = {
   pending: "PENDING",
   in_review: "IN REVIEW",
@@ -67,7 +160,366 @@ const STATUS_LABEL: Record<string, string> = {
 const inputClass = "h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-white";
 
 type DiffCategory = "all" | "vlan" | "interface" | "security" | "system";
-type DiffViewStyle = "side-by-side" | "unified";
+type DiffViewStyle = "side-by-side" | "unified" | "decode";
+
+interface DecodeVlan {
+  id: number;
+  name: string | null;
+}
+
+interface DecodePort {
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  mode: string;
+  native_vlan: number | null;
+  access_vlan: number | null;
+  trunk_allowed_vlans: number[];
+}
+
+interface DecodedBackup {
+  backup_id: number;
+  switch_id: number;
+  switch_name: string;
+  protocol: string;
+  dialect: string;
+  hostname: string | null;
+  backup_taken_at: string | null;
+  vlans: DecodeVlan[];
+  ports: DecodePort[];
+  parse_warnings?: string[];
+}
+
+interface DecodeDeltaResult {
+  vlans_added: DecodeVlan[];
+  vlans_removed: DecodeVlan[];
+  ports_changed: { name: string; from: DecodePort; to: DecodePort }[];
+  ports_added: string[];
+  ports_removed: string[];
+  description_changed: string[];
+}
+
+function computeDecodeDelta(a: DecodedBackup, b: DecodedBackup): DecodeDeltaResult {
+  const vlanKey = (v: DecodeVlan) => `${v.id}=${v.name ?? ""}`;
+  const vlansA = new Set(a.vlans.map(vlanKey));
+  const vlansB = new Set(b.vlans.map(vlanKey));
+  const vlans_added = b.vlans.filter((v) => !vlansA.has(vlanKey(v)));
+  const vlans_removed = a.vlans.filter((v) => !vlansB.has(vlanKey(v)));
+
+  const portKey = (p: DecodePort) =>
+    [
+      p.mode ?? "",
+      p.native_vlan ?? "",
+      p.access_vlan ?? "",
+      (p.trunk_allowed_vlans ?? []).join(","),
+      p.enabled ? "up" : "down",
+    ].join("|");
+  const portsA = new Map(a.ports.map((p) => [p.name, { obj: p, key: portKey(p) }]));
+  const portsB = new Map(b.ports.map((p) => [p.name, { obj: p, key: portKey(p) }]));
+  const ports_changed: { name: string; from: DecodePort; to: DecodePort }[] = [];
+  for (const [name, entryB] of portsB) {
+    const entryA = portsA.get(name);
+    if (entryA && entryA.key !== entryB.key) {
+      ports_changed.push({ name, from: entryA.obj, to: entryB.obj });
+    }
+  }
+  const ports_added = [...portsB.keys()].filter((n) => !portsA.has(n));
+  const ports_removed = [...portsA.keys()].filter((n) => !portsA.has(n));
+  const description_changed = a.ports
+    .filter((pa) => portsB.has(pa.name))
+    .filter((pa) => {
+      const pb = portsB.get(pa.name);
+      return pb && (pb.obj.description ?? "") !== (pa.description ?? "");
+    })
+    .map((pa) => pa.name);
+
+  return { vlans_added, vlans_removed, ports_changed, ports_added, ports_removed, description_changed };
+}
+
+function DecodeDiffView({
+  baselineBackupId,
+  detectedBackupId,
+}: {
+  baselineBackupId: number | null;
+  detectedBackupId: number;
+}) {
+  const [detected, setDetected] = useState<DecodedBackup | null>(null);
+  const [baseline, setBaseline] = useState<DecodedBackup | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const pDetected = getNcmBackupDecodeAction(detectedBackupId);
+    const pBaseline: Promise<{ success: boolean; data?: unknown; message?: string }> = baselineBackupId
+      ? getNcmBackupDecodeAction(baselineBackupId)
+      : Promise.resolve({ success: false, message: "No baseline" });
+
+    Promise.all([pDetected, pBaseline])
+      .then(([resDet, resBase]) => {
+        if (cancelled) return;
+        if (!resDet.success || !resDet.data) {
+          setError(resDet.message || "Gagal memuat hasil decode backup dari NCM.");
+          return;
+        }
+        setDetected(resDet.data as DecodedBackup);
+        if (resBase.success && resBase.data) {
+          setBaseline(resBase.data as DecodedBackup);
+        } else {
+          setBaseline(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detectedBackupId, baselineBackupId]);
+
+  if (loading) {
+    return (
+      <div className="py-8 text-center text-ops-muted flex items-center justify-center gap-2">
+        <Clock className="size-4 animate-spin text-ops-accent" />
+        <span className="text-xs">Mendecode konfigurasi switch (VLAN &amp; Port) dari NCM…</span>
+      </div>
+    );
+  }
+
+  if (error || !detected) {
+    return (
+      <div className="p-4 m-3 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded">
+        {error || "Tidak ada data decode yang tersedia."}
+      </div>
+    );
+  }
+
+  if (!baseline) {
+    return (
+      <div className="p-4 space-y-4 text-xs font-mono">
+        <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3 text-amber-300">
+          Golden Baseline belum dikonfigurasi untuk switch ini. Menampilkan konfigurasi hasil decode Backup #{detectedBackupId}:
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-slate-400">
+            Dialect: <strong className="text-ops-accent">{detected.dialect}</strong>
+          </span>
+          {detected.hostname && (
+            <span className="text-slate-400">
+              Hostname: <strong className="text-white">{detected.hostname}</strong>
+            </span>
+          )}
+        </div>
+        <div className="space-y-1">
+          <span className="font-bold text-white text-[11px] uppercase">VLANs ({detected.vlans.length}):</span>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {detected.vlans.map((v) => (
+              <span key={v.id} className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-200">
+                VLAN {v.id} {v.name ? `(${v.name})` : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <span className="font-bold text-white text-[11px] uppercase">Ports ({detected.ports.length}):</span>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 pt-1">
+            {detected.ports.map((p) => (
+              <div key={p.name} className="rounded border border-slate-800 bg-slate-900/60 p-2.5 space-y-1 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-ops-accent">{p.name}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] ${p.enabled ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"}`}>
+                    {p.enabled ? "UP" : "DOWN"}
+                  </span>
+                </div>
+                <div className="text-slate-400">Mode: <strong className="text-slate-200">{p.mode}</strong></div>
+                {p.access_vlan && <div className="text-slate-400">Access VLAN: <strong className="text-slate-200">{p.access_vlan}</strong></div>}
+                {p.native_vlan && <div className="text-slate-400">Native VLAN: <strong className="text-slate-200">{p.native_vlan}</strong></div>}
+                {p.trunk_allowed_vlans?.length > 0 && (
+                  <div className="text-slate-400">Trunk Allowed: <strong className="text-slate-200">{p.trunk_allowed_vlans.join(", ")}</strong></div>
+                )}
+                {p.description && <div className="text-slate-500 truncate">Desc: {p.description}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const delta = computeDecodeDelta(baseline, detected);
+  const isClean =
+    delta.vlans_added.length === 0 &&
+    delta.vlans_removed.length === 0 &&
+    delta.ports_changed.length === 0 &&
+    delta.ports_added.length === 0 &&
+    delta.ports_removed.length === 0 &&
+    delta.description_changed.length === 0 &&
+    baseline.hostname === detected.hostname;
+
+  return (
+    <div className="p-4 space-y-4 text-xs font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div className="flex items-center gap-3">
+          <span className="text-slate-400 text-[11px]">
+            Dialect: <strong className="text-ops-accent font-semibold">{detected.dialect}</strong>
+          </span>
+          {detected.hostname && (
+            <span className="text-slate-400 text-[11px]">
+              Hostname: <strong className="text-white">{detected.hostname}</strong>
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            +{delta.vlans_added.length + delta.ports_added.length} ditambahkan
+          </span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+            −{delta.vlans_removed.length + delta.ports_removed.length} dihapus
+          </span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+            ~{delta.ports_changed.length + delta.description_changed.length} berubah
+          </span>
+        </div>
+      </div>
+
+      {baseline.hostname !== detected.hostname && (
+        <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3 space-y-1">
+          <span className="font-bold text-amber-300 uppercase tracking-wider text-[10px]">Perubahan Hostname:</span>
+          <div className="flex items-center gap-2">
+            <span className="text-red-400 line-through">{baseline.hostname || "—"}</span>
+            <span className="text-slate-400">→</span>
+            <span className="text-emerald-400 font-bold">{detected.hostname || "—"}</span>
+          </div>
+        </div>
+      )}
+
+      {delta.vlans_added.length > 0 && (
+        <div className="rounded border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-1.5">
+          <span className="font-bold text-emerald-400 uppercase tracking-wider text-[10px]">
+            + VLAN Ditambahkan ({delta.vlans_added.length}):
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {delta.vlans_added.map((v) => (
+              <span key={v.id} className="rounded border border-emerald-500/40 bg-emerald-950/60 px-2 py-0.5 text-[11px] text-emerald-200">
+                VLAN {v.id} {v.name ? `(${v.name})` : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {delta.vlans_removed.length > 0 && (
+        <div className="rounded border border-red-500/30 bg-red-500/10 p-3 space-y-1.5">
+          <span className="font-bold text-red-400 uppercase tracking-wider text-[10px]">
+            − VLAN Dihapus ({delta.vlans_removed.length}):
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {delta.vlans_removed.map((v) => (
+              <span key={v.id} className="rounded border border-red-500/40 bg-red-950/60 px-2 py-0.5 text-[11px] text-red-200">
+                VLAN {v.id} {v.name ? `(${v.name})` : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {delta.ports_changed.length > 0 && (
+        <div className="space-y-2">
+          <span className="font-bold text-white uppercase tracking-wider text-[11px]">
+            Port Berubah ({delta.ports_changed.length}):
+          </span>
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {delta.ports_changed.map(({ name, from, to }) => {
+              const fields: [string, string | number | boolean | null, string | number | boolean | null][] = [
+                ["Mode", from.mode, to.mode],
+                ["Access VLAN", from.access_vlan, to.access_vlan],
+                ["Native VLAN", from.native_vlan, to.native_vlan],
+                ["Trunk Allowed", (from.trunk_allowed_vlans ?? []).join(",") || "—", (to.trunk_allowed_vlans ?? []).join(",") || "—"],
+                ["Status", from.enabled ? "UP" : "DOWN", to.enabled ? "UP" : "DOWN"],
+                ["Description", from.description ?? "—", to.description ?? "—"],
+              ];
+              const diffs = fields.filter(([, f, t]) => String(f) !== String(t));
+
+              return (
+                <div key={name} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 space-y-2">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
+                    <span className="font-bold text-ops-accent text-xs">{name}</span>
+                    <span className="text-[10px] text-amber-400 font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                      {diffs.length} atribut berubah
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 text-[11px]">
+                    {diffs.map(([label, f, t]) => (
+                      <div key={label} className="flex flex-col gap-0.5">
+                        <span className="text-slate-500 font-medium text-[10px] uppercase">{label}:</span>
+                        <div className="flex items-center gap-1.5 pl-1">
+                          <span className="rounded bg-red-950/60 border border-red-500/30 px-1.5 py-0.5 text-red-300">
+                            {String(f)}
+                          </span>
+                          <span className="text-slate-500">→</span>
+                          <span className="rounded bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 text-emerald-300 font-bold">
+                            {String(t)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {delta.ports_added.length > 0 && (
+        <div className="rounded border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-1">
+          <span className="font-bold text-emerald-400 uppercase tracking-wider text-[10px]">Port Baru ({delta.ports_added.length}):</span>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {delta.ports_added.map((p) => (
+              <span key={p} className="rounded bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 text-[11px] text-emerald-200">
+                {p}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {delta.ports_removed.length > 0 && (
+        <div className="rounded border border-red-500/30 bg-red-500/10 p-3 space-y-1">
+          <span className="font-bold text-red-400 uppercase tracking-wider text-[10px]">Port Dihapus ({delta.ports_removed.length}):</span>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {delta.ports_removed.map((p) => (
+              <span key={p} className="rounded bg-red-950/60 border border-red-500/30 px-2 py-0.5 text-[11px] text-red-200">
+                {p}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isClean && (
+        <div className="py-6 px-4 text-center text-emerald-400 flex flex-col items-center gap-2 rounded border border-emerald-500/20 bg-emerald-500/5">
+          <CheckCircle2 className="size-6 text-emerald-400" />
+          <span className="font-semibold text-sm">Konfigurasi Struktural (VLAN &amp; Port) 100% Identik</span>
+          <span className="text-xs text-slate-400 max-w-lg">
+            Tidak ada perbedaan logic VLAN atau konfigurasi port antara Golden Baseline dan backup running-config ini.
+          </span>
+        </div>
+      )}
+
+      {((detected.parse_warnings?.length ?? 0) > 0 || (baseline.parse_warnings?.length ?? 0) > 0) && (
+        <div className="text-[11px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded p-2">
+          <span>Catatan parser: {[...(baseline.parse_warnings ?? []), ...(detected.parse_warnings ?? [])].join("; ")}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface SideBySideLine {
   lineA: number | null;
@@ -271,7 +723,6 @@ export function NcmConfigReview({
   const router = useRouter();
 
   const [complianceData, setComplianceData] = useState<Row | null>(null);
-  const [loadingCompliance, setLoadingCompliance] = useState(false);
   const [isSendingReminder, setIsSendingReminder] = useState(false);
   const [isTriggeringCycle, setIsTriggeringCycle] = useState(false);
   const [cycleResult, setCycleResult] = useState<Row | null>(null);
@@ -285,7 +736,7 @@ export function NcmConfigReview({
   const [loadingDiff, setLoadingDiff] = useState(false);
 
   // Diff inspection settings
-  const [viewStyle, setViewStyle] = useState<DiffViewStyle>("side-by-side");
+  const [viewStyle, setViewStyle] = useState<DiffViewStyle>("unified");
   const [activeCategory, setActiveCategory] = useState<DiffCategory>("all");
   const [hideNoise, setHideNoise] = useState(false);
 
@@ -314,18 +765,18 @@ export function NcmConfigReview({
     return new Map(switches.map((s) => [pick(s, "id", "switch_id", "switchId"), s]));
   }, [switches]);
 
+  const baselineMap = useMemo(() => {
+    return new Map(baselines.map((b) => [pick(b, "id", "baseline_id", "baselineId"), b]));
+  }, [baselines]);
+
   // Load compliance overview
   useEffect(() => {
     let cancelled = false;
-    setLoadingCompliance(true);
     getNcmComplianceAction()
       .then((res) => {
         if (!cancelled && !("message" in res)) setComplianceData(res as Row);
       })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoadingCompliance(false);
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -336,7 +787,7 @@ export function NcmConfigReview({
     if (initialSelectedId && initialSelectedId !== selected) {
       setSelected(initialSelectedId);
     }
-  }, [initialSelectedId]);
+  }, [initialSelectedId, selected]);
 
   // Fetch diff when a review is selected
   useEffect(() => {
@@ -379,19 +830,24 @@ export function NcmConfigReview({
     };
   }, [selected]);
 
-  const selectedReview = useMemo(() => {
-    return reviews.find((r) => Number(pick(r, "id", "review_id")) === selected) ?? null;
-  }, [reviews, selected]);
-
   const parsedDiffRows = useMemo(() => {
     if (!diff) return [];
     return parseUnifiedDiffToSideBySide(diff, hideNoise);
   }, [diff, hideNoise]);
 
+  const unifiedDisplay = useMemo(() => {
+    if (!diff) return { lines: [], addedCount: 0, deletedCount: 0 };
+    return parseUnifiedDiffForDisplay(diff, hideNoise);
+  }, [diff, hideNoise]);
+
   const isCleanMatch = useMemo(() => {
     if (diff === null) return false;
-    return !diff.trim() || diff === "(diff kosong / tidak ada perubahan)" || parsedDiffRows.every((r) => r.type === "equal");
-  }, [diff, parsedDiffRows]);
+    return (
+      !diff.trim() ||
+      diff === "(diff kosong / tidak ada perubahan)" ||
+      (unifiedDisplay.addedCount === 0 && unifiedDisplay.deletedCount === 0 && parsedDiffRows.every((r) => r.type === "equal"))
+    );
+  }, [diff, unifiedDisplay, parsedDiffRows]);
 
   const filteredDiffRows = useMemo(() => {
     if (activeCategory === "all") return parsedDiffRows;
@@ -753,429 +1209,434 @@ export function NcmConfigReview({
               const diffSum = (r.diff_summary as Record<string, unknown>) || {};
               const isCurrentSelected = selected === id;
 
-              return (
-                <tr key={id} className={`border-t border-slate-800 transition-colors ${isCurrentSelected ? "bg-ops-accent/10" : "hover:bg-slate-800/40"}`}>
-                  <td className="py-2.5 px-3 font-mono font-medium text-white">#{id}</td>
-                  <td className="py-2.5 px-3 font-semibold text-white">{switchName}</td>
-                  <td className="py-2.5 px-3 text-slate-300 text-xs">{formatDate(pick(r, "created_at", "createdAt"))}</td>
-                  <td className="py-2.5 px-3">
-                    <span
-                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                        status === "flagged"
-                          ? "border-red-400/25 bg-red-400/10 text-red-300"
-                          : status === "approved"
-                          ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
-                          : status === "in_review"
-                          ? "border-sky-400/25 bg-sky-400/10 text-sky-300"
-                          : "border-amber-400/25 bg-amber-400/10 text-amber-300"
-                      }`}
-                    >
-                      {STATUS_LABEL[status] ?? status.toUpperCase()}
-                    </span>
-                    {status === "approved" && reviewedAt && (
-                      <div className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-                        <CheckCircle2 className="size-3 text-emerald-400" />
-                        {formatDate(reviewedAt)}
-                      </div>
-                    )}
-                    {status === "flagged" && reviewedAt && (
-                      <div className="text-[10px] text-red-400 font-mono mt-1 flex items-center gap-1">
-                        <AlertTriangle className="size-3 text-red-400" />
-                        {formatDate(reviewedAt)}
-                      </div>
-                    )}
-                    {status === "in_review" && startedAt && (
-                      <div className="text-[10px] text-sky-400 font-mono mt-1 flex items-center gap-1">
-                        <Clock className="size-3 text-sky-400" />
-                        {formatDate(startedAt)}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3">
-                    {status === "approved" ? (
-                      <div>
-                        <span className="font-semibold text-emerald-400 text-xs">{reviewerName || "operator"}</span>
-                        <div className="text-[10px] text-slate-400">Disetujui</div>
-                      </div>
-                    ) : status === "flagged" ? (
-                      <div>
-                        <span className="font-semibold text-red-400 text-xs">{reviewerName || "operator"}</span>
-                        <div className="text-[10px] text-slate-400">Ditandai</div>
-                      </div>
-                    ) : status === "in_review" ? (
-                      <div>
-                        <span className="text-sky-400 text-xs italic">In review: {starterName || reviewerName || "operator"}</span>
-                      </div>
-                    ) : (
-                      <span className="text-slate-500 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3 text-xs text-slate-300 max-w-xs truncate" title={JSON.stringify(diffSum)}>
-                    {summaryText(diffSum)}
-                  </td>
-                  <td className="py-2.5 px-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <ActionButton
-                        size="sm"
-                        variant={isCurrentSelected ? "primary" : "secondary"}
-                        onClick={() => setSelected(isCurrentSelected ? null : id)}
-                      >
-                        <GitCompareArrows className="size-3.5" />
-                        {isCurrentSelected ? "Tutup Diff" : "Diff"}
-                      </ActionButton>
+              const blId = pick(r, "baseline_id", "baselineId");
+              const bl = baselineMap.get(blId);
+              const blDate = bl ? formatDateShort(pick(bl, "created_at", "createdAt")) : "";
+              const baselineBackupId = Number(pick(r, "baseline_backup_id") || (bl ? pick(bl, "backup_id") : 0)) || null;
+              const detectedBackupId = Number(pick(r, "backup_id"));
 
-                      {status === "pending" ? (
+              return (
+                <Fragment key={id}>
+                  <tr
+                    className={`border-t border-slate-800 transition-colors ${
+                      isCurrentSelected
+                        ? "bg-slate-900/90"
+                        : "hover:bg-slate-800/40"
+                    }`}
+                  >
+                    <td className="py-2.5 px-3 font-mono font-medium text-white">#{id}</td>
+                    <td className="py-2.5 px-3 font-semibold text-white">{switchName}</td>
+                    <td className="py-2.5 px-3 text-slate-300 text-xs">{formatDate(pick(r, "created_at", "createdAt"))}</td>
+                    <td className="py-2.5 px-3">
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                          status === "flagged"
+                            ? "border-red-400/25 bg-red-400/10 text-red-300"
+                            : status === "approved"
+                            ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                            : status === "in_review"
+                            ? "border-sky-400/25 bg-sky-400/10 text-sky-300"
+                            : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                        }`}
+                      >
+                        {STATUS_LABEL[status] ?? status.toUpperCase()}
+                      </span>
+                      {status === "approved" && reviewedAt && (
+                        <div className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                          <CheckCircle2 className="size-3 text-emerald-400" />
+                          {formatDate(reviewedAt)}
+                        </div>
+                      )}
+                      {status === "flagged" && reviewedAt && (
+                        <div className="text-[10px] text-red-400 font-mono mt-1 flex items-center gap-1">
+                          <AlertTriangle className="size-3 text-red-400" />
+                          {formatDate(reviewedAt)}
+                        </div>
+                      )}
+                      {status === "in_review" && startedAt && (
+                        <div className="text-[10px] text-sky-400 font-mono mt-1 flex items-center gap-1">
+                          <Clock className="size-3 text-sky-400" />
+                          {formatDate(startedAt)}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {status === "approved" ? (
+                        <div>
+                          <span className="font-semibold text-emerald-400 text-xs">{reviewerName || "operator"}</span>
+                          <div className="text-[10px] text-slate-400">Disetujui</div>
+                        </div>
+                      ) : status === "flagged" ? (
+                        <div>
+                          <span className="font-semibold text-red-400 text-xs">{reviewerName || "operator"}</span>
+                          <div className="text-[10px] text-slate-400">Ditandai</div>
+                        </div>
+                      ) : status === "in_review" ? (
+                        <div>
+                          <span className="text-sky-400 text-xs italic">In review: {starterName || reviewerName || "operator"}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-xs text-slate-300 max-w-xs truncate" title={JSON.stringify(diffSum)}>
+                      {summaryText(diffSum)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <ActionButton
                           size="sm"
-                          variant="secondary"
-                          onClick={() => handleStartReview(id)}
-                          title="Ambil review ini untuk dikerjakan"
+                          variant={isCurrentSelected ? "primary" : "secondary"}
+                          onClick={() => setSelected(isCurrentSelected ? null : id)}
                         >
-                          <Play className="size-3.5 text-sky-400" />
-                          Mulai Review
+                          <GitCompareArrows className="size-3.5" />
+                          {isCurrentSelected ? "Tutup Diff" : "Diff"}
                         </ActionButton>
-                      ) : status === "in_review" ? (
-                        <>
-                          <ActionButton
-                            size="sm"
-                            onClick={() => openPromoteModal(id)}
-                            className="bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
-                            title="Setujui dan jadikan backup ini sebagai Golden Baseline baru"
-                          >
-                            ★ Promote
-                          </ActionButton>
+
+                        {status === "pending" ? (
                           <ActionButton
                             size="sm"
                             variant="secondary"
-                            onClick={() => handleDecideStatus(id, "approved", "Approve drift operasional, pertahankan baseline lama")}
-                            title="Setujui perubahan ini tetapi pertahankan baseline lama"
+                            onClick={() => handleStartReview(id)}
+                            title="Ambil review ini untuk dikerjakan"
                           >
-                            ✓ Keep Old
+                            <Play className="size-3.5 text-sky-400" />
+                            Mulai Review
                           </ActionButton>
-                          <ActionButton
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDecideStatus(id, "flagged")}
-                            title="Tandai pelanggaran konfigurasi & tampilkan instruksi rollback"
-                          >
-                            Flag
-                          </ActionButton>
-                        </>
-                      ) : (
-                        <span className="text-xs text-ops-muted italic">{pick(r, "comment") ? "has note" : "selesai"}</span>
-                      )}
+                        ) : status === "in_review" ? (
+                          <>
+                            <ActionButton
+                              size="sm"
+                              onClick={() => openPromoteModal(id)}
+                              className="bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
+                              title="Setujui dan jadikan backup ini sebagai Golden Baseline baru"
+                            >
+                              ★ Promote
+                            </ActionButton>
+                            <ActionButton
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleDecideStatus(id, "approved", "Approve drift operasional, pertahankan baseline lama")}
+                              title="Setujui perubahan ini tetapi pertahankan baseline lama"
+                            >
+                              ✓ Keep Old
+                            </ActionButton>
+                            <ActionButton
+                              size="sm"
+                              variant="danger"
+                              onClick={() => handleDecideStatus(id, "flagged")}
+                              title="Tandai pelanggaran konfigurasi & tampilkan instruksi rollback"
+                            >
+                              Flag
+                            </ActionButton>
+                          </>
+                        ) : (
+                          <span className="text-xs text-ops-muted italic">{pick(r, "comment") ? "has note" : "selesai"}</span>
+                        )}
 
-                      <ActionButton
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteReview(id, switchName)}
-                        isPending={deletingId === id}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5"
-                        title="Hapus riwayat review ini"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </ActionButton>
-                    </div>
-                  </td>
-                </tr>
+                        <ActionButton
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteReview(id, switchName)}
+                          isPending={deletingId === id}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5"
+                          title="Hapus riwayat review ini"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </ActionButton>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* INLINE EXPANDED DIFF VIEWER UNDER ROW (MATCHING IMAGE 2) */}
+                  {isCurrentSelected && (
+                    <tr key={`${id}-diff`} className="border-t border-b border-slate-800 bg-[#080d17]">
+                      <td colSpan={7} className="p-0">
+                        <div>
+                          {/* Header Bar matching Image 2 */}
+                          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-2.5 border-b border-slate-800/80 bg-slate-900/70">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-mono font-medium text-slate-200">
+                                running-config vs golden baseline {blDate ? `(${blDate})` : blId ? `(#${blId})` : ""}
+                              </span>
+                              <span className="text-[11px] font-mono text-slate-500">
+                                · Review #{id} ({switchName})
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              {/* View Mode Toggle */}
+                              <div className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5 text-[11px]">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewStyle("side-by-side")}
+                                  className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
+                                    viewStyle === "side-by-side"
+                                      ? "bg-ops-accent text-slate-950 font-bold"
+                                      : "text-slate-400 hover:text-slate-200"
+                                  }`}
+                                >
+                                  Side-by-Side
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setViewStyle("unified")}
+                                  className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
+                                    viewStyle === "unified"
+                                      ? "bg-ops-accent text-slate-950 font-bold"
+                                      : "text-slate-400 hover:text-slate-200"
+                                  }`}
+                                >
+                                  Unified
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setViewStyle("decode")}
+                                  className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
+                                    viewStyle === "decode"
+                                      ? "bg-ops-accent text-slate-950 font-bold"
+                                      : "text-slate-400 hover:text-slate-200"
+                                  }`}
+                                >
+                                  Decode View
+                                </button>
+                              </div>
+
+                              {viewStyle !== "decode" && (
+                                <label className="flex items-center gap-1.5 cursor-pointer text-slate-400 text-xs hover:text-slate-200">
+                                  <input
+                                    type="checkbox"
+                                    checked={hideNoise}
+                                    onChange={(e) => setHideNoise(e.target.checked)}
+                                    className="size-3.5 rounded border-slate-700 bg-slate-900 text-ops-accent"
+                                  />
+                                  <span>Hide Noise</span>
+                                </label>
+                              )}
+
+                              {/* Badges +X -Y matching Image 2 */}
+                              {viewStyle !== "decode" && (
+                                <div className="flex items-center gap-1.5 font-mono text-xs">
+                                  {unifiedDisplay.addedCount > 0 && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400">
+                                      +{unifiedDisplay.addedCount}
+                                    </span>
+                                  )}
+                                  {unifiedDisplay.deletedCount > 0 && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold bg-red-500/20 border border-red-500/40 text-red-400">
+                                      -{unifiedDisplay.deletedCount}
+                                    </span>
+                                  )}
+                                  {unifiedDisplay.addedCount === 0 && unifiedDisplay.deletedCount === 0 && !loadingDiff && (
+                                    <span className="text-[11px] text-slate-500 font-mono">0 changes</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Diff Content */}
+                          {viewStyle === "decode" ? (
+                            <DecodeDiffView
+                              key={`${detectedBackupId}-${baselineBackupId}`}
+                              baselineBackupId={baselineBackupId}
+                              detectedBackupId={detectedBackupId}
+                            />
+                          ) : (
+                            <>
+                              {diffError && (
+                                <div className="p-4 m-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded">
+                                  {diffError}
+                                </div>
+                              )}
+
+                              {loadingDiff && (
+                                <div className="py-8 text-center text-ops-muted flex items-center justify-center gap-2">
+                                  <Clock className="size-4 animate-spin text-ops-accent" />
+                                  <span>Memuat perbandingan diff dari NCM…</span>
+                                </div>
+                              )}
+
+                              {isCleanMatch && !loadingDiff && !diffError && (
+                                <div className="py-6 px-4 text-center text-emerald-400 flex flex-col items-center gap-2">
+                                  <CheckCircle2 className="size-6 text-emerald-400" />
+                                  <span className="font-semibold text-sm">Konfigurasi 100% Identik (Tidak Ada Drift)</span>
+                                  <span className="text-xs text-slate-400">
+                                    Konfigurasi backup switch ini sesuai sepenuhnya dengan Golden Baseline.
+                                  </span>
+                                  {(status === "pending" || status === "in_review") && (
+                                    <ActionButton
+                                      type="button"
+                                      size="sm"
+                                      onClick={() => handleDecideStatus(id, "approved", "Konfirmasi sesuai: konfigurasi identik dengan baseline (tanpa drift)")}
+                                      className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30 mt-2 font-bold"
+                                    >
+                                      ✓ Konfirmasi Sesuai (Attest Clean &amp; Reset Siklus)
+                                    </ActionButton>
+                                  )}
+                                </div>
+                              )}
+
+                              {diff !== null && !loadingDiff && !isCleanMatch && viewStyle === "unified" && (
+                                <div className="py-3 px-2 font-mono text-xs overflow-x-auto max-h-[500px] bg-[#070b13]">
+                                  <div className="divide-y divide-transparent">
+                                    {unifiedDisplay.lines.map((line, idx) => (
+                                      <div
+                                        key={idx}
+                                        className={`flex items-start font-mono text-xs leading-6 px-4 py-0.5 ${
+                                          line.type === "insert"
+                                            ? "bg-emerald-950/40 text-emerald-300"
+                                            : line.type === "delete"
+                                            ? "bg-red-950/40 text-red-300"
+                                            : "text-slate-300 hover:bg-slate-900/40"
+                                        }`}
+                                      >
+                                        <span className="w-10 shrink-0 text-right pr-3 text-slate-500 select-none">
+                                          {line.lineNum}
+                                        </span>
+                                        <span
+                                          className={`w-4 shrink-0 text-center font-bold select-none ${
+                                            line.type === "insert"
+                                              ? "text-emerald-400"
+                                              : line.type === "delete"
+                                              ? "text-red-400"
+                                              : "text-transparent"
+                                          }`}
+                                        >
+                                          {line.sign}
+                                        </span>
+                                        <span className="whitespace-pre-wrap pl-3 break-all">{line.content}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {diff !== null && !loadingDiff && !isCleanMatch && viewStyle === "side-by-side" && (
+                                <div className="overflow-x-auto max-h-[500px] bg-[#070b13]">
+                                  <div className="flex flex-wrap items-center gap-1.5 p-3 border-b border-slate-800 bg-slate-900/40 text-xs">
+                                    <span className="font-semibold text-ops-muted uppercase tracking-wider text-[10px]">Filter Kategori:</span>
+                                    {(
+                                      [
+                                        ["all", "All Changes"],
+                                        ["vlan", "VLANs"],
+                                        ["interface", "Interfaces"],
+                                        ["security", "Security & AAA"],
+                                        ["system", "System/Host"],
+                                      ] as const
+                                    ).map(([cat, label]) => (
+                                      <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setActiveCategory(cat)}
+                                        className={`rounded px-2 py-0.5 font-mono text-[11px] transition-colors ${activeCategory === cat ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold" : "bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-700/50"}`}
+                                      >
+                                        {label}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-900/80 text-[11px] font-mono font-bold uppercase tracking-wider text-ops-muted">
+                                    <div className="py-2 px-3 border-r border-slate-800 text-slate-300 flex items-center justify-between">
+                                      <span>Golden Baseline (Target State)</span>
+                                      <span className="text-[10px] text-slate-500">Kiri</span>
+                                    </div>
+                                    <div className="py-2 px-3 text-slate-300 flex items-center justify-between">
+                                      <span>Current Running Config (Detected State)</span>
+                                      <span className="text-[10px] text-slate-500">Kanan</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="divide-y divide-slate-800/40 font-mono text-xs">
+                                    {filteredDiffRows.map((row, idx) => {
+                                      const bgClassA =
+                                        row.type === "delete"
+                                          ? "bg-red-500/20 text-red-200"
+                                          : row.type === "replace"
+                                          ? "bg-amber-500/20 text-amber-200"
+                                          : "text-slate-400";
+                                      const bgClassB =
+                                        row.type === "insert"
+                                          ? "bg-emerald-500/20 text-emerald-200"
+                                          : row.type === "replace"
+                                          ? "bg-emerald-500/20 text-emerald-200"
+                                          : "text-slate-400";
+
+                                      return (
+                                        <div key={idx} className="grid grid-cols-[48px_minmax(0,1fr)_48px_minmax(0,1fr)] border-b border-slate-900/60 hover:bg-slate-800/20">
+                                          <span className="py-1 px-2 text-right text-slate-500 select-none bg-slate-950/40 border-r border-slate-800/80">
+                                            {row.lineA ?? ""}
+                                          </span>
+                                          <pre className={`py-1 px-2.5 whitespace-pre-wrap break-words border-r border-slate-800/80 m-0 ${bgClassA}`}>
+                                            {row.textA}
+                                          </pre>
+                                          <span className="py-1 px-2 text-right text-slate-500 select-none bg-slate-950/40 border-r border-slate-800/80">
+                                            {row.lineB ?? ""}
+                                          </span>
+                                          <pre className={`py-1 px-2.5 whitespace-pre-wrap break-words m-0 ${bgClassB}`}>
+                                            {row.textB}
+                                          </pre>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+
+                          {/* Audit Notes Thread */}
+                          <div className="border-t border-slate-800/80 bg-slate-900/40 p-4 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
+                              <MessageSquare className="size-4 text-ops-accent" />
+                              <span>Audit Notes &amp; Evidence Trail ({notes.length})</span>
+                            </div>
+
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                              {notes.length === 0 && (
+                                <p className="text-xs text-ops-muted italic">Belum ada catatan audit pada tiket review ini.</p>
+                              )}
+                              {notes.map((n, i) => (
+                                <div key={i} className="rounded border border-slate-800 bg-slate-950/60 p-2.5 text-xs">
+                                  <div className="flex items-center justify-between text-ops-muted text-[11px] pb-1">
+                                    <span className="font-semibold text-slate-200">{pick(n, "author_name", "authorName") || `User #${pick(n, "author_id", "authorId") || "?"}`}</span>
+                                    <span>{formatDate(pick(n, "created_at", "createdAt"))}</span>
+                                  </div>
+                                  <p className="text-slate-300 whitespace-pre-wrap mt-0.5">{pick(n, "body")}</p>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="flex gap-2 pt-1">
+                              <textarea
+                                rows={2}
+                                value={noteDraft}
+                                onChange={(e) => setNoteDraft(e.target.value)}
+                                placeholder="Tambah catatan audit (mis. konfirmasi NOC, referensi tiket, justifikasi teknis)…"
+                                className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-xs text-white placeholder:text-slate-500 focus:border-ops-accent focus:outline-none"
+                              />
+                              <ActionButton
+                                type="button"
+                                variant="secondary"
+                                isPending={isAddingNote}
+                                disabled={!noteDraft.trim()}
+                                onClick={() => handleAddNote(id)}
+                                className="shrink-0"
+                              >
+                                Kirim Catatan
+                              </ActionButton>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
           </tbody>
         </table>
       </div>
-
-      {/* 4. DIFF INSPECTOR & ACTION PANEL (IDENTIK DENGAN NCM) */}
-      {selected !== null && (
-        <section className="rounded-xl border border-slate-700 bg-slate-950/80 shadow-xl overflow-hidden space-y-0">
-          {/* Header Panel */}
-          <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 bg-slate-900/90 p-4">
-            <div>
-              <div className="flex items-center gap-2 text-xs font-mono font-bold tracking-wider text-ops-accent uppercase">
-                <GitCompareArrows className="size-4" />
-                <span>REVIEW #{selected} · {pick(selectedReview || {}, "switch_name", "switchName") || `#${pick(selectedReview || {}, "switch_id")}`} · DIFF &amp; INSPECTION</span>
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-4 text-xs text-ops-muted">
-                <span>Golden Baseline: <strong className="font-mono text-slate-200">#{pick(selectedReview || {}, "baseline_backup_id", "baseline_id") || "?"}</strong></span>
-                <span>Detected Backup: <strong className="font-mono text-slate-200">#{pick(selectedReview || {}, "backup_id")}</strong></span>
-                {pick(selectedReview || {}, "status") === "approved" ? (
-                  <span className="flex items-center gap-1 text-emerald-400">
-                    <CheckCircle2 className="size-3.5 text-emerald-400" />
-                    <span>Disetujui oleh: <strong className="text-emerald-400">{pick(selectedReview || {}, "reviewed_by_name") || "operator"}</strong></span>
-                    {pick(selectedReview || {}, "reviewed_at") && (
-                      <span className="text-slate-300 font-mono">pada {formatDate(pick(selectedReview || {}, "reviewed_at"))}</span>
-                    )}
-                  </span>
-                ) : pick(selectedReview || {}, "status") === "flagged" ? (
-                  <span className="flex items-center gap-1 text-red-400">
-                    <AlertTriangle className="size-3.5 text-red-400" />
-                    <span>Ditandai oleh: <strong className="text-red-400">{pick(selectedReview || {}, "reviewed_by_name") || "operator"}</strong></span>
-                    {pick(selectedReview || {}, "reviewed_at") && (
-                      <span className="text-slate-300 font-mono">pada {formatDate(pick(selectedReview || {}, "reviewed_at"))}</span>
-                    )}
-                  </span>
-                ) : pick(selectedReview || {}, "status") === "in_review" ? (
-                  <span className="flex items-center gap-1 text-sky-400">
-                    <Clock className="size-3.5 text-sky-400" />
-                    <span>In Review by: <strong className="text-sky-400">{pick(selectedReview || {}, "started_by_name") || "operator"}</strong></span>
-                    {pick(selectedReview || {}, "started_at") && (
-                      <span className="text-slate-300 font-mono">sejak {formatDate(pick(selectedReview || {}, "started_at"))}</span>
-                    )}
-                  </span>
-                ) : (
-                  <span>Status: <strong className="text-amber-400 uppercase">PENDING REVIEW</strong></span>
-                )}
-                {pick(selectedReview || {}, "comment") && (
-                  <span>Catatan: <em className="text-slate-300">&quot;{pick(selectedReview || {}, "comment")}&quot;</em></span>
-                )}
-              </div>
-            </div>
-
-            {/* Quick action buttons in header */}
-            <div className="flex items-center gap-2">
-              {pick(selectedReview || {}, "status") === "pending" ? (
-                <ActionButton size="sm" onClick={() => handleStartReview(selected)}>
-                  <Play className="size-3.5" />
-                  Mulai Review
-                </ActionButton>
-              ) : pick(selectedReview || {}, "status") === "in_review" ? (
-                <>
-                  {isCleanMatch ? (
-                    <ActionButton
-                      size="sm"
-                      onClick={() => handleDecideStatus(selected, "approved", "Konfirmasi sesuai: konfigurasi identik dengan baseline (tanpa drift)")}
-                      className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
-                    >
-                      ✓ Konfirmasi Sesuai (Attest Clean &amp; Reset Siklus)
-                    </ActionButton>
-                  ) : (
-                    <>
-                      <ActionButton
-                        size="sm"
-                        onClick={() => openPromoteModal(selected)}
-                        className="bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
-                      >
-                        ★ Approve &amp; Promote to Baseline
-                      </ActionButton>
-                      <ActionButton
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleDecideStatus(selected, "approved", "Approve drift operasional, pertahankan baseline lama")}
-                      >
-                        ✓ Approve &amp; Pertahankan Baseline Lama
-                      </ActionButton>
-                      <ActionButton
-                        size="sm"
-                        variant="danger"
-                        onClick={() => handleDecideStatus(selected, "flagged")}
-                      >
-                        Flag &amp; Remediate
-                      </ActionButton>
-                    </>
-                  )}
-                </>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="rounded-md border border-slate-700 bg-slate-800 p-1.5 text-slate-400 hover:text-white"
-                title="Tutup inspeksi diff"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-          </header>
-
-          {/* Clean Match Banner */}
-          {isCleanMatch && (
-            <div className="m-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
-              <div>
-                <h4 className="flex items-center gap-2 text-sm font-bold text-emerald-400">
-                  <CheckCircle2 className="size-5 text-emerald-400" />
-                  Konfigurasi 100% Identik (Tidak Ada Drift)
-                </h4>
-                <p className="mt-1 text-xs text-slate-300">
-                  Konfigurasi backup terakhir switch ini sesuai sepenuhnya dengan Golden Baseline. Tidak ada perubahan konfigurasi yang memerlukan remedi.
-                </p>
-              </div>
-              {pick(selectedReview || {}, "status") === "in_review" && (
-                <ActionButton
-                  type="button"
-                  onClick={() => handleDecideStatus(selected, "approved", "Konfirmasi sesuai: konfigurasi identik dengan baseline (tanpa drift)")}
-                  className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30 font-bold"
-                >
-                  ✓ Konfirmasi Sesuai (Attest Clean &amp; Reset Siklus)
-                </ActionButton>
-              )}
-            </div>
-          )}
-
-          {/* Smart Diff Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/40 px-4 py-2.5">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-ops-muted uppercase tracking-wider text-[10px]">View:</span>
-              <button
-                type="button"
-                onClick={() => setViewStyle("side-by-side")}
-                className={`rounded px-2.5 py-1 font-mono text-xs transition-colors ${viewStyle === "side-by-side" ? "bg-ops-accent text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}
-              >
-                Side-by-Side Split
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewStyle("unified")}
-                className={`rounded px-2.5 py-1 font-mono text-xs transition-colors ${viewStyle === "unified" ? "bg-ops-accent text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}
-              >
-                Unified Raw
-              </button>
-              <label className="ml-3 flex items-center gap-1.5 cursor-pointer text-slate-300 text-xs">
-                <input
-                  type="checkbox"
-                  checked={hideNoise}
-                  onChange={(e) => setHideNoise(e.target.checked)}
-                  className="size-3.5 rounded border-slate-700"
-                />
-                Hide Noise (NTP/Uptime)
-              </label>
-            </div>
-
-            {viewStyle === "side-by-side" && (
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="font-semibold text-ops-muted uppercase tracking-wider text-[10px]">Filter:</span>
-                {(
-                  [
-                    ["all", "All Changes"],
-                    ["vlan", "VLANs"],
-                    ["interface", "Interfaces"],
-                    ["security", "Security & AAA"],
-                    ["system", "System/Host"],
-                  ] as const
-                ).map(([cat, label]) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setActiveCategory(cat)}
-                    className={`rounded px-2 py-0.5 font-mono text-[11px] transition-colors ${activeCategory === cat ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold" : "bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-700/50"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {diffError && <p className="p-4 text-sm text-red-400">{diffError}</p>}
-          {loadingDiff && <p className="p-6 text-center text-sm text-ops-muted">Memuat perbandingan diff dari NCM…</p>}
-
-          {/* Unified Raw View */}
-          {diff !== null && !loadingDiff && viewStyle === "unified" && (
-            <pre className="max-h-[500px] overflow-auto p-4 font-mono text-xs text-slate-300 whitespace-pre leading-relaxed">
-              {diff}
-            </pre>
-          )}
-
-          {/* Side-by-Side Split View */}
-          {diff !== null && !loadingDiff && viewStyle === "side-by-side" && (
-            <div className="overflow-x-auto max-h-[540px]">
-              {/* Diff Pane Headers */}
-              <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-900/80 text-[11px] font-mono font-bold uppercase tracking-wider text-ops-muted">
-                <div className="py-2 px-3 border-r border-slate-800 text-slate-300 flex items-center justify-between">
-                  <span>Golden Baseline (Target State)</span>
-                  <span className="text-[10px] text-slate-500">Kiri</span>
-                </div>
-                <div className="py-2 px-3 text-slate-300 flex items-center justify-between">
-                  <span>Current Running Config (Detected State)</span>
-                  <span className="text-[10px] text-slate-500">Kanan</span>
-                </div>
-              </div>
-
-              <div className="font-mono text-xs">
-                {filteredDiffRows.map((row, idx) => {
-                  let bgClassA = "";
-                  let bgClassB = "";
-                  if (row.type === "delete") {
-                    bgClassA = "bg-red-500/20 text-red-200";
-                    bgClassB = "bg-slate-900/30 text-slate-600";
-                  } else if (row.type === "insert") {
-                    bgClassA = "bg-slate-900/30 text-slate-600";
-                    bgClassB = "bg-emerald-500/20 text-emerald-200";
-                  } else if (row.type === "replace") {
-                    bgClassA = "bg-amber-500/20 text-amber-200";
-                    bgClassB = "bg-emerald-500/20 text-emerald-200";
-                  } else {
-                    bgClassA = "text-slate-300";
-                    bgClassB = "text-slate-300";
-                  }
-
-                  return (
-                    <div key={idx} className="grid grid-cols-[48px_minmax(0,1fr)_48px_minmax(0,1fr)] border-b border-slate-900/60 hover:bg-slate-800/20">
-                      <span className="py-1 px-2 text-right text-slate-500 select-none bg-slate-950/40 border-r border-slate-800/80">
-                        {row.lineA ?? ""}
-                      </span>
-                      <pre className={`py-1 px-2.5 whitespace-pre-wrap break-words border-r border-slate-800/80 m-0 ${bgClassA}`}>
-                        {row.textA}
-                      </pre>
-                      <span className="py-1 px-2 text-right text-slate-500 select-none bg-slate-950/40 border-r border-slate-800/80">
-                        {row.lineB ?? ""}
-                      </span>
-                      <pre className={`py-1 px-2.5 whitespace-pre-wrap break-words m-0 ${bgClassB}`}>
-                        {row.textB}
-                      </pre>
-                    </div>
-                  );
-                })}
-                {filteredDiffRows.length === 0 && (
-                  <p className="p-6 text-center text-sm text-ops-muted">
-                    Tidak ada perbedaan konfigurasi pada kategori filter ini.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Audit Notes Thread */}
-          <div className="border-t border-slate-800 bg-slate-900/40 p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
-              <MessageSquare className="size-4 text-ops-accent" />
-              <span>Audit Notes &amp; Evidence Trail ({notes.length})</span>
-            </div>
-
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {notes.length === 0 && (
-                <p className="text-xs text-ops-muted italic">Belum ada catatan audit pada tiket review ini.</p>
-              )}
-              {notes.map((n, i) => (
-                <div key={i} className="rounded border border-slate-800 bg-slate-950/60 p-2.5 border-l-2 border-l-ops-accent text-xs">
-                  <div className="flex items-center justify-between text-ops-muted text-[11px] pb-1">
-                    <span className="font-semibold text-slate-200">{pick(n, "author_name", "authorName") || `User #${pick(n, "author_id", "authorId") || "?"}`}</span>
-                    <span>{formatDate(pick(n, "created_at", "createdAt"))}</span>
-                  </div>
-                  <p className="text-slate-300 whitespace-pre-wrap mt-0.5">{pick(n, "body")}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <textarea
-                rows={2}
-                value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value)}
-                placeholder="Tambah catatan audit (mis. konfirmasi NOC, referensi tiket, justifikasi teknis)…"
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-xs text-white placeholder:text-slate-500 focus:border-ops-accent focus:outline-none"
-              />
-              <ActionButton
-                type="button"
-                variant="secondary"
-                isPending={isAddingNote}
-                disabled={!noteDraft.trim()}
-                onClick={() => handleAddNote(selected)}
-                className="shrink-0"
-              >
-                Kirim Catatan
-              </ActionButton>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* MODAL 1: APPROVE & PROMOTE TO BASELINE */}
       {promoteModalOpen && promoteReviewId !== null && (
@@ -1228,7 +1689,7 @@ export function NcmConfigReview({
                   type="submit"
                   isPending={isPromoting}
                   disabled={!promoteReason.trim()}
-                  className="bg-amber-500 text-slate-950 hover:bg-amber-400 font-bold"
+                  className="bg-amber-500 text-black hover:bg-amber-400 font-bold"
                 >
                   Konfirmasi &amp; Jadikan Baseline Baru
                 </ActionButton>

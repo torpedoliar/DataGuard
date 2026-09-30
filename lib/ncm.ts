@@ -174,6 +174,10 @@ export async function fetchNcmReviewRollback(config: NcmConnection, reviewId: nu
     return ncmGet(config, "reviews/" + reviewId + "/rollback");
 }
 
+export async function fetchNcmBackupDecode(config: NcmConnection, backupId: number): Promise<unknown> {
+    return ncmGet(config, "backups/" + backupId + "/decode");
+}
+
 export async function createNcmSwitch(config: NcmConnection, body: Record<string, unknown>): Promise<unknown> {
     const payload = { ...body };
     if (!payload.credential_id && payload.username && payload.password) {

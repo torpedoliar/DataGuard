@@ -46,6 +46,7 @@ import {
   deleteNcmCredentials,
   deleteNcmJob,
   deleteNcmSwitch,
+  fetchNcmBackupDecode,
   fetchNcmBackups,
   fetchNcmBaselines,
   fetchNcmJobs,
@@ -310,6 +311,16 @@ describe("write endpoints (ticket 02 scopes)", () => {
       comment: "sesuai change request",
     });
     expect(rollbackUrl).toBe(`${API_URL}/api/v1/reviews/4/rollback`);
+  });
+
+  it("fetches backup decoded configuration via GET /api/v1/backups/{id}/decode", async () => {
+    const fetchMock = stubFetch({ backup_id: 151, vlans: [], ports: [] });
+
+    const result = await fetchNcmBackupDecode(conn, 151);
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe(`${API_URL}/api/v1/backups/151/decode`);
+    expect(result).toEqual({ backup_id: 151, vlans: [], ports: [] });
   });
 
   it("maps a reject decision to the flagged status", async () => {

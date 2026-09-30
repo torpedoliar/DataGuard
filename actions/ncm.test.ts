@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   updateNcmCredential: vi.fn(async (..._args: unknown[]) => ({ id: 1 })),
   deleteNcmCredential: vi.fn(async (..._args: unknown[]) => null),
   fetchNcmBackupContent: vi.fn(async (..._args: unknown[]) => "hostname SW-CORE-01"),
+  fetchNcmBackupDecode: vi.fn(async (..._args: unknown[]) => ({ backup_id: 10, vlans: [], ports: [] })),
   updateNcmJob: vi.fn(async (..._args: unknown[]) => ({ ok: true })),
   triggerNcmBackup: vi.fn(async (..._args: unknown[]) => ({ backup_id: 8 })),
   createNcmBaseline: vi.fn(async (..._args: unknown[]) => ({ id: 2 })),
@@ -54,6 +55,7 @@ vi.mock("@/lib/ncm", () => ({
   updateNcmCredential: (...args: unknown[]) => mocks.updateNcmCredential(...args),
   deleteNcmCredential: (...args: unknown[]) => mocks.deleteNcmCredential(...args),
   fetchNcmBackupContent: (...args: unknown[]) => mocks.fetchNcmBackupContent(...args),
+  fetchNcmBackupDecode: (...args: unknown[]) => mocks.fetchNcmBackupDecode(...args),
   updateNcmJob: (...args: unknown[]) => mocks.updateNcmJob(...args),
   triggerNcmBackup: (...args: unknown[]) => mocks.triggerNcmBackup(...args),
   createNcmBaseline: (...args: unknown[]) => mocks.createNcmBaseline(...args),
@@ -79,6 +81,7 @@ import {
   deleteNcmCredentialAction,
   deleteNcmSwitch,
   getNcmBackupContent,
+  getNcmBackupDecodeAction,
   getNcmOverview,
   getNcmReviewDetail,
   rotateNcmCredentials,
@@ -255,6 +258,12 @@ describe("write actions", () => {
     const result = await getNcmBackupContent(10);
 
     expect(result).toMatchObject({ backupId: 10, content: "hostname SW-CORE-01" });
+  });
+
+  it("loads backup decoded configuration", async () => {
+    const result = await getNcmBackupDecodeAction(10);
+
+    expect(result).toMatchObject({ success: true, data: { backup_id: 10, vlans: [], ports: [] } });
   });
 
   it("adds, updates, and deletes credentials", async () => {

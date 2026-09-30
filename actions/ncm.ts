@@ -405,6 +405,24 @@ export async function getNcmBackupContent(backupId: number): Promise<{ backupId?
   }
 }
 
+/** Ambil hasil decode konfigurasi backup (VLAN, ports, hostname) dari NCM. */
+export async function getNcmBackupDecodeAction(backupId: number): Promise<{ success: boolean; data?: unknown; message?: string }> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { success: false, message: auth.message };
+
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) {
+    return { success: false, message: "NCM belum dikonfigurasi untuk site ini. Hubungi superadmin." };
+  }
+
+  try {
+    const data = await ncmLib.fetchNcmBackupDecode({ url: config.url, adminApiKey: config.adminApiKey }, backupId);
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 /** Sinkronkan nama perangkat dari DataGuard ke NCM berdasarkan IP address. */
 export async function syncNcmDeviceNamesAction(): Promise<NcmWriteResult> {
   const auth = await requireActiveSiteAdminAction();
