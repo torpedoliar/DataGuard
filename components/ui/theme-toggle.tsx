@@ -80,3 +80,8 @@ export function ThemeToggle() {
     </button>
   );
 }
+
+// Live dark-mode flag for client-only consumers (3D scene lighting).
+export function useIsDark(): boolean {
+  return useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot, () => false);
+}
