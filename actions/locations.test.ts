@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   verifySession: vi.fn(),
   existing: [] as unknown[],
   updateSet: vi.fn(),
+  replacedPlan: undefined as string | null | undefined,
+  deleteWhere: vi.fn(),
   saveUploadFile: vi.fn(),
   deleteUploadFile: vi.fn(),
   logAudit: vi.fn(),
@@ -33,11 +35,23 @@ vi.mock("@/db", () => ({
         return { where: () => Promise.resolve() };
       },
     }),
+    transaction: async (fn: (tx: unknown) => unknown) => fn({
+      // Row-locked read inside the transaction: the plan path the row holds
+      // now (another admin may have replaced it since `existing` was read).
+      select: () => ({ from: () => ({ where: () => ({ for: () => Promise.resolve([{ floorPlanPath: mocks.replacedPlan === undefined ? OLD : mocks.replacedPlan }]) }) }) }),
+      update: () => ({
+        set: (values: unknown) => {
+          mocks.updateSet(values);
+          return { where: () => Promise.resolve() };
+        },
+      }),
+    }),
+    delete: () => ({ where: (...args: unknown[]) => { mocks.deleteWhere(...args); return Promise.resolve(); } }),
   },
 }));
 
 import { UploadValidationError } from "@/lib/upload";
-import { updateLocation } from "./locations";
+import { deleteLocation, updateLocation } from "./locations";
 
 const OLD = "/uploads/floorplans/floorplan-3-old.png";
 const NEW = "/uploads/floorplans/floorplan-3-new.png";
@@ -58,6 +72,10 @@ beforeEach(() => {
   mocks.existing = [{ id: 3, name: "DC Room", tempThresholdC: 27, floorPlanPath: OLD }];
   mocks.saveUploadFile.mockResolvedValue(null);
   mocks.deleteUploadFile.mockResolvedValue(true);
+  mocks.replacedPlan = undefined;
+  // clearAllMocks keeps implementations: reset the ones tests override to throw.
+  mocks.updateSet.mockReset();
+  mocks.deleteWhere.mockReset();
 });
 
 describe("updateLocation floor plan", () => {
@@ -105,5 +123,39 @@ describe("updateLocation floor plan", () => {
     expect(result).toEqual({ success: false, message: "Failed to update location" });
     expect(mocks.deleteUploadFile).toHaveBeenCalledWith(NEW);
     expect(mocks.deleteUploadFile).not.toHaveBeenCalledWith(OLD);
+  });
+});
+
+describe("floor plan file lifecycle", () => {
+  it("deletes the file the UPDATE actually replaced when another admin changed it concurrently", async () => {
+    mocks.saveUploadFile.mockResolvedValue(NEW);
+    mocks.replacedPlan = "/uploads/floorplans/floorplan-3-concurrent.png";
+
+    await updateLocation(null, form({ floorPlan: png() }));
+
+    expect(mocks.deleteUploadFile).toHaveBeenCalledWith("/uploads/floorplans/floorplan-3-concurrent.png");
+    expect(mocks.deleteUploadFile).not.toHaveBeenCalledWith(OLD);
+  });
+
+  it("deleteLocation removes the location's floor-plan file", async () => {
+    const fd = new FormData();
+    fd.set("id", "3");
+
+    const result = await deleteLocation(fd);
+
+    expect(result).toMatchObject({ success: true });
+    expect(mocks.deleteWhere).toHaveBeenCalledOnce();
+    expect(mocks.deleteUploadFile).toHaveBeenCalledWith(OLD);
+  });
+
+  it("deleteLocation keeps the file when the row delete fails", async () => {
+    mocks.deleteWhere.mockImplementation(() => { throw new Error("fk violation"); });
+    const fd = new FormData();
+    fd.set("id", "3");
+
+    const result = await deleteLocation(fd);
+
+    expect(result).toMatchObject({ success: false });
+    expect(mocks.deleteUploadFile).not.toHaveBeenCalled();
   });
 });

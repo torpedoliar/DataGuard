@@ -6,7 +6,7 @@ import { Box, RotateCcw, TriangleAlert } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
 import { layoutRacks } from "./layout";
-import type { QualitySetting } from "./quality";
+import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
 
 const RackScene = dynamic(() => import("./rack-scene"), {
     ssr: false,
@@ -15,11 +15,11 @@ const RackScene = dynamic(() => import("./rack-scene"), {
 
 const QUALITY_KEY = "rack3d-quality";
 const UNASSIGNED = "Unassigned Location";
-const QUALITIES: QualitySetting[] = ["auto", "high", "medium", "low"];
 const selectClass = "h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent";
 
 interface RackView3DProps {
     racks: SceneRack[];
+    locationFilter?: string | null;
     floorPlans: Record<number, string>;
     selectedDeviceId: number | null;
     autoFocusDeviceId: number | null;
@@ -27,7 +27,7 @@ interface RackView3DProps {
     onWebglUnavailable: () => void;
 }
 
-export default function RackView3D({ racks, floorPlans, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable }: RackView3DProps) {
+export default function RackView3D({ racks, locationFilter = null, floorPlans, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable }: RackView3DProps) {
     const rooms = useMemo(() => {
         const map = new Map<string, SceneRack[]>();
         for (const r of racks) {
@@ -41,6 +41,18 @@ export default function RackView3D({ racks, floorPlans, selectedDeviceId, autoFo
     const [focusPick, setFocusPick] = useState<string | null>(null);
     const [showFree, setShowFree] = useState(false);
     const [quality, setQuality] = useState<QualitySetting>("auto");
+    // What Auto resolved to on this GPU, reported back by the scene.
+    const [autoResolved, setAutoResolved] = useState<Quality | null>(null);
+
+    // Picking a location in the filter bar opens that room.
+    const [appliedLocation, setAppliedLocation] = useState<string | null>(null);
+    if (locationFilter !== appliedLocation) {
+        setAppliedLocation(locationFilter);
+        if (locationFilter && rooms.has(locationFilter)) {
+            setRoomPick(locationFilter);
+            setFocusPick(null);
+        }
+    }
 
     // A single search hit jumps to its room and rack once; after that the
     // viewer's own room / rack / back choices win.
@@ -61,9 +73,8 @@ export default function RackView3D({ racks, floorPlans, selectedDeviceId, autoFo
 
     useEffect(() => {
         try {
-            const q = localStorage.getItem(QUALITY_KEY) as QualitySetting | null;
             // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot restore of a per-viewer preference after hydration
-            if (q && QUALITIES.includes(q)) setQuality(q);
+            setQuality(parseQualitySetting(localStorage.getItem(QUALITY_KEY)));
         } catch { /* storage blocked */ }
     }, []);
 
@@ -133,12 +144,22 @@ export default function RackView3D({ racks, floorPlans, selectedDeviceId, autoFo
                     <input type="checkbox" checked={showFree} onChange={(e) => setShowFree(e.target.checked)} className="size-4" />
                     Show free U
                 </label>
-                <select aria-label="Render quality" value={quality} onChange={(e) => pickQuality(e.target.value as QualitySetting)} className={selectClass}>
-                    <option value="auto">Quality: Auto</option>
-                    <option value="high">Quality: High</option>
-                    <option value="medium">Quality: Medium</option>
-                    <option value="low">Quality: Low</option>
-                </select>
+                <label className="flex items-center gap-2 text-sm text-ops-muted">
+                    Quality
+                    <select
+                        aria-label="Render quality"
+                        value={quality}
+                        onChange={(e) => pickQuality(parseQualitySetting(e.target.value))}
+                        title="Lower this if the 3D view feels slow. Saved in this browser."
+                        className={selectClass}
+                    >
+                        {QUALITY_SETTINGS.map((q) => (
+                            <option key={q} value={q}>
+                                {q === "auto" && autoResolved ? `Auto (${autoResolved[0].toUpperCase()}${autoResolved.slice(1)})` : QUALITY_LABELS[q]}
+                            </option>
+                        ))}
+                    </select>
+                </label>
                 {collisions > 0 && (
                     <span className="flex items-center gap-1 text-xs font-medium text-ops-warning">
                         <TriangleAlert className="h-3.5 w-3.5" />
@@ -152,6 +173,7 @@ export default function RackView3D({ racks, floorPlans, selectedDeviceId, autoFo
                     racks={roomRacks}
                     floorPlanUrl={floorPlanUrl}
                     qualitySetting={quality}
+                    onAutoQuality={setAutoResolved}
                     focusRack={focusRack}
                     onFocusRack={setFocusPick}
                     showFree={showFree}

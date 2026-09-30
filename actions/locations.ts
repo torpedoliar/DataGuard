@@ -82,25 +82,32 @@ export async function updateLocation(prevState: unknown, formData: FormData) {
         }
         const removePlan = formData.get("removeFloorPlan") === "on";
 
+        // Row lock: the file to delete is the one this UPDATE replaces, even
+        // if another admin swapped the plan after `existing` was read.
+        let oldPlan: string | null = null;
         try {
-            await db.update(locations)
-                .set({
-                    name,
-                    description,
-                    // Empty field keeps the stored threshold or defaults to 27.
-                    tempThresholdC: tempThreshold ?? existing[0]?.tempThresholdC ?? 27,
-                    // Checkbox fully determines the value (absent = unchecked).
-                    excludeTempCheck: formData.get("excludeTempCheck") === "on",
-                    // undefined = keep the stored plan.
-                    floorPlanPath: newPlan ?? (removePlan ? null : undefined),
-                })
-                .where(eq(locations.id, id));
+            await db.transaction(async (tx) => {
+                const [locked] = await tx.select({ floorPlanPath: locations.floorPlanPath })
+                    .from(locations).where(eq(locations.id, id)).for("update");
+                oldPlan = locked?.floorPlanPath ?? null;
+                await tx.update(locations)
+                    .set({
+                        name,
+                        description,
+                        // Empty field keeps the stored threshold or defaults to 27.
+                        tempThresholdC: tempThreshold ?? existing[0]?.tempThresholdC ?? 27,
+                        // Checkbox fully determines the value (absent = unchecked).
+                        excludeTempCheck: formData.get("excludeTempCheck") === "on",
+                        // undefined = keep the stored plan.
+                        floorPlanPath: newPlan ?? (removePlan ? null : undefined),
+                    })
+                    .where(eq(locations.id, id));
+            });
         } catch (error) {
             if (newPlan) await deleteUploadFile(newPlan);
             throw error;
         }
 
-        const oldPlan = existing[0]?.floorPlanPath;
         if ((newPlan || removePlan) && oldPlan) await deleteUploadFile(oldPlan);
 
         revalidatePath("/admin/locations");
@@ -135,7 +142,10 @@ export async function deleteLocation(formData: FormData) {
         if (existing.length === 0) return { success: false, message: "Location not found or unauthorized" };
 
         await db.delete(locations).where(eq(locations.id, id));
+        // Only after the row is gone: a failed delete keeps the plan it shows.
+        if (existing[0]?.floorPlanPath) await deleteUploadFile(existing[0].floorPlanPath);
         revalidatePath("/admin/locations");
+        revalidatePath("/admin/rack");
         revalidatePath("/audit/new");
         await logAudit({ action: "DELETE", entity: "location", entityId: id, entityName: existing[0]?.name });
         return { success: true, message: "Location deleted successfully" };

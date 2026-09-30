@@ -31,7 +31,7 @@ const rackSchema = z.object({
     // explicit "" = clear to null.
     floorRow: z.string().trim().max(4, "Row maksimal 4 karakter").optional()
         .transform((v) => (v === undefined ? undefined : v === "" ? null : v.toUpperCase())),
-    floorSlot: z.union([z.literal(""), z.coerce.number().int().min(1, "Slot minimal 1").max(999)]).optional()
+    floorSlot: z.union([z.literal(""), z.coerce.number().int().min(1, "Slot minimal 1").max(99, "Slot maksimal 99")]).optional()
         .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
     facing: z.enum(["front", "back"]).optional(),
 });

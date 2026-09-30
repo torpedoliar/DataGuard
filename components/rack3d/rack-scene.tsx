@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
-import { Bloom, DepthOfField, EffectComposer, N8AO, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { Bloom, DepthOfField, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
@@ -21,6 +21,7 @@ export interface RackSceneProps {
     racks: SceneRack[];
     floorPlanUrl: string | null;
     qualitySetting: QualitySetting;
+    onAutoQuality?: (q: Quality) => void;
     focusRack: string | null;
     onFocusRack: (name: string | null) => void;
     showFree: boolean;
@@ -90,30 +91,33 @@ function Lighting({ dark, b, preset }: { dark: boolean; b: Bounds; preset: (type
     );
 }
 
-function Effects({ preset, dof }: { preset: (typeof PRESETS)[Quality]; dof: boolean }) {
+function Effects({ preset, dofTarget }: { preset: (typeof PRESETS)[Quality]; dofTarget: [number, number, number] | null }) {
     if (!preset.bloom) return null; // low: renderer tone mapping, no composer
     return preset.ao ? (
         <EffectComposer multisampling={4} frameBufferType={THREE.HalfFloatType}>
             <N8AO aoRadius={0.4} distanceFalloff={0.5} intensity={2} quality="medium" halfRes />
             <Bloom mipmapBlur luminanceThreshold={1} intensity={0.9} />
-            <DepthOfField worldFocusDistance={1.6} worldFocusRange={1.4} bokehScale={dof ? 3 : 0} />
+            <DepthOfField target={dofTarget ?? [0, 0, 0]} worldFocusRange={1.4} bokehScale={dofTarget ? 3 : 0} />
             <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
             <Vignette offset={0.3} darkness={0.55} />
         </EffectComposer>
     ) : (
+        // Medium: no MSAA render targets; SMAA is the cheap edge smoothing.
         <EffectComposer multisampling={0} frameBufferType={THREE.HalfFloatType}>
             <Bloom mipmapBlur luminanceThreshold={1} intensity={0.7} />
+            <SMAA />
             <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
             <Vignette offset={0.3} darkness={0.5} />
         </EffectComposer>
     );
 }
 
-function CameraRig({ placed, b, focusRack, focusDeviceId }: {
+function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
     placed: PlacedRack<SceneRack>[];
     b: Bounds;
     focusRack: string | null;
     focusDeviceId: number | null;
+    onTarget: (p: [number, number, number]) => void;
 }) {
     const ref = useRef<CameraControls>(null);
     const cx = (b.minX + b.maxX) / 2;
@@ -162,7 +166,8 @@ function CameraRig({ placed, b, focusRack, focusDeviceId }: {
         c.smoothTime = 0.28; // fly-to <= 0.8 s
         const [px, py, pz, tx, ty, tz] = target.split(",").map(Number);
         void c.setLookAt(px, py, pz, tx, ty, tz, true);
-    }, [target]);
+        onTarget([tx, ty, tz]);
+    }, [target, onTarget]);
 
     return (
         <CameraControls
@@ -176,27 +181,30 @@ function CameraRig({ placed, b, focusRack, focusDeviceId }: {
     );
 }
 
-export default function RackScene({ racks, floorPlanUrl, qualitySetting, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice }: RackSceneProps) {
+export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice }: RackSceneProps) {
     const dark = useIsDark();
     const placed = useMemo(() => layoutRacks(racks), [racks]);
     const b = useMemo(() => bounds(placed), [placed]);
     // Auto = GPU heuristic only. No FPS monitor: with frameloop="demand" an
     // idle scene renders ~8 fps (LED blink) and would always read as slow.
     const [autoQuality] = useState<Quality>(() => initialQuality(rendererName(), isMobile()));
-    const preset = PRESETS[resolveQuality(qualitySetting, autoQuality)];
+    useEffect(() => onAutoQuality?.(autoQuality), [autoQuality, onAutoQuality]);
+    const quality = resolveQuality(qualitySetting, autoQuality);
+    const preset = PRESETS[quality];
     const accent = dark ? ACCENT.dark : ACCENT.light;
     // Other rows stand between the fly-to camera and the focused rack.
     const focusedRow = placed.find((p) => p.rack.name === focusRack)?.row;
     const bg = dark ? "#06080b" : "#dfe3e8";
+    const [focusPoint, setFocusPoint] = useState<[number, number, number]>([0, 1, 0]);
 
     return (
         <Canvas
-            key={preset.softShadows ? "soft" : "hard"}
-            shadows
+            key={quality}
+            shadows={preset.shadows}
             dpr={preset.dpr}
             frameloop="demand"
             flat={preset.bloom}
-            gl={{ antialias: true, powerPreference: "high-performance" }}
+            gl={{ antialias: !preset.bloom, powerPreference: "high-performance" }}
             camera={{ position: [0, 12, 12], fov: 38, near: 0.03, far: 120 }}
             onPointerMissed={() => onSelectDevice(null)}
         >
@@ -220,9 +228,9 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, focusRa
                     onSelectDevice={(d) => { onFocusRack(p.rack.name); onSelectDevice(d); }}
                 />
             ))}
-            <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} />
+            <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} onTarget={setFocusPoint} />
             <BlinkClock />
-            <Effects preset={preset} dof={preset.dof && !!focusRack} />
+            <Effects preset={preset} dofTarget={preset.dof && focusRack ? focusPoint : null} />
         </Canvas>
     );
 }

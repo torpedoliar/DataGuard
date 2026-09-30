@@ -52,6 +52,27 @@ describe("layoutRacks", () => {
     expect(out.Beta.collision).toBe(true);
   });
 
+  it("flags only the rack that actually duplicates a slot, not a correctly placed neighbour", () => {
+    const out = byName(layoutRacks([rack("X", "A", 1), rack("Y", "A", 1), rack("Z", "A", 2)]));
+    expect(out.X.slot).toBe(1);
+    expect(out.Z.slot).toBe(2);
+    expect(out.Z.collision).toBe(false);
+    expect(out.Y.collision).toBe(true);
+    expect(out.Y.slot).toBe(3);
+  });
+
+  it("normalises row case and whitespace so 'a' and ' A ' are one row", () => {
+    const out = byName(layoutRacks([rack("A1", "A", 1), rack("A2", " a ", 2)]));
+    expect(out.A1.z).toBeCloseTo(out.A2.z);
+    expect(out.A2.row).toBe("A");
+    expect(out.A2.x - out.A1.x).toBeCloseTo(SLOT_PITCH);
+  });
+
+  it("treats a blank row as unplaced", () => {
+    const out = byName(layoutRacks([rack("Blank", "  ", 1)]));
+    expect(out.Blank.unplaced).toBe(true);
+  });
+
   it("appends a rack with a row but no slot after the last slot", () => {
     const out = byName(layoutRacks([rack("A3", "A", 3), rack("Loose", "A", null)]));
     expect(out.Loose.slot).toBe(4);

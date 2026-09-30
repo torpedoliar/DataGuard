@@ -8,7 +8,8 @@ import type { FilteredDevice } from "@/lib/rack-filter";
 import { FACE_W, FRONT_Z, U, uToY } from "./constants";
 import { deviceKind, type DeviceKind } from "./device-kind";
 import { ledMaterial, sharedMaterials } from "./materials";
-import { labelTexture, repeated, ventTexture } from "./textures";
+import { repeated, ventTexture } from "./textures";
+import { useLabelTexture } from "./use-label-texture";
 import { FADE } from "./use-fade";
 import { useImageTexture } from "./use-image-texture";
 
@@ -138,7 +139,7 @@ function Faceplate({ kind, uh, h, opacity, glow }: { kind: DeviceKind; uh: numbe
 
 function NameTag({ device, h, opacity }: { device: FilteredDevice; h: number; opacity: number }) {
     const labelH = Math.min(0.012, h * 0.3);
-    const label = useMemo(() => labelTexture(device.name, "rgba(15,23,42,0.85)"), [device.name]);
+    const label = useLabelTexture(device.name, "rgba(15,23,42,0.85)");
     const logo = useImageTexture(device.brandLogo);
     const logoImg = logo?.image as { width: number; height: number } | undefined;
     const logoW = logoImg ? Math.min(0.05, labelH * 1.4 * (logoImg.width / logoImg.height)) : 0;

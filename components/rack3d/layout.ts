@@ -24,24 +24,41 @@ export const UNPLACED_ROW = "Unplaced";
 
 const naturally = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
+// Row key as stored by the rack action (trim + uppercase); applied here too
+// so rows written any other way (import, SQL) still merge.
+const rowKey = (row: string | null) => row?.trim().toUpperCase() || null;
+
 // Grid placement: row -> z, slot -> x. Racks without a row go to one auto
-// row (or an "Unplaced" row behind the real ones); a taken slot shifts the
-// later rack to the next free slot and flags it so the UI can warn.
+// row (or an "Unplaced" row behind the real ones). Every rack with a unique
+// explicit slot keeps it; only the later duplicates of a slot (and racks
+// with no slot) are fitted into the free slots after the row's last slot.
+// Duplicates are flagged so the UI can warn.
 export function layoutRacks<R extends LayoutRack>(racks: R[]): PlacedRack<R>[] {
     const rows = new Map<string, R[]>();
     const ordered = racks
-        .filter((r) => r.floorRow)
+        .filter((r) => rowKey(r.floorRow))
         .sort((a, b) => (a.floorSlot ?? Infinity) - (b.floorSlot ?? Infinity) || naturally(a.name, b.name));
-    for (const r of ordered) rows.set(r.floorRow!, [...(rows.get(r.floorRow!) ?? []), r]);
+    for (const r of ordered) {
+        const key = rowKey(r.floorRow)!;
+        rows.set(key, [...(rows.get(key) ?? []), r]);
+    }
 
     const rowNames = [...rows.keys()].sort(naturally);
     const out: PlacedRack<R>[] = [];
 
     rowNames.forEach((row, rowIndex) => {
         const taken = new Set<number>();
+        const deferred: { rack: R; collision: boolean }[] = [];
         for (const rack of rows.get(row)!) {
-            let slot = rack.floorSlot ?? Math.max(0, ...taken) + 1;
-            const collision = taken.has(slot);
+            if (rack.floorSlot != null && !taken.has(rack.floorSlot)) {
+                taken.add(rack.floorSlot);
+                out.push(place(rack, row, rowIndex, rack.floorSlot, false));
+            } else {
+                deferred.push({ rack, collision: rack.floorSlot != null });
+            }
+        }
+        for (const { rack, collision } of deferred) {
+            let slot = Math.max(0, ...taken) + 1;
             while (taken.has(slot)) slot++;
             taken.add(slot);
             out.push(place(rack, row, rowIndex, slot, collision));
@@ -50,7 +67,7 @@ export function layoutRacks<R extends LayoutRack>(racks: R[]): PlacedRack<R>[] {
 
     const unplacedRow = rowNames.length ? UNPLACED_ROW : "";
     racks
-        .filter((r) => !r.floorRow)
+        .filter((r) => !rowKey(r.floorRow))
         .sort((a, b) => naturally(a.name, b.name))
         .forEach((rack, i) => out.push(place(rack, unplacedRow, rowNames.length, i + 1, false)));
 
@@ -60,7 +77,7 @@ export function layoutRacks<R extends LayoutRack>(racks: R[]): PlacedRack<R>[] {
 function place<R extends LayoutRack>(rack: R, row: string, rowIndex: number, slot: number, collision: boolean): PlacedRack<R> {
     return {
         rack, row, slot, collision,
-        unplaced: !rack.floorRow,
+        unplaced: !rowKey(rack.floorRow),
         x: (slot - 1) * SLOT_PITCH,
         z: rowIndex * ROW_PITCH,
         rotationY: rack.facing === "back" ? Math.PI : 0,

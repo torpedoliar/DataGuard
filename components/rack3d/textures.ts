@@ -99,16 +99,47 @@ export const radialTexture = () => make("radial", 128, 128, (ctx) => {
     ctx.fillRect(0, 0, 128, 128);
 });
 
-// Printed label (device tag / rack sign). System font: no webfont download.
-export function labelTexture(text: string, bg: string, fg = "#f8fafc") {
-    return make(`label:${bg}:${fg}:${text}`, 512, 64, (ctx) => {
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, 512, 64);
-        ctx.fillStyle = fg;
-        ctx.font = "600 34px ui-sans-serif, system-ui, 'Segoe UI', sans-serif";
-        ctx.textBaseline = "middle";
-        let s = text;
-        while (s.length > 1 && ctx.measureText(s).width > 488) s = s.slice(0, -1);
-        ctx.fillText(s === text ? s : `${s.slice(0, -1)}…`, 12, 34);
-    }, true);
+// Printed label (device tag / rack sign / U number). System font: no
+// webfont download. One texture per distinct text, so labels are refcounted
+// and disposed with their last user instead of living in `cache` forever.
+const labels = new Map<string, { tex: THREE.CanvasTexture; users: number }>();
+
+function drawLabel(text: string, bg: string, fg: string, w: number, h: number) {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = fg;
+    ctx.font = `600 ${Math.round(h * 0.56)}px ui-sans-serif, system-ui, 'Segoe UI', sans-serif`;
+    ctx.textBaseline = "middle";
+    let s = text;
+    while (s.length > 1 && ctx.measureText(s).width > w - 12) s = s.slice(0, -1);
+    ctx.fillText(s === text ? s : `${s.slice(0, -1)}…`, 6, h / 2 + 1);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
 }
+
+export function acquireLabel(text: string, bg: string, fg = "#f8fafc", w = 256, h = 32) {
+    const key = `${w}x${h}:${bg}:${fg}:${text}`;
+    let hit = labels.get(key);
+    if (!hit) {
+        hit = { tex: drawLabel(text, bg, fg, w, h), users: 0 };
+        labels.set(key, hit);
+    }
+    hit.users++;
+    return {
+        tex: hit.tex,
+        release: () => {
+            const e = labels.get(key);
+            if (!e || --e.users > 0) return;
+            e.tex.dispose();
+            labels.delete(key);
+        },
+    };
+}
+
+export const liveLabelCount = () => labels.size;

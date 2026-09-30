@@ -210,6 +210,13 @@ describe("rack floor position (3D layout)", () => {
     expect(mocks.updateSet).not.toHaveBeenCalled();
   });
 
+  it("caps the slot at 99 so a typo cannot stretch the room across tens of metres", async () => {
+    const result = await updateRack(null, rackFormData({ floorSlot: "100" }));
+
+    expect(result).toHaveProperty("errors.floorSlot");
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+  });
+
   it("addRack defaults to front-facing with no position", async () => {
     const fd = new FormData();
     fd.set("name", "Rack C");

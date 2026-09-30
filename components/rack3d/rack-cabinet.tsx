@@ -10,7 +10,8 @@ import { freeRanges, inRack, type FreeRange } from "./free-slots";
 import type { PlacedRack } from "./layout";
 import { sharedMaterials } from "./materials";
 import { RackDevice } from "./rack-device";
-import { labelTexture, perforationTexture, railTexture, repeated } from "./textures";
+import { perforationTexture, railTexture, repeated } from "./textures";
+import { useLabelTexture } from "./use-label-texture";
 import { useFade } from "./use-fade";
 
 // Front door hinged on the left, perforated steel; swings open on focus.
@@ -41,9 +42,28 @@ function Door({ height, open }: { height: number; open: boolean }) {
     );
 }
 
-function Rails({ totalU }: { totalU: number }) {
+function UMark({ u, y }: { u: number; y: number }) {
+    const tex = useLabelTexture(String(u), "#0f172a", "#e2e8f0", 64, 32);
+    if (!tex) return null;
+    return (
+        <mesh position={[-(FACE_W / 2 + 0.012), y, FRONT_Z - 0.001]}>
+            <planeGeometry args={[0.016, 0.008]} />
+            <meshBasicMaterial map={tex} toneMapped={false} />
+        </mesh>
+    );
+}
+
+function Rails({ totalU, numbered }: { totalU: number; numbered: boolean }) {
     const h = totalU * U;
     const alpha = useMemo(() => repeated(railTexture(), 1, totalU), [totalU]);
+    // Rail U numbers: every 5U plus 1 and top, focused rack only. Number
+    // textures are refcounted ("1".."42" shared across racks), so this costs
+    // ~10 small planes, not 42 textures per rack.
+    const marks = useMemo(() => {
+        const set = new Set<number>([1, totalU]);
+        for (let u = 5; u < totalU; u += 5) set.add(u);
+        return [...set].sort((a, b) => a - b);
+    }, [totalU]);
     return (
         <>
             {[-1, 1].map((s) => (
@@ -52,15 +72,14 @@ function Rails({ totalU }: { totalU: number }) {
                     <meshStandardMaterial color="#a8adb3" metalness={0.85} roughness={0.3} alphaMap={alpha} transparent side={THREE.DoubleSide} />
                 </mesh>
             ))}
+            {numbered && marks.map((u) => <UMark key={u} u={u} y={uToY(u) + U / 2} />)}
         </>
     );
 }
 
 function Sign({ name, collision, height }: { name: string; collision: boolean; height: number }) {
-    const tex = useMemo(
-        () => labelTexture(collision ? `! ${name}` : name, collision ? "#b45309" : "#0f172a"),
-        [name, collision],
-    );
+    const tex = useLabelTexture(collision ? `! ${name}` : name, collision ? "#b45309" : "#0f172a");
+    if (!tex) return null;
     return (
         <mesh position={[0, height + 0.05, RACK_D / 2 - 0.05]}>
             <planeGeometry args={[0.5, 0.0625]} />
@@ -148,7 +167,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, se
                 {steel}
             </mesh>
 
-            <Rails totalU={totalU} />
+            <Rails totalU={totalU} numbered={focused} />
             <Sign name={rack.name} collision={placed.collision} height={H} />
 
             {devices.map((d) => (

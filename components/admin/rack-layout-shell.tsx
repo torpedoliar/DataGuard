@@ -85,6 +85,7 @@ export default function RackLayoutShell({ racks, categories, floorPlans }: RackL
             {view === "3d" ? (
                 <RackView3D
                     racks={sceneRacks}
+                    locationFilter={filters.location || null}
                     floorPlans={floorPlans}
                     selectedDeviceId={selected?.id ?? null}
                     autoFocusDeviceId={singleMatchId(filtered, filters)}
