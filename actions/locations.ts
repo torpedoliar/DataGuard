@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { verifySession } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
+import { deleteUploadFile, saveUploadFile, UploadValidationError } from "@/lib/upload";
 
 export async function getLocations() {
     const session = await verifySession();
@@ -70,19 +71,41 @@ export async function updateLocation(prevState: unknown, formData: FormData) {
         const existing = await db.select().from(locations).where(and(eq(locations.id, id), eq(locations.siteId, session.activeSiteId))).limit(1);
         if (existing.length === 0) return { success: false, message: "Location not found or unauthorized" };
 
-        await db.update(locations)
-            .set({
-                name,
-                description,
-                // Empty field keeps the stored threshold or defaults to 27.
-                tempThresholdC: tempThreshold ?? existing[0]?.tempThresholdC ?? 27,
-                // Checkbox fully determines the value (absent = unchecked).
-                excludeTempCheck: formData.get("excludeTempCheck") === "on",
-            })
-            .where(eq(locations.id, id));
+        // Save the new plan before touching the row; on any later failure the
+        // new file is removed so a failed save never orphans an upload.
+        let newPlan: string | null = null;
+        try {
+            newPlan = await saveUploadFile(formData.get("floorPlan") as File | null, `floorplan-${id}`, { kind: "logo", directory: "floorplans" });
+        } catch (error) {
+            if (error instanceof UploadValidationError) return { success: false, message: error.message };
+            throw error;
+        }
+        const removePlan = formData.get("removeFloorPlan") === "on";
+
+        try {
+            await db.update(locations)
+                .set({
+                    name,
+                    description,
+                    // Empty field keeps the stored threshold or defaults to 27.
+                    tempThresholdC: tempThreshold ?? existing[0]?.tempThresholdC ?? 27,
+                    // Checkbox fully determines the value (absent = unchecked).
+                    excludeTempCheck: formData.get("excludeTempCheck") === "on",
+                    // undefined = keep the stored plan.
+                    floorPlanPath: newPlan ?? (removePlan ? null : undefined),
+                })
+                .where(eq(locations.id, id));
+        } catch (error) {
+            if (newPlan) await deleteUploadFile(newPlan);
+            throw error;
+        }
+
+        const oldPlan = existing[0]?.floorPlanPath;
+        if ((newPlan || removePlan) && oldPlan) await deleteUploadFile(oldPlan);
 
         revalidatePath("/admin/locations");
         revalidatePath("/audit/new");
+        revalidatePath("/admin/rack");
         await logAudit({ action: "UPDATE", entity: "location", entityId: id, entityName: name, detail: description });
         return { success: true, message: "Location updated successfully" };
     } catch (error) {

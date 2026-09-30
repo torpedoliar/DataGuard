@@ -12,6 +12,7 @@ interface EditLocationModalProps {
         description: string | null;
         tempThresholdC?: number | null;
         excludeTempCheck?: boolean | null;
+        floorPlanPath?: string | null;
     };
     onClose: () => void;
 }
@@ -82,6 +83,31 @@ export default function EditLocationModal({ location, onClose }: EditLocationMod
                             />
                             <p className="mt-1 text-xs text-slate-500">
                                 Suhu lebih dari batas +3°C saat audit otomatis membuat incident.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                Floor Plan (3D view)
+                            </label>
+                            {location.floorPlanPath && (
+                                <div className="mb-2 flex items-center gap-3">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={location.floorPlanPath} alt="Current floor plan" className="h-16 w-24 rounded border border-slate-300 dark:border-slate-600 object-cover" />
+                                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                                        <input type="checkbox" name="removeFloorPlan" className="size-4 rounded border-slate-300 dark:border-slate-600" />
+                                        Remove
+                                    </label>
+                                </div>
+                            )}
+                            <input
+                                type="file"
+                                name="floorPlan"
+                                accept="image/png,image/jpeg,image/webp"
+                                className="block w-full text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 dark:file:bg-slate-700 dark:file:text-slate-200"
+                            />
+                            <p className="mt-1 text-xs text-slate-500">
+                                PNG/JPG/WebP, maks 5 MB. Dipakai sebagai lantai di tampilan 3D rack.
                             </p>
                         </div>
 

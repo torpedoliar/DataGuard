@@ -21,6 +21,7 @@ type Location = {
   description: string | null;
   tempThresholdC: number | null;
   excludeTempCheck?: boolean | null;
+  floorPlanPath?: string | null;
   createdAt: Date | null;
 };
 
