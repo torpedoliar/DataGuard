@@ -108,6 +108,16 @@ Dependencies added: `three`, `@types/three`, `@react-three/fiber`, `@react-three
 
 **Rendering:** local CC0 HDRI in `public/hdri/` (≤ 2 MB, no CDN — intranet-safe), ACES tone mapping, soft shadows, SSAO, subtle bloom on LEDs/LCDs, light vignette.
 
+### Art direction (implementer's discretion)
+
+The user delegated the visual design of the 3D scene to the implementer. The realism list above is the baseline; the implementer may refine materials, lighting, camera moves and composition freely, provided the functional requirements (§1, §3), quality presets and performance limits are kept. Chosen direction:
+
+- **Real DC, not sci-fi.** Cool-white ceiling light, black cabinets, brushed-steel rails, grey raised floor. Color comes from the equipment (LEDs, LCDs, category bezels), not from the room.
+- **Theme-aware lighting.** Light app theme = fully lit room. Dark app theme = "lights-out" mode: ceiling dimmed, faint blue cold-aisle wash, LEDs and LCDs carry the scene via bloom. Same geometry; only light intensities change.
+- **Status as light.** A rack containing a NOT OK device casts a soft red light pool on the floor in front of it, visible from room view without zooming.
+- **Cinematic but quick camera.** Intro sweep ≤ 1.5 s (skippable by any input); fly-to ≤ 0.8 s with ease-in-out; depth of field on rack focus (High preset only).
+- **Accent color** from the app's `ops-accent` token for selection outline and UI overlays, so 3D and 2D feel like one product.
+
 ### Quality presets
 
 | Preset | Shadows | SSAO | Bloom | DPR |
