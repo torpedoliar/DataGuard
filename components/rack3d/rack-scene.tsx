@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { CameraControls, Environment, Lightformer, PerformanceMonitor, SoftShadows } from "@react-three/drei";
+import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
 import { Bloom, DepthOfField, EffectComposer, N8AO, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
 import { useIsDark } from "@/components/ui/theme-toggle";
 import { FRONT_Z, RACK_D, U, rackHeight, uToY } from "./constants";
+import { inRack } from "./free-slots";
 import { bounds, layoutRacks, type Bounds, type PlacedRack } from "./layout";
 import { tickLeds } from "./materials";
-import { PRESETS, initialQuality, resolveQuality, stepDown, type Quality, type QualitySetting } from "./quality";
+import { PRESETS, initialQuality, resolveQuality, type Quality, type QualitySetting } from "./quality";
 import { RackCabinet } from "./rack-cabinet";
 import { Room } from "./room";
 
@@ -136,28 +137,32 @@ function CameraRig({ placed, b, focusRack, focusDeviceId }: {
         void c.setLookAt(...home, true);
     }, [home, cx, cz, span]);
 
+    // Camera target as a string of plain numbers: a filter keystroke rebuilds
+    // `placed` but must not re-trigger the fly-to unless the target moved.
+    const target = useMemo(() => {
+        const hit = focusDeviceId != null
+            ? placed.flatMap((p) => p.rack.devices.map((d) => ({ p, d })))
+                .find((x) => x.d.id === focusDeviceId && inRack(x.d, x.p.rack.totalU || 42))
+            : undefined;
+        const p = hit?.p ?? placed.find((x) => x.rack.name === focusRack);
+        if (!p) return home.join(",");
+        const dir = p.rotationY === 0 ? 1 : -1;
+        if (hit) {
+            const y = uToY(hit.d.rackPosition ?? 1) + ((hit.d.uHeight || 1) * U) / 2;
+            const fz = p.z + dir * FRONT_Z;
+            return [p.x + 0.25, y + 0.2, fz + dir * 1.2, p.x, y, fz].join(",");
+        }
+        const H = rackHeight(p.rack.totalU || 42);
+        return [p.x, H * 0.55, p.z + dir * (RACK_D / 2 + 2.4), p.x, H * 0.45, p.z + dir * (RACK_D / 2)].join(",");
+    }, [placed, focusRack, focusDeviceId, home]);
+
     useEffect(() => {
         const c = ref.current;
         if (!c) return;
         c.smoothTime = 0.28; // fly-to <= 0.8 s
-        const device = focusDeviceId != null
-            ? placed.flatMap((p) => p.rack.devices.map((d) => ({ p, d }))).find((x) => x.d.id === focusDeviceId)
-            : undefined;
-        const p = device?.p ?? placed.find((x) => x.rack.name === focusRack);
-        if (!p) {
-            void c.setLookAt(...home, true);
-            return;
-        }
-        const dir = p.rotationY === 0 ? 1 : -1;
-        if (device) {
-            const y = uToY(device.d.rackPosition ?? 1) + ((device.d.uHeight || 1) * U) / 2;
-            const fz = p.z + dir * FRONT_Z;
-            void c.setLookAt(p.x + 0.25, y + 0.2, fz + dir * 1.2, p.x, y, fz, true);
-        } else {
-            const H = rackHeight(p.rack.totalU || 42);
-            void c.setLookAt(p.x, H * 0.55, p.z + dir * (RACK_D / 2 + 2.4), p.x, H * 0.45, p.z + dir * (RACK_D / 2), true);
-        }
-    }, [focusRack, focusDeviceId, placed, home]);
+        const [px, py, pz, tx, ty, tz] = target.split(",").map(Number);
+        void c.setLookAt(px, py, pz, tx, ty, tz, true);
+    }, [target]);
 
     return (
         <CameraControls
@@ -175,7 +180,9 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, focusRa
     const dark = useIsDark();
     const placed = useMemo(() => layoutRacks(racks), [racks]);
     const b = useMemo(() => bounds(placed), [placed]);
-    const [autoQuality, setAutoQuality] = useState<Quality>(() => initialQuality(rendererName(), isMobile()));
+    // Auto = GPU heuristic only. No FPS monitor: with frameloop="demand" an
+    // idle scene renders ~8 fps (LED blink) and would always read as slow.
+    const [autoQuality] = useState<Quality>(() => initialQuality(rendererName(), isMobile()));
     const preset = PRESETS[resolveQuality(qualitySetting, autoQuality)];
     const accent = dark ? ACCENT.dark : ACCENT.light;
     // Other rows stand between the fly-to camera and the focused rack.
@@ -193,19 +200,19 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, focusRa
             camera={{ position: [0, 12, 12], fov: 38, near: 0.03, far: 120 }}
             onPointerMissed={() => onSelectDevice(null)}
         >
-            {qualitySetting === "auto" && <PerformanceMonitor flipflops={2} onDecline={() => setAutoQuality(stepDown)} />}
             <color attach="background" args={[bg]} />
             <fog attach="fog" args={[bg, 14, 45]} />
             <Lighting dark={dark} b={b} preset={preset} />
             <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} />
-            {placed.map((p) => (
+            {/* Raycasting and <Html> ignore visible=false, so other rows are not
+                rendered at all while a rack is focused. */}
+            {placed.filter((p) => focusedRow === undefined || p.row === focusedRow).map((p) => (
                 <RackCabinet
                     key={p.rack.name}
                     placed={p}
                     dark={dark}
                     focused={focusRack === p.rack.name}
                     faded={p.rack.dimmed || (!!focusRack && focusRack !== p.rack.name)}
-                    hidden={focusedRow !== undefined && p.row !== focusedRow}
                     showFree={showFree}
                     accent={accent}
                     selectedDeviceId={selectedDeviceId}

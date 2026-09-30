@@ -9,8 +9,11 @@ import { FACE_W, FRONT_Z, U, uToY } from "./constants";
 import { deviceKind, type DeviceKind } from "./device-kind";
 import { ledMaterial, sharedMaterials } from "./materials";
 import { labelTexture, repeated, ventTexture } from "./textures";
+import { FADE } from "./use-fade";
 import { useImageTexture } from "./use-image-texture";
 
+// Device opacity is React-driven (filter mute x rack fade); tells useFade to skip it.
+const OWN_FADE = { ownFade: true };
 const CHASSIS_D = 0.72;
 const SLIDE = 0.3;
 type Vec3 = [number, number, number];
@@ -122,7 +125,7 @@ function Faceplate({ kind, uh, h, opacity, glow }: { kind: DeviceKind; uh: numbe
         <group position={[0, 0, FRONT_Z + 0.0015]}>
             <mesh>
                 <planeGeometry args={[FACE_W, h]} />
-                <meshStandardMaterial color={FACE_COLOR[kind]} metalness={0.6} roughness={0.35} transparent={opacity < 1} opacity={opacity} emissive={glow ?? "#000000"} emissiveIntensity={glow ? 0.35 : 0} />
+                <meshStandardMaterial userData={OWN_FADE} color={FACE_COLOR[kind]} metalness={0.6} roughness={0.35} transparent={opacity < 1} opacity={opacity} emissive={glow ?? "#000000"} emissiveIntensity={glow ? 0.35 : 0} />
             </mesh>
             {kind === "server" && <ServerFace uh={uh} h={h} />}
             {kind === "network" && <NetworkFace h={h} />}
@@ -145,21 +148,22 @@ function NameTag({ device, h, opacity }: { device: FilteredDevice; h: number; op
         <group position={[0, 0, FRONT_Z + 0.0035]}>
             <mesh position={[x, y, 0]}>
                 <planeGeometry args={[0.13, labelH]} />
-                <meshBasicMaterial map={label} transparent opacity={opacity} toneMapped={false} />
+                <meshBasicMaterial userData={OWN_FADE} map={label} transparent opacity={opacity} toneMapped={false} />
             </mesh>
             {logo && (
                 <mesh position={[x + 0.065 + 0.006 + logoW / 2, y, 0]}>
                     <planeGeometry args={[logoW, labelH * 1.4]} />
-                    <meshBasicMaterial map={logo} transparent opacity={opacity} toneMapped={false} />
+                    <meshBasicMaterial userData={OWN_FADE} map={logo} transparent opacity={opacity} toneMapped={false} />
                 </mesh>
             )}
         </group>
     );
 }
 
-export function RackDevice({ device, selected, accent, onSelect }: {
+export function RackDevice({ device, selected, faded, accent, onSelect }: {
     device: FilteredDevice;
     selected: boolean;
+    faded: boolean;
     accent: string;
     onSelect: (d: FilteredDevice) => void;
 }) {
@@ -167,7 +171,7 @@ export function RackDevice({ device, selected, accent, onSelect }: {
     const h = uh * U - 0.0015;
     const y = uToY(device.rackPosition ?? 1) + (uh * U) / 2;
     const kind = deviceKind(device.categoryName, device.name);
-    const opacity = device.isMuted ? 0.12 : 1;
+    const opacity = (device.isMuted ? 0.12 : 1) * (faded ? FADE : 1);
     const slider = useRef<THREE.Group>(null);
     const [hovered, setHovered] = useState(false);
     const invalidate = useThree((s) => s.invalidate);
@@ -205,13 +209,13 @@ export function RackDevice({ device, selected, accent, onSelect }: {
                     onClick={(e) => { e.stopPropagation(); onSelect(device); }}
                 >
                     <boxGeometry args={[FACE_W, h, CHASSIS_D]} />
-                    <meshStandardMaterial color="#1c1f24" metalness={0.55} roughness={0.45} transparent={opacity < 1} opacity={opacity} />
+                    <meshStandardMaterial userData={OWN_FADE} color="#1c1f24" metalness={0.55} roughness={0.45} transparent={opacity < 1} opacity={opacity} />
                 </mesh>
                 {/* 19" mounting ears carry the category colour */}
                 {[-1, 1].map((s) => (
                     <mesh key={s} position={[s * (FACE_W / 2 + 0.011), 0, FRONT_Z + 0.001]}>
                         <boxGeometry args={[0.022, h, 0.003]} />
-                        <meshStandardMaterial color={device.categoryColor || "#64748b"} metalness={0.3} roughness={0.4} transparent={opacity < 1} opacity={opacity} />
+                        <meshStandardMaterial userData={OWN_FADE} color={device.categoryColor || "#64748b"} metalness={0.3} roughness={0.4} transparent={opacity < 1} opacity={opacity} />
                     </mesh>
                 ))}
                 <Faceplate kind={kind} uh={uh} h={h} opacity={opacity} glow={hovered || selected ? accent : null} />

@@ -95,12 +95,11 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
     );
 }
 
-export function RackCabinet({ placed, dark, focused, faded, hidden = false, showFree, accent, selectedDeviceId, onFocus, onSelectDevice }: {
+export function RackCabinet({ placed, dark, focused, faded, showFree, accent, selectedDeviceId, onFocus, onSelectDevice }: {
     placed: PlacedRack<SceneRack>;
     dark: boolean;
     focused: boolean;
     faded: boolean;
-    hidden?: boolean;
     showFree: boolean;
     accent: string;
     selectedDeviceId: number | null;
@@ -122,7 +121,6 @@ export function RackCabinet({ placed, dark, focused, faded, hidden = false, show
     return (
         <group
             ref={group}
-            visible={!hidden}
             position={[placed.x, 0, placed.z]}
             rotation-y={placed.rotationY}
             // Door/panels are hit before the devices behind them: only claim
@@ -154,7 +152,7 @@ export function RackCabinet({ placed, dark, focused, faded, hidden = false, show
             <Sign name={rack.name} collision={placed.collision} height={H} />
 
             {devices.map((d) => (
-                <RackDevice key={d.id} device={d} selected={d.id === selectedDeviceId} accent={accent} onSelect={onSelectDevice} />
+                <RackDevice key={d.id} device={d} selected={d.id === selectedDeviceId} faded={faded} accent={accent} onSelect={onSelectDevice} />
             ))}
             {free.map((r) => (
                 <FreeSpace key={r.start} range={r} ghost={showFree} labelled={focused || r.size >= 4} />

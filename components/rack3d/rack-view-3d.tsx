@@ -42,12 +42,20 @@ export default function RackView3D({ racks, floorPlans, selectedDeviceId, autoFo
     const [showFree, setShowFree] = useState(false);
     const [quality, setQuality] = useState<QualitySetting>("auto");
 
-    // A single search hit jumps to its room and rack.
-    const autoRack = autoFocusDeviceId != null ? racks.find((r) => r.devices.some((d) => d.id === autoFocusDeviceId)) : undefined;
-    const room = (autoRack && (autoRack.locationName || UNASSIGNED))
-        ?? (roomPick && rooms.has(roomPick) ? roomPick : rooms.keys().next().value ?? null);
+    // A single search hit jumps to its room and rack once; after that the
+    // viewer's own room / rack / back choices win.
+    const [appliedAuto, setAppliedAuto] = useState<number | null>(null);
+    if (autoFocusDeviceId !== appliedAuto) {
+        setAppliedAuto(autoFocusDeviceId);
+        const hit = autoFocusDeviceId != null ? racks.find((r) => r.devices.some((d) => d.id === autoFocusDeviceId)) : undefined;
+        if (hit) {
+            setRoomPick(hit.locationName || UNASSIGNED);
+            setFocusPick(hit.name);
+        }
+    }
+    const room = roomPick && rooms.has(roomPick) ? roomPick : rooms.keys().next().value ?? null;
     const roomRacks = useMemo(() => (room ? rooms.get(room) ?? [] : []), [room, rooms]);
-    const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : autoRack?.name ?? null;
+    const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;
     const collisions = useMemo(() => layoutRacks(roomRacks).filter((p) => p.collision).length, [roomRacks]);
     const floorPlanUrl = roomRacks.map((r) => (r.locationId != null ? floorPlans[r.locationId] : undefined)).find(Boolean) ?? null;
 
@@ -61,7 +69,9 @@ export default function RackView3D({ racks, floorPlans, selectedDeviceId, autoFo
 
     useEffect(() => {
         const canvas = document.createElement("canvas");
-        if (!(canvas.getContext("webgl2") || canvas.getContext("webgl"))) onWebglUnavailable();
+        const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+        if (!gl) onWebglUnavailable();
+        gl?.getExtension("WEBGL_lose_context")?.loseContext();
     }, [onWebglUnavailable]);
 
     useEffect(() => {
@@ -146,7 +156,7 @@ export default function RackView3D({ racks, floorPlans, selectedDeviceId, autoFo
                     onFocusRack={setFocusPick}
                     showFree={showFree}
                     selectedDeviceId={selectedDeviceId}
-                    focusDeviceId={selectedDeviceId ?? autoFocusDeviceId}
+                    focusDeviceId={selectedDeviceId ?? (focusRack ? autoFocusDeviceId : null)}
                     onSelectDevice={onSelectDevice}
                 />
                 {focusRack && (
