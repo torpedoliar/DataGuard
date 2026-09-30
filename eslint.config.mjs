@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     ".claude/**",
+    "hive/**",
+    "palace/**",
   ]),
   {
     // Diagnostic scripts copied into the container and run with bare `node`

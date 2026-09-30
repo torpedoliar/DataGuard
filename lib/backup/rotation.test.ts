@@ -4,6 +4,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { rotateBackups } from "./rotation";
 
+const FIXED_BASE_TIME = new Date("2026-06-15T12:00:00Z").getTime();
+
 /**
  * Create a backup file with the conventional name and mtime in the past.
  * `ageMs` controls how old the file is; the parsed date is in the filename.
@@ -11,7 +13,7 @@ import { rotateBackups } from "./rotation";
 function makeBackup(dir: string, name: string, ageMs: number): string {
   const filePath = path.join(dir, name);
   writeFileSync(filePath, "");
-  const mtime = new Date(Date.now() - ageMs);
+  const mtime = new Date(FIXED_BASE_TIME - ageMs);
   utimesSync(filePath, mtime, mtime);
   return filePath;
 }
@@ -26,9 +28,10 @@ function pad(n: number, width = 2): string {
 
 /**
  * Build an ISO-style filename `daysAgo` days ago at `hour` UTC.
+ * Uses a fixed reference date so test assertions are deterministic across months/years.
  */
 function dailyName(daysAgo: number, hour = 2): string {
-  const d = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+  const d = new Date(FIXED_BASE_TIME - daysAgo * 24 * 60 * 60 * 1000);
   const y = d.getUTCFullYear();
   const m = pad(d.getUTCMonth() + 1);
   const day = pad(d.getUTCDate());
