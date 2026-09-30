@@ -16,6 +16,9 @@ type Rack = {
     locationId: number | null;
     locationName: string | null;
     isAuditable?: boolean | null;
+    floorRow?: string | null;
+    floorSlot?: number | null;
+    facing?: string | null;
 };
 
 type Location = {

@@ -29,6 +29,10 @@ export interface RackData {
     devices: RackDevice[];
     occupiedU: number[];
     locationName: string | null;
+    locationId: number | null;
+    floorRow: string | null;
+    floorSlot: number | null;
+    facing: string | null;
 }
 
 export async function getRackLayout() {
@@ -101,6 +105,10 @@ export async function getRackLayout() {
             zone: racksTable.zone,
             totalU: racksTable.totalU,
             locationName: locations.name,
+            locationId: racksTable.locationId,
+            floorRow: racksTable.floorRow,
+            floorSlot: racksTable.floorSlot,
+            facing: racksTable.facing,
         })
         .from(racksTable)
         .leftJoin(locations, eq(racksTable.locationId, locations.id))
@@ -118,6 +126,10 @@ export async function getRackLayout() {
             devices: [],
             occupiedU: [],
             locationName: rackDef.locationName,
+            locationId: rackDef.locationId,
+            floorRow: rackDef.floorRow,
+            floorSlot: rackDef.floorSlot,
+            facing: rackDef.facing,
         });
     }
 
@@ -136,6 +148,10 @@ export async function getRackLayout() {
                 devices: [],
                 occupiedU: [],
                 locationName: device.locationName, // Fallback to device's location
+                locationId: null,
+                floorRow: null,
+                floorSlot: null,
+                facing: null,
             });
         }
 
@@ -212,4 +228,17 @@ export async function getRackStats() {
         devicesByZone,
         devicesByCategory,
     };
+}
+
+// Floor-plan image per location (active site) for the 3D rack view.
+export async function getFloorPlans(): Promise<Record<number, string>> {
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return {};
+
+    const rows = await db
+        .select({ id: locations.id, floorPlanPath: locations.floorPlanPath })
+        .from(locations)
+        .where(and(eq(locations.siteId, auth.activeSiteId), isNotNull(locations.floorPlanPath)));
+
+    return Object.fromEntries(rows.map((r) => [r.id, r.floorPlanPath as string]));
 }

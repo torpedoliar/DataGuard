@@ -118,6 +118,42 @@ export default function AddRackForm({
                     </select>
                 </div>
 
+                <div className="lg:col-span-5 grid grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Floor Row</label>
+                        <input
+                            name="floorRow"
+                            maxLength={4}
+                            placeholder="A"
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Slot</label>
+                        <input
+                            type="number"
+                            name="floorSlot"
+                            min={1}
+                            placeholder="1"
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Facing</label>
+                        <select
+                            name="facing"
+                            defaultValue="front"
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="front">Front</option>
+                            <option value="back">Back</option>
+                        </select>
+                    </div>
+                    <p className="col-span-3 text-xs text-slate-500">
+                        Posisi fisik di ruangan untuk tampilan 3D (baris, urutan, arah pintu depan). Kosongkan jika belum diketahui.
+                    </p>
+                </div>
+
                 <div className="lg:col-span-5 flex items-center gap-2">
                     <fieldset className="flex items-center gap-2">
                         <input type="hidden" name="isAuditable" value="false" />
