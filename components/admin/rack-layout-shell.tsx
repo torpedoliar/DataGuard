@@ -1,22 +1,45 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Server } from "lucide-react";
 import type { RackData, RackDevice } from "@/actions/rack-layout";
 import RackLayout from "@/components/admin/rack-layout";
-import RackFilterBar from "@/components/admin/rack-filter-bar";
+import RackFilterBar, { type RackView } from "@/components/admin/rack-filter-bar";
 import DeviceDetailPanel from "@/components/admin/device-detail-panel";
-import { applyRackFilters, EMPTY_FILTERS, hasActiveFilters, type RackFilters } from "@/lib/rack-filter";
+import RackView3D from "@/components/rack3d/rack-view-3d";
+import { applyRackFilters, applyRackFiltersForScene, EMPTY_FILTERS, hasActiveFilters, singleMatchId, type RackFilters } from "@/lib/rack-filter";
+
+const VIEW_KEY = "rack-layout-view";
 
 interface RackLayoutShellProps {
     racks: RackData[];
     categories: { id: number; name: string; color: string | null }[];
+    floorPlans: Record<number, string>;
 }
 
-export default function RackLayoutShell({ racks, categories }: RackLayoutShellProps) {
+export default function RackLayoutShell({ racks, categories, floorPlans }: RackLayoutShellProps) {
     const [filters, setFilters] = useState<RackFilters>(EMPTY_FILTERS);
     const [selected, setSelected] = useState<RackDevice | null>(null);
+    const [view, setView] = useState<RackView>("2d");
+    const [noWebgl, setNoWebgl] = useState(false);
     const filtered = useMemo(() => applyRackFilters(racks, filters), [racks, filters]);
+    const sceneRacks = useMemo(() => applyRackFiltersForScene(racks, filters), [racks, filters]);
+
+    useEffect(() => {
+        try {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot restore of the last chosen view after hydration (SSR always renders 2D)
+            if (localStorage.getItem(VIEW_KEY) === "3d") setView("3d");
+        } catch { /* storage blocked */ }
+    }, []);
+
+    const changeView = (v: RackView) => {
+        setView(v);
+        try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage blocked */ }
+    };
+    const onWebglUnavailable = useCallback(() => {
+        setNoWebgl(true);
+        setView("2d");
+    }, []);
 
     if (racks.length === 0) {
         return (
@@ -30,7 +53,15 @@ export default function RackLayoutShell({ racks, categories }: RackLayoutShellPr
 
     return (
         <div className="space-y-6">
-            <RackFilterBar racks={racks} categories={categories} filters={filters} onChange={setFilters} />
+            <RackFilterBar
+                racks={racks}
+                categories={categories}
+                filters={filters}
+                onChange={setFilters}
+                view={view}
+                onViewChange={changeView}
+                disable3d={noWebgl}
+            />
 
             <div className="rounded-xl border border-ops-border bg-ops-surface shadow-sm p-4">
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -43,16 +74,33 @@ export default function RackLayoutShell({ racks, categories }: RackLayoutShellPr
                 </div>
             </div>
 
+            {noWebgl && (
+                <p className="rounded-lg border border-ops-border bg-ops-surface px-4 py-2 text-sm text-ops-muted">
+                    3D view needs WebGL, which this browser does not provide. Showing the 2D layout.
+                </p>
+            )}
+
             <DeviceDetailPanel device={selected} onClose={() => setSelected(null)} />
 
-            <div className="overflow-x-auto">
-                <RackLayout
-                    racks={filtered}
-                    hasFilters={hasActiveFilters(filters)}
-                    onResetFilters={() => setFilters(EMPTY_FILTERS)}
+            {view === "3d" ? (
+                <RackView3D
+                    racks={sceneRacks}
+                    floorPlans={floorPlans}
+                    selectedDeviceId={selected?.id ?? null}
+                    autoFocusDeviceId={singleMatchId(filtered, filters)}
                     onSelectDevice={setSelected}
+                    onWebglUnavailable={onWebglUnavailable}
                 />
-            </div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <RackLayout
+                        racks={filtered}
+                        hasFilters={hasActiveFilters(filters)}
+                        onResetFilters={() => setFilters(EMPTY_FILTERS)}
+                        onSelectDevice={setSelected}
+                    />
+                </div>
+            )}
         </div>
     );
 }

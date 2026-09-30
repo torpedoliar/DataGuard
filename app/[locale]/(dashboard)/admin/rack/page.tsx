@@ -1,4 +1,4 @@
-import { getRackLayout, getRackStats } from "@/actions/rack-layout";
+import { getFloorPlans, getRackLayout, getRackStats } from "@/actions/rack-layout";
 import RackLayoutShell from "@/components/admin/rack-layout-shell";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
@@ -13,6 +13,7 @@ export default async function RackPage() {
 
     const racks = await getRackLayout();
     const stats = await getRackStats();
+    const floorPlans = await getFloorPlans();
     const { getCategories } = await import("@/actions/master-data");
     const categories = await getCategories();
 
@@ -87,7 +88,7 @@ export default async function RackPage() {
             )}
 
             {/* Rack Layout Visualization */}
-            <RackLayoutShell racks={racks} categories={categories} />
+            <RackLayoutShell racks={racks} categories={categories} floorPlans={floorPlans} />
         </main>
         <BottomNav />
         </>
