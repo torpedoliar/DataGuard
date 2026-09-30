@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Html, Instance, Instances, Outlines } from "@react-three/drei";
+import { Html, Instance, Instances } from "@react-three/drei";
 import type { FilteredDevice } from "@/lib/rack-filter";
 import { FACE_W, FRONT_Z, U, uToY } from "./constants";
 import { deviceKind, type DeviceKind } from "./device-kind";
@@ -16,7 +16,7 @@ const SLIDE = 0.3;
 type Vec3 = [number, number, number];
 
 const FACE_COLOR: Record<DeviceKind, string> = {
-    server: "#2b2f35", network: "#202328", storage: "#262a30", power: "#2d3035", cooling: "#2a2d31",
+    server: "#3a3f47", network: "#2c3036", storage: "#343941", power: "#3d4148", cooling: "#393d43",
 };
 
 // cols x rows cell centres across [x0, x1], vertically centred.
@@ -117,12 +117,12 @@ function PowerFace({ h }: { h: number }) {
     );
 }
 
-function Faceplate({ kind, uh, h, opacity }: { kind: DeviceKind; uh: number; h: number; opacity: number }) {
+function Faceplate({ kind, uh, h, opacity, glow }: { kind: DeviceKind; uh: number; h: number; opacity: number; glow: string | null }) {
     return (
         <group position={[0, 0, FRONT_Z + 0.0015]}>
             <mesh>
                 <planeGeometry args={[FACE_W, h]} />
-                <meshStandardMaterial color={FACE_COLOR[kind]} metalness={0.6} roughness={0.35} transparent={opacity < 1} opacity={opacity} />
+                <meshStandardMaterial color={FACE_COLOR[kind]} metalness={0.6} roughness={0.35} transparent={opacity < 1} opacity={opacity} emissive={glow ?? "#000000"} emissiveIntensity={glow ? 0.35 : 0} />
             </mesh>
             {kind === "server" && <ServerFace uh={uh} h={h} />}
             {kind === "network" && <NetworkFace h={h} />}
@@ -206,7 +206,6 @@ export function RackDevice({ device, selected, accent, onSelect }: {
                 >
                     <boxGeometry args={[FACE_W, h, CHASSIS_D]} />
                     <meshStandardMaterial color="#1c1f24" metalness={0.55} roughness={0.45} transparent={opacity < 1} opacity={opacity} />
-                    {(hovered || selected) && <Outlines thickness={2} screenspace color={accent} />}
                 </mesh>
                 {/* 19" mounting ears carry the category colour */}
                 {[-1, 1].map((s) => (
@@ -215,7 +214,7 @@ export function RackDevice({ device, selected, accent, onSelect }: {
                         <meshStandardMaterial color={device.categoryColor || "#64748b"} metalness={0.3} roughness={0.4} transparent={opacity < 1} opacity={opacity} />
                     </mesh>
                 ))}
-                <Faceplate kind={kind} uh={uh} h={h} opacity={opacity} />
+                <Faceplate kind={kind} uh={uh} h={h} opacity={opacity} glow={hovered || selected ? accent : null} />
                 <NameTag device={device} h={h} opacity={opacity} />
                 <mesh position={[FACE_W / 2 - 0.012, h / 2 - Math.min(0.008, h / 4), FRONT_Z + 0.003]} material={ledMaterial(device.status)}>
                     <sphereGeometry args={[0.0022, 12, 8]} />

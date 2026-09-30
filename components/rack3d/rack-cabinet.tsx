@@ -95,11 +95,12 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
     );
 }
 
-export function RackCabinet({ placed, dark, focused, faded, showFree, accent, selectedDeviceId, onFocus, onSelectDevice }: {
+export function RackCabinet({ placed, dark, focused, faded, hidden = false, showFree, accent, selectedDeviceId, onFocus, onSelectDevice }: {
     placed: PlacedRack<SceneRack>;
     dark: boolean;
     focused: boolean;
     faded: boolean;
+    hidden?: boolean;
     showFree: boolean;
     accent: string;
     selectedDeviceId: number | null;
@@ -121,9 +122,12 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, se
     return (
         <group
             ref={group}
+            visible={!hidden}
             position={[placed.x, 0, placed.z]}
             rotation-y={placed.rotationY}
-            onClick={(e) => { e.stopPropagation(); onFocus(); }}
+            // Door/panels are hit before the devices behind them: only claim
+            // the click while unfocused so a focused rack's devices get it.
+            onClick={focused ? undefined : (e) => { e.stopPropagation(); onFocus(); }}
         >
             <mesh position={[0, PLINTH / 2, 0]} castShadow receiveShadow>
                 <boxGeometry args={[RACK_W, PLINTH, RACK_D]} />

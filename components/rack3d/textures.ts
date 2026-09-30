@@ -27,7 +27,8 @@ export function repeated(tex: THREE.Texture, x: number, y: number) {
     return t;
 }
 
-// Alpha map: white = metal, black = hole. 16 x 16 hex-staggered holes per repeat.
+// Alpha map: white = metal, black = hole. 16 x 16 hex-staggered holes per
+// repeat, ~55% open area like a real perforated rack door.
 export const perforationTexture = () => make("perf", 256, 256, (ctx) => {
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, 256, 256);
@@ -39,7 +40,7 @@ export const perforationTexture = () => make("perf", 256, 256, (ctx) => {
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
                 const a = (Math.PI / 3) * i + Math.PI / 6;
-                ctx.lineTo(x + 5.5 * Math.cos(a), y + 5.5 * Math.sin(a));
+                ctx.lineTo(x + 7.2 * Math.cos(a), y + 7.2 * Math.sin(a));
             }
             ctx.fill();
         }

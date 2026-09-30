@@ -31,10 +31,16 @@ export interface RackSceneProps {
 // Mirrors --color-ops-accent in app/globals.css (light / dark).
 const ACCENT = { light: "#0d9488", dark: "#5eead4" };
 
-function rendererName(gl: THREE.WebGLRenderer) {
-    const ctx = gl.getContext();
+// Probe the GPU on a throwaway context so the first frame already uses the
+// right preset (switching SoftShadows after materials compiled breaks their
+// shadow samplers).
+function rendererName() {
+    const ctx = document.createElement("canvas").getContext("webgl2") ?? document.createElement("canvas").getContext("webgl");
+    if (!ctx) return "";
     const ext = ctx.getExtension("WEBGL_debug_renderer_info");
-    return String(ext ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ctx.getParameter(ctx.RENDERER));
+    const name = String(ext ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ctx.getParameter(ctx.RENDERER));
+    ctx.getExtension("WEBGL_lose_context")?.loseContext();
+    return name;
 }
 
 const isMobile = () => window.matchMedia("(pointer: coarse)").matches && window.innerWidth < 1024;
@@ -55,11 +61,15 @@ function Lighting({ dark, b, preset }: { dark: boolean; b: Bounds; preset: (type
     const span = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 2;
     return (
         <>
-            <ambientLight intensity={dark ? 0.06 : 0.3} />
-            <hemisphereLight args={[dark ? "#3b5b8a" : "#ffffff", dark ? "#05070a" : "#8f98a3", dark ? 0.25 : 0.6]} />
+            <ambientLight intensity={dark ? 0.3 : 0.55} />
+            <hemisphereLight args={[dark ? "#3b5b8a" : "#ffffff", dark ? "#05070a" : "#8f98a3", dark ? 0.7 : 1.1]} />
+            {/* Aisle fill: soft light down the rows so faceplates read */}
+            <directionalLight position={[b.maxX + 6, 2.5, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.55 : 0.9} color={dark ? "#93c5fd" : "#ffffff"} />
+            {/* Lights-out mode: faint blue wash rising from the cold-aisle tiles */}
+            {dark && <pointLight position={[(b.minX + b.maxX) / 2, 0.4, (b.minZ + b.maxZ) / 2]} color="#3b82f6" intensity={6} distance={6} decay={1.5} />}
             <directionalLight
                 position={[3, 7, 4]}
-                intensity={dark ? 0.35 : 1.3}
+                intensity={dark ? 0.5 : 1.3}
                 castShadow={preset.shadows}
                 shadow-mapSize={[2048, 2048]}
                 shadow-bias={-0.0004}
@@ -69,7 +79,7 @@ function Lighting({ dark, b, preset }: { dark: boolean; b: Bounds; preset: (type
                 shadow-camera-bottom={-span}
             />
             {preset.softShadows && <SoftShadows size={18} samples={10} focus={0.6} />}
-            <Environment key={dark ? "dark" : "light"} resolution={256} frames={1}>
+            <Environment key={dark ? "dark" : "light"} resolution={256} frames={1} environmentIntensity={dark ? 1 : 1.3}>
                 {[-3, 0, 3].flatMap((x) => [-3, 0, 3].map((z) => (
                     <Lightformer key={`${x},${z}`} form="rect" intensity={dark ? 0.5 : 2.4} position={[x, 3, z]} rotation-x={Math.PI / 2} scale={[0.8, 1.6, 1]} />
                 )))}
@@ -108,10 +118,14 @@ function CameraRig({ placed, b, focusRack, focusDeviceId }: {
     const cx = (b.minX + b.maxX) / 2;
     const cz = (b.minZ + b.maxZ) / 2;
     const span = Math.max(b.maxX - b.minX, b.maxZ - b.minZ, 2);
+    // Rows facing each other form a cold aisle: look down it at eye height.
+    // A single forward row gets a raised front three-quarter view.
+    const aisle = placed.some((p) => p.rotationY !== 0) && placed.some((p) => p.rotationY === 0);
     const home = useMemo(() => {
-        const d = Math.max(4, span * 1.1);
-        return [cx + d * 0.7, d * 0.75, cz + d, cx, 0.9, cz] as const;
-    }, [cx, cz, span]);
+        if (aisle) return [b.maxX + 4.2, 2.3, cz + 1.6, b.minX + 0.3, 0.9, cz] as [number, number, number, number, number, number];
+        const d = Math.max(4.5, span * 1.3);
+        return [cx + d * 0.45, d * 0.5, cz + d, cx, 0.9, cz] as [number, number, number, number, number, number];
+    }, [aisle, b.maxX, b.minX, cx, cz, span]);
 
     // Intro: drop in from above (<=1.5 s); any drag interrupts it.
     useEffect(() => {
@@ -161,20 +175,22 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, focusRa
     const dark = useIsDark();
     const placed = useMemo(() => layoutRacks(racks), [racks]);
     const b = useMemo(() => bounds(placed), [placed]);
-    const [autoQuality, setAutoQuality] = useState<Quality>("medium");
+    const [autoQuality, setAutoQuality] = useState<Quality>(() => initialQuality(rendererName(), isMobile()));
     const preset = PRESETS[resolveQuality(qualitySetting, autoQuality)];
     const accent = dark ? ACCENT.dark : ACCENT.light;
+    // Other rows stand between the fly-to camera and the focused rack.
+    const focusedRow = placed.find((p) => p.rack.name === focusRack)?.row;
     const bg = dark ? "#06080b" : "#dfe3e8";
 
     return (
         <Canvas
+            key={preset.softShadows ? "soft" : "hard"}
             shadows
             dpr={preset.dpr}
             frameloop="demand"
             flat={preset.bloom}
             gl={{ antialias: true, powerPreference: "high-performance" }}
             camera={{ position: [0, 12, 12], fov: 38, near: 0.03, far: 120 }}
-            onCreated={({ gl }) => setAutoQuality(initialQuality(rendererName(gl), isMobile()))}
             onPointerMissed={() => onSelectDevice(null)}
         >
             {qualitySetting === "auto" && <PerformanceMonitor flipflops={2} onDecline={() => setAutoQuality(stepDown)} />}
@@ -189,6 +205,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, focusRa
                     dark={dark}
                     focused={focusRack === p.rack.name}
                     faded={p.rack.dimmed || (!!focusRack && focusRack !== p.rack.name)}
+                    hidden={focusedRow !== undefined && p.row !== focusedRow}
                     showFree={showFree}
                     accent={accent}
                     selectedDeviceId={selectedDeviceId}
