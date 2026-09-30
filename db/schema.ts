@@ -133,6 +133,9 @@ export const locations = pgTable("locations", {
   // Exclude this room's temperature input from the audit form even when it
   // has a threshold (e.g. measured elsewhere, noise, already flagged).
   excludeTempCheck: boolean("exclude_temp_check").default(false),
+  // Optional floor-plan image (/uploads/floorplans/...) used as the floor
+  // texture of the 3D rack view.
+  floorPlanPath: text("floor_plan_path"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -149,6 +152,10 @@ export const racks = pgTable("racks", {
   location: text("location"),
   locationId: integer("location_id").references(() => locations.id),
   isAuditable: boolean("is_auditable").default(true),
+  // Physical grid position for the 3D view (row "A", slot 1..n, door facing).
+  floorRow: text("floor_row"),
+  floorSlot: integer("floor_slot"),
+  facing: text("facing").default("front"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   siteNameUnique: uniqueIndex("racks_site_name_lower_unique").on(table.siteId, sql`lower(${table.name})`),

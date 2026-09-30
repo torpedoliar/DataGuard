@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   deleteWhere: vi.fn(),
   updateSet: vi.fn(),
   logAudit: vi.fn(),
+  insertValues: vi.fn(),
 }));
 
 vi.mock("../lib/action-auth", () => ({
@@ -48,10 +49,11 @@ vi.mock("../db", () => ({
     },
     delete: () => ({ where: (...args: unknown[]) => mocks.deleteWhere(...args) }),
     update: () => ({ set: (...args: unknown[]) => mocks.updateSet(...args) }),
+    insert: () => ({ values: (...args: unknown[]) => mocks.insertValues(...args) }),
   },
 }));
 
-import { deleteRack, updateRack } from "./rack-management";
+import { addRack, deleteRack, updateRack } from "./rack-management";
 
 const adminAuth = {
   ok: true,
@@ -79,6 +81,7 @@ beforeEach(() => {
   mocks.findRack.mockResolvedValue({ id: 5, name: "Rack A", zone: "DC-1", totalU: 42 });
   mocks.deleteWhere.mockResolvedValue(undefined);
   mocks.updateSet.mockResolvedValue(undefined);
+  mocks.insertValues.mockResolvedValue(undefined);
 });
 
 describe("deleteRack (finding #11: refuse while devices reference the rack)", () => {
@@ -166,6 +169,57 @@ describe("updateRack partial updates (finding #64)", () => {
 
     expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({
       zone: "DC-1",
+    }));
+  });
+});
+describe("rack floor position (3D layout)", () => {
+  it("normalizes the row to trimmed uppercase and stores slot + facing", async () => {
+    await updateRack(null, rackFormData({ floorRow: " b ", floorSlot: "3", facing: "back" }));
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({
+      floorRow: "B",
+      floorSlot: 3,
+      facing: "back",
+    }));
+  });
+
+  it("clears an emptied row and slot to null", async () => {
+    await updateRack(null, rackFormData({ floorRow: "", floorSlot: "" }));
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({
+      floorRow: null,
+      floorSlot: null,
+    }));
+  });
+
+  it("leaves the stored position untouched when the form omits the fields", async () => {
+    await updateRack(null, rackFormData({ name: "Rack B" }));
+
+    const set = mocks.updateSet.mock.calls[0][0] as Record<string, unknown>;
+    expect(set.floorRow).toBeUndefined();
+    expect(set.floorSlot).toBeUndefined();
+    expect(set.facing).toBeUndefined();
+  });
+
+  it("rejects slot 0, a row longer than 4 chars and an unknown facing", async () => {
+    const result = await updateRack(null, rackFormData({ floorRow: "ABCDE", floorSlot: "0", facing: "sideways" }));
+
+    expect(result).toHaveProperty("errors.floorRow");
+    expect(result).toHaveProperty("errors.floorSlot");
+    expect(result).toHaveProperty("errors.facing");
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+  });
+
+  it("addRack defaults to front-facing with no position", async () => {
+    const fd = new FormData();
+    fd.set("name", "Rack C");
+
+    await addRack(null, fd);
+
+    expect(mocks.insertValues).toHaveBeenCalledWith(expect.objectContaining({
+      floorRow: null,
+      floorSlot: null,
+      facing: "front",
     }));
   });
 });

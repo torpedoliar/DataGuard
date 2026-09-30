@@ -27,6 +27,13 @@ const rackSchema = z.object({
     // of an FK violation on locations.id=0.
     locationId: z.coerce.number().optional().transform((v) => (v === 0 ? null : v)),
     isAuditable: formBoolean.optional(),
+    // 3D floor position. Omitted field = keep stored value (partial update);
+    // explicit "" = clear to null.
+    floorRow: z.string().trim().max(4, "Row maksimal 4 karakter").optional()
+        .transform((v) => (v === undefined ? undefined : v === "" ? null : v.toUpperCase())),
+    floorSlot: z.union([z.literal(""), z.coerce.number().int().min(1, "Slot minimal 1").max(999)]).optional()
+        .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
+    facing: z.enum(["front", "back"]).optional(),
 });
 
 // Get all racks (filtered by active site)
@@ -44,6 +51,9 @@ export async function getRacks() {
         locationName: locations.name,
         createdAt: racks.createdAt,
         isAuditable: racks.isAuditable,
+        floorRow: racks.floorRow,
+        floorSlot: racks.floorSlot,
+        facing: racks.facing,
     })
         .from(racks)
         .leftJoin(locations, eq(racks.locationId, locations.id))
@@ -120,6 +130,9 @@ export async function addRack(prevState: unknown, formData: FormData) {
             totalU: parsed.data.totalU || 42,
             locationId: parsed.data.locationId || null,
             isAuditable: parsed.data.isAuditable ?? true,
+            floorRow: parsed.data.floorRow ?? null,
+            floorSlot: parsed.data.floorSlot ?? null,
+            facing: parsed.data.facing ?? "front",
         });
 
         revalidatePath("/admin/rack-manage");
@@ -165,6 +178,9 @@ export async function updateRack(prevState: unknown, formData: FormData) {
             totalU: parsed.data.totalU,
             locationId: parsed.data.locationId,
             isAuditable: parsed.data.isAuditable ?? current.isAuditable,
+            floorRow: parsed.data.floorRow,
+            floorSlot: parsed.data.floorSlot,
+            facing: parsed.data.facing,
         }).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
 
         // Cascade rename to devices referencing this rack by name
