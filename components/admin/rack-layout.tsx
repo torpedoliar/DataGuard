@@ -1,17 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { RackData, RackDevice } from "@/actions/rack-layout";
+import type { RackDevice } from "@/actions/rack-layout";
 import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor, useDraggable, useDroppable } from "@dnd-kit/core";
-import { Server, Network, Zap, Wind, XCircle, Search, Filter, X, MapPin } from "lucide-react";
+import { Server, Network, Zap, Wind, XCircle, Search, MapPin } from "lucide-react";
+import type { FilteredRack } from "@/lib/rack-filter";
 
 interface RackLayoutProps {
-    racks: RackData[];
-    categories: {
-        id: number;
-        name: string;
-        color: string | null;
-    }[];
+    racks: FilteredRack[];
+    hasFilters: boolean;
+    onResetFilters: () => void;
+    onSelectDevice: (device: RackDevice) => void;
 }
 
 const renderCategoryIcon = (categoryName: string | null, className?: string) => {
@@ -150,19 +149,10 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
     );
 }
 
-export default function RackLayout({ racks, categories }: RackLayoutProps) {
-    const [selectedDevice, setSelectedDevice] = useState<RackDevice | null>(null);
+export default function RackLayout({ racks, hasFilters, onResetFilters, onSelectDevice }: RackLayoutProps) {
     const [isDragging, setIsDragging] = useState(false);
     const [isClient, setIsClient] = useState(false);
 
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedZone, setSelectedZone] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState("");
-    const [selectedStatus, setSelectedStatus] = useState("");
-    const [selectedLocation, setSelectedLocation] = useState("");
-
-    const uniqueZones = Array.from(new Set(racks.map(r => r.zone).filter(Boolean))).sort() as string[];
-    const uniqueLocations = Array.from(new Set(racks.map(r => r.locationName).filter(Boolean))).sort() as string[];
 
     useEffect(() => { setIsClient(true); }, []);
 
@@ -191,24 +181,7 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
         } catch { alert("Failed to move device. Please try again."); }
     };
 
-    const processedRacks = racks.map(rack => {
-        const processedDevices = rack.devices.map(device => {
-            const matchesSearch = !searchQuery ||
-                device.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (device.brandName && device.brandName.toLowerCase().includes(searchQuery.toLowerCase()));
-            const matchesCategory = !selectedCategory || device.categoryName === selectedCategory;
-            const matchesStatus = !selectedStatus || device.status === selectedStatus;
-            const isMatch = matchesSearch && matchesCategory && matchesStatus;
-            return { ...device, isMuted: !isMatch && !!(searchQuery || selectedCategory || selectedStatus || selectedZone) };
-        });
-        const matchesZone = !selectedZone || rack.zone === selectedZone;
-        const matchesLocation = !selectedLocation || rack.locationName === selectedLocation;
-        const rackNameMatches = !searchQuery || rack.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const hasMatchingDevices = processedDevices.some(d => !d.isMuted);
-        const hasFiltersActive = !!(searchQuery || selectedCategory || selectedStatus || selectedZone || selectedLocation);
-        const shouldShow = !hasFiltersActive || (matchesZone && matchesLocation && (rackNameMatches || hasMatchingDevices));
-        return { ...rack, devices: processedDevices, shouldShow, hasMatchingDevices };
-    }).filter(r => r.shouldShow);
+    const processedRacks = racks;
 
     const groupedRacks = processedRacks.reduce((groups, rack) => {
         const loc = rack.locationName || "Unassigned Location";
@@ -217,7 +190,7 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
         return groups;
     }, {} as Record<string, typeof processedRacks>);
 
-    const renderRackSlots = (rack: RackData & { devices: (RackDevice & { isMuted?: boolean })[] }) => {
+    const renderRackSlots = (rack: FilteredRack) => {
         const slots: React.ReactNode[] = [];
         const totalU = rack.totalU || 42;
         for (let u = totalU; u >= 1; u--) {
@@ -230,9 +203,9 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
             if (device) {
                 const uHeight = device.uHeight || 1;
                 const topRow = totalU - (u + uHeight - 1) + 1;
-                const isMuted = "isMuted" in device && device.isMuted === true;
+                const isMuted = device.isMuted;
                 slots.push(
-                    <DraggableDevice key={`device-${device.id}`} device={device} categoryName={device.categoryName} gridRow={topRow} isMuted={isMuted} onSelect={setSelectedDevice} />
+                    <DraggableDevice key={`device-${device.id}`} device={device} categoryName={device.categoryName} gridRow={topRow} isMuted={isMuted} onSelect={onSelectDevice} />
                 );
             }
             slots.push(
@@ -242,20 +215,6 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
         return slots;
     };
 
-    const resetFilters = () => {
-        setSearchQuery(""); setSelectedCategory(""); setSelectedZone(""); setSelectedStatus(""); setSelectedLocation("");
-    };
-    const hasFilters = searchQuery || selectedCategory || selectedZone || selectedStatus || selectedLocation;
-
-    if (racks.length === 0) {
-        return (
-            <div className="text-center py-12 text-ops-muted">
-                <Server className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium text-ops-text">No rack data available</p>
-                <p className="text-sm mt-2">Add devices with rack positions to see the layout</p>
-            </div>
-        );
-    }
 
     if (!isClient) {
         return (
@@ -288,121 +247,11 @@ export default function RackLayout({ racks, categories }: RackLayoutProps) {
             onDragEnd={handleDragEnd}
         >
             <div className="space-y-6">
-
-                {/* ── Search & Filter Toolbar ── */}
-                <div className="rounded-xl border border-ops-border bg-ops-surface shadow-sm p-4 flex flex-col xl:flex-row gap-3 items-start xl:items-center">
-                    <div className="relative flex-1 w-full">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ops-muted" />
-                        <input
-                            type="text"
-                            placeholder="Search device, brand, or rack…"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full h-9 pl-9 pr-8 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text placeholder:text-ops-muted focus:ring-1 focus:ring-ops-accent focus:border-ops-accent outline-none transition-all"
-                        />
-                        {searchQuery && (
-                            <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text">
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        )}
-                    </div>
-                    <div className="flex w-full xl:w-auto gap-2 overflow-x-auto pb-1 xl:pb-0 items-center no-scrollbar">
-                        <div className="flex items-center gap-1.5 text-ops-muted text-xs whitespace-nowrap shrink-0">
-                            <Filter className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">Filter:</span>
-                        </div>
-                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)}
-                            className="h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent min-w-[120px]">
-                            <option value="">All Zones</option>
-                            {uniqueZones.map(z => <option key={z} value={z}>{z}</option>)}
-                        </select>
-                        <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}
-                            className="h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent min-w-[120px]">
-                            <option value="">All Locations</option>
-                            {uniqueLocations.map(l => <option key={l} value={l}>{l}</option>)}
-                        </select>
-                        <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent min-w-[120px]">
-                            <option value="">All Categories</option>
-                            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                        </select>
-                        <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent min-w-[110px]">
-                            <option value="">All Status</option>
-                            <option value="OK">OK</option>
-                            <option value="NOT OK">NOT OK</option>
-                            <option value="Pending">Pending</option>
-                        </select>
-                        {hasFilters && (
-                            <button onClick={resetFilters} className="h-9 px-3 text-sm text-ops-muted hover:text-ops-text flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-ops-border hover:border-ops-muted transition-colors">
-                                <X className="h-3 w-3" /> Reset
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {/* ── Legend ── */}
-                <div className="rounded-xl border border-ops-border bg-ops-surface shadow-sm p-4">
-                    <div className="flex flex-wrap gap-x-6 gap-y-2">
-                        {categories.map((cat) => (
-                            <div key={cat.id} className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-sm shadow-sm ring-1 ring-black/5" style={{ backgroundColor: cat.color || "#3b82f6" }}></div>
-                                <span className="text-xs text-ops-muted">{cat.name}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* ── Device Detail Modal ── */}
-                {selectedDevice && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedDevice(null)}>
-                        <div className="bg-ops-surface rounded-xl shadow-xl max-w-md w-full p-6 border border-ops-border" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-bold text-ops-text">Device Details</h3>
-                                <button onClick={() => setSelectedDevice(null)} className="text-ops-muted hover:text-ops-text">
-                                    <XCircle className="h-5 w-5" />
-                                </button>
-                            </div>
-                            {selectedDevice.photoPath && (
-                                <div className="mb-4">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={selectedDevice.photoPath} alt={selectedDevice.name} className="w-full h-40 object-cover rounded-lg border border-ops-border" />
-                                </div>
-                            )}
-                            <div className="space-y-3">
-                                {[
-                                    ["Name", selectedDevice.name],
-                                    ["Brand", selectedDevice.brandName || "-"],
-                                    ["Category", selectedDevice.categoryName],
-                                    ["Location", selectedDevice.locationName || "-"],
-                                    ["Rack", selectedDevice.rackName],
-                                    ["Position", `U${selectedDevice.rackPosition}`],
-                                    ["Zone", selectedDevice.zone || "-"],
-                                ].map(([label, value]) => (
-                                    <div key={label}>
-                                        <label className="text-xs text-ops-muted">{label}</label>
-                                        <p className="font-medium text-ops-text">{value}</p>
-                                    </div>
-                                ))}
-                                <div>
-                                    <label className="text-xs text-ops-muted">Status</label>
-                                    <p className={`font-medium ${
-                                        selectedDevice.status === 'NOT OK' ? 'text-ops-danger' :
-                                        selectedDevice.status === 'OK' ? 'text-ops-success' : 'text-ops-muted'
-                                    }`}>
-                                        {selectedDevice.status || "Pending"}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {hasFilters && processedRacks.length === 0 && (
                     <div className="text-center py-12 text-ops-muted">
                         <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p className="text-lg font-medium text-ops-text">No racks or devices match your filters</p>
-                        <button onClick={resetFilters} className="mt-4 text-ops-accent hover:text-ops-text text-sm">Clear all filters</button>
+                        <button onClick={onResetFilters} className="mt-4 text-ops-accent hover:text-ops-text text-sm">Clear all filters</button>
                     </div>
                 )}
 

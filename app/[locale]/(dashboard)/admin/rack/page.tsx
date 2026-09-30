@@ -1,5 +1,5 @@
 import { getRackLayout, getRackStats } from "@/actions/rack-layout";
-import RackLayout from "@/components/admin/rack-layout";
+import RackLayoutShell from "@/components/admin/rack-layout-shell";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -87,9 +87,7 @@ export default async function RackPage() {
             )}
 
             {/* Rack Layout Visualization */}
-            <div className="overflow-x-auto">
-                <RackLayout racks={racks} categories={categories} />
-            </div>
+            <RackLayoutShell racks={racks} categories={categories} />
         </main>
         <BottomNav />
         </>
