@@ -157,7 +157,7 @@ const STATUS_LABEL: Record<string, string> = {
   dismissed: "DISMISSED",
 };
 
-const inputClass = "h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-white";
+const inputClass = "ops-input h-9 w-full px-3 text-xs";
 
 type DiffCategory = "all" | "vlan" | "interface" | "security" | "system";
 type DiffViewStyle = "side-by-side" | "unified" | "decode";
@@ -293,7 +293,7 @@ function DecodeDiffView({
 
   if (error || !detected) {
     return (
-      <div className="p-4 m-3 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded">
+      <div className="p-4 m-3 text-xs text-ops-danger bg-ops-danger/10 border border-ops-danger/30 rounded">
         {error || "Tidak ada data decode yang tersedia."}
       </div>
     );
@@ -302,47 +302,47 @@ function DecodeDiffView({
   if (!baseline) {
     return (
       <div className="p-4 space-y-4 text-xs font-mono">
-        <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3 text-amber-300">
+        <div className="rounded border border-ops-warning/30 bg-ops-warning/10 p-3 text-ops-warning">
           Golden Baseline belum dikonfigurasi untuk switch ini. Menampilkan konfigurasi hasil decode Backup #{detectedBackupId}:
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-slate-400">
+          <span className="text-ops-muted">
             Dialect: <strong className="text-ops-accent">{detected.dialect}</strong>
           </span>
           {detected.hostname && (
-            <span className="text-slate-400">
-              Hostname: <strong className="text-white">{detected.hostname}</strong>
+            <span className="text-ops-muted">
+              Hostname: <strong className="text-ops-text">{detected.hostname}</strong>
             </span>
           )}
         </div>
         <div className="space-y-1">
-          <span className="font-bold text-white text-[11px] uppercase">VLANs ({detected.vlans.length}):</span>
+          <span className="font-bold text-ops-text text-[11px] uppercase">VLANs ({detected.vlans.length}):</span>
           <div className="flex flex-wrap gap-1.5 pt-1">
             {detected.vlans.map((v) => (
-              <span key={v.id} className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-200">
+              <span key={v.id} className="rounded border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[11px] text-ops-text">
                 VLAN {v.id} {v.name ? `(${v.name})` : ""}
               </span>
             ))}
           </div>
         </div>
         <div className="space-y-1">
-          <span className="font-bold text-white text-[11px] uppercase">Ports ({detected.ports.length}):</span>
+          <span className="font-bold text-ops-text text-[11px] uppercase">Ports ({detected.ports.length}):</span>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 pt-1">
             {detected.ports.map((p) => (
-              <div key={p.name} className="rounded border border-slate-800 bg-slate-900/60 p-2.5 space-y-1 text-[11px]">
+              <div key={p.name} className="rounded border border-ops-border bg-ops-surface-raised p-2.5 space-y-1 text-[11px]">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-ops-accent">{p.name}</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] ${p.enabled ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"}`}>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] ${p.enabled ? "bg-ops-success/15 text-ops-success" : "bg-ops-danger/15 text-ops-danger"}`}>
                     {p.enabled ? "UP" : "DOWN"}
                   </span>
                 </div>
-                <div className="text-slate-400">Mode: <strong className="text-slate-200">{p.mode}</strong></div>
-                {p.access_vlan && <div className="text-slate-400">Access VLAN: <strong className="text-slate-200">{p.access_vlan}</strong></div>}
-                {p.native_vlan && <div className="text-slate-400">Native VLAN: <strong className="text-slate-200">{p.native_vlan}</strong></div>}
+                <div className="text-ops-muted">Mode: <strong className="text-ops-text">{p.mode}</strong></div>
+                {p.access_vlan && <div className="text-ops-muted">Access VLAN: <strong className="text-ops-text">{p.access_vlan}</strong></div>}
+                {p.native_vlan && <div className="text-ops-muted">Native VLAN: <strong className="text-ops-text">{p.native_vlan}</strong></div>}
                 {p.trunk_allowed_vlans?.length > 0 && (
-                  <div className="text-slate-400">Trunk Allowed: <strong className="text-slate-200">{p.trunk_allowed_vlans.join(", ")}</strong></div>
+                  <div className="text-ops-muted">Trunk Allowed: <strong className="text-ops-text">{p.trunk_allowed_vlans.join(", ")}</strong></div>
                 )}
-                {p.description && <div className="text-slate-500 truncate">Desc: {p.description}</div>}
+                {p.description && <div className="text-ops-muted truncate">Desc: {p.description}</div>}
               </div>
             ))}
           </div>
@@ -363,49 +363,49 @@ function DecodeDiffView({
 
   return (
     <div className="p-4 space-y-4 text-xs font-mono">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ops-border pb-3">
         <div className="flex items-center gap-3">
-          <span className="text-slate-400 text-[11px]">
+          <span className="text-ops-muted text-[11px]">
             Dialect: <strong className="text-ops-accent font-semibold">{detected.dialect}</strong>
           </span>
           {detected.hostname && (
-            <span className="text-slate-400 text-[11px]">
-              Hostname: <strong className="text-white">{detected.hostname}</strong>
+            <span className="text-ops-muted text-[11px]">
+              Hostname: <strong className="text-ops-text">{detected.hostname}</strong>
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-ops-success/15 text-ops-success border border-ops-success/30">
             +{delta.vlans_added.length + delta.ports_added.length} ditambahkan
           </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-ops-danger/15 text-ops-danger border border-ops-danger/30">
             −{delta.vlans_removed.length + delta.ports_removed.length} dihapus
           </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-ops-warning/15 text-ops-warning border border-ops-warning/30">
             ~{delta.ports_changed.length + delta.description_changed.length} berubah
           </span>
         </div>
       </div>
 
       {baseline.hostname !== detected.hostname && (
-        <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3 space-y-1">
-          <span className="font-bold text-amber-300 uppercase tracking-wider text-[10px]">Perubahan Hostname:</span>
+        <div className="rounded border border-ops-warning/30 bg-ops-warning/10 p-3 space-y-1">
+          <span className="font-bold text-ops-warning uppercase tracking-wider text-[10px]">Perubahan Hostname:</span>
           <div className="flex items-center gap-2">
-            <span className="text-red-400 line-through">{baseline.hostname || "—"}</span>
-            <span className="text-slate-400">→</span>
-            <span className="text-emerald-400 font-bold">{detected.hostname || "—"}</span>
+            <span className="text-ops-danger line-through">{baseline.hostname || "—"}</span>
+            <span className="text-ops-muted">→</span>
+            <span className="text-ops-success font-bold">{detected.hostname || "—"}</span>
           </div>
         </div>
       )}
 
       {delta.vlans_added.length > 0 && (
-        <div className="rounded border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-1.5">
-          <span className="font-bold text-emerald-400 uppercase tracking-wider text-[10px]">
+        <div className="rounded border border-ops-success/30 bg-ops-success/10 p-3 space-y-1.5">
+          <span className="font-bold text-ops-success uppercase tracking-wider text-[10px]">
             + VLAN Ditambahkan ({delta.vlans_added.length}):
           </span>
           <div className="flex flex-wrap gap-1.5">
             {delta.vlans_added.map((v) => (
-              <span key={v.id} className="rounded border border-emerald-500/40 bg-emerald-950/60 px-2 py-0.5 text-[11px] text-emerald-200">
+              <span key={v.id} className="rounded border border-ops-success/30 bg-ops-success/15 px-2 py-0.5 text-[11px] text-ops-success">
                 VLAN {v.id} {v.name ? `(${v.name})` : ""}
               </span>
             ))}
@@ -414,13 +414,13 @@ function DecodeDiffView({
       )}
 
       {delta.vlans_removed.length > 0 && (
-        <div className="rounded border border-red-500/30 bg-red-500/10 p-3 space-y-1.5">
-          <span className="font-bold text-red-400 uppercase tracking-wider text-[10px]">
+        <div className="rounded border border-ops-danger/30 bg-ops-danger/10 p-3 space-y-1.5">
+          <span className="font-bold text-ops-danger uppercase tracking-wider text-[10px]">
             − VLAN Dihapus ({delta.vlans_removed.length}):
           </span>
           <div className="flex flex-wrap gap-1.5">
             {delta.vlans_removed.map((v) => (
-              <span key={v.id} className="rounded border border-red-500/40 bg-red-950/60 px-2 py-0.5 text-[11px] text-red-200">
+              <span key={v.id} className="rounded border border-ops-danger/30 bg-ops-danger/15 px-2 py-0.5 text-[11px] text-ops-danger">
                 VLAN {v.id} {v.name ? `(${v.name})` : ""}
               </span>
             ))}
@@ -430,7 +430,7 @@ function DecodeDiffView({
 
       {delta.ports_changed.length > 0 && (
         <div className="space-y-2">
-          <span className="font-bold text-white uppercase tracking-wider text-[11px]">
+          <span className="font-bold text-ops-text uppercase tracking-wider text-[11px]">
             Port Berubah ({delta.ports_changed.length}):
           </span>
           <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -446,23 +446,23 @@ function DecodeDiffView({
               const diffs = fields.filter(([, f, t]) => String(f) !== String(t));
 
               return (
-                <div key={name} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 space-y-2">
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
+                <div key={name} className="rounded-lg border border-ops-border bg-ops-surface-raised p-3 space-y-2">
+                  <div className="flex items-center justify-between border-b border-ops-border pb-1.5">
                     <span className="font-bold text-ops-accent text-xs">{name}</span>
-                    <span className="text-[10px] text-amber-400 font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                    <span className="text-[10px] text-ops-warning font-semibold px-1.5 py-0.5 rounded bg-ops-warning/10 border border-ops-warning/30">
                       {diffs.length} atribut berubah
                     </span>
                   </div>
                   <div className="space-y-1.5 text-[11px]">
                     {diffs.map(([label, f, t]) => (
                       <div key={label} className="flex flex-col gap-0.5">
-                        <span className="text-slate-500 font-medium text-[10px] uppercase">{label}:</span>
+                        <span className="text-ops-muted font-medium text-[10px] uppercase">{label}:</span>
                         <div className="flex items-center gap-1.5 pl-1">
-                          <span className="rounded bg-red-950/60 border border-red-500/30 px-1.5 py-0.5 text-red-300">
+                          <span className="rounded bg-ops-danger/15 border border-ops-danger/30 px-1.5 py-0.5 text-ops-danger">
                             {String(f)}
                           </span>
-                          <span className="text-slate-500">→</span>
-                          <span className="rounded bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 text-emerald-300 font-bold">
+                          <span className="text-ops-muted">→</span>
+                          <span className="rounded bg-ops-success/15 border border-ops-success/30 px-1.5 py-0.5 text-ops-success font-bold">
                             {String(t)}
                           </span>
                         </div>
@@ -477,11 +477,11 @@ function DecodeDiffView({
       )}
 
       {delta.ports_added.length > 0 && (
-        <div className="rounded border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-1">
-          <span className="font-bold text-emerald-400 uppercase tracking-wider text-[10px]">Port Baru ({delta.ports_added.length}):</span>
+        <div className="rounded border border-ops-success/30 bg-ops-success/10 p-3 space-y-1">
+          <span className="font-bold text-ops-success uppercase tracking-wider text-[10px]">Port Baru ({delta.ports_added.length}):</span>
           <div className="flex flex-wrap gap-1.5 pt-1">
             {delta.ports_added.map((p) => (
-              <span key={p} className="rounded bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 text-[11px] text-emerald-200">
+              <span key={p} className="rounded bg-ops-success/15 border border-ops-success/30 px-2 py-0.5 text-[11px] text-ops-success">
                 {p}
               </span>
             ))}
@@ -490,11 +490,11 @@ function DecodeDiffView({
       )}
 
       {delta.ports_removed.length > 0 && (
-        <div className="rounded border border-red-500/30 bg-red-500/10 p-3 space-y-1">
-          <span className="font-bold text-red-400 uppercase tracking-wider text-[10px]">Port Dihapus ({delta.ports_removed.length}):</span>
+        <div className="rounded border border-ops-danger/30 bg-ops-danger/10 p-3 space-y-1">
+          <span className="font-bold text-ops-danger uppercase tracking-wider text-[10px]">Port Dihapus ({delta.ports_removed.length}):</span>
           <div className="flex flex-wrap gap-1.5 pt-1">
             {delta.ports_removed.map((p) => (
-              <span key={p} className="rounded bg-red-950/60 border border-red-500/30 px-2 py-0.5 text-[11px] text-red-200">
+              <span key={p} className="rounded bg-ops-danger/15 border border-ops-danger/30 px-2 py-0.5 text-[11px] text-ops-danger">
                 {p}
               </span>
             ))}
@@ -503,17 +503,17 @@ function DecodeDiffView({
       )}
 
       {isClean && (
-        <div className="py-6 px-4 text-center text-emerald-400 flex flex-col items-center gap-2 rounded border border-emerald-500/20 bg-emerald-500/5">
-          <CheckCircle2 className="size-6 text-emerald-400" />
+        <div className="py-6 px-4 text-center text-ops-success flex flex-col items-center gap-2 rounded border border-ops-success/30 bg-ops-success/10">
+          <CheckCircle2 className="size-6 text-ops-success" />
           <span className="font-semibold text-sm">Konfigurasi Struktural (VLAN &amp; Port) 100% Identik</span>
-          <span className="text-xs text-slate-400 max-w-lg">
+          <span className="text-xs text-ops-muted max-w-lg">
             Tidak ada perbedaan logic VLAN atau konfigurasi port antara Golden Baseline dan backup running-config ini.
           </span>
         </div>
       )}
 
       {((detected.parse_warnings?.length ?? 0) > 0 || (baseline.parse_warnings?.length ?? 0) > 0) && (
-        <div className="text-[11px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded p-2">
+        <div className="text-[11px] text-ops-warning bg-ops-warning/10 border border-ops-warning/30 rounded p-2">
           <span>Catatan parser: {[...(baseline.parse_warnings ?? []), ...(detected.parse_warnings ?? [])].join("; ")}</span>
         </div>
       )}
@@ -1054,12 +1054,12 @@ export function NcmConfigReview({
   return (
     <div className="space-y-4">
       {/* 1. COMPLIANCE PANEL (ISO 27001 A.8.9) */}
-      <section className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-5 space-y-4 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 pb-3">
+      <section className="ops-panel p-5 space-y-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ops-border pb-3">
           <div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="size-5 text-ops-accent" />
-              <h3 className="text-base font-bold text-white">Compliance Overview (ISO 27001 A.8.9)</h3>
+              <h3 className="text-base font-bold text-ops-text">Compliance Overview (ISO 27001 A.8.9)</h3>
             </div>
             <p className="mt-1 text-xs text-ops-muted max-w-3xl">
               Setiap switch memiliki golden baseline; setiap perbedaan (drift) membuka tiket review di sini.
@@ -1067,8 +1067,8 @@ export function NcmConfigReview({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
-              <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-ops-success/30 bg-ops-success/10 px-2.5 py-1 text-xs font-semibold text-ops-success">
+              <span className="size-2 rounded-full bg-ops-success animate-pulse" />
               ISO 27001 Active
             </span>
           </div>
@@ -1076,36 +1076,36 @@ export function NcmConfigReview({
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3">
+          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
             <div className="text-2xl font-bold font-mono text-ops-accent">{coverage}%</div>
             <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Baseline Coverage</div>
           </div>
-          <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3">
-            <div className="text-2xl font-bold font-mono text-amber-400">{pendingCount}</div>
+          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
+            <div className="text-2xl font-bold font-mono text-ops-warning">{pendingCount}</div>
             <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Reviews Pending</div>
           </div>
-          <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3">
-            <div className="text-2xl font-bold font-mono text-red-400">{flaggedCount}</div>
+          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
+            <div className="text-2xl font-bold font-mono text-ops-danger">{flaggedCount}</div>
             <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Flagged Drift</div>
           </div>
-          <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3">
-            <div className="text-2xl font-bold font-mono text-slate-300">{missingSwitches.length}</div>
+          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
+            <div className="text-2xl font-bold font-mono text-ops-text">{missingSwitches.length}</div>
             <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Without Baseline</div>
           </div>
-          <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3">
-            <div className="text-2xl font-bold font-mono text-sky-400">{staleBaselines.length}</div>
+          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
+            <div className="text-2xl font-bold font-mono text-ops-info">{staleBaselines.length}</div>
             <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Reminder Due</div>
           </div>
         </div>
 
         {missingSwitches.length > 0 && (
-          <p className="text-xs text-amber-300/90 bg-amber-400/10 border border-amber-400/20 rounded p-2.5">
+          <p className="text-xs text-ops-warning bg-ops-warning/10 border border-ops-warning/30 rounded p-2.5">
             Switch belum memiliki baseline: <strong>{missingSwitches.join(", ")}</strong>. Deteksi drift tidak aktif pada switch tersebut sampai baseline dibuat.
           </p>
         )}
 
         {staleBaselines.length > 0 && (
-          <p className="text-xs text-sky-300/90 bg-sky-400/10 border border-sky-400/20 rounded p-2.5">
+          <p className="text-xs text-ops-info bg-ops-info/10 border border-ops-info/30 rounded p-2.5">
             Review berkala jatuh tempo: <strong>{staleBaselines.join(", ")}</strong>. Buka sesi review untuk switch tersebut untuk re-attestasi dan reset siklus.
           </p>
         )}
@@ -1120,7 +1120,7 @@ export function NcmConfigReview({
               onClick={handleSendReminder}
               title="Kirim email reminder status review pending & gap baseline ke administrator sekarang"
             >
-              <Mail className="size-4 text-sky-400" />
+              <Mail className="size-4 text-ops-info" />
               Kirim Reminder Email
             </ActionButton>
           </div>
@@ -1128,10 +1128,10 @@ export function NcmConfigReview({
             type="button"
             isPending={isTriggeringCycle}
             onClick={handleTriggerCycle}
-            className="bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30 font-bold"
+            className="bg-ops-warning/15 text-ops-warning border-ops-warning/30 hover:bg-ops-warning/25 font-bold"
             title="Bandingkan seluruh switch ke baseline sekarang, reset siklus periode, dan kirim email hasil review"
           >
-            <Sparkles className="size-4 text-amber-400" />
+            <Sparkles className="size-4 text-ops-warning" />
             Jalankan Siklus Review Sekarang (All Switches)
           </ActionButton>
         </div>
@@ -1139,27 +1139,27 @@ export function NcmConfigReview({
 
       {/* BANNER NOTIFIKASI ERROR / SUCCESS */}
       {actionSuccess && (
-        <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-300 flex items-center justify-between">
+        <div className="rounded-lg border border-ops-success/30 bg-ops-success/10 p-3 text-sm text-ops-success flex items-center justify-between">
           <span>{actionSuccess}</span>
           <button type="button" onClick={() => setActionSuccess(null)}><X className="size-4" /></button>
         </div>
       )}
       {actionError && (
-        <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300 flex items-center justify-between">
+        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger/10 p-3 text-sm text-ops-danger flex items-center justify-between">
           <span>{actionError}</span>
           <button type="button" onClick={() => setActionError(null)}><X className="size-4" /></button>
         </div>
       )}
 
       {/* 2. FILTER BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ops-border bg-ops-surface-raised p-3">
         <div className="flex items-center gap-2">
           <Filter className="size-4 text-ops-muted" />
-          <span className="text-xs font-semibold text-white">Filter Status Review:</span>
+          <span className="text-xs font-semibold text-ops-text">Filter Status Review:</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-8 rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-xs text-white"
+            className="ops-input h-8 px-2.5 text-xs"
           >
             <option value="">Semua Status ({reviews.length})</option>
             <option value="pending">Pending</option>
@@ -1175,10 +1175,10 @@ export function NcmConfigReview({
       </div>
 
       {/* 3. REVIEWS TABLE */}
-      <div className="overflow-x-auto rounded-lg border border-slate-700/50 bg-slate-900/40">
+      <div className="overflow-x-auto rounded-lg border border-ops-border bg-ops-surface">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-ops-muted">
+            <tr className="border-b border-ops-border text-left text-xs uppercase tracking-wide text-ops-muted">
               <th className="py-2.5 px-3">ID</th>
               <th className="py-2.5 px-3">Switch</th>
               <th className="py-2.5 px-3">Dibuat</th>
@@ -1218,44 +1218,44 @@ export function NcmConfigReview({
               return (
                 <Fragment key={id}>
                   <tr
-                    className={`border-t border-slate-800 transition-colors ${
+                    className={`border-t border-ops-border transition-colors ${
                       isCurrentSelected
-                        ? "bg-slate-900/90"
-                        : "hover:bg-slate-800/40"
+                        ? "bg-ops-surface-raised"
+                        : "hover:bg-ops-surface-raised"
                     }`}
                   >
-                    <td className="py-2.5 px-3 font-mono font-medium text-white">#{id}</td>
-                    <td className="py-2.5 px-3 font-semibold text-white">{switchName}</td>
-                    <td className="py-2.5 px-3 text-slate-300 text-xs">{formatDate(pick(r, "created_at", "createdAt"))}</td>
+                    <td className="py-2.5 px-3 font-mono font-medium text-ops-text">#{id}</td>
+                    <td className="py-2.5 px-3 font-semibold text-ops-text">{switchName}</td>
+                    <td className="py-2.5 px-3 text-ops-text text-xs">{formatDate(pick(r, "created_at", "createdAt"))}</td>
                     <td className="py-2.5 px-3">
                       <span
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
                           status === "flagged"
-                            ? "border-red-400/25 bg-red-400/10 text-red-300"
+                            ? "border-ops-danger/30 bg-ops-danger/10 text-ops-danger"
                             : status === "approved"
-                            ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                            ? "border-ops-success/30 bg-ops-success/10 text-ops-success"
                             : status === "in_review"
-                            ? "border-sky-400/25 bg-sky-400/10 text-sky-300"
-                            : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                            ? "border-ops-info/30 bg-ops-info/10 text-ops-info"
+                            : "border-ops-warning/30 bg-ops-warning/10 text-ops-warning"
                         }`}
                       >
                         {STATUS_LABEL[status] ?? status.toUpperCase()}
                       </span>
                       {status === "approved" && reviewedAt && (
-                        <div className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-                          <CheckCircle2 className="size-3 text-emerald-400" />
+                        <div className="text-[10px] text-ops-success font-mono mt-1 flex items-center gap-1">
+                          <CheckCircle2 className="size-3 text-ops-success" />
                           {formatDate(reviewedAt)}
                         </div>
                       )}
                       {status === "flagged" && reviewedAt && (
-                        <div className="text-[10px] text-red-400 font-mono mt-1 flex items-center gap-1">
-                          <AlertTriangle className="size-3 text-red-400" />
+                        <div className="text-[10px] text-ops-danger font-mono mt-1 flex items-center gap-1">
+                          <AlertTriangle className="size-3 text-ops-danger" />
                           {formatDate(reviewedAt)}
                         </div>
                       )}
                       {status === "in_review" && startedAt && (
-                        <div className="text-[10px] text-sky-400 font-mono mt-1 flex items-center gap-1">
-                          <Clock className="size-3 text-sky-400" />
+                        <div className="text-[10px] text-ops-info font-mono mt-1 flex items-center gap-1">
+                          <Clock className="size-3 text-ops-info" />
                           {formatDate(startedAt)}
                         </div>
                       )}
@@ -1263,23 +1263,23 @@ export function NcmConfigReview({
                     <td className="py-2.5 px-3">
                       {status === "approved" ? (
                         <div>
-                          <span className="font-semibold text-emerald-400 text-xs">{reviewerName || "operator"}</span>
-                          <div className="text-[10px] text-slate-400">Disetujui</div>
+                          <span className="font-semibold text-ops-success text-xs">{reviewerName || "operator"}</span>
+                          <div className="text-[10px] text-ops-muted">Disetujui</div>
                         </div>
                       ) : status === "flagged" ? (
                         <div>
-                          <span className="font-semibold text-red-400 text-xs">{reviewerName || "operator"}</span>
-                          <div className="text-[10px] text-slate-400">Ditandai</div>
+                          <span className="font-semibold text-ops-danger text-xs">{reviewerName || "operator"}</span>
+                          <div className="text-[10px] text-ops-muted">Ditandai</div>
                         </div>
                       ) : status === "in_review" ? (
                         <div>
-                          <span className="text-sky-400 text-xs italic">In review: {starterName || reviewerName || "operator"}</span>
+                          <span className="text-ops-info text-xs italic">In review: {starterName || reviewerName || "operator"}</span>
                         </div>
                       ) : (
-                        <span className="text-slate-500 text-xs">—</span>
+                        <span className="text-ops-muted text-xs">—</span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-xs text-slate-300 max-w-xs truncate" title={JSON.stringify(diffSum)}>
+                    <td className="py-2.5 px-3 text-xs text-ops-text max-w-xs truncate" title={JSON.stringify(diffSum)}>
                       {summaryText(diffSum)}
                     </td>
                     <td className="py-2.5 px-3 text-right">
@@ -1300,7 +1300,7 @@ export function NcmConfigReview({
                             onClick={() => handleStartReview(id)}
                             title="Ambil review ini untuk dikerjakan"
                           >
-                            <Play className="size-3.5 text-sky-400" />
+                            <Play className="size-3.5 text-ops-info" />
                             Mulai Review
                           </ActionButton>
                         ) : status === "in_review" ? (
@@ -1308,7 +1308,7 @@ export function NcmConfigReview({
                             <ActionButton
                               size="sm"
                               onClick={() => openPromoteModal(id)}
-                              className="bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
+                              className="bg-ops-warning/15 text-ops-warning border-ops-warning/30 hover:bg-ops-warning/25"
                               title="Setujui dan jadikan backup ini sebagai Golden Baseline baru"
                             >
                               ★ Promote
@@ -1339,7 +1339,7 @@ export function NcmConfigReview({
                           variant="ghost"
                           onClick={() => handleDeleteReview(id, switchName)}
                           isPending={deletingId === id}
-                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5"
+                          className="text-ops-danger hover:bg-ops-danger/10 p-1.5"
                           title="Hapus riwayat review ini"
                         >
                           <Trash2 className="size-3.5" />
@@ -1350,30 +1350,30 @@ export function NcmConfigReview({
 
                   {/* INLINE EXPANDED DIFF VIEWER UNDER ROW (MATCHING IMAGE 2) */}
                   {isCurrentSelected && (
-                    <tr key={`${id}-diff`} className="border-t border-b border-slate-800 bg-[#080d17]">
+                    <tr key={`${id}-diff`} className="border-t border-b border-ops-border bg-ops-bg">
                       <td colSpan={7} className="p-0">
                         <div>
                           {/* Header Bar matching Image 2 */}
-                          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-2.5 border-b border-slate-800/80 bg-slate-900/70">
+                          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-2.5 border-b border-ops-border bg-ops-surface-raised">
                             <div className="flex items-center gap-3">
-                              <span className="text-xs font-mono font-medium text-slate-200">
+                              <span className="text-xs font-mono font-medium text-ops-text">
                                 running-config vs golden baseline {blDate ? `(${blDate})` : blId ? `(#${blId})` : ""}
                               </span>
-                              <span className="text-[11px] font-mono text-slate-500">
+                              <span className="text-[11px] font-mono text-ops-muted">
                                 · Review #{id} ({switchName})
                               </span>
                             </div>
 
                             <div className="flex items-center gap-3">
                               {/* View Mode Toggle */}
-                              <div className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5 text-[11px]">
+                              <div className="flex items-center rounded border border-ops-border bg-ops-bg p-0.5 text-[11px]">
                                 <button
                                   type="button"
                                   onClick={() => setViewStyle("side-by-side")}
                                   className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
                                     viewStyle === "side-by-side"
-                                      ? "bg-ops-accent text-slate-950 font-bold"
-                                      : "text-slate-400 hover:text-slate-200"
+                                      ? "bg-ops-accent text-ops-text font-bold"
+                                      : "text-ops-muted hover:text-ops-text"
                                   }`}
                                 >
                                   Side-by-Side
@@ -1383,8 +1383,8 @@ export function NcmConfigReview({
                                   onClick={() => setViewStyle("unified")}
                                   className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
                                     viewStyle === "unified"
-                                      ? "bg-ops-accent text-slate-950 font-bold"
-                                      : "text-slate-400 hover:text-slate-200"
+                                      ? "bg-ops-accent text-ops-text font-bold"
+                                      : "text-ops-muted hover:text-ops-text"
                                   }`}
                                 >
                                   Unified
@@ -1394,8 +1394,8 @@ export function NcmConfigReview({
                                   onClick={() => setViewStyle("decode")}
                                   className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
                                     viewStyle === "decode"
-                                      ? "bg-ops-accent text-slate-950 font-bold"
-                                      : "text-slate-400 hover:text-slate-200"
+                                      ? "bg-ops-accent text-ops-text font-bold"
+                                      : "text-ops-muted hover:text-ops-text"
                                   }`}
                                 >
                                   Decode View
@@ -1403,12 +1403,12 @@ export function NcmConfigReview({
                               </div>
 
                               {viewStyle !== "decode" && (
-                                <label className="flex items-center gap-1.5 cursor-pointer text-slate-400 text-xs hover:text-slate-200">
+                                <label className="flex items-center gap-1.5 cursor-pointer text-ops-muted text-xs hover:text-ops-text">
                                   <input
                                     type="checkbox"
                                     checked={hideNoise}
                                     onChange={(e) => setHideNoise(e.target.checked)}
-                                    className="size-3.5 rounded border-slate-700 bg-slate-900 text-ops-accent"
+                                    className="size-3.5 rounded border-ops-border bg-ops-surface-raised text-ops-accent"
                                   />
                                   <span>Hide Noise</span>
                                 </label>
@@ -1418,17 +1418,17 @@ export function NcmConfigReview({
                               {viewStyle !== "decode" && (
                                 <div className="flex items-center gap-1.5 font-mono text-xs">
                                   {unifiedDisplay.addedCount > 0 && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold bg-ops-success/15 border border-ops-success/30 text-ops-success">
                                       +{unifiedDisplay.addedCount}
                                     </span>
                                   )}
                                   {unifiedDisplay.deletedCount > 0 && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold bg-red-500/20 border border-red-500/40 text-red-400">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold bg-ops-danger/15 border border-ops-danger/30 text-ops-danger">
                                       -{unifiedDisplay.deletedCount}
                                     </span>
                                   )}
                                   {unifiedDisplay.addedCount === 0 && unifiedDisplay.deletedCount === 0 && !loadingDiff && (
-                                    <span className="text-[11px] text-slate-500 font-mono">0 changes</span>
+                                    <span className="text-[11px] text-ops-muted font-mono">0 changes</span>
                                   )}
                                 </div>
                               )}
@@ -1445,7 +1445,7 @@ export function NcmConfigReview({
                           ) : (
                             <>
                               {diffError && (
-                                <div className="p-4 m-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded">
+                                <div className="p-4 m-3 text-sm text-ops-danger bg-ops-danger/10 border border-ops-danger/30 rounded">
                                   {diffError}
                                 </div>
                               )}
@@ -1458,10 +1458,10 @@ export function NcmConfigReview({
                               )}
 
                               {isCleanMatch && !loadingDiff && !diffError && (
-                                <div className="py-6 px-4 text-center text-emerald-400 flex flex-col items-center gap-2">
-                                  <CheckCircle2 className="size-6 text-emerald-400" />
+                                <div className="py-6 px-4 text-center text-ops-success flex flex-col items-center gap-2">
+                                  <CheckCircle2 className="size-6 text-ops-success" />
                                   <span className="font-semibold text-sm">Konfigurasi 100% Identik (Tidak Ada Drift)</span>
-                                  <span className="text-xs text-slate-400">
+                                  <span className="text-xs text-ops-muted">
                                     Konfigurasi backup switch ini sesuai sepenuhnya dengan Golden Baseline.
                                   </span>
                                   {(status === "pending" || status === "in_review") && (
@@ -1469,7 +1469,7 @@ export function NcmConfigReview({
                                       type="button"
                                       size="sm"
                                       onClick={() => handleDecideStatus(id, "approved", "Konfirmasi sesuai: konfigurasi identik dengan baseline (tanpa drift)")}
-                                      className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30 mt-2 font-bold"
+                                      className="bg-ops-success/15 text-ops-success border border-ops-success/30 hover:bg-ops-success/25 mt-2 font-bold"
                                     >
                                       ✓ Konfirmasi Sesuai (Attest Clean &amp; Reset Siklus)
                                     </ActionButton>
@@ -1478,28 +1478,28 @@ export function NcmConfigReview({
                               )}
 
                               {diff !== null && !loadingDiff && !isCleanMatch && viewStyle === "unified" && (
-                                <div className="py-3 px-2 font-mono text-xs overflow-x-auto max-h-[500px] bg-[#070b13]">
+                                <div className="py-3 px-2 font-mono text-xs overflow-x-auto max-h-[500px] bg-ops-bg">
                                   <div className="divide-y divide-transparent">
                                     {unifiedDisplay.lines.map((line, idx) => (
                                       <div
                                         key={idx}
                                         className={`flex items-start font-mono text-xs leading-6 px-4 py-0.5 ${
                                           line.type === "insert"
-                                            ? "bg-emerald-950/40 text-emerald-300"
+                                            ? "bg-ops-success/15 text-ops-success"
                                             : line.type === "delete"
-                                            ? "bg-red-950/40 text-red-300"
-                                            : "text-slate-300 hover:bg-slate-900/40"
+                                            ? "bg-ops-danger/15 text-ops-danger"
+                                            : "text-ops-text hover:bg-ops-surface-raised"
                                         }`}
                                       >
-                                        <span className="w-10 shrink-0 text-right pr-3 text-slate-500 select-none">
+                                        <span className="w-10 shrink-0 text-right pr-3 text-ops-muted select-none">
                                           {line.lineNum}
                                         </span>
                                         <span
                                           className={`w-4 shrink-0 text-center font-bold select-none ${
                                             line.type === "insert"
-                                              ? "text-emerald-400"
+                                              ? "text-ops-success"
                                               : line.type === "delete"
-                                              ? "text-red-400"
+                                              ? "text-ops-danger"
                                               : "text-transparent"
                                           }`}
                                         >
@@ -1513,8 +1513,8 @@ export function NcmConfigReview({
                               )}
 
                               {diff !== null && !loadingDiff && !isCleanMatch && viewStyle === "side-by-side" && (
-                                <div className="overflow-x-auto max-h-[500px] bg-[#070b13]">
-                                  <div className="flex flex-wrap items-center gap-1.5 p-3 border-b border-slate-800 bg-slate-900/40 text-xs">
+                                <div className="overflow-x-auto max-h-[500px] bg-ops-bg">
+                                  <div className="flex flex-wrap items-center gap-1.5 p-3 border-b border-ops-border bg-ops-surface-raised text-xs">
                                     <span className="font-semibold text-ops-muted uppercase tracking-wider text-[10px]">Filter Kategori:</span>
                                     {(
                                       [
@@ -1529,48 +1529,48 @@ export function NcmConfigReview({
                                         key={cat}
                                         type="button"
                                         onClick={() => setActiveCategory(cat)}
-                                        className={`rounded px-2 py-0.5 font-mono text-[11px] transition-colors ${activeCategory === cat ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold" : "bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-700/50"}`}
+                                        className={`rounded px-2 py-0.5 font-mono text-[11px] transition-colors ${activeCategory === cat ? "bg-ops-warning/15 text-ops-warning border border-ops-warning/30 font-bold" : "bg-ops-bg text-ops-muted hover:text-ops-text border border-ops-border"}`}
                                       >
                                         {label}
                                       </button>
                                     ))}
                                   </div>
 
-                                  <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-900/80 text-[11px] font-mono font-bold uppercase tracking-wider text-ops-muted">
-                                    <div className="py-2 px-3 border-r border-slate-800 text-slate-300 flex items-center justify-between">
+                                  <div className="grid grid-cols-2 border-b border-ops-border bg-ops-surface-raised text-[11px] font-mono font-bold uppercase tracking-wider text-ops-muted">
+                                    <div className="py-2 px-3 border-r border-ops-border text-ops-text flex items-center justify-between">
                                       <span>Golden Baseline (Target State)</span>
-                                      <span className="text-[10px] text-slate-500">Kiri</span>
+                                      <span className="text-[10px] text-ops-muted">Kiri</span>
                                     </div>
-                                    <div className="py-2 px-3 text-slate-300 flex items-center justify-between">
+                                    <div className="py-2 px-3 text-ops-text flex items-center justify-between">
                                       <span>Current Running Config (Detected State)</span>
-                                      <span className="text-[10px] text-slate-500">Kanan</span>
+                                      <span className="text-[10px] text-ops-muted">Kanan</span>
                                     </div>
                                   </div>
 
-                                  <div className="divide-y divide-slate-800/40 font-mono text-xs">
+                                  <div className="divide-y divide-ops-border font-mono text-xs">
                                     {filteredDiffRows.map((row, idx) => {
                                       const bgClassA =
                                         row.type === "delete"
-                                          ? "bg-red-500/20 text-red-200"
+                                          ? "bg-ops-danger/15 text-ops-danger"
                                           : row.type === "replace"
-                                          ? "bg-amber-500/20 text-amber-200"
-                                          : "text-slate-400";
+                                          ? "bg-ops-warning/15 text-ops-warning"
+                                          : "text-ops-muted";
                                       const bgClassB =
                                         row.type === "insert"
-                                          ? "bg-emerald-500/20 text-emerald-200"
+                                          ? "bg-ops-success/15 text-ops-success"
                                           : row.type === "replace"
-                                          ? "bg-emerald-500/20 text-emerald-200"
-                                          : "text-slate-400";
+                                          ? "bg-ops-success/15 text-ops-success"
+                                          : "text-ops-muted";
 
                                       return (
-                                        <div key={idx} className="grid grid-cols-[48px_minmax(0,1fr)_48px_minmax(0,1fr)] border-b border-slate-900/60 hover:bg-slate-800/20">
-                                          <span className="py-1 px-2 text-right text-slate-500 select-none bg-slate-950/40 border-r border-slate-800/80">
+                                        <div key={idx} className="grid grid-cols-[48px_minmax(0,1fr)_48px_minmax(0,1fr)] border-b border-ops-border hover:bg-ops-surface-raised">
+                                          <span className="py-1 px-2 text-right text-ops-muted select-none bg-ops-surface-raised border-r border-ops-border">
                                             {row.lineA ?? ""}
                                           </span>
-                                          <pre className={`py-1 px-2.5 whitespace-pre-wrap break-words border-r border-slate-800/80 m-0 ${bgClassA}`}>
+                                          <pre className={`py-1 px-2.5 whitespace-pre-wrap break-words border-r border-ops-border m-0 ${bgClassA}`}>
                                             {row.textA}
                                           </pre>
-                                          <span className="py-1 px-2 text-right text-slate-500 select-none bg-slate-950/40 border-r border-slate-800/80">
+                                          <span className="py-1 px-2 text-right text-ops-muted select-none bg-ops-surface-raised border-r border-ops-border">
                                             {row.lineB ?? ""}
                                           </span>
                                           <pre className={`py-1 px-2.5 whitespace-pre-wrap break-words m-0 ${bgClassB}`}>
@@ -1586,8 +1586,8 @@ export function NcmConfigReview({
                           )}
 
                           {/* Audit Notes Thread */}
-                          <div className="border-t border-slate-800/80 bg-slate-900/40 p-4 space-y-3">
-                            <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
+                          <div className="border-t border-ops-border bg-ops-surface-raised p-4 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-ops-text uppercase tracking-wider">
                               <MessageSquare className="size-4 text-ops-accent" />
                               <span>Audit Notes &amp; Evidence Trail ({notes.length})</span>
                             </div>
@@ -1597,12 +1597,12 @@ export function NcmConfigReview({
                                 <p className="text-xs text-ops-muted italic">Belum ada catatan audit pada tiket review ini.</p>
                               )}
                               {notes.map((n, i) => (
-                                <div key={i} className="rounded border border-slate-800 bg-slate-950/60 p-2.5 text-xs">
+                                <div key={i} className="rounded border border-ops-border bg-ops-bg p-2.5 text-xs">
                                   <div className="flex items-center justify-between text-ops-muted text-[11px] pb-1">
-                                    <span className="font-semibold text-slate-200">{pick(n, "author_name", "authorName") || `User #${pick(n, "author_id", "authorId") || "?"}`}</span>
+                                    <span className="font-semibold text-ops-text">{pick(n, "author_name", "authorName") || `User #${pick(n, "author_id", "authorId") || "?"}`}</span>
                                     <span>{formatDate(pick(n, "created_at", "createdAt"))}</span>
                                   </div>
-                                  <p className="text-slate-300 whitespace-pre-wrap mt-0.5">{pick(n, "body")}</p>
+                                  <p className="text-ops-text whitespace-pre-wrap mt-0.5">{pick(n, "body")}</p>
                                 </div>
                               ))}
                             </div>
@@ -1613,7 +1613,7 @@ export function NcmConfigReview({
                                 value={noteDraft}
                                 onChange={(e) => setNoteDraft(e.target.value)}
                                 placeholder="Tambah catatan audit (mis. konfirmasi NOC, referensi tiket, justifikasi teknis)…"
-                                className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-xs text-white placeholder:text-slate-500 focus:border-ops-accent focus:outline-none"
+                                className="ops-input w-full p-2 text-xs placeholder:text-ops-muted"
                               />
                               <ActionButton
                                 type="button"
@@ -1641,23 +1641,23 @@ export function NcmConfigReview({
       {/* MODAL 1: APPROVE & PROMOTE TO BASELINE */}
       {promoteModalOpen && promoteReviewId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={() => setPromoteModalOpen(false)}>
-          <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Sparkles className="size-5 text-amber-400" />
+          <div className="w-full max-w-lg rounded-xl border border-ops-border bg-ops-surface p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-ops-border pb-3">
+              <h3 className="text-base font-bold text-ops-text flex items-center gap-2">
+                <Sparkles className="size-5 text-ops-warning" />
                 Approve &amp; Promote to Golden Baseline
               </h3>
-              <button type="button" onClick={() => setPromoteModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button type="button" onClick={() => setPromoteModalOpen(false)} className="text-ops-muted hover:text-ops-text">
                 <X className="size-4" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-300">
+            <p className="text-xs text-ops-text">
               Aksi ini akan menyetujui drift (status <strong>APPROVED</strong>) dan memperbarui golden baseline switch dengan konfigurasi ini secara atomik. Siklus review berkala akan di-reset (diperpanjang 6 bulan).
             </p>
 
             <form onSubmit={handlePromoteSubmit} className="space-y-3">
-              <label className="block space-y-1 text-xs font-medium text-slate-300">
+              <label className="block space-y-1 text-xs font-medium text-ops-text">
                 <span>Change Request ID / Justifikasi Otorisasi (Wajib ISO 27001) *</span>
                 <input
                   type="text"
@@ -1670,18 +1670,18 @@ export function NcmConfigReview({
                 />
               </label>
 
-              <label className="block space-y-1 text-xs font-medium text-slate-300">
+              <label className="block space-y-1 text-xs font-medium text-ops-text">
                 <span>Catatan Operasional Tambahan (Opsional)</span>
                 <textarea
                   rows={3}
                   value={promoteComment}
                   onChange={(e) => setPromoteComment(e.target.value)}
                   placeholder="Catatan verifikasi atau referensi teknis…"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-xs text-white placeholder:text-slate-500 focus:border-ops-accent focus:outline-none"
+                  className="ops-input w-full p-2 text-xs placeholder:text-ops-muted"
                 />
               </label>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <div className="flex justify-end gap-2 pt-2 border-t border-ops-border">
                 <ActionButton type="button" variant="ghost" onClick={() => setPromoteModalOpen(false)}>
                   Batal
                 </ActionButton>
@@ -1689,7 +1689,7 @@ export function NcmConfigReview({
                   type="submit"
                   isPending={isPromoting}
                   disabled={!promoteReason.trim()}
-                  className="bg-amber-500 text-black hover:bg-amber-400 font-bold"
+                  className="bg-ops-warning text-ops-text hover:bg-ops-warning/80 font-bold"
                 >
                   Konfirmasi &amp; Jadikan Baseline Baru
                 </ActionButton>
@@ -1702,22 +1702,22 @@ export function NcmConfigReview({
       {/* MODAL 2: FLAG & ROLLBACK REMEDIATION GUIDANCE */}
       {rollbackModalOpen && promoteReviewId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={() => setRollbackModalOpen(false)}>
-          <div className="w-full max-w-2xl rounded-xl border border-slate-700 bg-slate-900 p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-red-400 flex items-center gap-2">
-                <AlertTriangle className="size-5 text-red-400" />
+          <div className="w-full max-w-2xl rounded-xl border border-ops-border bg-ops-surface p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-ops-border pb-3">
+              <h3 className="text-base font-bold text-ops-danger flex items-center gap-2">
+                <AlertTriangle className="size-5 text-ops-danger" />
                 Flag Unapproved Drift &amp; Rollback Guidance
               </h3>
-              <button type="button" onClick={() => setRollbackModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button type="button" onClick={() => setRollbackModalOpen(false)} className="text-ops-muted hover:text-ops-text">
                 <X className="size-4" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-300">
+            <p className="text-xs text-ops-text">
               Drift ini akan ditandai sebagai <strong>FLAGGED</strong> (temuan perubahan tidak terotorisasi untuk ISO 27001). Berikut adalah instruksi rollback CLI otomatis untuk remedi mengembalikan switch ke baseline.
             </p>
 
-            <label className="block space-y-1 text-xs font-medium text-slate-300">
+            <label className="block space-y-1 text-xs font-medium text-ops-text">
               <span>Incident / Violation Reference (Opsional)</span>
               <input
                 type="text"
@@ -1733,22 +1733,22 @@ export function NcmConfigReview({
                 Remediation CLI Rollback Script:
               </div>
               {rollbackLoading ? (
-                <p className="p-4 text-center text-xs text-ops-muted bg-slate-950 rounded">Membuat script rollback…</p>
+                <p className="p-4 text-center text-xs text-ops-muted bg-ops-bg rounded">Membuat script rollback…</p>
               ) : (
-                <pre className="max-h-52 overflow-auto rounded border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-slate-300">
+                <pre className="max-h-52 overflow-auto rounded border border-ops-border bg-ops-bg p-3 font-mono text-xs text-ops-text">
                   {rollbackScript || "! Tidak ada script rollback yang tersedia."}
                 </pre>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-ops-border">
               <button
                 type="button"
                 onClick={() => {
                   navigator.clipboard?.writeText(rollbackScript);
                   alert("Script rollback berhasil disalin ke clipboard!");
                 }}
-                className="inline-flex items-center gap-1.5 rounded border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700"
+                className="inline-flex items-center gap-1.5 rounded border border-ops-border bg-ops-surface-raised px-3 py-1.5 text-xs text-ops-text hover:border-ops-accent/50"
               >
                 <Copy className="size-3.5" />
                 Salin Script Rollback
@@ -1773,35 +1773,35 @@ export function NcmConfigReview({
       {/* MODAL 3: CYCLE ATTESTATION RESULT */}
       {cycleModalOpen && cycleResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={() => setCycleModalOpen(false)}>
-          <div className="w-full max-w-xl rounded-xl border border-slate-700 bg-slate-900 p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <CheckCircle2 className="size-5 text-emerald-400" />
+          <div className="w-full max-w-xl rounded-xl border border-ops-border bg-ops-surface p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-ops-border pb-3">
+              <h3 className="text-base font-bold text-ops-text flex items-center gap-2">
+                <CheckCircle2 className="size-5 text-ops-success" />
                 Siklus Review Fleet Selesai
               </h3>
-              <button type="button" onClick={() => setCycleModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button type="button" onClick={() => setCycleModalOpen(false)} className="text-ops-muted hover:text-ops-text">
                 <X className="size-4" />
               </button>
             </div>
 
-            <p className="text-sm text-slate-200 font-semibold">{pick(cycleResult, "message")}</p>
+            <p className="text-sm text-ops-text font-semibold">{pick(cycleResult, "message")}</p>
 
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded border border-slate-800 bg-slate-950 p-3 text-center">
-                <div className="text-xl font-bold font-mono text-white">{pick(cycleResult, "total_checked")}</div>
+              <div className="rounded border border-ops-border bg-ops-bg p-3 text-center">
+                <div className="text-xl font-bold font-mono text-ops-text">{pick(cycleResult, "total_checked")}</div>
                 <div className="text-[11px] text-ops-muted">Total Diperiksa</div>
               </div>
-              <div className="rounded border border-slate-800 bg-slate-950 p-3 text-center">
-                <div className="text-xl font-bold font-mono text-emerald-400">{pick(cycleResult, "clean_count")}</div>
+              <div className="rounded border border-ops-border bg-ops-bg p-3 text-center">
+                <div className="text-xl font-bold font-mono text-ops-success">{pick(cycleResult, "clean_count")}</div>
                 <div className="text-[11px] text-ops-muted">Clean Attested</div>
               </div>
-              <div className="rounded border border-slate-800 bg-slate-950 p-3 text-center">
-                <div className="text-xl font-bold font-mono text-amber-400">{pick(cycleResult, "drift_count")}</div>
+              <div className="rounded border border-ops-border bg-ops-bg p-3 text-center">
+                <div className="text-xl font-bold font-mono text-ops-warning">{pick(cycleResult, "drift_count")}</div>
                 <div className="text-[11px] text-ops-muted">Review Baru</div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-800">
+            <div className="flex justify-end pt-2 border-t border-ops-border">
               <ActionButton type="button" onClick={() => setCycleModalOpen(false)}>
                 Tutup Ringkasan
               </ActionButton>
