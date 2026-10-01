@@ -1,11 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Box, Maximize, Minimize, RotateCcw, TriangleAlert } from "lucide-react";
+import { Box, Maximize, Minimize, Palette, RotateCcw, TriangleAlert } from "lucide-react";
 import type { RackDevice, RoomSettings } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
 import { troubledCritical, type ColorBy } from "@/lib/rack-signals";
+import { DEFAULT_APPEARANCE, type RoomAppearance } from "@/lib/room-appearance";
+import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
 import { layoutRacks } from "./layout";
 import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
@@ -18,6 +21,7 @@ const RackScene = dynamic(() => import("./rack-scene"), {
 const QUALITY_KEY = "rack3d-quality";
 const UNASSIGNED = "Unassigned Location";
 const selectClass = "h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent";
+const overlayButton = "flex items-center gap-1.5 rounded-lg border border-ops-border bg-ops-surface/90 px-3 py-1.5 text-sm font-medium text-ops-text shadow backdrop-blur hover:bg-ops-surface";
 
 interface RackView3DProps {
     racks: SceneRack[];
@@ -27,9 +31,10 @@ interface RackView3DProps {
     autoFocusDeviceId: number | null;
     onSelectDevice: (d: RackDevice | null) => void;
     onWebglUnavailable: () => void;
+    canEditAppearance: boolean;
 }
 
-export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable }: RackView3DProps) {
+export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable, canEditAppearance }: RackView3DProps) {
     const rooms = useMemo(() => {
         const map = new Map<string, SceneRack[]>();
         for (const r of racks) {
@@ -48,6 +53,12 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const [autoResolved, setAutoResolved] = useState<Quality | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [alertOpen, setAlertOpen] = useState(false);
+    const router = useRouter();
+    // Appearance editor: open for one location; preview overrides the saved
+    // look only while that room's editor is open.
+    const [editing, setEditing] = useState<number | null>(null);
+    const [preview, setPreview] = useState<RoomAppearance | null>(null);
+    const [saved, setSaved] = useState<Record<number, RoomAppearance>>({});
 
     // Picking a location in the filter bar opens that room.
     const [appliedLocation, setAppliedLocation] = useState<string | null>(null);
@@ -89,6 +100,15 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const settings = locationId != null ? roomSettings[locationId] : undefined;
     const floorPlanUrl = settings?.floorPlanPath ?? null;
     const temp = settings?.tempC != null ? { tempC: settings.tempC, thresholdC: settings.tempThresholdC } : null;
+    const editingHere = editing != null && editing === locationId;
+    const appearance = (editingHere ? preview : null) ?? (locationId != null ? saved[locationId] : undefined) ?? settings?.appearance ?? DEFAULT_APPEARANCE;
+    const openEditor = () => { setPreview(null); setEditing(locationId); };
+    const closeEditor = () => { setEditing(null); setPreview(null); };
+    const onSaved = (a: RoomAppearance) => {
+        if (locationId != null) setSaved((s) => ({ ...s, [locationId]: a }));
+        closeEditor();
+        router.refresh();
+    };
     const troubled = useMemo(() => troubledCritical(roomRacks), [roomRacks]);
 
     // Critical popup: once per room per browser session; the chip reopens it.
@@ -226,15 +246,20 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
             </div>
 
             <div className={`overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene">
-                <button
-                    onClick={toggleFullscreen}
-                    aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                    title={isFullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}
-                    className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-lg border border-ops-border bg-ops-surface/90 px-3 py-1.5 text-sm font-medium text-ops-text shadow backdrop-blur hover:bg-ops-surface"
-                >
-                    {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-                    {isFullscreen ? "Exit" : "Fullscreen"}
-                </button>
+                <div className="absolute right-3 top-3 z-10 flex gap-2" data-keep-tour>
+                    {canEditAppearance && locationId != null && (
+                        <button onClick={openEditor} aria-label="Room appearance" title="Light colour and wallpaper" className={overlayButton}>
+                            <Palette className="h-4 w-4" /> Appearance
+                        </button>
+                    )}
+                    <button onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"} className={overlayButton}>
+                        {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                        {isFullscreen ? "Exit" : "Fullscreen"}
+                    </button>
+                </div>
+                {editingHere && locationId != null && (
+                    <AppearancePanel locationId={locationId} value={appearance} onPreview={setPreview} onSaved={onSaved} onClose={closeEditor} />
+                )}
                 <RackScene
                     racks={roomRacks}
                     floorPlanUrl={floorPlanUrl}
@@ -248,6 +273,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     onSelectDevice={onSelectDevice}
                     temp={temp}
                     colorBy={colorBy}
+                    appearance={appearance}
                 />
                 {focusRack && (
                     <button

@@ -136,6 +136,13 @@ export const locations = pgTable("locations", {
   // Optional floor-plan image (/uploads/floorplans/...) used as the floor
   // texture of the 3D rack view.
   floorPlanPath: text("floor_plan_path"),
+  // 3D room appearance (0062): light tint (#rrggbb) + brightness (0..2) and
+  // wall finish ('none' | 'brick' | 'acoustic' | 'concrete' | 'custom').
+  lightColor: text("light_color"),
+  lightBrightness: real("light_brightness"),
+  wallpaper: text("wallpaper"),
+  wallpaperPath: text("wallpaper_path"),
+  wallpaperMode: text("wallpaper_mode"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -6,6 +6,7 @@ import { sql, eq, asc, desc, inArray, and, isNotNull } from "drizzle-orm";
 import { requireActiveSiteAction } from "../lib/action-auth";
 import { compareRackOrder } from "../lib/rack-order";
 import { foldIncidents, NO_INCIDENTS, type OpenIncidents } from "../lib/rack-signals";
+import { resolveAppearance, type RoomAppearance } from "../lib/room-appearance";
 
 export interface RackDevice {
     id: number;
@@ -301,6 +302,7 @@ export interface RoomSettings {
     // Room temperature for the 3D label; null when not measured or excluded.
     tempC: number | null;
     tempThresholdC: number | null;
+    appearance: RoomAppearance;
 }
 
 // Per-location settings (active site) for the 3D rack view.
@@ -315,6 +317,11 @@ export async function getRoomSettings(): Promise<Record<number, RoomSettings>> {
             tempC: locations.tempC,
             tempThresholdC: locations.tempThresholdC,
             excludeTempCheck: locations.excludeTempCheck,
+            lightColor: locations.lightColor,
+            lightBrightness: locations.lightBrightness,
+            wallpaper: locations.wallpaper,
+            wallpaperPath: locations.wallpaperPath,
+            wallpaperMode: locations.wallpaperMode,
         })
         .from(locations)
         .where(eq(locations.siteId, auth.activeSiteId));
@@ -323,5 +330,6 @@ export async function getRoomSettings(): Promise<Record<number, RoomSettings>> {
         floorPlanPath: r.floorPlanPath,
         tempC: r.excludeTempCheck ? null : r.tempC,
         tempThresholdC: r.tempThresholdC,
+        appearance: resolveAppearance(r),
     }]));
 }

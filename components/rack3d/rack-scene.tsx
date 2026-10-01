@@ -9,6 +9,7 @@ import { ToneMappingMode } from "postprocessing";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
 import type { ColorBy } from "@/lib/rack-signals";
+import type { RoomAppearance } from "@/lib/room-appearance";
 import { useIsDark } from "@/components/ui/theme-toggle";
 import { FRONT_Z, RACK_D, U, rackHeight, uToY } from "./constants";
 import { inRack } from "./free-slots";
@@ -33,6 +34,7 @@ export interface RackSceneProps {
     onSelectDevice: (d: RackDevice | null) => void;
     temp: { tempC: number; thresholdC: number | null } | null;
     colorBy: ColorBy;
+    appearance: RoomAppearance;
 }
 
 // Mirrors --color-ops-accent in app/globals.css (light / dark).
@@ -80,18 +82,21 @@ function ceilingSpots(b: Bounds): [number, number][] {
     return out;
 }
 
-function Lighting({ dark, b, preset }: { dark: boolean; b: Bounds; preset: (typeof PRESETS)[Quality] }) {
+function Lighting({ dark, b, preset, appearance }: { dark: boolean; b: Bounds; preset: (typeof PRESETS)[Quality]; appearance: RoomAppearance }) {
     const span = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 2;
     const spots = useMemo(() => ceilingSpots(b), [b]);
+    // Room tint + brightness (per location) on top of the theme's base light.
+    const k = appearance.lightBrightness;
+    const tint = appearance.lightColor;
     return (
         <>
-            <ambientLight intensity={dark ? 0.7 : 0.55} />
-            <hemisphereLight args={[dark ? "#7d9bcc" : "#ffffff", dark ? "#222b3a" : "#8f98a3", dark ? 1.3 : 1.1]} />
+            <ambientLight intensity={(dark ? 0.7 : 0.55) * k} />
+            <hemisphereLight args={[tint ?? (dark ? "#7d9bcc" : "#ffffff"), dark ? "#222b3a" : "#8f98a3", (dark ? 1.3 : 1.1) * k]} />
             {/* Aisle fill: soft light down the rows so faceplates read */}
             <directionalLight position={[b.maxX + 6, 2.5, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.9 : 0.9} color={dark ? "#c7d8f5" : "#ffffff"} />
             <directionalLight position={[b.minX - 6, 2.2, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.45 : 0.35} color={dark ? "#c7d8f5" : "#ffffff"} />
             {dark && spots.map(([x, z]) => (
-                <pointLight key={`${x},${z}`} position={[x, 2.9, z]} intensity={7} distance={8} decay={1.2} color="#e6eefc" />
+                <pointLight key={`${x},${z}`} position={[x, 2.9, z]} intensity={7 * k} distance={8} decay={1.2} color={tint ?? "#e6eefc"} />
             ))}
             {/* Lights-out mode: faint blue wash rising from the cold-aisle tiles */}
             {dark && <pointLight position={[(b.minX + b.maxX) / 2, 0.4, (b.minZ + b.maxZ) / 2]} color="#3b82f6" intensity={4} distance={6} decay={1.5} />}
@@ -207,7 +212,7 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
     );
 }
 
-export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice, temp, colorBy }: RackSceneProps) {
+export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice, temp, colorBy, appearance }: RackSceneProps) {
     const dark = useIsDark();
     const placed = useMemo(() => layoutRacks(racks), [racks]);
     const b = useMemo(() => bounds(placed), [placed]);
@@ -237,8 +242,8 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
         >
             <color attach="background" args={[bg]} />
             <fog attach="fog" args={[bg, 14, 45]} />
-            <Lighting dark={dark} b={b} preset={preset} />
-            <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} temp={temp} />
+            <Lighting dark={dark} b={b} preset={preset} appearance={appearance} />
+            <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} temp={temp} appearance={appearance} />
             {/* Raycasting and <Html> ignore visible=false, so other rows are not
                 rendered at all while a rack is focused. */}
             {placed.filter((p) => focusedRow === undefined || p.row === focusedRow || peerRacks.has(p.rack.name)).map((p) => (

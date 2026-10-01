@@ -15,9 +15,10 @@ interface RackLayoutShellProps {
     racks: RackData[];
     categories: { id: number; name: string; color: string | null }[];
     rooms: Record<number, RoomSettings>;
+    canEditAppearance: boolean;
 }
 
-export default function RackLayoutShell({ racks, categories, rooms }: RackLayoutShellProps) {
+export default function RackLayoutShell({ racks, categories, rooms, canEditAppearance }: RackLayoutShellProps) {
     const [filters, setFilters] = useState<RackFilters>(EMPTY_FILTERS);
     const [selected, setSelected] = useState<RackDevice | null>(null);
     const [view, setView] = useState<RackView>("2d");
@@ -94,6 +95,7 @@ export default function RackLayoutShell({ racks, categories, rooms }: RackLayout
                     racks={sceneRacks}
                     locationFilter={filters.location || null}
                     rooms={rooms}
+                    canEditAppearance={canEditAppearance}
                     selectedDeviceId={selected?.id ?? null}
                     autoFocusDeviceId={singleMatchId(filtered, filters)}
                     onSelectDevice={setSelected}
