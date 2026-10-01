@@ -104,142 +104,37 @@ type RackTheme = {
   dotColor: string;
 };
 
-const RACK_PALETTES: RackTheme[] = [
-  {
-    // Blue
-    headerBg: "bg-blue-500/10 dark:bg-blue-950/40 border-y border-blue-500/25",
-    badgeBg: "bg-blue-500/15",
-    badgeText: "text-blue-700 dark:text-blue-300",
-    badgeBorder: "border-blue-500/30",
-    leftBorder: "border-l-blue-500",
-    iconBg: "bg-blue-500/20",
-    iconText: "text-blue-600 dark:text-blue-400",
-    pillBg: "bg-blue-500/15",
-    pillText: "text-blue-700 dark:text-blue-300",
-    pillBorder: "border-blue-500/30",
-    dotColor: "bg-blue-500",
-  },
-  {
-    // Emerald
-    headerBg: "bg-emerald-500/10 dark:bg-emerald-950/40 border-y border-emerald-500/25",
-    badgeBg: "bg-emerald-500/15",
-    badgeText: "text-emerald-700 dark:text-emerald-300",
-    badgeBorder: "border-emerald-500/30",
-    leftBorder: "border-l-emerald-500",
-    iconBg: "bg-emerald-500/20",
-    iconText: "text-emerald-600 dark:text-emerald-400",
-    pillBg: "bg-emerald-500/15",
-    pillText: "text-emerald-700 dark:text-emerald-300",
-    pillBorder: "border-emerald-500/30",
-    dotColor: "bg-emerald-500",
-  },
-  {
-    // Purple
-    headerBg: "bg-purple-500/10 dark:bg-purple-950/40 border-y border-purple-500/25",
-    badgeBg: "bg-purple-500/15",
-    badgeText: "text-purple-700 dark:text-purple-300",
-    badgeBorder: "border-purple-500/30",
-    leftBorder: "border-l-purple-500",
-    iconBg: "bg-purple-500/20",
-    iconText: "text-purple-600 dark:text-purple-400",
-    pillBg: "bg-purple-500/15",
-    pillText: "text-purple-700 dark:text-purple-300",
-    pillBorder: "border-purple-500/30",
-    dotColor: "bg-purple-500",
-  },
-  {
-    // Amber
-    headerBg: "bg-amber-500/10 dark:bg-amber-950/40 border-y border-amber-500/25",
-    badgeBg: "bg-amber-500/15",
-    badgeText: "text-amber-700 dark:text-amber-300",
-    badgeBorder: "border-amber-500/30",
-    leftBorder: "border-l-amber-500",
-    iconBg: "bg-amber-500/20",
-    iconText: "text-amber-600 dark:text-amber-400",
-    pillBg: "bg-amber-500/15",
-    pillText: "text-amber-700 dark:text-amber-300",
-    pillBorder: "border-amber-500/30",
-    dotColor: "bg-amber-500",
-  },
-  {
-    // Cyan
-    headerBg: "bg-cyan-500/10 dark:bg-cyan-950/40 border-y border-cyan-500/25",
-    badgeBg: "bg-cyan-500/15",
-    badgeText: "text-cyan-700 dark:text-cyan-300",
-    badgeBorder: "border-cyan-500/30",
-    leftBorder: "border-l-cyan-500",
-    iconBg: "bg-cyan-500/20",
-    iconText: "text-cyan-600 dark:text-cyan-400",
-    pillBg: "bg-cyan-500/15",
-    pillText: "text-cyan-700 dark:text-cyan-300",
-    pillBorder: "border-cyan-500/30",
-    dotColor: "bg-cyan-500",
-  },
-  {
-    // Rose
-    headerBg: "bg-rose-500/10 dark:bg-rose-950/40 border-y border-rose-500/25",
-    badgeBg: "bg-rose-500/15",
-    badgeText: "text-rose-700 dark:text-rose-300",
-    badgeBorder: "border-rose-500/30",
-    leftBorder: "border-l-rose-500",
-    iconBg: "bg-rose-500/20",
-    iconText: "text-rose-600 dark:text-rose-400",
-    pillBg: "bg-rose-500/15",
-    pillText: "text-rose-700 dark:text-rose-300",
-    pillBorder: "border-rose-500/30",
-    dotColor: "bg-rose-500",
-  },
-  {
-    // Indigo
-    headerBg: "bg-indigo-500/10 dark:bg-indigo-950/40 border-y border-indigo-500/25",
-    badgeBg: "bg-indigo-500/15",
-    badgeText: "text-indigo-700 dark:text-indigo-300",
-    badgeBorder: "border-indigo-500/30",
-    leftBorder: "border-l-indigo-500",
-    iconBg: "bg-indigo-500/20",
-    iconText: "text-indigo-600 dark:text-indigo-400",
-    pillBg: "bg-indigo-500/15",
-    pillText: "text-indigo-700 dark:text-indigo-300",
-    pillBorder: "border-indigo-500/30",
-    dotColor: "bg-indigo-500",
-  },
-  {
-    // Teal
-    headerBg: "bg-teal-500/10 dark:bg-teal-950/40 border-y border-teal-500/25",
-    badgeBg: "bg-teal-500/15",
-    badgeText: "text-teal-700 dark:text-teal-300",
-    badgeBorder: "border-teal-500/30",
-    leftBorder: "border-l-teal-500",
-    iconBg: "bg-teal-500/20",
-    iconText: "text-teal-600 dark:text-teal-400",
-    pillBg: "bg-teal-500/15",
-    pillText: "text-teal-700 dark:text-teal-300",
-    pillBorder: "border-teal-500/30",
-    dotColor: "bg-teal-500",
-  },
-];
-
-const UNASSIGNED_THEME: RackTheme = {
-  headerBg: "bg-slate-500/10 dark:bg-slate-900/60 border-y border-slate-500/20",
-  badgeBg: "bg-slate-500/15",
-  badgeText: "text-slate-600 dark:text-slate-400",
-  badgeBorder: "border-slate-500/30",
-  leftBorder: "border-l-slate-400",
-  iconBg: "bg-slate-500/20",
-  iconText: "text-slate-400",
-  pillBg: "bg-slate-500/10",
-  pillText: "text-slate-600 dark:text-slate-400",
-  pillBorder: "border-slate-500/20",
-  dotColor: "bg-slate-400",
+const RACK_THEME: RackTheme = {
+  headerBg: "bg-ops-surface-raised border-y border-ops-border",
+  badgeBg: "bg-ops-accent/12",
+  badgeText: "text-ops-text",
+  badgeBorder: "border-ops-accent/30",
+  leftBorder: "border-l-ops-accent",
+  iconBg: "bg-ops-accent/12",
+  iconText: "text-ops-accent",
+  pillBg: "bg-ops-accent/10",
+  pillText: "text-ops-text",
+  pillBorder: "border-ops-accent/30",
+  dotColor: "bg-ops-accent",
 };
 
-function getRackTheme(rackName: string, fallbackIndex = 0): RackTheme {
+const UNASSIGNED_THEME: RackTheme = {
+  headerBg: "bg-ops-surface-raised border-y border-ops-border",
+  badgeBg: "bg-ops-surface-raised",
+  badgeText: "text-ops-muted",
+  badgeBorder: "border-ops-border",
+  leftBorder: "border-l-ops-border",
+  iconBg: "bg-ops-surface-raised",
+  iconText: "text-ops-muted",
+  pillBg: "bg-ops-surface-raised",
+  pillText: "text-ops-muted",
+  pillBorder: "border-ops-border",
+  dotColor: "bg-ops-muted",
+};
+
+function getRackTheme(rackName: string): RackTheme {
   if (!rackName || rackName === "Unassigned / Direct Placement") return UNASSIGNED_THEME;
-  let hash = 0;
-  for (let i = 0; i < rackName.length; i++) {
-    hash = (hash * 31 + rackName.charCodeAt(i)) >>> 0;
-  }
-  return RACK_PALETTES[(hash + fallbackIndex) % RACK_PALETTES.length];
+  return RACK_THEME;
 }
 
 export default function DeviceTable({
@@ -459,7 +354,7 @@ export default function DeviceTable({
               />
             ) : (
             paginatedGroupEntries.map(([rackName, rackDevices], rackIndex) => {
-                const theme = getRackTheme(rackName, startIndex + rackIndex);
+                const theme = getRackTheme(rackName);
                 const rackLocation = rackDevices.find((d) => d.locationName)?.locationName;
                 const rackZone = rackDevices.find((d) => d.zone)?.zone;
                 const rackAuditable = rackDevices[0]?.isRackAuditable;
