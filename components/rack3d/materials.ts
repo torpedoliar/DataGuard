@@ -25,6 +25,11 @@ export const sharedMaterials = {
     activity: led("#4ade80", 2),
     linkA: led("#22c55e", 2),
     linkB: led("#fbbf24", 2),
+    // Documented ports: one material per blink phase, solid red when down.
+    port0: led("#22c55e", 2),
+    port1: led("#22c55e", 2),
+    port2: led("#22c55e", 2),
+    portDown: led("#ef4444", 1.6),
     storage: led("#60a5fa", 2.5),
     lcd: led("#7dd3fc", 1.2),
     pool: pool(),
@@ -41,4 +46,10 @@ export function tickLeds(t: number) {
     sharedMaterials.activity.emissiveIntensity = Math.random() > 0.35 ? 2 : 0.2;
     sharedMaterials.linkA.emissiveIntensity = Math.random() > 0.15 ? 2 : 0.1;
     sharedMaterials.linkB.emissiveIntensity = Math.random() > 0.5 ? 2 : 0.1;
+    // Link LED: mostly lit, short traffic flickers at different rates.
+    sharedMaterials.port0.emissiveIntensity = Math.random() > 0.25 ? 2.2 : 0.15;
+    sharedMaterials.port1.emissiveIntensity = Math.random() > 0.4 ? 2.2 : 0.15;
+    sharedMaterials.port2.emissiveIntensity = Math.random() > 0.1 ? 2.2 : 0.15;
 }
+
+export const portMaterials = [sharedMaterials.port0, sharedMaterials.port1, sharedMaterials.port2];

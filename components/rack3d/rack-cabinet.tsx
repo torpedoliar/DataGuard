@@ -32,7 +32,7 @@ function Door({ height, open }: { height: number; open: boolean }) {
         <group ref={hinge} position={[-RACK_W / 2, PLINTH + 0.01 + height / 2, RACK_D / 2 + 0.006]}>
             <mesh position={[RACK_W / 2, 0, 0]}>
                 <planeGeometry args={[RACK_W - 0.01, height]} />
-                <meshStandardMaterial color="#15171b" metalness={0.7} roughness={0.4} alphaMap={alpha} transparent depthWrite={false} side={THREE.DoubleSide} />
+                <meshStandardMaterial color="#2a2f37" metalness={0.6} roughness={0.4} alphaMap={alpha} transparent depthWrite={false} side={THREE.DoubleSide} />
             </mesh>
             <mesh position={[RACK_W - 0.04, 0, 0.012]}>
                 <boxGeometry args={[0.018, 0.16, 0.02]} />
@@ -135,7 +135,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, se
     const devices = rack.devices.filter((d) => inRack(d, totalU));
     const free = useMemo(() => freeRanges(totalU, rack.devices), [totalU, rack.devices]);
     const hasFault = rack.devices.some((d) => d.status === "NOT OK");
-    const steel = <meshStandardMaterial color={dark ? "#0d0f12" : "#16181c"} metalness={0.5} roughness={0.55} />;
+    const steel = <meshStandardMaterial color={dark ? "#2a3039" : "#16181c"} metalness={0.45} roughness={0.5} />;
 
     return (
         <group

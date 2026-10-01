@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import type { RackDevice } from "@/actions/rack-layout";
-import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor, useDraggable, useDroppable } from "@dnd-kit/core";
-import { Server, Network, Zap, Wind, XCircle, Search, MapPin } from "lucide-react";
+import { reorderRacks } from "@/actions/rack-management";
+import { DndContext, DragEndEvent, DragStartEvent, useSensor, useSensors, PointerSensor, useDraggable, useDroppable } from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { Server, Network, Zap, Wind, XCircle, Search, MapPin, GripVertical } from "lucide-react";
 import type { FilteredRack } from "@/lib/rack-filter";
+import { compareRackOrder, moveRack, type OrderedRack } from "@/lib/rack-order";
+
+type DragKind = "device" | "rack" | null;
+const rackDragId = (name: string) => `rack:${name}`;
 
 interface RackLayoutProps {
     racks: FilteredRack[];
@@ -22,10 +29,11 @@ const renderCategoryIcon = (categoryName: string | null, className?: string) => 
     return <Server className={className} />;
 };
 
-function DroppableSlot({ u, rackName, gridRow }: { u: number; rackName: string; gridRow: number }) {
+function DroppableSlot({ u, rackName, gridRow, disabled }: { u: number; rackName: string; gridRow: number; disabled: boolean }) {
     const { setNodeRef, isOver } = useDroppable({
         id: `slot-${rackName}-${u}`,
         data: { rackName, position: u, type: "slot" },
+        disabled,
     });
 
     return (
@@ -149,9 +157,65 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
     );
 }
 
+// Rack card that can be dragged by its header grip to change the floor order.
+// Only the grip starts a drag, so device drags inside the card are untouched;
+// while a device is dragged the card is not a drop target (slots are).
+function SortableRack({ name, dragKind, reorderable, children }: {
+    name: string;
+    dragKind: DragKind;
+    reorderable: boolean;
+    children: (grip: ReactNode) => ReactNode;
+}) {
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+        id: rackDragId(name),
+        data: { type: "rack", rackName: name },
+        disabled: { draggable: !reorderable, droppable: !reorderable || dragKind === "device" },
+    });
+    const grip = reorderable ? (
+        <button
+            type="button"
+            ref={setActivatorNodeRef}
+            aria-label={`Reorder rack ${name}`}
+            title="Drag to change rack order (2D and 3D)"
+            className="shrink-0 -ml-1 rounded p-0.5 text-ops-muted hover:text-ops-text hover:bg-ops-bg cursor-grab active:cursor-grabbing touch-none"
+            {...attributes}
+            {...listeners}
+        >
+            <GripVertical className="h-4 w-4" />
+        </button>
+    ) : null;
+    return (
+        <div
+            ref={setNodeRef}
+            style={{
+                transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+                transition,
+                zIndex: isDragging ? 50 : undefined,
+                opacity: isDragging ? 0.7 : 1,
+                position: "relative",
+            }}
+        >
+            {children(grip)}
+        </div>
+    );
+}
+
 export default function RackLayout({ racks, hasFilters, onResetFilters, onSelectDevice }: RackLayoutProps) {
-    const [isDragging, setIsDragging] = useState(false);
+    const [dragKind, setDragKind] = useState<DragKind>(null);
+    const isDragging = dragKind === "device";
     const [isClient, setIsClient] = useState(false);
+    const router = useRouter();
+    // Moves shown immediately while the reorder saves; dropped when fresh
+    // server data arrives (new racks prop) or the save fails.
+    const [overrides, setOverrides] = useState<Map<string, OrderedRack>>(new Map());
+    const [seenRacks, setSeenRacks] = useState(racks);
+    if (racks !== seenRacks) {
+        setSeenRacks(racks);
+        setOverrides(new Map());
+    }
+    // Reordering a filtered list would renumber slots without the hidden
+    // racks and collide with them: only reorder the full layout.
+    const reorderable = !hasFilters;
 
 
     useEffect(() => { setIsClient(true); }, []);
@@ -160,10 +224,27 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
     );
 
+    const handleRackDrop = async (from: string, to: string) => {
+        const room = (name: string) => orderedRacks.find((x) => x.name === name)?.locationName || "";
+        if (room(from) !== room(to)) return; // racks only reorder within their room
+        const moves = moveRack(orderedRacks.filter((r) => (r.locationName || "") === room(from)), from, to);
+        if (!moves.length) return;
+        setOverrides((prev) => new Map([...prev, ...moves.map((m) => [m.name, m] as const)]));
+        const res = await reorderRacks(moves);
+        if ("success" in res && res.success) { router.refresh(); return; }
+        setOverrides(new Map());
+        alert(res.message || "Failed to reorder racks.");
+    };
+
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
-        setIsDragging(false);
+        setDragKind(null);
         if (!over) return;
+        if (active.data.current?.type === "rack") {
+            const to = over.data.current?.type === "rack" ? (over.data.current.rackName as string) : null;
+            if (to) await handleRackDrop(active.data.current.rackName as string, to);
+            return;
+        }
         const deviceId = Number(active.data.current?.deviceId);
         if (!deviceId) return;
         const targetRack = over.data.current?.rackName as string | undefined;
@@ -181,7 +262,10 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
         } catch { alert("Failed to move device. Please try again."); }
     };
 
-    const processedRacks = racks;
+    const orderedRacks = overrides.size
+        ? racks.map((r) => ({ ...r, ...overrides.get(r.name) })).sort(compareRackOrder)
+        : racks;
+    const processedRacks = orderedRacks;
 
     const groupedRacks = processedRacks.reduce((groups, rack) => {
         const loc = rack.locationName || "Unassigned Location";
@@ -209,7 +293,7 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                 );
             }
             slots.push(
-                <DroppableSlot key={`slot-${rack.name}-${u}`} u={u} rackName={rack.name} gridRow={row} />
+                <DroppableSlot key={`slot-${rack.name}-${u}`} u={u} rackName={rack.name} gridRow={row} disabled={dragKind === "rack"} />
             );
         }
         return slots;
@@ -243,7 +327,8 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
     return (
         <DndContext
             sensors={sensors}
-            onDragStart={() => setIsDragging(true)}
+            onDragStart={(e: DragStartEvent) => setDragKind(e.active.data.current?.type === "rack" ? "rack" : "device")}
+            onDragCancel={() => setDragKind(null)}
             onDragEnd={handleDragEnd}
         >
             <div className="space-y-6">
@@ -267,6 +352,7 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                                 </span>
                             </div>
 
+                            <SortableContext items={racksInLocation.map((r) => rackDragId(r.name))} strategy={rectSortingStrategy}>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                 {racksInLocation.map((rack) => {
                                     const totalU = rack.totalU || 42;
@@ -279,8 +365,9 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                                         "from-emerald-500 to-green-400";
 
                                     return (
+                                        <SortableRack key={`${rack.name}-${rack.zone || 'no-zone'}`} name={rack.name} dragKind={dragKind} reorderable={reorderable}>
+                                        {(grip) => (
                                         <div
-                                            key={`${rack.name}-${rack.zone || 'no-zone'}`}
                                             className={`group rounded-xl border overflow-hidden transition-all hover:shadow-lg ${
                                                 isDragging ? "border-dashed border-2 border-ops-accent/40" : "border-ops-border bg-ops-surface shadow-sm"
                                             }`}
@@ -289,6 +376,7 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                                             <div className="px-4 py-3 border-b border-ops-border flex items-center justify-between bg-ops-surface-raised">
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-2">
+                                                        {grip}
                                                         <Server className="h-4 w-4 text-ops-accent shrink-0" />
                                                         <h3 className="font-bold text-sm truncate text-ops-text">{rack.name}</h3>
                                                     </div>
@@ -358,9 +446,12 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                                                 </span>
                                             </div>
                                         </div>
+                                        )}
+                                        </SortableRack>
                                     );
                                 })}
                             </div>
+                            </SortableContext>
                         </div>
                     ))}
                 </div>

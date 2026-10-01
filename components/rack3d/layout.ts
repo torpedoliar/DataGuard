@@ -1,3 +1,4 @@
+import { compareRackOrder, naturally, rowKey } from "@/lib/rack-order";
 import { RACK_D, RACK_W, ROOM_MARGIN, ROW_PITCH, SLOT_PITCH, TILE } from "./constants";
 
 export interface LayoutRack {
@@ -22,12 +23,6 @@ export interface Bounds { minX: number; maxX: number; minZ: number; maxZ: number
 
 export const UNPLACED_ROW = "Unplaced";
 
-const naturally = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
-
-// Row key as stored by the rack action (trim + uppercase); applied here too
-// so rows written any other way (import, SQL) still merge.
-const rowKey = (row: string | null) => row?.trim().toUpperCase() || null;
-
 // Grid placement: row -> z, slot -> x. Racks without a row go to one auto
 // row (or an "Unplaced" row behind the real ones). Every rack with a unique
 // explicit slot keeps it; only the later duplicates of a slot (and racks
@@ -35,9 +30,7 @@ const rowKey = (row: string | null) => row?.trim().toUpperCase() || null;
 // Duplicates are flagged so the UI can warn.
 export function layoutRacks<R extends LayoutRack>(racks: R[]): PlacedRack<R>[] {
     const rows = new Map<string, R[]>();
-    const ordered = racks
-        .filter((r) => rowKey(r.floorRow))
-        .sort((a, b) => (a.floorSlot ?? Infinity) - (b.floorSlot ?? Infinity) || naturally(a.name, b.name));
+    const ordered = racks.filter((r) => rowKey(r.floorRow)).sort(compareRackOrder);
     for (const r of ordered) {
         const key = rowKey(r.floorRow)!;
         rows.set(key, [...(rows.get(key) ?? []), r]);
@@ -68,7 +61,7 @@ export function layoutRacks<R extends LayoutRack>(racks: R[]): PlacedRack<R>[] {
     const unplacedRow = rowNames.length ? UNPLACED_ROW : "";
     racks
         .filter((r) => !rowKey(r.floorRow))
-        .sort((a, b) => naturally(a.name, b.name))
+        .sort(compareRackOrder)
         .forEach((rack, i) => out.push(place(rack, unplacedRow, rowNames.length, i + 1, false)));
 
     return centre(out);

@@ -2,6 +2,7 @@
 
 import { XCircle } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
+import DeviceNetworkSummary from "./device-network-summary";
 
 export default function DeviceDetailPanel({ device, onClose }: { device: RackDevice | null; onClose: () => void }) {
     if (!device) return null;
@@ -53,6 +54,7 @@ export default function DeviceDetailPanel({ device, onClose }: { device: RackDev
                         </p>
                     </div>
                 </div>
+                <DeviceNetworkSummary device={device} />
             </aside>
         </div>
     );

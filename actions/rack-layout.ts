@@ -1,9 +1,10 @@
 "use server";
 
 import { db } from "../db";
-import { devices, categories, checklistItems, checklistEntries, brands, locations, racks as racksTable } from "../db/schema";
+import { devices, categories, checklistItems, checklistEntries, brands, locations, networkPorts, racks as racksTable } from "../db/schema";
 import { sql, eq, asc, desc, inArray, and, isNotNull } from "drizzle-orm";
 import { requireActiveSiteAction } from "../lib/action-auth";
+import { compareRackOrder } from "../lib/rack-order";
 
 export interface RackDevice {
     id: number;
@@ -20,6 +21,20 @@ export interface RackDevice {
     uHeight: number | null;
     zone: string | null;
     status?: "OK" | "NOT OK" | "Pending";
+    // Documented faceplate + ports (network docs), drawn on the 3D faceplate.
+    faceplatePortCount: number | null;
+    faceplateUplinkCount: number | null;
+    faceplateRows: number | null;
+    faceplateNumbering: string | null;
+    ports: RackDevicePort[];
+}
+
+export interface RackDevicePort {
+    id: number;
+    portName: string;
+    portIndex: number | null;
+    mediaType: string | null;
+    status: string | null;
 }
 
 export interface RackData {
@@ -57,6 +72,10 @@ export async function getRackLayout() {
             rackPosition: devices.rackPosition,
             uHeight: devices.uHeight,
             zone: devices.zone,
+            faceplatePortCount: devices.faceplatePortCount,
+            faceplateUplinkCount: devices.faceplateUplinkCount,
+            faceplateRows: devices.faceplateRows,
+            faceplateNumbering: devices.faceplateNumbering,
         })
         .from(devices)
         .leftJoin(categories, eq(devices.categoryId, categories.id))
@@ -67,6 +86,26 @@ export async function getRackLayout() {
 
     // Get latest checklist status for these devices
     const deviceIds = allDevices.map(d => d.id);
+
+    // Ports only for devices with a faceplate: the 3D face draws nothing else.
+    const portsByDevice = new Map<number, RackDevicePort[]>();
+    const faceplateIds = allDevices.filter((d) => d.rackName && (d.faceplatePortCount ?? 0) > 0).map((d) => d.id);
+    if (faceplateIds.length > 0) {
+        const ports = await db
+            .select({
+                deviceId: networkPorts.deviceId,
+                id: networkPorts.id,
+                portName: networkPorts.portName,
+                portIndex: networkPorts.portIndex,
+                mediaType: networkPorts.mediaType,
+                status: networkPorts.status,
+            })
+            .from(networkPorts)
+            .where(inArray(networkPorts.deviceId, faceplateIds));
+        for (const { deviceId, ...port } of ports) {
+            portsByDevice.set(deviceId, [...(portsByDevice.get(deviceId) ?? []), port]);
+        }
+    }
     const latestStatuses: Record<number, "OK" | "NOT OK" | "Pending"> = {};
 
     if (deviceIds.length > 0) {
@@ -157,10 +196,11 @@ export async function getRackLayout() {
 
         const rack = racks.get(rackKey)!;
 
-        const deviceWithStatus = {
+        const deviceWithStatus: RackDevice = {
             ...device,
-            status: latestStatuses[device.id] || "Pending"
-        } as RackDevice;
+            status: latestStatuses[device.id] || "Pending",
+            ports: portsByDevice.get(device.id) ?? [],
+        };
 
         rack.devices.push(deviceWithStatus);
 
@@ -172,13 +212,9 @@ export async function getRackLayout() {
         }
     }
 
-    return Array.from(racks.values()).sort((a, b) => {
-        // Sort by zone then rack name
-        if (a.zone !== b.zone) {
-            return (a.zone || "").localeCompare(b.zone || "");
-        }
-        return a.name.localeCompare(b.name);
-    });
+    // Same order as the 3D room (row, slot, name) so both views agree and a
+    // drag-reorder in 2D sticks.
+    return Array.from(racks.values()).sort(compareRackOrder);
 }
 
 export async function getRackStats() {
