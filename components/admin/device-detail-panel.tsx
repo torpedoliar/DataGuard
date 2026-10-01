@@ -1,15 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { XCircle } from "lucide-react";
+import { Loader2, TriangleAlert, XCircle } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
 import PhotoModal from "@/components/report/photo-modal";
 import DeviceNetworkSummary from "./device-network-summary";
+import { AuditSection, ConnectionsSection, IncidentsSection, SiemSection, useDeviceDrawer } from "./device-drawer-sections";
 
-export default function DeviceDetailPanel({ device, onClose }: { device: RackDevice | null; onClose: () => void }) {
-    const [photoOpen, setPhotoOpen] = useState(false);
+export default function DeviceDetailPanel({ device, onClose, onSelectPeer }: {
+    device: RackDevice | null;
+    onClose: () => void;
+    onSelectPeer?: (deviceId: number) => boolean;
+}) {
+    const [photo, setPhoto] = useState<string | null>(null);
+    const drawer = useDeviceDrawer(device?.id ?? null);
     if (!device) return null;
 
+    const pic = drawer.data?.picGroups.map((g) => g.name).join(", ");
     const rows: [string, string | null][] = [
         ["Name", device.name],
         ["Brand", device.brandName || "-"],
@@ -18,6 +25,9 @@ export default function DeviceDetailPanel({ device, onClose }: { device: RackDev
         ["Rack", device.rackName],
         ["Position", `U${device.rackPosition}`],
         ["Zone", device.zone || "-"],
+        ["IP address", device.ipAddress || "-"],
+        ["Asset code", device.assetCode || "-"],
+        ["PIC group", drawer.loading ? "…" : pic || "-"],
     ];
 
     return (
@@ -34,11 +44,17 @@ export default function DeviceDetailPanel({ device, onClose }: { device: RackDev
                         <XCircle className="h-5 w-5" />
                     </button>
                 </div>
+                {device.isCritical && (
+                    <div role="alert" className="mb-4 flex items-start gap-2 rounded-lg border border-ops-danger/50 bg-ops-danger/10 px-3 py-2 text-sm font-medium text-ops-danger">
+                        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                        Critical device. Coordinate with the PIC before any action.
+                    </div>
+                )}
                 {device.photoPath && (
                     <div className="mb-4">
                         <button
                             type="button"
-                            onClick={() => setPhotoOpen(true)}
+                            onClick={() => setPhoto(device.photoPath)}
                             aria-label={`Enlarge photo of ${device.name}`}
                             title="Click to enlarge"
                             className="block w-full cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ops-accent/40"
@@ -65,11 +81,20 @@ export default function DeviceDetailPanel({ device, onClose }: { device: RackDev
                         </p>
                     </div>
                 </div>
+                {drawer.loading && (
+                    <p className="mt-5 flex items-center gap-2 text-xs text-ops-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading audit, incidents and cabling…</p>
+                )}
+                {drawer.data && (
+                    <>
+                        <AuditSection drawer={drawer.data} onPhoto={setPhoto} />
+                        <IncidentsSection drawer={drawer.data} />
+                        <SiemSection drawer={drawer.data} />
+                    </>
+                )}
                 <DeviceNetworkSummary key={device.id} device={device} />
+                {drawer.data && <ConnectionsSection drawer={drawer.data} onSelectPeer={onSelectPeer} />}
             </aside>
-            {photoOpen && device.photoPath && (
-                <PhotoModal photoPath={device.photoPath} deviceName={device.name} onClose={() => setPhotoOpen(false)} />
-            )}
+            {photo && <PhotoModal photoPath={photo} deviceName={device.name} onClose={() => setPhoto(null)} />}
         </div>
     );
 }

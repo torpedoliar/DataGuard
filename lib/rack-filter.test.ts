@@ -5,7 +5,8 @@ import { applyRackFilters, applyRackFiltersForScene, EMPTY_FILTERS, hasActiveFil
 const dev = (id: number, name: string, extra: Partial<RackDevice> = {}): RackDevice => ({
   id, name, brandName: null, brandLogo: null, categoryId: 1, categoryName: "Server", categoryColor: null,
   locationName: "DC", photoPath: null, rackName: null, rackPosition: id, uHeight: 1, zone: null, status: "OK",
-  faceplatePortCount: null, faceplateUplinkCount: null, faceplateRows: null, faceplateNumbering: null, ports: [], ...extra,
+  faceplatePortCount: null, faceplateUplinkCount: null, faceplateRows: null, faceplateNumbering: null, ports: [],
+  isCritical: false, ipAddress: null, assetCode: null, openIncidents: { count: 0, maxSeverity: null }, ...extra,
 });
 const rack = (name: string, devices: RackDevice[], extra: Partial<RackData> = {}): RackData => ({
   name, zone: "RED", totalU: 42, devices, occupiedU: [], locationName: "DC",

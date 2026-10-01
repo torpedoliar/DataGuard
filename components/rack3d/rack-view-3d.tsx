@@ -67,6 +67,17 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
             setFocusPick(hit.name);
         }
     }
+    // Selecting a device from anywhere (drawer connection, critical popup)
+    // opens its room and rack so the fly-to target is rendered.
+    const [appliedSelected, setAppliedSelected] = useState<number | null>(null);
+    if (selectedDeviceId !== appliedSelected) {
+        setAppliedSelected(selectedDeviceId);
+        const hit = selectedDeviceId != null ? racks.find((r) => r.devices.some((d) => d.id === selectedDeviceId)) : undefined;
+        if (hit) {
+            setRoomPick(hit.locationName || UNASSIGNED);
+            setFocusPick(hit.name);
+        }
+    }
     const room = roomPick && rooms.has(roomPick) ? roomPick : rooms.keys().next().value ?? null;
     const roomRacks = useMemo(() => (room ? rooms.get(room) ?? [] : []), [room, rooms]);
     const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;

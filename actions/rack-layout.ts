@@ -1,10 +1,11 @@
 "use server";
 
 import { db } from "../db";
-import { devices, categories, checklistItems, checklistEntries, brands, locations, networkPorts, racks as racksTable } from "../db/schema";
+import { devices, categories, checklistItems, checklistEntries, brands, locations, networkPorts, incidents, racks as racksTable } from "../db/schema";
 import { sql, eq, asc, desc, inArray, and, isNotNull } from "drizzle-orm";
 import { requireActiveSiteAction } from "../lib/action-auth";
 import { compareRackOrder } from "../lib/rack-order";
+import { foldIncidents, NO_INCIDENTS, type OpenIncidents } from "../lib/rack-signals";
 
 export interface RackDevice {
     id: number;
@@ -27,6 +28,11 @@ export interface RackDevice {
     faceplateRows: number | null;
     faceplateNumbering: string | null;
     ports: RackDevicePort[];
+    isCritical: boolean;
+    ipAddress: string | null;
+    assetCode: string | null;
+    // Open / In Progress incidents (badge + critical alert in 3D).
+    openIncidents: OpenIncidents;
 }
 
 export interface RackDevicePort {
@@ -35,6 +41,10 @@ export interface RackDevicePort {
     portIndex: number | null;
     mediaType: string | null;
     status: string | null;
+    portMode: string | null;
+    // Documented cabling (network docs): drawn as cables in 3D.
+    connectedToDeviceId: number | null;
+    connectedToPortId: number | null;
 }
 
 export interface RackData {
@@ -76,6 +86,9 @@ export async function getRackLayout() {
             faceplateUplinkCount: devices.faceplateUplinkCount,
             faceplateRows: devices.faceplateRows,
             faceplateNumbering: devices.faceplateNumbering,
+            isCritical: devices.isCritical,
+            ipAddress: devices.ipAddress,
+            assetCode: devices.assetCode,
         })
         .from(devices)
         .leftJoin(categories, eq(devices.categoryId, categories.id))
@@ -87,10 +100,10 @@ export async function getRackLayout() {
     // Get latest checklist status for these devices
     const deviceIds = allDevices.map(d => d.id);
 
-    // Ports only for devices with a faceplate: the 3D face draws nothing else.
+    // Ports of every racked device: faceplate drawing + cable routing in 3D.
     const portsByDevice = new Map<number, RackDevicePort[]>();
-    const faceplateIds = allDevices.filter((d) => d.rackName && (d.faceplatePortCount ?? 0) > 0).map((d) => d.id);
-    if (faceplateIds.length > 0) {
+    const rackedIds = allDevices.filter((d) => d.rackName).map((d) => d.id);
+    if (rackedIds.length > 0) {
         const ports = await db
             .select({
                 deviceId: networkPorts.deviceId,
@@ -99,9 +112,12 @@ export async function getRackLayout() {
                 portIndex: networkPorts.portIndex,
                 mediaType: networkPorts.mediaType,
                 status: networkPorts.status,
+                portMode: networkPorts.portMode,
+                connectedToDeviceId: networkPorts.connectedToDeviceId,
+                connectedToPortId: networkPorts.connectedToPortId,
             })
             .from(networkPorts)
-            .where(inArray(networkPorts.deviceId, faceplateIds));
+            .where(inArray(networkPorts.deviceId, rackedIds));
         for (const { deviceId, ...port } of ports) {
             portsByDevice.set(deviceId, [...(portsByDevice.get(deviceId) ?? []), port]);
         }
@@ -135,6 +151,19 @@ export async function getRackLayout() {
             }
         }
     }
+
+    // Open incidents per device, worst severity first (site-scoped).
+    const incidentsByDevice = deviceIds.length > 0
+        ? foldIncidents(await db
+            .select({ deviceId: incidents.deviceId, severity: incidents.severity, count: sql<number>`count(*)::int` })
+            .from(incidents)
+            .where(and(
+                eq(incidents.siteId, siteId),
+                inArray(incidents.status, ["Open", "In Progress"]),
+                inArray(incidents.deviceId, deviceIds),
+            ))
+            .groupBy(incidents.deviceId, incidents.severity))
+        : new Map<number, OpenIncidents>();
 
     // Fetch all predefined racks for this site with location names
     const predefinedRacks = await db
@@ -200,6 +229,7 @@ export async function getRackLayout() {
             ...device,
             status: latestStatuses[device.id] || "Pending",
             ports: portsByDevice.get(device.id) ?? [],
+            openIncidents: incidentsByDevice.get(device.id) ?? NO_INCIDENTS,
         };
 
         rack.devices.push(deviceWithStatus);

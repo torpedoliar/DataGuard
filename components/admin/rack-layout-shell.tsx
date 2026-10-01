@@ -24,6 +24,13 @@ export default function RackLayoutShell({ racks, categories, floorPlans }: RackL
     const [noWebgl, setNoWebgl] = useState(false);
     const filtered = useMemo(() => applyRackFilters(racks, filters), [racks, filters]);
     const sceneRacks = useMemo(() => applyRackFiltersForScene(racks, filters), [racks, filters]);
+    const allDevices = useMemo(() => racks.flatMap((r) => r.devices), [racks]);
+    // Drawer connection click: select the peer if it is racked on this site.
+    const selectPeer = useCallback((id: number) => {
+        const peer = allDevices.find((d) => d.id === id);
+        if (peer) setSelected(peer);
+        return !!peer;
+    }, [allDevices]);
 
     useEffect(() => {
         try {
@@ -80,7 +87,7 @@ export default function RackLayoutShell({ racks, categories, floorPlans }: RackL
                 </p>
             )}
 
-            <DeviceDetailPanel device={selected} onClose={() => setSelected(null)} />
+            <DeviceDetailPanel device={selected} onClose={() => setSelected(null)} onSelectPeer={selectPeer} />
 
             {view === "3d" ? (
                 <RackView3D
