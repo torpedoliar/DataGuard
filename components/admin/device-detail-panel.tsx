@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { XCircle } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
+import PhotoModal from "@/components/report/photo-modal";
 import DeviceNetworkSummary from "./device-network-summary";
 
 export default function DeviceDetailPanel({ device, onClose }: { device: RackDevice | null; onClose: () => void }) {
+    const [photoOpen, setPhotoOpen] = useState(false);
     if (!device) return null;
 
     const rows: [string, string | null][] = [
@@ -33,8 +36,16 @@ export default function DeviceDetailPanel({ device, onClose }: { device: RackDev
                 </div>
                 {device.photoPath && (
                     <div className="mb-4">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={device.photoPath} alt={device.name} className="w-full h-40 object-cover rounded-lg border border-ops-border" />
+                        <button
+                            type="button"
+                            onClick={() => setPhotoOpen(true)}
+                            aria-label={`Enlarge photo of ${device.name}`}
+                            title="Click to enlarge"
+                            className="block w-full cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ops-accent/40"
+                        >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={device.photoPath} alt={device.name} className="h-40 w-full rounded-lg border border-ops-border object-cover transition-opacity hover:opacity-90" />
+                        </button>
                     </div>
                 )}
                 <div className="space-y-3">
@@ -54,8 +65,11 @@ export default function DeviceDetailPanel({ device, onClose }: { device: RackDev
                         </p>
                     </div>
                 </div>
-                <DeviceNetworkSummary device={device} />
+                <DeviceNetworkSummary key={device.id} device={device} />
             </aside>
+            {photoOpen && device.photoPath && (
+                <PhotoModal photoPath={device.photoPath} deviceName={device.name} onClose={() => setPhotoOpen(false)} />
+            )}
         </div>
     );
 }

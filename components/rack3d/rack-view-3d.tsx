@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
-import { Box, RotateCcw, TriangleAlert } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Maximize, Minimize, RotateCcw, TriangleAlert } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
 import { layoutRacks } from "./layout";
@@ -43,6 +43,8 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
     const [quality, setQuality] = useState<QualitySetting>("auto");
     // What Auto resolved to on this GPU, reported back by the scene.
     const [autoResolved, setAutoResolved] = useState<Quality | null>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Picking a location in the filter bar opens that room.
     const [appliedLocation, setAppliedLocation] = useState<string | null>(null);
@@ -108,6 +110,21 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
         setFocusPick(null);
         onSelectDevice(null);
     };
+    const toggleFullscreen = () => {
+        const el = containerRef.current;
+        if (!el) return;
+        if (document.fullscreenElement) {
+            void document.exitFullscreen();
+        } else {
+            void el.requestFullscreen().catch(() => { /* Fullscreen API blocked */ });
+        }
+    };
+
+    useEffect(() => {
+        const onChange = () => setIsFullscreen(document.fullscreenElement === containerRef.current);
+        document.addEventListener("fullscreenchange", onChange);
+        return () => document.removeEventListener("fullscreenchange", onChange);
+    }, []);
 
     if (!room) {
         return (
@@ -168,7 +185,16 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
                 )}
             </div>
 
-            <div className="relative h-[70vh] min-h-[480px] overflow-hidden rounded-xl border border-ops-border bg-ops-bg">
+            <div ref={containerRef} className={`relative min-h-[480px] overflow-hidden rounded-xl border border-ops-border bg-ops-bg ${isFullscreen ? "h-screen" : "h-[70vh]"}`} aria-label="3D rack scene">
+                <button
+                    onClick={toggleFullscreen}
+                    aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                    title={isFullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}
+                    className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-lg border border-ops-border bg-ops-surface/90 px-3 py-1.5 text-sm font-medium text-ops-text shadow backdrop-blur hover:bg-ops-surface"
+                >
+                    {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                    {isFullscreen ? "Exit" : "Fullscreen"}
+                </button>
                 <RackScene
                     racks={roomRacks}
                     floorPlanUrl={floorPlanUrl}
