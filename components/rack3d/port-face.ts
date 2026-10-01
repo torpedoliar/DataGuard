@@ -28,6 +28,8 @@ export interface PortFaceSlot {
     // Which of the shared blink materials drives this port's LED (0..2), so a
     // switch flickers port by port instead of all at once.
     phase: number;
+    // Documented port in this slot (cable end), null when the slot is empty.
+    portId: number | null;
 }
 
 // Port area on the 19" face: right of the name tag + brand logo (which end
@@ -70,6 +72,7 @@ export function portFace(device: PortFaceInput, deviceHeight: number): { slots: 
             uplink: s.block === "uplink",
             state: s.port ? stateOf((s.port as PortFacePort).status) : "empty",
             phase: (s.slotNumber * 7 + (s.slotNumber >> 2)) % 3,
+            portId: s.port ? (s.port as PortFacePort).id : null,
         })),
     };
 }

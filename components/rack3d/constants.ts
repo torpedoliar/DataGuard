@@ -12,6 +12,7 @@ export const ROOM_MARGIN = 2;
 export const ROOM_HEIGHT = 3.2;
 export const FACE_W = 0.44;        // 19" equipment face width
 export const FRONT_Z = RACK_D / 2 - 0.1; // mounting rail plane, door sits in front of it
+export const SLIDE = 0.3;          // selected device pulled out on its rails
 
 export const rackHeight = (totalU: number) => totalU * U + PLINTH + TOP;
 export const uToY = (u: number) => PLINTH + (u - 1) * U; // bottom edge of slot u

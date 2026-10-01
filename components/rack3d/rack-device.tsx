@@ -6,7 +6,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, Instance, Instances } from "@react-three/drei";
 import type { FilteredDevice } from "@/lib/rack-filter";
 import { AUDIT_COLOR, SEVERITY_COLOR, type ColorBy, type OpenIncidents } from "@/lib/rack-signals";
-import { FACE_W, FRONT_Z, RACK_W, U, uToY } from "./constants";
+import { FACE_W, FRONT_Z, RACK_W, SLIDE, U, uToY } from "./constants";
 import { deviceKind, type DeviceKind } from "./device-kind";
 import { ledMaterial, portMaterials, sharedMaterials } from "./materials";
 import { portFace, type PortFaceSlot } from "./port-face";
@@ -18,7 +18,6 @@ import { useImageTexture } from "./use-image-texture";
 // Device opacity is React-driven (filter mute x rack fade); tells useFade to skip it.
 const OWN_FADE = { ownFade: true };
 const CHASSIS_D = 0.72;
-const SLIDE = 0.3;
 type Vec3 = [number, number, number];
 
 const FACE_COLOR: Record<DeviceKind, string> = {
