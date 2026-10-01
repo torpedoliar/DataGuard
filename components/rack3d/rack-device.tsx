@@ -7,7 +7,8 @@ import { Html, Instance, Instances } from "@react-three/drei";
 import type { FilteredDevice } from "@/lib/rack-filter";
 import { FACE_W, FRONT_Z, U, uToY } from "./constants";
 import { deviceKind, type DeviceKind } from "./device-kind";
-import { ledMaterial, sharedMaterials } from "./materials";
+import { ledMaterial, portMaterials, sharedMaterials } from "./materials";
+import { portFace, type PortFaceSlot } from "./port-face";
 import { repeated, ventTexture } from "./textures";
 import { useLabelTexture } from "./use-label-texture";
 import { FADE } from "./use-fade";
@@ -53,12 +54,12 @@ function ServerFace({ uh, h }: { uh: number; h: number }) {
     return (
         <>
             <Vent x={-0.15} w={0.12} h={h * 0.6} />
-            <Instances limit={bays.length}>
+            <Instances frustumCulled={false} limit={bays.length}>
                 <boxGeometry args={[bw, bh, 0.003]} />
                 <meshStandardMaterial color="#111316" metalness={0.4} roughness={0.6} />
                 {bays.map((p, i) => <Instance key={i} position={p} />)}
             </Instances>
-            <Instances limit={bays.length} material={sharedMaterials.activity}>
+            <Instances frustumCulled={false} limit={bays.length} material={sharedMaterials.activity}>
                 <boxGeometry args={[0.003, 0.0015, 0.001]} />
                 {bays.map(([x, y], i) => <Instance key={i} position={[x + bw * 0.3, y + bh / 2 - 0.003, 0.0025]} />)}
             </Instances>
@@ -71,22 +72,56 @@ function NetworkFace({ h }: { h: number }) {
     const sfp = grid(4, 1, 0.135, 0.205, 0.009);
     return (
         <>
-            <Instances limit={ports.length}>
+            <Instances frustumCulled={false} limit={ports.length}>
                 <boxGeometry args={[0.011, Math.min(0.0085, h * 0.3), 0.003]} />
                 <meshStandardMaterial color="#0a0b0c" roughness={0.8} />
                 {ports.map((p, i) => <Instance key={i} position={p} />)}
             </Instances>
             {[sharedMaterials.linkA, sharedMaterials.linkB].map((mat, k) => (
-                <Instances key={k} limit={ports.length} material={mat}>
+                <Instances key={k} frustumCulled={false} limit={ports.length} material={mat}>
                     <boxGeometry args={[0.0022, 0.0014, 0.001]} />
                     {ports.filter((_, i) => i % 2 === k).map(([x, y], i) => <Instance key={i} position={[x - 0.003, y + 0.0055, 0.0022]} />)}
                 </Instances>
             ))}
-            <Instances limit={sfp.length}>
+            <Instances frustumCulled={false} limit={sfp.length}>
                 <boxGeometry args={[0.014, 0.0095, 0.004]} />
                 <meshStandardMaterial color="#9aa0a6" metalness={0.9} roughness={0.25} />
                 {sfp.map((p, i) => <Instance key={i} position={p} />)}
             </Instances>
+        </>
+    );
+}
+
+// The device's documented ports (network docs): real count and layout, link
+// LED lit + flickering only on Active ports, red on Down, dark otherwise.
+function DocumentedPorts({ slots }: { slots: PortFaceSlot[] }) {
+    const groups = useMemo(() => ({
+        jacks: slots,
+        lit: [0, 1, 2].map((ph) => slots.filter((p) => p.state === "active" && p.phase === ph)),
+        down: slots.filter((p) => p.state === "down"),
+    }), [slots]);
+    const led = (p: PortFaceSlot): Vec3 => [p.x - p.w * 0.3, p.y + p.h * 0.36, 0.0022];
+    return (
+        <>
+            <Instances frustumCulled={false} limit={groups.jacks.length}>
+                <boxGeometry args={[1, 1, 0.003]} />
+                <meshStandardMaterial color="#0a0b0c" roughness={0.8} />
+                {groups.jacks.map((p, i) => (
+                    <Instance key={i} position={[p.x, p.y, 0]} scale={[p.w, p.h, 1]} color={p.uplink ? "#8f969d" : "#ffffff"} />
+                ))}
+            </Instances>
+            {groups.lit.map((list, ph) => list.length > 0 && (
+                <Instances key={ph} frustumCulled={false} limit={list.length} material={portMaterials[ph]}>
+                    <boxGeometry args={[0.0022, 0.0014, 0.001]} />
+                    {list.map((p, i) => <Instance key={i} position={led(p)} />)}
+                </Instances>
+            ))}
+            {groups.down.length > 0 && (
+                <Instances frustumCulled={false} limit={groups.down.length} material={sharedMaterials.portDown}>
+                    <boxGeometry args={[0.0022, 0.0014, 0.001]} />
+                    {groups.down.map((p, i) => <Instance key={i} position={led(p)} />)}
+                </Instances>
+            )}
         </>
     );
 }
@@ -97,12 +132,12 @@ function StorageFace({ uh, h }: { uh: number; h: number }) {
     const trays = grid(4, rows, -0.2, 0.2, th);
     return (
         <>
-            <Instances limit={trays.length}>
+            <Instances frustumCulled={false} limit={trays.length}>
                 <boxGeometry args={[0.095, th, 0.004]} />
                 <meshStandardMaterial color="#1a1d21" metalness={0.5} roughness={0.45} />
                 {trays.map((p, i) => <Instance key={i} position={p} />)}
             </Instances>
-            <Instances limit={trays.length} material={sharedMaterials.storage}>
+            <Instances frustumCulled={false} limit={trays.length} material={sharedMaterials.storage}>
                 <boxGeometry args={[0.003, 0.003, 0.001]} />
                 {trays.map(([x, y], i) => <Instance key={i} position={[x + 0.04, y, 0.0025]} />)}
             </Instances>
@@ -121,18 +156,23 @@ function PowerFace({ h }: { h: number }) {
     );
 }
 
-function Faceplate({ kind, uh, h, opacity, glow }: { kind: DeviceKind; uh: number; h: number; opacity: number; glow: string | null }) {
+function Faceplate({ device, kind, uh, h, opacity, glow }: { device: FilteredDevice; kind: DeviceKind; uh: number; h: number; opacity: number; glow: string | null }) {
+    const ports = useMemo(() => portFace(device, h), [device, h]);
     return (
         <group position={[0, 0, FRONT_Z + 0.0015]}>
             <mesh>
                 <planeGeometry args={[FACE_W, h]} />
                 <meshStandardMaterial userData={OWN_FADE} color={FACE_COLOR[kind]} metalness={0.6} roughness={0.35} transparent={opacity < 1} opacity={opacity} emissive={glow ?? "#000000"} emissiveIntensity={glow ? 0.35 : 0} />
             </mesh>
-            {kind === "server" && <ServerFace uh={uh} h={h} />}
-            {kind === "network" && <NetworkFace h={h} />}
-            {kind === "storage" && <StorageFace uh={uh} h={h} />}
-            {kind === "power" && <PowerFace h={h} />}
-            {kind === "cooling" && <Vent x={0} w={FACE_W * 0.9} h={h * 0.8} />}
+            {ports ? <DocumentedPorts slots={ports.slots} /> : (
+                <>
+                    {kind === "server" && <ServerFace uh={uh} h={h} />}
+                    {kind === "network" && <NetworkFace h={h} />}
+                </>
+            )}
+            {!ports && kind === "storage" && <StorageFace uh={uh} h={h} />}
+            {!ports && kind === "power" && <PowerFace h={h} />}
+            {!ports && kind === "cooling" && <Vent x={0} w={FACE_W * 0.9} h={h * 0.8} />}
         </group>
     );
 }
@@ -219,7 +259,7 @@ export function RackDevice({ device, selected, faded, accent, onSelect }: {
                         <meshStandardMaterial userData={OWN_FADE} color={device.categoryColor || "#64748b"} metalness={0.3} roughness={0.4} transparent={opacity < 1} opacity={opacity} />
                     </mesh>
                 ))}
-                <Faceplate kind={kind} uh={uh} h={h} opacity={opacity} glow={hovered || selected ? accent : null} />
+                <Faceplate device={device} kind={kind} uh={uh} h={h} opacity={opacity} glow={hovered || selected ? accent : null} />
                 <NameTag device={device} h={h} opacity={opacity} />
                 <mesh position={[FACE_W / 2 - 0.012, h / 2 - Math.min(0.008, h / 4), FRONT_Z + 0.003]} material={ledMaterial(device.status)}>
                     <sphereGeometry args={[0.0022, 12, 8]} />
