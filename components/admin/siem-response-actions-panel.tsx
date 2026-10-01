@@ -23,11 +23,23 @@ export default function SiemResponseActionsPanel({ findingId }: { findingId: num
   const [approveState, approveAction, approvePending] = useActionState(approveSiemResponseAction, undefined);
   const [cancelState, cancelAction, cancelPending] = useActionState(cancelSiemResponseAction, undefined);
 
-  useEffect(() => {
+  // Clear the cached list once per successful mutation so the next open
+  // refetches (render-phase adjustment, the sanctioned replacement for
+  // setState-in-effect). Server data refresh stays in the effect below.
+  const [prevMutationStates, setPrevMutationStates] = useState({ requestState, approveState, cancelState });
+  if (
+    prevMutationStates.requestState !== requestState ||
+    prevMutationStates.approveState !== approveState ||
+    prevMutationStates.cancelState !== cancelState
+  ) {
+    setPrevMutationStates({ requestState, approveState, cancelState });
     if (requestState?.success || approveState?.success || cancelState?.success) {
       setActions(null);
-      router.refresh();
     }
+  }
+
+  useEffect(() => {
+    if (requestState?.success || approveState?.success || cancelState?.success) router.refresh();
   }, [requestState?.success, approveState?.success, cancelState?.success, router]);
 
   async function toggle() {

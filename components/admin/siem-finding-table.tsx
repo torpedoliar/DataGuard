@@ -167,12 +167,17 @@ function CasePanel({ finding }: { finding: SiemFindingRow }) {
     if (assignState?.success || commentState?.success) router.refresh();
   }, [assignState?.success, commentState?.success, router]);
 
-  useEffect(() => {
+  // Force a comments reload + reopen on the render where the comment mutation
+  // succeeds (render-phase adjustment, the sanctioned replacement for
+  // setState-in-effect).
+  const [prevCommentState, setPrevCommentState] = useState(commentState);
+  if (prevCommentState !== commentState) {
+    setPrevCommentState(commentState);
     if (commentState?.success) {
       setComments(null); // force reload on next open
       setOpen(true);
     }
-  }, [commentState?.success]);
+  }
 
   async function loadComments() {
     setOpen((prev) => !prev);

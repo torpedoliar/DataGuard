@@ -591,11 +591,23 @@ function CredentialArea({
   const [delState, delAction, isDeleting] = useActionState(deleteNcmCredentialAction, undefined);
   const [editingCred, setEditingCred] = useState<Row | null>(null);
 
-  useEffect(() => {
+  // Close the edit form once per successful mutation (render-phase update,
+  // the sanctioned replacement for setState-in-effect when adjusting state
+  // from new action state). Server data refresh stays in the effect below.
+  const [prevCredStates, setPrevCredStates] = useState({ addState, editState, delState });
+  if (
+    prevCredStates.addState !== addState ||
+    prevCredStates.editState !== editState ||
+    prevCredStates.delState !== delState
+  ) {
+    setPrevCredStates({ addState, editState, delState });
     if (addState?.success || editState?.success || delState?.success) {
       setEditingCred(null);
-      router.refresh();
     }
+  }
+
+  useEffect(() => {
+    if (addState?.success || editState?.success || delState?.success) router.refresh();
   }, [addState?.success, editState?.success, delState?.success, router]);
 
   const switchesByCred = useMemo(() => {
@@ -784,19 +796,22 @@ function BackupArea({
     return new Map(switches.map((s) => [pick(s, "id", "switch_id", "switchId"), s]));
   }, [switches]);
 
-  // Live timer tick during backup
+  // Reset the elapsed counter on the render where a backup starts (render-phase
+  // adjustment, the sanctioned replacement for setState-in-effect).
+  const [wasBackup, setWasBackup] = useState(isBackup);
+  if (wasBackup !== isBackup) {
+    setWasBackup(isBackup);
+    if (isBackup) setBackupElapsed(0);
+  }
+
+  // Live timer tick during backup (interval subscription only, no sync setState).
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (isBackup) {
-      setBackupElapsed(0);
-      interval = setInterval(() => {
-        setBackupElapsed((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (interval) clearInterval(interval);
-    }
+    if (!isBackup) return;
+    const interval = setInterval(() => {
+      setBackupElapsed((prev) => prev + 1);
+    }, 1000);
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
     };
   }, [isBackup]);
 

@@ -20,11 +20,19 @@ export default function SiemTemplateCatalog({
   const [state, action, isPending] = useActionState(installSiemTemplates, undefined);
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
+  // Clear the checkbox selection once per successful install (render-phase
+  // adjustment, the sanctioned replacement for setState-in-effect). Server
+  // data refresh stays in the effect below.
+  const [prevInstallState, setPrevInstallState] = useState(state);
+  if (prevInstallState !== state) {
+    setPrevInstallState(state);
     if (state?.success) {
       setChecked(new Set());
-      router.refresh();
     }
+  }
+
+  useEffect(() => {
+    if (state?.success) router.refresh();
   }, [state?.success, router]);
 
   if (available.length === 0 && locked.length === 0) return null;
