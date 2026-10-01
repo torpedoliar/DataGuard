@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { AdaptiveDpr, CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
+import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
 import { Bloom, DepthOfField, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import type { RackDevice } from "@/actions/rack-layout";
@@ -194,8 +194,6 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
         <CameraControls
             ref={ref}
             makeDefault
-            regress
-            draggingSmoothTime={0.08}
             minDistance={0.6}
             maxDistance={30}
             maxPolarAngle={Math.PI / 2 - 0.05}
@@ -226,8 +224,6 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
             shadows={preset.shadows}
             dpr={preset.dpr}
             frameloop="demand"
-            // Orbit/zoom renders at half resolution until the camera settles.
-            performance={{ min: 0.5, debounce: 250 }}
             flat={preset.bloom}
             gl={{ antialias: !preset.bloom, powerPreference: "high-performance" }}
             camera={{ position: [0, 12, 12], fov: 38, near: 0.03, far: 120 }}
@@ -255,7 +251,6 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
             ))}
             <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} onTarget={setFocusPoint} />
             <BlinkClock />
-            <AdaptiveDpr />
             <Effects preset={preset} dofTarget={preset.dof && focusRack ? focusPoint : null} />
         </Canvas>
     );
