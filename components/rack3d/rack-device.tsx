@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, Instance, Instances } from "@react-three/drei";
 import type { FilteredDevice } from "@/lib/rack-filter";
-import { SEVERITY_COLOR, type OpenIncidents } from "@/lib/rack-signals";
+import { AUDIT_COLOR, SEVERITY_COLOR, type ColorBy, type OpenIncidents } from "@/lib/rack-signals";
 import { FACE_W, FRONT_Z, RACK_W, U, uToY } from "./constants";
 import { deviceKind, type DeviceKind } from "./device-kind";
 import { ledMaterial, portMaterials, sharedMaterials } from "./materials";
@@ -237,11 +237,12 @@ function NameTag({ device, h, opacity }: { device: FilteredDevice; h: number; op
     );
 }
 
-export function RackDevice({ device, selected, faded, accent, onSelect }: {
+export function RackDevice({ device, selected, faded, accent, colorBy, onSelect }: {
     device: FilteredDevice;
     selected: boolean;
     faded: boolean;
     accent: string;
+    colorBy: ColorBy;
     onSelect: (d: FilteredDevice) => void;
 }) {
     const uh = device.uHeight || 1;
@@ -249,6 +250,7 @@ export function RackDevice({ device, selected, faded, accent, onSelect }: {
     const y = uToY(device.rackPosition ?? 1) + (uh * U) / 2;
     const kind = deviceKind(device.categoryName, device.name);
     const opacity = (device.isMuted ? 0.12 : 1) * (faded ? FADE : 1);
+    const earColor = colorBy === "audit" ? AUDIT_COLOR[device.status ?? "Pending"] : device.categoryColor || "#64748b";
     const slider = useRef<THREE.Group>(null);
     const [hovered, setHovered] = useState(false);
     const invalidate = useThree((s) => s.invalidate);
@@ -292,7 +294,7 @@ export function RackDevice({ device, selected, faded, accent, onSelect }: {
                 {[-1, 1].map((s) => (
                     <mesh key={s} position={[s * (FACE_W / 2 + 0.011), 0, FRONT_Z + 0.001]}>
                         <boxGeometry args={[0.022, h, 0.003]} />
-                        <meshStandardMaterial userData={OWN_FADE} color={device.categoryColor || "#64748b"} metalness={0.3} roughness={0.4} transparent={opacity < 1} opacity={opacity} />
+                        <meshStandardMaterial userData={OWN_FADE} color={earColor} metalness={0.3} roughness={0.4} transparent={opacity < 1} opacity={opacity} />
                     </mesh>
                 ))}
                 <Faceplate device={device} kind={kind} uh={uh} h={h} opacity={opacity} glow={hovered || selected ? accent : null} />

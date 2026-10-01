@@ -8,6 +8,22 @@ import { ROOM_HEIGHT, TILE, rackHeight } from "./constants";
 import { coldAisleTiles, floorPlanRect, roomRect, type Bounds, type PlacedRack } from "./layout";
 import { floorTileTexture, perforatedTileTexture, repeated } from "./textures";
 import { useImageTexture } from "./use-image-texture";
+import { useLabelTexture } from "./use-label-texture";
+
+// Room temperature on the back wall near the ceiling; red when above the
+// alert threshold. Manual reading from the daily audit, not live.
+function TempLabel({ temp, x, z }: { temp: { tempC: number; thresholdC: number | null }; x: number; z: number }) {
+    const over = temp.thresholdC != null && temp.tempC > temp.thresholdC;
+    const text = `${temp.tempC.toFixed(1)} °C${temp.thresholdC != null ? ` / max ${temp.thresholdC} °C` : ""}`;
+    const tex = useLabelTexture(text, over ? "#b91c1c" : "rgba(15,23,42,0.85)", "#f8fafc", 512, 64);
+    if (!tex) return null;
+    return (
+        <mesh position={[x, ROOM_HEIGHT - 0.45, z]}>
+            <planeGeometry args={[1.2, 0.15]} />
+            <meshBasicMaterial map={tex} toneMapped={false} />
+        </mesh>
+    );
+}
 
 function CableTrays({ placed }: { placed: PlacedRack<SceneRack>[] }) {
     const rows = useMemo(() => {
@@ -58,12 +74,13 @@ function CableTrays({ placed }: { placed: PlacedRack<SceneRack>[] }) {
     );
 }
 
-export function Room({ placed, b, floorPlanUrl, dark, reflections }: {
+export function Room({ placed, b, floorPlanUrl, dark, reflections, temp }: {
     placed: PlacedRack<SceneRack>[];
     b: Bounds;
     floorPlanUrl: string | null;
     dark: boolean;
     reflections: boolean;
+    temp: { tempC: number; thresholdC: number | null } | null;
 }) {
     const r = roomRect(b);
     const w = r.x1 - r.x0;
@@ -137,6 +154,7 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections }: {
                 </mesh>
             ))}
 
+            {temp && <TempLabel temp={temp} x={cx} z={r.z0 + 0.02} />}
             <CableTrays placed={placed} />
         </group>
     );

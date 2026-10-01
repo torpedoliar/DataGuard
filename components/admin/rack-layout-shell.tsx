@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Server } from "lucide-react";
-import type { RackData, RackDevice } from "@/actions/rack-layout";
+import type { RackData, RackDevice, RoomSettings } from "@/actions/rack-layout";
 import RackLayout from "@/components/admin/rack-layout";
 import RackFilterBar, { type RackView } from "@/components/admin/rack-filter-bar";
 import DeviceDetailPanel from "@/components/admin/device-detail-panel";
@@ -14,10 +14,10 @@ const VIEW_KEY = "rack-layout-view";
 interface RackLayoutShellProps {
     racks: RackData[];
     categories: { id: number; name: string; color: string | null }[];
-    floorPlans: Record<number, string>;
+    rooms: Record<number, RoomSettings>;
 }
 
-export default function RackLayoutShell({ racks, categories, floorPlans }: RackLayoutShellProps) {
+export default function RackLayoutShell({ racks, categories, rooms }: RackLayoutShellProps) {
     const [filters, setFilters] = useState<RackFilters>(EMPTY_FILTERS);
     const [selected, setSelected] = useState<RackDevice | null>(null);
     const [view, setView] = useState<RackView>("2d");
@@ -93,7 +93,7 @@ export default function RackLayoutShell({ racks, categories, floorPlans }: RackL
                 <RackView3D
                     racks={sceneRacks}
                     locationFilter={filters.location || null}
-                    floorPlans={floorPlans}
+                    rooms={rooms}
                     selectedDeviceId={selected?.id ?? null}
                     autoFocusDeviceId={singleMatchId(filtered, filters)}
                     onSelectDevice={setSelected}

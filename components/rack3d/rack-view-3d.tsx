@@ -3,9 +3,9 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { Box, Maximize, Minimize, RotateCcw, TriangleAlert } from "lucide-react";
-import type { RackDevice } from "@/actions/rack-layout";
+import type { RackDevice, RoomSettings } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
-import { troubledCritical } from "@/lib/rack-signals";
+import { troubledCritical, type ColorBy } from "@/lib/rack-signals";
 import { CriticalAlert } from "./critical-alert";
 import { layoutRacks } from "./layout";
 import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
@@ -22,14 +22,14 @@ const selectClass = "h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-bor
 interface RackView3DProps {
     racks: SceneRack[];
     locationFilter?: string | null;
-    floorPlans: Record<number, string>;
+    rooms: Record<number, RoomSettings>;
     selectedDeviceId: number | null;
     autoFocusDeviceId: number | null;
     onSelectDevice: (d: RackDevice | null) => void;
     onWebglUnavailable: () => void;
 }
 
-export default function RackView3D({ racks, locationFilter = null, floorPlans, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable }: RackView3DProps) {
+export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable }: RackView3DProps) {
     const rooms = useMemo(() => {
         const map = new Map<string, SceneRack[]>();
         for (const r of racks) {
@@ -42,6 +42,7 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
     const [roomPick, setRoomPick] = useState<string | null>(null);
     const [focusPick, setFocusPick] = useState<string | null>(null);
     const [showFree, setShowFree] = useState(false);
+    const [colorBy, setColorBy] = useState<ColorBy>("category");
     const [quality, setQuality] = useState<QualitySetting>("auto");
     // What Auto resolved to on this GPU, reported back by the scene.
     const [autoResolved, setAutoResolved] = useState<Quality | null>(null);
@@ -84,7 +85,10 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
     const roomRacks = useMemo(() => (room ? rooms.get(room) ?? [] : []), [room, rooms]);
     const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;
     const collisions = useMemo(() => layoutRacks(roomRacks).filter((p) => p.collision).length, [roomRacks]);
-    const floorPlanUrl = roomRacks.map((r) => (r.locationId != null ? floorPlans[r.locationId] : undefined)).find(Boolean) ?? null;
+    const locationId = roomRacks.find((r) => r.locationId != null)?.locationId ?? null;
+    const settings = locationId != null ? roomSettings[locationId] : undefined;
+    const floorPlanUrl = settings?.floorPlanPath ?? null;
+    const temp = settings?.tempC != null ? { tempC: settings.tempC, thresholdC: settings.tempThresholdC } : null;
     const troubled = useMemo(() => troubledCritical(roomRacks), [roomRacks]);
 
     // Critical popup: once per room per browser session; the chip reopens it.
@@ -190,6 +194,14 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
                     Show free U
                 </label>
                 <label className="flex items-center gap-2 text-sm text-ops-muted">
+                    Color by
+                    <select aria-label="Color by" value={colorBy} onChange={(e) => setColorBy(e.target.value as ColorBy)} className={selectClass}>
+                        <option value="category">Category</option>
+                        <option value="occupancy">Occupancy</option>
+                        <option value="audit">Audit status</option>
+                    </select>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-ops-muted">
                     Quality
                     <select
                         aria-label="Render quality"
@@ -234,6 +246,8 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
                     selectedDeviceId={selectedDeviceId}
                     focusDeviceId={selectedDeviceId ?? (focusRack ? autoFocusDeviceId : null)}
                     onSelectDevice={onSelectDevice}
+                    temp={temp}
+                    colorBy={colorBy}
                 />
                 {focusRack && (
                     <button

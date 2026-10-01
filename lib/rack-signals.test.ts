@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { criticalProblem, foldIncidents, NO_INCIDENTS, troubledCritical } from "./rack-signals";
+import { criticalProblem, foldIncidents, NO_INCIDENTS, occupancyBand, troubledCritical } from "./rack-signals";
 
 describe("foldIncidents", () => {
   it("sums counts per device and keeps the worst severity", () => {
@@ -53,5 +53,22 @@ describe("troubledCritical", () => {
       { name: "R2", devices: [{ ...sig({ isCritical: false, status: "NOT OK" }), id: 3 }, { ...sig({ count: 1 }), id: 4 }] },
     ];
     expect(troubledCritical(racks).map((t) => [t.device.id, t.rackName])).toEqual([[1, "R1"], [4, "R2"]]);
+  });
+});
+
+describe("occupancyBand", () => {
+  const us = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
+  it("bands at 60% and 85% of the rack", () => {
+    expect(occupancyBand(us(25), 42)).toBe("low");   // 59.5%
+    expect(occupancyBand(us(26), 42)).toBe("mid");   // 61.9%
+    expect(occupancyBand(us(35), 42)).toBe("mid");   // 83.3%
+    expect(occupancyBand(us(36), 42)).toBe("high");  // 85.7%
+  });
+  it("counts a U once even when devices overlap, and ignores U outside the rack", () => {
+    expect(occupancyBand([1, 1, 2, 2, 50, 0], 2)).toBe("high");
+    expect(occupancyBand([], 42)).toBe("low");
+  });
+  it("treats a zero-height rack as empty", () => {
+    expect(occupancyBand([1], 0)).toBe("low");
   });
 });

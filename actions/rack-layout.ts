@@ -296,15 +296,32 @@ export async function getRackStats() {
     };
 }
 
-// Floor-plan image per location (active site) for the 3D rack view.
-export async function getFloorPlans(): Promise<Record<number, string>> {
+export interface RoomSettings {
+    floorPlanPath: string | null;
+    // Room temperature for the 3D label; null when not measured or excluded.
+    tempC: number | null;
+    tempThresholdC: number | null;
+}
+
+// Per-location settings (active site) for the 3D rack view.
+export async function getRoomSettings(): Promise<Record<number, RoomSettings>> {
     const auth = await requireActiveSiteAction();
     if (!auth.ok) return {};
 
     const rows = await db
-        .select({ id: locations.id, floorPlanPath: locations.floorPlanPath })
+        .select({
+            id: locations.id,
+            floorPlanPath: locations.floorPlanPath,
+            tempC: locations.tempC,
+            tempThresholdC: locations.tempThresholdC,
+            excludeTempCheck: locations.excludeTempCheck,
+        })
         .from(locations)
-        .where(and(eq(locations.siteId, auth.activeSiteId), isNotNull(locations.floorPlanPath)));
+        .where(eq(locations.siteId, auth.activeSiteId));
 
-    return Object.fromEntries(rows.map((r) => [r.id, r.floorPlanPath as string]));
+    return Object.fromEntries(rows.map((r) => [r.id, {
+        floorPlanPath: r.floorPlanPath,
+        tempC: r.excludeTempCheck ? null : r.tempC,
+        tempThresholdC: r.tempThresholdC,
+    }]));
 }

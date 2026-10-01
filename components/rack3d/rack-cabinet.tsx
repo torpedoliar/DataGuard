@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { FilteredDevice, SceneRack } from "@/lib/rack-filter";
-import { criticalProblem } from "@/lib/rack-signals";
+import { criticalProblem, OCCUPANCY_COLOR, occupancyBand, type ColorBy } from "@/lib/rack-signals";
 import { FACE_W, FRONT_Z, PLINTH, RACK_D, RACK_W, U, rackHeight, uToY } from "./constants";
 import { freeRanges, inRack, type FreeRange } from "./free-slots";
 import type { PlacedRack } from "./layout";
@@ -115,13 +115,14 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
     );
 }
 
-export function RackCabinet({ placed, dark, focused, faded, showFree, accent, selectedDeviceId, onFocus, onSelectDevice }: {
+export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, onFocus, onSelectDevice }: {
     placed: PlacedRack<SceneRack>;
     dark: boolean;
     focused: boolean;
     faded: boolean;
     showFree: boolean;
     accent: string;
+    colorBy: ColorBy;
     selectedDeviceId: number | null;
     onFocus: () => void;
     onSelectDevice: (d: FilteredDevice) => void;
@@ -138,7 +139,8 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, se
     const hasFault = rack.devices.some((d) => d.status === "NOT OK");
     // Beacon only while a critical device in this rack has a problem.
     const alarm = rack.devices.some((d) => criticalProblem(d));
-    const steel = <meshStandardMaterial color={dark ? "#2a3039" : "#16181c"} metalness={0.45} roughness={0.5} />;
+    const steelColor = colorBy === "occupancy" ? OCCUPANCY_COLOR[occupancyBand(rack.occupiedU, totalU)] : dark ? "#2a3039" : "#16181c";
+    const steel = <meshStandardMaterial color={steelColor} metalness={0.45} roughness={0.5} />;
 
     return (
         <group
@@ -174,7 +176,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, se
             <Sign name={rack.name} collision={placed.collision} height={H} />
 
             {devices.map((d) => (
-                <RackDevice key={d.id} device={d} selected={d.id === selectedDeviceId} faded={faded} accent={accent} onSelect={onSelectDevice} />
+                <RackDevice key={d.id} device={d} selected={d.id === selectedDeviceId} faded={faded} accent={accent} colorBy={colorBy} onSelect={onSelectDevice} />
             ))}
             {free.map((r) => (
                 <FreeSpace key={r.start} range={r} ghost={showFree} labelled={focused || r.size >= 4} />

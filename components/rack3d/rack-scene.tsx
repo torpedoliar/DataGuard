@@ -8,6 +8,7 @@ import { Bloom, DepthOfField, EffectComposer, N8AO, SMAA, ToneMapping, Vignette 
 import { ToneMappingMode } from "postprocessing";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
+import type { ColorBy } from "@/lib/rack-signals";
 import { useIsDark } from "@/components/ui/theme-toggle";
 import { FRONT_Z, RACK_D, U, rackHeight, uToY } from "./constants";
 import { inRack } from "./free-slots";
@@ -28,6 +29,8 @@ export interface RackSceneProps {
     selectedDeviceId: number | null;
     focusDeviceId: number | null;
     onSelectDevice: (d: RackDevice | null) => void;
+    temp: { tempC: number; thresholdC: number | null } | null;
+    colorBy: ColorBy;
 }
 
 // Mirrors --color-ops-accent in app/globals.css (light / dark).
@@ -202,7 +205,7 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
     );
 }
 
-export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice }: RackSceneProps) {
+export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice, temp, colorBy }: RackSceneProps) {
     const dark = useIsDark();
     const placed = useMemo(() => layoutRacks(racks), [racks]);
     const b = useMemo(() => bounds(placed), [placed]);
@@ -232,7 +235,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
             <color attach="background" args={[bg]} />
             <fog attach="fog" args={[bg, 14, 45]} />
             <Lighting dark={dark} b={b} preset={preset} />
-            <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} />
+            <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} temp={temp} />
             {/* Raycasting and <Html> ignore visible=false, so other rows are not
                 rendered at all while a rack is focused. */}
             {placed.filter((p) => focusedRow === undefined || p.row === focusedRow).map((p) => (
@@ -244,6 +247,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
                     faded={p.rack.dimmed || (!!focusRack && focusRack !== p.rack.name)}
                     showFree={showFree}
                     accent={accent}
+                    colorBy={colorBy}
                     selectedDeviceId={selectedDeviceId}
                     onFocus={() => onFocusRack(p.rack.name)}
                     onSelectDevice={(d) => { onFocusRack(p.rack.name); onSelectDevice(d); }}

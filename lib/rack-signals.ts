@@ -55,3 +55,23 @@ export function troubledCritical<D extends SignalDevice>(racks: { name: string; 
         return reason ? [{ device, rackName: r.name, reason }] : [];
     }));
 }
+
+export type ColorBy = "category" | "occupancy" | "audit";
+
+export type OccupancyBand = "low" | "mid" | "high";
+export const OCCUPANCY_COLOR: Record<OccupancyBand, string> = { low: "#16a34a", mid: "#ca8a04", high: "#dc2626" };
+
+// Used share of the rack: < 60% low, 60-85% mid, > 85% high. Overlapping
+// devices count a U once.
+export function occupancyBand(occupiedU: number[], totalU: number): OccupancyBand {
+    if (totalU <= 0) return "low";
+    const used = new Set(occupiedU.filter((u) => u >= 1 && u <= totalU)).size;
+    const share = used / totalU;
+    return share > 0.85 ? "high" : share >= 0.6 ? "mid" : "low";
+}
+
+export const AUDIT_COLOR: Record<"OK" | "NOT OK" | "Pending", string> = {
+    OK: "#22c55e",
+    "NOT OK": "#ef4444",
+    Pending: "#94a3b8",
+};
