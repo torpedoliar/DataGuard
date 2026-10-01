@@ -22,11 +22,21 @@ COPY package.json package-lock.json* ./
 # npm ci hits the registry; a transient ECONNRESET aborts the build unless
 # npm retries harder than its 2-attempt default. Bump retries/backoff so a
 # flaky link doesn't fail a 2-5 min image rebuild.
+# Retry the whole install once: esbuild's install.js validates its binary by
+# spawning it, and under BuildKit's parallel RUN steps on some
+# kernels/overlays that spawn intermittently fails with ETXTBSY — a
+# filesystem race, not a broken package. A clean re-run reuses the npm cache
+# and almost always passes on the second attempt.
 RUN npm ci \
     --fetch-retries=5 \
     --fetch-retry-mintimeout=20000 \
     --fetch-retry-maxtimeout=120000 \
-    --no-audit --no-fund
+    --no-audit --no-fund \
+ || npm ci \
+    --fetch-retries=5 \
+    --fetch-retry-mintimeout=20000 \
+    --fetch-retry-maxtimeout=120000 \
+    --no-audit --no-fund --prefer-offline
 COPY . .
 
 # Environment flag untuk mencegah error lint/typescript saat build

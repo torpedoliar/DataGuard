@@ -34,4 +34,8 @@ describe("Dockerfile image export safety", () => {
     expect(dockerfile).toContain("openldap");
     expect(dockerfile).toMatch(/apk add[^\n]*unzip/);
   });
+
+  it("retries npm ci once so a transient ETXTBSY in a postinstall script does not fail the build", () => {
+    expect(dockerfile).toMatch(/RUN npm ci[\s\S]*\|\| npm ci/);
+  });
 });
