@@ -104,133 +104,101 @@ type RackTheme = {
   dotColor: string;
 };
 
+// Header netral untuk semua rack; pembeda hanya via warna token tema
+// (left border + ikon + badge tint). Tidak ada hue mentah di sini.
 const RACK_PALETTES: RackTheme[] = [
   {
-    // Blue
-    headerBg: "bg-blue-500/10 dark:bg-blue-950/40 border-y border-blue-500/25",
-    badgeBg: "bg-blue-500/15",
-    badgeText: "text-blue-700 dark:text-blue-300",
-    badgeBorder: "border-blue-500/30",
-    leftBorder: "border-l-blue-500",
-    iconBg: "bg-blue-500/20",
-    iconText: "text-blue-600 dark:text-blue-400",
-    pillBg: "bg-blue-500/15",
-    pillText: "text-blue-700 dark:text-blue-300",
-    pillBorder: "border-blue-500/30",
-    dotColor: "bg-blue-500",
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-accent/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-accent/30",
+    leftBorder: "border-l-ops-accent",
+    iconBg: "bg-ops-accent/12",
+    iconText: "text-ops-accent",
+    pillBg: "bg-ops-accent/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-accent/30",
+    dotColor: "bg-ops-accent",
   },
   {
-    // Emerald
-    headerBg: "bg-emerald-500/10 dark:bg-emerald-950/40 border-y border-emerald-500/25",
-    badgeBg: "bg-emerald-500/15",
-    badgeText: "text-emerald-700 dark:text-emerald-300",
-    badgeBorder: "border-emerald-500/30",
-    leftBorder: "border-l-emerald-500",
-    iconBg: "bg-emerald-500/20",
-    iconText: "text-emerald-600 dark:text-emerald-400",
-    pillBg: "bg-emerald-500/15",
-    pillText: "text-emerald-700 dark:text-emerald-300",
-    pillBorder: "border-emerald-500/30",
-    dotColor: "bg-emerald-500",
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-info/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-info/30",
+    leftBorder: "border-l-ops-info",
+    iconBg: "bg-ops-info/12",
+    iconText: "text-ops-info",
+    pillBg: "bg-ops-info/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-info/30",
+    dotColor: "bg-ops-info",
   },
   {
-    // Purple
-    headerBg: "bg-purple-500/10 dark:bg-purple-950/40 border-y border-purple-500/25",
-    badgeBg: "bg-purple-500/15",
-    badgeText: "text-purple-700 dark:text-purple-300",
-    badgeBorder: "border-purple-500/30",
-    leftBorder: "border-l-purple-500",
-    iconBg: "bg-purple-500/20",
-    iconText: "text-purple-600 dark:text-purple-400",
-    pillBg: "bg-purple-500/15",
-    pillText: "text-purple-700 dark:text-purple-300",
-    pillBorder: "border-purple-500/30",
-    dotColor: "bg-purple-500",
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-success/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-success/30",
+    leftBorder: "border-l-ops-success",
+    iconBg: "bg-ops-success/12",
+    iconText: "text-ops-success",
+    pillBg: "bg-ops-success/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-success/30",
+    dotColor: "bg-ops-success",
   },
   {
-    // Amber
-    headerBg: "bg-amber-500/10 dark:bg-amber-950/40 border-y border-amber-500/25",
-    badgeBg: "bg-amber-500/15",
-    badgeText: "text-amber-700 dark:text-amber-300",
-    badgeBorder: "border-amber-500/30",
-    leftBorder: "border-l-amber-500",
-    iconBg: "bg-amber-500/20",
-    iconText: "text-amber-600 dark:text-amber-400",
-    pillBg: "bg-amber-500/15",
-    pillText: "text-amber-700 dark:text-amber-300",
-    pillBorder: "border-amber-500/30",
-    dotColor: "bg-amber-500",
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-warning/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-warning/30",
+    leftBorder: "border-l-ops-warning",
+    iconBg: "bg-ops-warning/12",
+    iconText: "text-ops-warning",
+    pillBg: "bg-ops-warning/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-warning/30",
+    dotColor: "bg-ops-warning",
   },
   {
-    // Cyan
-    headerBg: "bg-cyan-500/10 dark:bg-cyan-950/40 border-y border-cyan-500/25",
-    badgeBg: "bg-cyan-500/15",
-    badgeText: "text-cyan-700 dark:text-cyan-300",
-    badgeBorder: "border-cyan-500/30",
-    leftBorder: "border-l-cyan-500",
-    iconBg: "bg-cyan-500/20",
-    iconText: "text-cyan-600 dark:text-cyan-400",
-    pillBg: "bg-cyan-500/15",
-    pillText: "text-cyan-700 dark:text-cyan-300",
-    pillBorder: "border-cyan-500/30",
-    dotColor: "bg-cyan-500",
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-orange/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-orange/30",
+    leftBorder: "border-l-ops-orange",
+    iconBg: "bg-ops-orange/12",
+    iconText: "text-ops-orange",
+    pillBg: "bg-ops-orange/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-orange/30",
+    dotColor: "bg-ops-orange",
   },
   {
-    // Rose
-    headerBg: "bg-rose-500/10 dark:bg-rose-950/40 border-y border-rose-500/25",
-    badgeBg: "bg-rose-500/15",
-    badgeText: "text-rose-700 dark:text-rose-300",
-    badgeBorder: "border-rose-500/30",
-    leftBorder: "border-l-rose-500",
-    iconBg: "bg-rose-500/20",
-    iconText: "text-rose-600 dark:text-rose-400",
-    pillBg: "bg-rose-500/15",
-    pillText: "text-rose-700 dark:text-rose-300",
-    pillBorder: "border-rose-500/30",
-    dotColor: "bg-rose-500",
-  },
-  {
-    // Indigo
-    headerBg: "bg-indigo-500/10 dark:bg-indigo-950/40 border-y border-indigo-500/25",
-    badgeBg: "bg-indigo-500/15",
-    badgeText: "text-indigo-700 dark:text-indigo-300",
-    badgeBorder: "border-indigo-500/30",
-    leftBorder: "border-l-indigo-500",
-    iconBg: "bg-indigo-500/20",
-    iconText: "text-indigo-600 dark:text-indigo-400",
-    pillBg: "bg-indigo-500/15",
-    pillText: "text-indigo-700 dark:text-indigo-300",
-    pillBorder: "border-indigo-500/30",
-    dotColor: "bg-indigo-500",
-  },
-  {
-    // Teal
-    headerBg: "bg-teal-500/10 dark:bg-teal-950/40 border-y border-teal-500/25",
-    badgeBg: "bg-teal-500/15",
-    badgeText: "text-teal-700 dark:text-teal-300",
-    badgeBorder: "border-teal-500/30",
-    leftBorder: "border-l-teal-500",
-    iconBg: "bg-teal-500/20",
-    iconText: "text-teal-600 dark:text-teal-400",
-    pillBg: "bg-teal-500/15",
-    pillText: "text-teal-700 dark:text-teal-300",
-    pillBorder: "border-teal-500/30",
-    dotColor: "bg-teal-500",
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-danger/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-danger/30",
+    leftBorder: "border-l-ops-danger",
+    iconBg: "bg-ops-danger/12",
+    iconText: "text-ops-danger",
+    pillBg: "bg-ops-danger/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-danger/30",
+    dotColor: "bg-ops-danger",
   },
 ];
 
 const UNASSIGNED_THEME: RackTheme = {
-  headerBg: "bg-slate-500/10 dark:bg-slate-900/60 border-y border-slate-500/20",
-  badgeBg: "bg-slate-500/15",
-  badgeText: "text-slate-600 dark:text-slate-400",
-  badgeBorder: "border-slate-500/30",
-  leftBorder: "border-l-slate-400",
-  iconBg: "bg-slate-500/20",
-  iconText: "text-slate-400",
-  pillBg: "bg-slate-500/10",
-  pillText: "text-slate-600 dark:text-slate-400",
-  pillBorder: "border-slate-500/20",
-  dotColor: "bg-slate-400",
+  headerBg: "bg-ops-surface-raised border-y border-ops-border",
+  badgeBg: "bg-ops-surface-raised",
+  badgeText: "text-ops-muted",
+  badgeBorder: "border-ops-border",
+  leftBorder: "border-l-ops-border",
+  iconBg: "bg-ops-surface-raised",
+  iconText: "text-ops-muted",
+  pillBg: "bg-ops-surface-raised",
+  pillText: "text-ops-muted",
+  pillBorder: "border-ops-border",
+  dotColor: "bg-ops-muted",
 };
 
 function getRackTheme(rackName: string, fallbackIndex = 0): RackTheme {
@@ -305,7 +273,7 @@ export default function DeviceTable({
   };
 
   const getSortIcon = (key: keyof Device) => {
-    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="size-3.5 text-slate-600" />;
+    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="size-3.5 text-ops-muted" />;
     return sortConfig.direction === "asc"
       ? <ArrowUp className="size-3.5 text-ops-accent" />
       : <ArrowDown className="size-3.5 text-ops-accent" />;
@@ -495,7 +463,7 @@ export default function DeviceTable({
                                 </span>
                               )}
                               {rackAuditable === false && (
-                                <span className="rounded-md border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                                <span className="rounded-md border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[10px] font-semibold text-ops-muted">
                                   Non-Audit Rack
                                 </span>
                               )}
@@ -522,20 +490,20 @@ export default function DeviceTable({
                             theme.leftBorder
                           )}>
                             <div className="flex items-center gap-2">
-                              {!isActive && <span className="size-2 rounded-full bg-red-400 shrink-0" title="Inactive" />}
+                              {!isActive && <span className="size-2 rounded-full bg-ops-danger shrink-0" title="Inactive" />}
                               <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
                               {device.excludeChecklist && (
-                                <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 shrink-0" title="Excluded from checklist audit — stays in rack layout">
+                                <span className="rounded-full border border-ops-warning/30 bg-ops-warning/10 px-2 py-0.5 text-[10px] font-semibold text-ops-warning shrink-0" title="Excluded from checklist audit — stays in rack layout">
                                   Excluded
                                 </span>
                               )}
                               {device.isCritical && (
-                                <span className="shrink-0 rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300" title="Critical device — SIEM stamps critical_device on its events">
+                                <span className="shrink-0 rounded-full border border-ops-danger/40 bg-ops-danger/15 px-2 py-0.5 text-[10px] font-bold text-ops-danger" title="Critical device — SIEM stamps critical_device on its events">
                                   Critical
                                 </span>
                               )}
                               {device.isRackAuditable === false && (
-                                <span className="rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400 shrink-0" title="Rack is excluded from audit">
+                                <span className="rounded-full border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[10px] font-semibold text-ops-muted shrink-0" title="Rack is excluded from audit">
                                   Non-Audit Rack
                                 </span>
                               )}
@@ -590,12 +558,12 @@ export default function DeviceTable({
                                     title="Take out from rack"
                                     className="!size-7 p-0"
                                   >
-                                    <PackageOpen aria-hidden="true" className="size-3.5 text-amber-300" />
+                                    <PackageOpen aria-hidden="true" className="size-3.5 text-ops-warning" />
                                   </ActionButton>
                                 )}
                               </div>
                             ) : (
-                              <span className="inline-flex items-center gap-1 rounded border border-slate-500/20 bg-slate-500/5 px-2 py-0.5 text-[11px] text-ops-muted italic">
+                              <span className="inline-flex items-center gap-1 rounded border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[11px] text-ops-muted italic">
                                 Direct / No Rack
                               </span>
                             )}
@@ -605,10 +573,10 @@ export default function DeviceTable({
                             <button
                               type="button"
                               onClick={() => setManageDevice(device)}
-                              className="group/ip inline-flex items-center gap-1.5 rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted transition-colors hover:border-indigo-400/50 hover:bg-indigo-500/10 hover:text-indigo-300 focus:outline-none"
+                              className="group/ip inline-flex items-center gap-1.5 rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted transition-colors hover:border-ops-accent/50 hover:bg-ops-accent/10 hover:text-ops-accent focus:outline-none"
                               title="Click to manage device remotely"
                             >
-                              <MonitorPlay className="size-3 text-indigo-400 transition-transform group-hover/ip:scale-110 shrink-0" />
+                              <MonitorPlay className="size-3 text-ops-accent transition-transform group-hover/ip:scale-110 shrink-0" />
                               <span>{device.ipAddress}</span>
                             </button>
                           ) : (
@@ -627,17 +595,17 @@ export default function DeviceTable({
                           <div className="inline-flex items-center justify-end gap-1">
                             {device.ipAddress && (
                               <ActionButton type="button" variant="ghost" size="icon" onClick={() => setManageDevice(device)} aria-label="Manage device remotely" title="Manage device remotely" className="!size-8 p-0">
-                                <MonitorPlay aria-hidden="true" className="size-4 text-indigo-300" />
+                                <MonitorPlay aria-hidden="true" className="size-4 text-ops-accent" />
                               </ActionButton>
                             )}
                             <ActionButton href={`/admin/devices/${device.id}/network`} variant="ghost" size="icon" aria-label="Network ports" title="Network ports" className="!size-8 p-0">
-                              <Network aria-hidden="true" className="size-4 text-teal-300" />
+                              <Network aria-hidden="true" className="size-4 text-ops-accent" />
                             </ActionButton>
                             <ActionButton type="button" variant="ghost" size="icon" onClick={() => setPrintingDevice(device)} aria-label="Print QR" title="Print QR" className="!size-8 p-0">
                               <QrCode aria-hidden="true" className="size-4" />
                             </ActionButton>
                             <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingDevice(device)} aria-label="Edit" title="Edit" className="!size-8 p-0">
-                              <Edit aria-hidden="true" className="size-4 text-blue-300" />
+                              <Edit aria-hidden="true" className="size-4 text-ops-info" />
                             </ActionButton>
                             <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingDevice(device)} aria-label="Delete" title="Delete" className="!size-8 p-0">
                               <Trash2 aria-hidden="true" className="size-4" />

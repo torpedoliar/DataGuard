@@ -88,9 +88,11 @@ export const FACEPLATE_METRICS = {
   labelHeight: 10,
 } as const;
 
+// SVG faceplate fills. Aligned to the ops-* theme tokens (app/globals.css):
+// active = ops-success, down = ops-danger, chassis/empty = ops surfaces.
 export const FACEPLATE_PALETTE = {
-  chassis: { fill: "#0f172a", stroke: "#334155" },
-  empty: { fill: "#1e293b", stroke: "#334155", label: "#64748b" },
+  chassis: { fill: "#0f172a", stroke: "#1e293b" },
+  empty: { fill: "#172033", stroke: "#1e293b", label: "#94a3b8" },
   active: { fill: "#15803d", stroke: "#22c55e", label: "#f8fafc" },
   inactive: { fill: "#475569", stroke: "#64748b", label: "#f1f5f9" },
   down: { fill: "#b91c1c", stroke: "#ef4444", label: "#fef2f2" },
@@ -98,7 +100,7 @@ export const FACEPLATE_PALETTE = {
 } as const;
 
 export const FACEPLATE_MODE_ACCENT: Record<string, string> = {
-  Trunk: "#a855f7",
+  Trunk: "#a78bfa",
   Routed: "#f97316",
   LACP: "#38bdf8",
 };

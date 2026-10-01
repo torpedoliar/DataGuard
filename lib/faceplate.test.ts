@@ -381,7 +381,7 @@ describe("faceplateSlotColors", () => {
 
   it("adds a mode accent only for non access modes", () => {
     expect(faceplateSlotColors({ status: "Active", portMode: "Access" }).accent).toBeNull();
-    expect(faceplateSlotColors({ status: "Active", portMode: "Trunk" }).accent).toBe("#a855f7");
+    expect(faceplateSlotColors({ status: "Active", portMode: "Trunk" }).accent).toBe("#a78bfa");
   });
 });
 

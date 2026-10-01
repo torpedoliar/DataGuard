@@ -8,6 +8,7 @@ import {
     isUplinkMedia,
     suggestPortName,
     FACEPLATE_PALETTE,
+    FACEPLATE_MODE_ACCENT,
     type FaceplateConfigInput,
     type FaceplateSlot,
 } from "@/lib/faceplate";
@@ -86,11 +87,11 @@ function UnplacedPortRow({ port, maxSlot }: { port: NetworkPortRow; maxSlot: num
 
     return (
         <li className="flex flex-wrap items-center gap-2 py-1.5">
-            <span className="font-mono text-xs font-semibold text-slate-800 dark:text-white min-w-24">{port.portName}</span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 flex-1 min-w-32">
+            <span className="font-mono text-xs font-semibold text-ops-text min-w-24">{port.portName}</span>
+            <span className="text-xs text-ops-muted flex-1 min-w-32">
                 {port.mediaType || "Media belum diisi"}
             </span>
-            <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor={`slot-${port.id}`}>
+            <label className="text-xs text-ops-muted" htmlFor={`slot-${port.id}`}>
                 Slot
             </label>
             <input
@@ -101,18 +102,18 @@ function UnplacedPortRow({ port, maxSlot }: { port: NetworkPortRow; maxSlot: num
                 value={slot}
                 onChange={(event) => setSlot(event.target.value)}
                 disabled={isPending}
-                className="w-20 px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                className="ops-input w-20 px-2 py-1 text-xs"
             />
             <button
                 type="button"
                 onClick={handleSave}
                 disabled={isPending}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-ops-accent text-ops-text hover:bg-ops-accent/80 disabled:opacity-50 transition-colors"
             >
                 {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
                 Pasang
             </button>
-            {error && <span className="text-xs text-red-500 w-full">{error}</span>}
+            {error && <span className="text-xs text-ops-danger w-full">{error}</span>}
         </li>
     );
 }
@@ -143,10 +144,10 @@ export default function DeviceFaceplate({
 
     if (totalSlots === 0) {
         return (
-            <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-6 text-center">
-                <Network className="h-6 w-6 mx-auto text-slate-400" />
-                <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-200">Faceplate belum dikonfigurasi</p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="rounded-lg border border-dashed border-ops-border bg-ops-surface-raised p-6 text-center">
+                <Network className="h-6 w-6 mx-auto text-ops-muted" />
+                <p className="mt-2 text-sm font-medium text-ops-text">Faceplate belum dikonfigurasi</p>
+                <p className="mt-1 text-xs text-ops-muted">
                     Isi jumlah port fisik perangkat ini pada panel &quot;Faceplate Layout&quot; untuk menggambar diagram port.
                 </p>
             </div>
@@ -160,13 +161,13 @@ export default function DeviceFaceplate({
 
     return (
         <div className="space-y-3">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface p-4 shadow-sm">
+            <div className="rounded-lg border border-ops-border bg-ops-surface p-4 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                    <h4 className="text-sm font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Cable className="h-4 w-4 text-teal-500" />
+                    <h4 className="text-sm font-semibold text-ops-text flex items-center gap-2">
+                        <Cable className="h-4 w-4 text-ops-accent" />
                         {deviceName} Faceplate
                     </h4>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                    <span className="text-xs text-ops-muted">
                         {occupied} / {totalSlots} slot terdokumentasi
                     </span>
                 </div>
@@ -296,20 +297,20 @@ export default function DeviceFaceplate({
                     </svg>
                 </div>
 
-                <p className="mt-3 min-h-9 text-xs text-slate-600 dark:text-slate-300 flex items-start gap-1.5">
+                <p className="mt-3 min-h-9 text-xs text-ops-muted flex items-start gap-1.5">
                     {hovered ? (
                         <span>{describeSlot(hovered)}</span>
                     ) : (
                         <>
-                            <MousePointerClick className="h-3.5 w-3.5 shrink-0 mt-0.5 text-slate-400" />
-                            <span className="text-slate-500 dark:text-slate-400">
+                            <MousePointerClick className="h-3.5 w-3.5 shrink-0 mt-0.5 text-ops-muted" />
+                            <span className="text-ops-muted">
                                 Arahkan kursor ke port untuk detail. Klik port terisi untuk mengubah konfigurasi, klik slot kosong untuk provisioning.
                             </span>
                         </>
                     )}
                 </p>
 
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-200 dark:border-slate-700 pt-3 text-[11px] text-slate-600 dark:text-slate-300">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t border-ops-border pt-3 text-[11px] text-ops-muted">
                     {[
                         { label: "Active", color: FACEPLATE_PALETTE.active.fill },
                         { label: "Inactive", color: FACEPLATE_PALETTE.inactive.fill },
@@ -322,9 +323,9 @@ export default function DeviceFaceplate({
                         </span>
                     ))}
                     {[
-                        { label: "Trunk", color: "#a855f7" },
-                        { label: "Routed", color: "#f97316" },
-                        { label: "LACP", color: "#38bdf8" },
+                        { label: "Trunk", color: FACEPLATE_MODE_ACCENT.Trunk },
+                        { label: "Routed", color: FACEPLATE_MODE_ACCENT.Routed },
+                        { label: "LACP", color: FACEPLATE_MODE_ACCENT.LACP },
                     ].map((item) => (
                         <span key={item.label} className="flex items-center gap-1.5">
                             <span className="w-1 h-3 rounded-sm" style={{ backgroundColor: item.color }} />
@@ -332,22 +333,22 @@ export default function DeviceFaceplate({
                         </span>
                     ))}
                     <span className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-slate-100 ring-1 ring-slate-400" />
+                        <span className="w-2 h-2 rounded-full bg-ops-surface-raised ring-1 ring-ops-border" />
                         Terhubung ke port lain
                     </span>
                 </div>
             </div>
 
             {faceplate.unplaced.length > 0 && (
-                <div className="rounded-lg border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/10 p-4">
-                    <p className="text-sm font-medium text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <div className="rounded-lg border border-ops-warning/30 bg-ops-warning/10 p-4">
+                    <p className="text-sm font-medium text-ops-warning flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4" />
                         {faceplate.unplaced.length} port belum terpetakan ke slot fisik
                     </p>
-                    <p className="mt-1 text-xs text-amber-800 dark:text-amber-300/80">
+                    <p className="mt-1 text-xs text-ops-muted">
                         Nomor slot tidak bisa disimpulkan dari nama interface, di luar jangkauan layout, atau bentrok dengan port lain. Tentukan slotnya di bawah.
                     </p>
-                    <ul className="mt-3 divide-y divide-amber-200 dark:divide-amber-900/40">
+                    <ul className="mt-3 divide-y divide-ops-border">
                         {faceplate.unplaced.map((port) => (
                             <UnplacedPortRow key={port.id} port={port} maxSlot={totalSlots} />
                         ))}
