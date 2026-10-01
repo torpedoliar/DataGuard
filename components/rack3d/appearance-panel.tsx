@@ -36,6 +36,11 @@ export function AppearancePanel({ locationId, value, onPreview, onSaved, onClose
         onPreview(next);
     };
     const pickFile = (f: File | null) => {
+        if (f && f.size > 5 * 1024 * 1024) {
+            setError("Image file is too large. Maximum size is 5 MB.");
+            return;
+        }
+        setError(null);
         const url = f ? URL.createObjectURL(f) : null;
         setFile(f);
         setBlobUrl(url);
@@ -94,7 +99,10 @@ export function AppearancePanel({ locationId, value, onPreview, onSaved, onClose
 
             {draft.wallpaper === "custom" && (
                 <>
-                    <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Wallpaper image" onChange={(e) => pickFile(e.target.files?.[0] ?? null)} className="block w-full text-xs text-ops-muted file:mr-2 file:rounded file:border-0 file:bg-ops-accent/15 file:px-2 file:py-1 file:text-ops-accent" />
+                    <div className="space-y-1">
+                        <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Wallpaper image" onChange={(e) => pickFile(e.target.files?.[0] ?? null)} className="block w-full text-xs text-ops-muted file:mr-2 file:rounded file:border-0 file:bg-ops-accent/15 file:px-2 file:py-1 file:text-ops-accent" />
+                        <p className="text-[10px] text-ops-muted">Max 5 MB (PNG, JPG, WebP)</p>
+                    </div>
                     <label className="block space-y-1">
                         <span className="text-xs text-ops-muted">Fit</span>
                         <select value={draft.wallpaperMode} onChange={(e) => change({ wallpaperMode: e.target.value as WallpaperMode })} className={field}>
