@@ -1,3 +1,5 @@
+import { compareRackOrder } from "./rack-order";
+
 // Pure audit signals shared by the 3D scene, the drawer and the server
 // payload. No React, no three: unit-tested on their own.
 
@@ -75,3 +77,21 @@ export const AUDIT_COLOR: Record<"OK" | "NOT OK" | "Pending", string> = {
     "NOT OK": "#ef4444",
     Pending: "#94a3b8",
 };
+
+// Auto tour: racks with a troubled critical device first, then floor order.
+export function tourOrder<R extends { name: string; floorRow: string | null; floorSlot: number | null; devices: SignalDevice[] }>(racks: R[]): string[] {
+    const sorted = [...racks].sort(compareRackOrder);
+    const hot = sorted.filter((r) => r.devices.some((d) => criticalProblem(d)));
+    return [...hot, ...sorted.filter((r) => !hot.includes(r))].map((r) => r.name);
+}
+
+export function rackSummary(rack: { devices: SignalDevice[] }) {
+    const by = (s: string) => rack.devices.filter((d) => (d.status ?? "Pending") === s).length;
+    return {
+        devices: rack.devices.length,
+        ok: by("OK"),
+        notOk: by("NOT OK"),
+        pending: by("Pending"),
+        incidents: rack.devices.reduce((n, d) => n + d.openIncidents.count, 0),
+    };
+}

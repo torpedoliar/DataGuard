@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { criticalProblem, foldIncidents, NO_INCIDENTS, occupancyBand, troubledCritical } from "./rack-signals";
+import { criticalProblem, foldIncidents, NO_INCIDENTS, occupancyBand, rackSummary, tourOrder, troubledCritical } from "./rack-signals";
 
 describe("foldIncidents", () => {
   it("sums counts per device and keeps the worst severity", () => {
@@ -70,5 +70,22 @@ describe("occupancyBand", () => {
   });
   it("treats a zero-height rack as empty", () => {
     expect(occupancyBand([1], 0)).toBe("low");
+  });
+});
+
+describe("tourOrder", () => {
+  const r = (name: string, floorSlot: number, devices = [sig({ isCritical: false })]) => ({ name, floorRow: "A", floorSlot, devices });
+  it("visits racks with a troubled critical device first, then layout order", () => {
+    expect(tourOrder([r("A3", 3), r("A1", 1), r("A2", 2, [sig({ status: "NOT OK" })])])).toEqual(["A2", "A1", "A3"]);
+  });
+  it("is empty for an empty room", () => {
+    expect(tourOrder([])).toEqual([]);
+  });
+});
+
+describe("rackSummary", () => {
+  it("counts device states and open incidents", () => {
+    expect(rackSummary({ devices: [sig({ status: "OK", count: 2 }), sig({ status: "NOT OK" }), { ...sig(), status: undefined }] }))
+      .toEqual({ devices: 3, ok: 1, notOk: 1, pending: 1, incidents: 2 });
   });
 });

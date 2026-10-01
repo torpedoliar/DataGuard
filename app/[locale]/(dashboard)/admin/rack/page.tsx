@@ -90,7 +90,7 @@ export default async function RackPage() {
             )}
 
             {/* Rack Layout Visualization */}
-            <RackLayoutShell racks={racks} categories={categories} rooms={rooms} canEditAppearance={canEditAppearance} />
+            <RackLayoutShell racks={racks} categories={categories} rooms={rooms} canEditAppearance={canEditAppearance} siteName={session.activeSiteName ?? ""} />
         </main>
         <BottomNav />
         </>

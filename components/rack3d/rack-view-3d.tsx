@@ -2,16 +2,17 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { Box, Maximize, Minimize, Palette, RotateCcw, TriangleAlert } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Camera, Maximize, Minimize, Palette, Pause, Play, RotateCcw, TriangleAlert } from "lucide-react";
 import type { RackDevice, RoomSettings } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
-import { troubledCritical, type ColorBy } from "@/lib/rack-signals";
+import { rackSummary, tourOrder, troubledCritical, type ColorBy } from "@/lib/rack-signals";
 import { DEFAULT_APPEARANCE, type RoomAppearance } from "@/lib/room-appearance";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
 import { layoutRacks } from "./layout";
 import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
+import { downloadWithFooter, screenshotFooter, screenshotName } from "./screenshot";
 
 const RackScene = dynamic(() => import("./rack-scene"), {
     ssr: false,
@@ -19,6 +20,7 @@ const RackScene = dynamic(() => import("./rack-scene"), {
 });
 
 const QUALITY_KEY = "rack3d-quality";
+const TOUR_MS = 5000;
 const UNASSIGNED = "Unassigned Location";
 const selectClass = "h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent";
 const overlayButton = "flex items-center gap-1.5 rounded-lg border border-ops-border bg-ops-surface/90 px-3 py-1.5 text-sm font-medium text-ops-text shadow backdrop-blur hover:bg-ops-surface";
@@ -32,9 +34,10 @@ interface RackView3DProps {
     onSelectDevice: (d: RackDevice | null) => void;
     onWebglUnavailable: () => void;
     canEditAppearance: boolean;
+    siteName: string;
 }
 
-export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable, canEditAppearance }: RackView3DProps) {
+export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable, canEditAppearance, siteName }: RackView3DProps) {
     const rooms = useMemo(() => {
         const map = new Map<string, SceneRack[]>();
         for (const r of racks) {
@@ -59,6 +62,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const [editing, setEditing] = useState<number | null>(null);
     const [preview, setPreview] = useState<RoomAppearance | null>(null);
     const [saved, setSaved] = useState<Record<number, RoomAppearance>>({});
+    const [touring, setTouring] = useState(false);
+    const captureRef = useRef<(() => string) | null>(null);
 
     // Picking a location in the filter bar opens that room.
     const [appliedLocation, setAppliedLocation] = useState<string | null>(null);
@@ -95,6 +100,12 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const room = roomPick && rooms.has(roomPick) ? roomPick : rooms.keys().next().value ?? null;
     const roomRacks = useMemo(() => (room ? rooms.get(room) ?? [] : []), [room, rooms]);
     const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;
+    const order = useMemo(() => tourOrder(roomRacks), [roomRacks]);
+    useEffect(() => {
+        if (!touring || order.length === 0) return;
+        const id = setInterval(() => setFocusPick((cur) => order[(order.indexOf(cur ?? "") + 1) % order.length]), TOUR_MS);
+        return () => clearInterval(id);
+    }, [touring, order]);
     const collisions = useMemo(() => layoutRacks(roomRacks).filter((p) => p.collision).length, [roomRacks]);
     const locationId = roomRacks.find((r) => r.locationId != null)?.locationId ?? null;
     const settings = locationId != null ? roomSettings[locationId] : undefined;
@@ -140,6 +151,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.key !== "Escape") return;
+            setTouring(false);
             setFocusPick(null);
             onSelectDevice(null);
         };
@@ -148,6 +160,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     }, [onSelectDevice]);
 
     const pickRoom = (name: string) => {
+        setTouring(false);
         setRoomPick(name);
         setFocusPick(null);
         onSelectDevice(null);
@@ -157,8 +170,26 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         try { localStorage.setItem(QUALITY_KEY, q); } catch { /* storage blocked */ }
     };
     const backToRoom = () => {
+        setTouring(false);
         setFocusPick(null);
         onSelectDevice(null);
+    };
+    const startTour = () => {
+        if (order.length === 0) return;
+        onSelectDevice(null);
+        setFocusPick(order[0]);
+        setTouring(true);
+    };
+    // Any drag, click or wheel in the scene hands control back to the user
+    // (buttons marked data-keep-tour excepted).
+    const stopTourOnInput = (e: { target: EventTarget }) => {
+        if (touring && !(e.target as HTMLElement).closest("[data-keep-tour]")) setTouring(false);
+    };
+    const screenshot = () => {
+        const url = captureRef.current?.();
+        if (!url || !room) return;
+        const at = new Date();
+        void downloadWithFooter(url, screenshotFooter(room, siteName, at), screenshotName(room, at));
     };
     // Fullscreen the whole page and pin the scene over it, so the drawer and
     // dialogs (portalled to <body>) stay visible.
@@ -245,8 +276,14 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 )}
             </div>
 
-            <div className={`overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene">
+            <div className={`overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" onPointerDownCapture={stopTourOnInput} onWheelCapture={stopTourOnInput}>
                 <div className="absolute right-3 top-3 z-10 flex gap-2" data-keep-tour>
+                    <button onClick={touring ? () => setTouring(false) : startTour} aria-pressed={touring} title="Fly through every rack" className={overlayButton}>
+                        {touring ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />} {touring ? "Stop tour" : "Tour"}
+                    </button>
+                    <button onClick={screenshot} aria-label="Download screenshot" title="Download a PNG of this view" className={overlayButton}>
+                        <Camera className="h-4 w-4" />
+                    </button>
                     {canEditAppearance && locationId != null && (
                         <button onClick={openEditor} aria-label="Room appearance" title="Light colour and wallpaper" className={overlayButton}>
                             <Palette className="h-4 w-4" /> Appearance
@@ -274,6 +311,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     temp={temp}
                     colorBy={colorBy}
                     appearance={appearance}
+                    captureRef={captureRef}
                 />
                 {focusRack && (
                     <button
@@ -286,6 +324,19 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 <p className="pointer-events-none absolute bottom-3 left-3 text-[11px] text-ops-muted">
                     Drag to orbit · Scroll to zoom · Click a rack or device · Esc to go back
                 </p>
+                {touring && focusRack && (() => {
+                    const rack = roomRacks.find((r) => r.name === focusRack);
+                    if (!rack) return null;
+                    const s = rackSummary(rack);
+                    return (
+                        <div className="pointer-events-none absolute bottom-12 left-1/2 z-10 -translate-x-1/2 rounded-xl border border-ops-border bg-ops-surface/90 px-4 py-2 text-center shadow backdrop-blur">
+                            <p className="text-base font-bold text-ops-text">{rack.name}</p>
+                            <p className="text-xs text-ops-muted">
+                                {s.devices} devices · <span className="text-ops-success">{s.ok} OK</span> · <span className="text-ops-danger">{s.notOk} NOT OK</span> · {s.pending} pending · {s.incidents} open incidents
+                            </p>
+                        </div>
+                    );
+                })()}
                 {troubled.length > 0 && !alertOpen && (
                     <button
                         onClick={() => setAlertOpen(true)}

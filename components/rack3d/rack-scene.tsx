@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
 import { Bloom, DepthOfField, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
-import { ToneMappingMode } from "postprocessing";
+import { ToneMappingMode, type EffectComposer as ComposerImpl } from "postprocessing";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
 import type { ColorBy } from "@/lib/rack-signals";
@@ -35,6 +35,7 @@ export interface RackSceneProps {
     temp: { tempC: number; thresholdC: number | null } | null;
     colorBy: ColorBy;
     appearance: RoomAppearance;
+    captureRef?: RefObject<(() => string) | null>;
 }
 
 // Mirrors --color-ops-accent in app/globals.css (light / dark).
@@ -122,10 +123,10 @@ function Lighting({ dark, b, preset, appearance }: { dark: boolean; b: Bounds; p
     );
 }
 
-function Effects({ preset, dofTarget }: { preset: (typeof PRESETS)[Quality]; dofTarget: [number, number, number] | null }) {
+function Effects({ preset, dofTarget, composerRef }: { preset: (typeof PRESETS)[Quality]; dofTarget: [number, number, number] | null; composerRef: RefObject<ComposerImpl | null> }) {
     if (!preset.bloom) return null; // low: renderer tone mapping, no composer
     return preset.ao ? (
-        <EffectComposer multisampling={4} frameBufferType={THREE.HalfFloatType}>
+        <EffectComposer ref={composerRef} multisampling={4} frameBufferType={THREE.HalfFloatType}>
             <N8AO aoRadius={0.4} distanceFalloff={0.5} intensity={2} quality="medium" halfRes />
             <Bloom mipmapBlur luminanceThreshold={1} intensity={0.9} />
             <DepthOfField target={dofTarget ?? [0, 0, 0]} worldFocusRange={1.4} bokehScale={dofTarget ? 3 : 0} />
@@ -134,13 +135,37 @@ function Effects({ preset, dofTarget }: { preset: (typeof PRESETS)[Quality]; dof
         </EffectComposer>
     ) : (
         // Medium: no MSAA render targets; SMAA is the cheap edge smoothing.
-        <EffectComposer multisampling={0} frameBufferType={THREE.HalfFloatType}>
+        <EffectComposer ref={composerRef} multisampling={0} frameBufferType={THREE.HalfFloatType}>
             <Bloom mipmapBlur luminanceThreshold={1} intensity={0.7} />
             <SMAA />
             <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
             <Vignette offset={0.3} darkness={0.5} />
         </EffectComposer>
     );
+}
+
+// Screenshot: render once at 2x through the same pipeline (composer when
+// effects are on) and read the canvas in the same task, so the drawing
+// buffer is still intact without preserveDrawingBuffer.
+function Capture({ captureRef, composerRef }: { captureRef: RefObject<(() => string) | null>; composerRef: RefObject<ComposerImpl | null> }) {
+    const { gl, scene, camera, size, invalidate } = useThree();
+    useEffect(() => {
+        captureRef.current = () => {
+            const ratio = gl.getPixelRatio();
+            const composer = composerRef.current;
+            gl.setPixelRatio(Math.min(ratio * 2, 4));
+            composer?.setSize(size.width, size.height);
+            if (composer) composer.render();
+            else gl.render(scene, camera);
+            const url = gl.domElement.toDataURL("image/png");
+            gl.setPixelRatio(ratio);
+            composer?.setSize(size.width, size.height);
+            invalidate();
+            return url;
+        };
+        return () => { captureRef.current = null; };
+    }, [captureRef, composerRef, gl, scene, camera, size, invalidate]);
+    return null;
 }
 
 function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
@@ -212,7 +237,8 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
     );
 }
 
-export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice, temp, colorBy, appearance }: RackSceneProps) {
+export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef }: RackSceneProps) {
+    const composerRef = useRef<ComposerImpl>(null);
     const dark = useIsDark();
     const placed = useMemo(() => layoutRacks(racks), [racks]);
     const b = useMemo(() => bounds(placed), [placed]);
@@ -264,7 +290,8 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
             <Cables cables={cables} />
             <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} onTarget={setFocusPoint} />
             <BlinkClock />
-            <Effects preset={preset} dofTarget={preset.dof && focusRack ? focusPoint : null} />
+            <Effects preset={preset} dofTarget={preset.dof && focusRack ? focusPoint : null} composerRef={composerRef} />
+            {captureRef && <Capture captureRef={captureRef} composerRef={composerRef} />}
         </Canvas>
     );
 }
