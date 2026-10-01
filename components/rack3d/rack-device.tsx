@@ -21,7 +21,7 @@ const SLIDE = 0.3;
 type Vec3 = [number, number, number];
 
 const FACE_COLOR: Record<DeviceKind, string> = {
-    server: "#3a3f47", network: "#2c3036", storage: "#343941", power: "#3d4148", cooling: "#393d43",
+    server: "#4a515b", network: "#3b4149", storage: "#454b54", power: "#4d525a", cooling: "#484d55",
 };
 
 // cols x rows cell centres across [x0, x1], vertically centred.

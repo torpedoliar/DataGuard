@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
+import { AdaptiveDpr, CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
 import { Bloom, DepthOfField, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import type { RackDevice } from "@/actions/rack-layout";
@@ -59,16 +59,37 @@ function BlinkClock() {
     return null;
 }
 
+// Ceiling light fixtures over the racks (dark mode): a few lights spread
+// over the room so faceplates read like a real DC with the lights on low.
+// ponytail: capped at 6 unshadowed point lights; a bigger room gets the same 6
+// spread wider, switch to baked lighting if rooms grow past ~40 racks.
+function ceilingSpots(b: Bounds): [number, number][] {
+    const w = b.maxX - b.minX;
+    const d = b.maxZ - b.minZ;
+    const nx = Math.min(3, Math.max(1, Math.round(w / 3)));
+    const nz = Math.min(2, Math.max(1, Math.round(d / 2.5)));
+    const out: [number, number][] = [];
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+        out.push([b.minX + (w * (i + 0.5)) / nx, b.minZ + (d * (j + 0.5)) / nz]);
+    }
+    return out;
+}
+
 function Lighting({ dark, b, preset }: { dark: boolean; b: Bounds; preset: (typeof PRESETS)[Quality] }) {
     const span = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 2;
+    const spots = useMemo(() => ceilingSpots(b), [b]);
     return (
         <>
-            <ambientLight intensity={dark ? 0.3 : 0.55} />
-            <hemisphereLight args={[dark ? "#3b5b8a" : "#ffffff", dark ? "#05070a" : "#8f98a3", dark ? 0.7 : 1.1]} />
+            <ambientLight intensity={dark ? 0.7 : 0.55} />
+            <hemisphereLight args={[dark ? "#7d9bcc" : "#ffffff", dark ? "#222b3a" : "#8f98a3", dark ? 1.3 : 1.1]} />
             {/* Aisle fill: soft light down the rows so faceplates read */}
-            <directionalLight position={[b.maxX + 6, 2.5, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.55 : 0.9} color={dark ? "#93c5fd" : "#ffffff"} />
+            <directionalLight position={[b.maxX + 6, 2.5, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.9 : 0.9} color={dark ? "#c7d8f5" : "#ffffff"} />
+            <directionalLight position={[b.minX - 6, 2.2, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.45 : 0.35} color={dark ? "#c7d8f5" : "#ffffff"} />
+            {dark && spots.map(([x, z]) => (
+                <pointLight key={`${x},${z}`} position={[x, 2.9, z]} intensity={7} distance={8} decay={1.2} color="#e6eefc" />
+            ))}
             {/* Lights-out mode: faint blue wash rising from the cold-aisle tiles */}
-            {dark && <pointLight position={[(b.minX + b.maxX) / 2, 0.4, (b.minZ + b.maxZ) / 2]} color="#3b82f6" intensity={6} distance={6} decay={1.5} />}
+            {dark && <pointLight position={[(b.minX + b.maxX) / 2, 0.4, (b.minZ + b.maxZ) / 2]} color="#3b82f6" intensity={4} distance={6} decay={1.5} />}
             <directionalLight
                 position={[3, 7, 4]}
                 intensity={dark ? 0.5 : 1.3}
@@ -81,9 +102,9 @@ function Lighting({ dark, b, preset }: { dark: boolean; b: Bounds; preset: (type
                 shadow-camera-bottom={-span}
             />
             {preset.softShadows && <SoftShadows size={18} samples={10} focus={0.6} />}
-            <Environment key={dark ? "dark" : "light"} resolution={256} frames={1} environmentIntensity={dark ? 1 : 1.3}>
+            <Environment key={dark ? "dark" : "light"} resolution={256} frames={1} environmentIntensity={dark ? 1.25 : 1.3}>
                 {[-3, 0, 3].flatMap((x) => [-3, 0, 3].map((z) => (
-                    <Lightformer key={`${x},${z}`} form="rect" intensity={dark ? 0.5 : 2.4} position={[x, 3, z]} rotation-x={Math.PI / 2} scale={[0.8, 1.6, 1]} />
+                    <Lightformer key={`${x},${z}`} form="rect" intensity={dark ? 1.4 : 2.4} position={[x, 3, z]} rotation-x={Math.PI / 2} scale={[0.8, 1.6, 1]} />
                 )))}
                 <Lightformer form="rect" intensity={dark ? 0.8 : 0.3} color={dark ? "#3b82f6" : "#ffffff"} position={[0, 1, -8]} scale={[20, 2, 1]} />
             </Environment>
@@ -173,6 +194,8 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
         <CameraControls
             ref={ref}
             makeDefault
+            regress
+            draggingSmoothTime={0.08}
             minDistance={0.6}
             maxDistance={30}
             maxPolarAngle={Math.PI / 2 - 0.05}
@@ -194,7 +217,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
     const accent = dark ? ACCENT.dark : ACCENT.light;
     // Other rows stand between the fly-to camera and the focused rack.
     const focusedRow = placed.find((p) => p.rack.name === focusRack)?.row;
-    const bg = dark ? "#06080b" : "#dfe3e8";
+    const bg = dark ? "#0b0f15" : "#dfe3e8";
     const [focusPoint, setFocusPoint] = useState<[number, number, number]>([0, 1, 0]);
 
     return (
@@ -203,6 +226,8 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
             shadows={preset.shadows}
             dpr={preset.dpr}
             frameloop="demand"
+            // Orbit/zoom renders at half resolution until the camera settles.
+            performance={{ min: 0.5, debounce: 250 }}
             flat={preset.bloom}
             gl={{ antialias: !preset.bloom, powerPreference: "high-performance" }}
             camera={{ position: [0, 12, 12], fov: 38, near: 0.03, far: 120 }}
@@ -230,6 +255,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
             ))}
             <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} onTarget={setFocusPoint} />
             <BlinkClock />
+            <AdaptiveDpr />
             <Effects preset={preset} dofTarget={preset.dof && focusRack ? focusPoint : null} />
         </Canvas>
     );

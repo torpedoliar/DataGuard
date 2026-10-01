@@ -127,13 +127,13 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections }: {
             {/* Walls: back faces only, so the camera sees in from any angle */}
             <mesh position={[cx, ROOM_HEIGHT / 2 - 0.01, cz]}>
                 <boxGeometry args={[w, ROOM_HEIGHT, d]} />
-                <meshStandardMaterial color={dark ? "#10141a" : "#c9ced4"} roughness={0.9} side={THREE.BackSide} />
+                <meshStandardMaterial color={dark ? "#1b222c" : "#c9ced4"} roughness={0.9} side={THREE.BackSide} />
             </mesh>
 
             {panels.map(([x, z]) => (
                 <mesh key={`${x},${z}`} position={[x, ROOM_HEIGHT - 0.02, z]} rotation-x={Math.PI / 2}>
                     <planeGeometry args={[0.6, 1.2]} />
-                    <meshBasicMaterial color={dark ? "#3b4252" : "#ffffff"} toneMapped={false} />
+                    <meshBasicMaterial color={dark ? "#d9e3f2" : "#ffffff"} toneMapped={false} />
                 </mesh>
             ))}
 
