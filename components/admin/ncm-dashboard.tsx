@@ -8,16 +8,18 @@ import {
   CheckCircle2,
   Clock,
   DatabaseBackup,
+  Download,
   FileText,
   GitCompareArrows,
   KeyRound,
   Layers,
+  Play,
   Plus,
   RefreshCw,
   Router,
+  Search,
   Server,
   ShieldCheck,
-  Sparkles,
   Trash2,
   WifiOff,
 } from "lucide-react";
@@ -30,11 +32,11 @@ import {
   deleteNcmCredentialAction,
   deleteNcmSwitch,
   getNcmBackupContent,
-  getNcmReviewDetail,
   prepareNcmBaselineReviewAction,
   rotateNcmCredentials,
   syncNcmDeviceNamesAction,
   triggerNcmBackup,
+  triggerNcmBackupAction,
   updateNcmCredentialAction,
   updateNcmSchedule,
   updateNcmSwitch,
@@ -44,6 +46,18 @@ import {
 import { NcmConfigReview } from "./ncm-config-review";
 
 type Row = Record<string, unknown>;
+
+function downloadTextFile(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // NCM field names can drift across versions (switch_id vs switchId, dst).
 function pick(row: Row, ...keys: string[]): string {
@@ -86,7 +100,8 @@ const inputClass = "h-9 w-full rounded-lg border border-slate-700 bg-slate-900 p
 const labelClass = "space-y-1 text-sm font-medium text-slate-300";
 
 const PROTOCOLS = [
-  { value: "ssh", label: "SSH (CLI)", defaultPort: 22 },
+  { value: "ssh", label: "SSH (CLI: Cisco / ATI / Ruijie / Generic)", defaultPort: 22 },
+  { value: "mikrotik", label: "MikroTik RouterOS (SSH + Binary Backup)", defaultPort: 22 },
   { value: "telnet", label: "Telnet (CLI)", defaultPort: 23 },
   { value: "websmart", label: "WebSmart Traditional (HTTP POST)", defaultPort: 80 },
   { value: "websmart-v2", label: "WebSmart V2 (RSA Encrypted API)", defaultPort: 80 },
@@ -163,6 +178,7 @@ function SwitchArea({
 
   // Form states for Add Switch
   const [selectedInventoryId, setSelectedInventoryId] = useState<string>("");
+  const [inventorySearch, setInventorySearch] = useState<string>("");
   const [switchName, setSwitchName] = useState<string>("");
   const [switchIp, setSwitchIp] = useState<string>("");
   const [switchModel, setSwitchModel] = useState<string>("");
@@ -170,11 +186,35 @@ function SwitchArea({
   const [switchPort, setSwitchPort] = useState<string>("22");
   const [credMode, setCredMode] = useState<"new" | "existing">(credentials.length > 0 ? "existing" : "new");
 
+  const [triggeringSwitchId, setTriggeringSwitchId] = useState<string | null>(null);
+
+  const filteredInventory = useMemo(() => {
+    if (!inventorySearch.trim()) return inventoryDevices;
+    const q = inventorySearch.toLowerCase();
+    return inventoryDevices.filter((dev) => {
+      const name = pick(dev, "name").toLowerCase();
+      const ip = pick(dev, "ipAddress", "ip_address", "ip").toLowerCase();
+      const brand = pick(dev, "brandName", "brand_name", "brand").toLowerCase();
+      const model = pick(dev, "model").toLowerCase();
+      const cat = pick(dev, "categoryName", "category_name", "category").toLowerCase();
+      const desc = pick(dev, "description").toLowerCase();
+      return (
+        name.includes(q) ||
+        ip.includes(q) ||
+        brand.includes(q) ||
+        model.includes(q) ||
+        cat.includes(q) ||
+        desc.includes(q)
+      );
+    });
+  }, [inventoryDevices, inventorySearch]);
+
   useEffect(() => {
     if (addState?.success || editState?.success || deleteState?.success || credState?.success) {
       setEditing(null);
       setCredFor(null);
       setSelectedInventoryId("");
+      setInventorySearch("");
       setSwitchName("");
       setSwitchIp("");
       setSwitchModel("");
@@ -186,7 +226,12 @@ function SwitchArea({
 
   function handleSelectInventory(devId: string) {
     setSelectedInventoryId(devId);
-    if (!devId) return;
+    if (!devId) {
+      setSwitchName("");
+      setSwitchIp("");
+      setSwitchModel("");
+      return;
+    }
     const dev = inventoryDevices.find((d) => String(d.id) === devId);
     if (dev) {
       setSwitchName(pick(dev, "name"));
@@ -195,6 +240,23 @@ function SwitchArea({
       const desc = pick(dev, "description");
       const combinedModel = [brand, desc].filter(Boolean).join(" ");
       setSwitchModel(combinedModel || brand || desc || "");
+    }
+  }
+
+  async function handleRowBackup(swId: string, swName: string) {
+    setTriggeringSwitchId(swId);
+    setSyncBanner(null);
+    try {
+      const res = await triggerNcmBackupAction(Number(swId));
+      setSyncBanner({
+        success: Boolean(res.success),
+        message: res.success ? `Backup untuk switch ${swName} berhasil dipicu.` : (res.message || "Gagal memicu backup."),
+      });
+      if (res.success) router.refresh();
+    } catch (err) {
+      setSyncBanner({ success: false, message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setTriggeringSwitchId(null);
     }
   }
 
@@ -303,6 +365,17 @@ function SwitchArea({
                   </td>
                   <td className="py-2 pr-3">
                     <div className="flex justify-end gap-1">
+                      <ActionButton
+                        size="sm"
+                        variant="secondary"
+                        title={`Trigger backup sekarang untuk ${pick(sw, "name", "hostname")}`}
+                        isPending={triggeringSwitchId === id}
+                        onClick={() => handleRowBackup(id, pick(sw, "name", "hostname"))}
+                        className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/15"
+                      >
+                        <Play className="size-3.5" />
+                        Backup
+                      </ActionButton>
                       <ActionButton size="sm" variant="secondary" title="Edit switch" onClick={() => setEditing(sw)}>Edit</ActionButton>
                       <ActionButton size="sm" variant="secondary" title="Rotasi kredensial" onClick={() => setCredFor(sw)}><KeyRound className="size-3.5" /></ActionButton>
                       <ActionButton size="sm" variant="danger" title="Hapus switch" disabled={busy} formAction={deleteAction} onClick={() => {}}>
@@ -333,30 +406,73 @@ function SwitchArea({
             </span>
             {inventoryDevices.length > 0 && (
               <span className="text-[11px] text-ops-muted">
-                {inventoryDevices.length} perangkat tersedia di site aktif
+                {filteredInventory.length} dari {inventoryDevices.length} perangkat tersedia
               </span>
             )}
           </div>
-          <select
-            className={inputClass}
-            value={selectedInventoryId}
-            onChange={(e) => handleSelectInventory(e.target.value)}
-          >
-            <option value="">— Input manual switch baru (bukan dari inventory) —</option>
-            {inventoryDevices.map((dev) => {
-              const devId = pick(dev, "id");
-              const devName = pick(dev, "name");
-              const devIp = pick(dev, "ipAddress", "ip_address", "ip");
-              const devBrand = pick(dev, "brandName", "brand_name", "brand");
-              const devCat = pick(dev, "categoryName", "category_name", "category");
-              const devDesc = pick(dev, "description");
-              return (
-                <option key={devId} value={devId}>
-                  {devName} {devIp ? `(${devIp})` : "(tanpa IP)"} — {devBrand || ""} {devCat || ""} {devDesc ? `· ${devDesc}` : ""}
-                </option>
-              );
-            })}
-          </select>
+
+          <div className="space-y-1.5">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-ops-muted" />
+              <input
+                type="text"
+                placeholder="Ketik untuk mencari perangkat inventory (nama, IP, brand, model)..."
+                value={inventorySearch}
+                onChange={(e) => setInventorySearch(e.target.value)}
+                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 pl-9 pr-8 text-xs text-white placeholder:text-slate-500 focus:border-ops-accent focus:outline-none"
+              />
+              {inventorySearch && (
+                <button
+                  type="button"
+                  onClick={() => setInventorySearch("")}
+                  className="absolute right-2.5 top-2 text-xs text-slate-500 hover:text-white"
+                  title="Bersihkan pencarian"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <select
+              className={inputClass}
+              value={selectedInventoryId}
+              onChange={(e) => handleSelectInventory(e.target.value)}
+            >
+              <option value="">
+                {inventorySearch
+                  ? `— Hasil pencarian (${filteredInventory.length} perangkat) — pilih untuk isi otomatis —`
+                  : "— Pilih perangkat inventory untuk isi otomatis form —"}
+              </option>
+              {filteredInventory.map((dev) => {
+                const devId = pick(dev, "id");
+                const devName = pick(dev, "name");
+                const devIp = pick(dev, "ipAddress", "ip_address", "ip");
+                const devBrand = pick(dev, "brandName", "brand_name", "brand");
+                const devCat = pick(dev, "categoryName", "category_name", "category");
+                const devDesc = pick(dev, "description");
+                return (
+                  <option key={devId} value={devId}>
+                    {devName} {devIp ? `(${devIp})` : "(tanpa IP)"} — {devBrand || ""} {devCat || ""} {devDesc ? `· ${devDesc}` : ""}
+                  </option>
+                );
+              })}
+            </select>
+
+            {selectedInventoryId && (
+              <div className="flex items-center justify-between rounded border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-400">
+                <span>
+                  ✓ Terpilih: <b>{switchName}</b> {switchIp ? `(${switchIp})` : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleSelectInventory("")}
+                  className="ml-2 text-[11px] text-slate-400 underline hover:text-white"
+                >
+                  Batal pilih
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 2. Informasi Switch */}
@@ -777,10 +893,14 @@ function BackupArea({
   switches,
   jobs,
   backups,
+  baselines = [],
+  reviews = [],
 }: {
   switches: Row[];
   jobs: Row[];
   backups: Row[];
+  baselines?: Row[];
+  reviews?: Row[];
 }) {
   const router = useRouter();
   const [schedState, schedAction, isSched] = useActionState(updateNcmSchedule, undefined);
@@ -791,10 +911,46 @@ function BackupArea({
   // Animation states
   const [selectedSwitchToBackup, setSelectedSwitchToBackup] = useState<string>("");
   const [backupElapsed, setBackupElapsed] = useState<number>(0);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   const switchMap = useMemo(() => {
     return new Map(switches.map((s) => [pick(s, "id", "switch_id", "switchId"), s]));
   }, [switches]);
+
+  const goldenBackupIds = useMemo(() => {
+    return new Set(
+      baselines
+        .map((b) => Number(pick(b, "backup_id", "backupId")))
+        .filter((id) => Boolean(id) && !isNaN(id))
+    );
+  }, [baselines]);
+
+  const reviewByBackupId = useMemo(() => {
+    const map = new Map<number, Row>();
+    for (const r of reviews) {
+      const bId = Number(pick(r, "backup_id", "backupId"));
+      if (bId) map.set(bId, r);
+    }
+    return map;
+  }, [reviews]);
+
+  async function handleDownloadBackup(bId: number, swName: string) {
+    setDownloadingId(bId);
+    try {
+      const res = await getNcmBackupContent(bId);
+      if (res.content) {
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const cleanName = (swName || "switch").replace(/[^a-zA-Z0-9_-]/g, "_");
+        downloadTextFile(`${cleanName}-backup-b${bId}-${dateStr}.txt`, res.content);
+      } else {
+        alert(res.message || "Gagal mengunduh isi konfigurasi.");
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   // Reset the elapsed counter on the render where a backup starts (render-phase
   // adjustment, the sanctioned replacement for setState-in-effect).
@@ -904,10 +1060,26 @@ function BackupArea({
               const switchName = pick(bk, "switch_name", "switchName") || (sw ? pick(sw, "name", "hostname") : "") || (swId ? `Switch #${swId}` : "-");
               const switchModel = pick(bk, "switch_model", "switchModel", "model") || (sw ? pick(sw, "model") : "");
               const sizeFormatted = formatBytes(pick(bk, "size_bytes", "sizeBytes", "size"));
+              const isGolden = goldenBackupIds.has(Number(id));
+              const review = reviewByBackupId.get(Number(id));
 
               return (
                 <tr key={id} className="border-t border-slate-800">
-                  <td className="py-2 pr-3 font-mono font-medium text-white">#{id}</td>
+                  <td className="py-2 pr-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono font-medium text-white">#{id}</span>
+                      {isGolden && (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-400/20 border border-amber-400/40 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+                          ★ GOLDEN
+                        </span>
+                      )}
+                      {review?.status === "approved" && (
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-400/15 border border-emerald-400/30 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                          ✓ Approved
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="py-2 pr-3">
                     <div className="font-semibold text-white">{switchName}</div>
                     {switchModel ? (
@@ -919,19 +1091,31 @@ function BackupArea({
                   <td className="py-2 pr-3 text-slate-300">{formatDate(pick(bk, "created_at", "createdAt", "taken_at"))}</td>
                   <td className="py-2 pr-3 text-slate-300 font-mono text-xs">{sizeFormatted}</td>
                   <td className="py-2 pr-3 text-right">
-                    <form action={baselineAction} className="inline-flex">
-                      <input type="hidden" name="backupId" value={id} />
+                    <div className="inline-flex items-center justify-end gap-1.5">
                       <ActionButton
-                        type="submit"
                         size="sm"
                         variant="secondary"
-                        isPending={isBaseline}
-                        title="Jadikan backup ini sebagai baseline golden"
+                        isPending={downloadingId === Number(id)}
+                        onClick={() => handleDownloadBackup(Number(id), switchName)}
+                        title="Unduh file konfigurasi backup ini (.txt)"
                       >
-                        <Layers className="size-3.5" />
-                        Baseline
+                        <Download className="size-3.5" />
+                        Unduh
                       </ActionButton>
-                    </form>
+                      <form action={baselineAction} className="inline-flex">
+                        <input type="hidden" name="backupId" value={id} />
+                        <ActionButton
+                          type="submit"
+                          size="sm"
+                          variant="secondary"
+                          isPending={isBaseline}
+                          title="Jadikan backup ini sebagai baseline golden"
+                        >
+                          <Layers className="size-3.5" />
+                          Baseline
+                        </ActionButton>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               );
@@ -1049,7 +1233,7 @@ function ReviewArea({
   onOpenReview: (reviewId: number) => void;
 }) {
   const router = useRouter();
-  const [decideState, decideAction, isDeciding] = useActionState(decideNcmReview, undefined);
+  const [decideState] = useActionState(decideNcmReview, undefined);
   const [preparingId, setPreparingId] = useState<number | null>(null);
   const [prepareError, setPrepareError] = useState<string | null>(null);
 
@@ -1057,6 +1241,7 @@ function ReviewArea({
   const [viewingConfigId, setViewingConfigId] = useState<number | null>(null);
   const [configContent, setConfigContent] = useState<string | null>(null);
   const [loadingConfig, setLoadingConfig] = useState<number | null>(null);
+  const [downloadingBaselineId, setDownloadingBaselineId] = useState<number | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
 
   const switchMap = useMemo(() => {
@@ -1066,6 +1251,24 @@ function ReviewArea({
   useEffect(() => {
     if (decideState?.success) router.refresh();
   }, [decideState?.success, router]);
+
+  async function handleDownloadBaseline(backupId: number, targetName: string) {
+    setDownloadingBaselineId(backupId);
+    try {
+      const res = await getNcmBackupContent(backupId);
+      if (res.content) {
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const cleanName = (targetName || "switch").replace(/[^a-zA-Z0-9_-]/g, "_");
+        downloadTextFile(`${cleanName}-golden-baseline-b${backupId}-${dateStr}.txt`, res.content);
+      } else {
+        alert(res.message || "Gagal mengunduh isi konfigurasi.");
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloadingBaselineId(null);
+    }
+  }
 
   async function handleReviewBaseline(baselineId: number) {
     setPreparingId(baselineId);
@@ -1183,25 +1386,38 @@ function ReviewArea({
                     <div className="flex items-center justify-end gap-1.5">
                       <ActionButton
                         size="sm"
+                        variant="secondary"
                         onClick={() => handleReviewBaseline(id)}
                         isPending={preparingId === id}
-                        className="bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
+                        className="border-amber-400/50 bg-amber-400/20 text-amber-300 font-bold hover:bg-amber-400/30 hover:text-amber-200"
                         title="Bandingkan Golden Baseline vs Backup Terakhir di layar Config Review"
                       >
                         <GitCompareArrows className="size-3.5" />
                         Review
                       </ActionButton>
                       {backupId !== "—" && (
-                        <ActionButton
-                          size="sm"
-                          variant="secondary"
-                          isPending={loadingConfig === Number(backupId)}
-                          onClick={() => loadConfig(Number(backupId))}
-                          title="Lihat isi konfigurasi golden baseline ini"
-                        >
-                          <FileText className="size-3.5" />
-                          {viewingConfigId === Number(backupId) ? "Tutup" : "Config"}
-                        </ActionButton>
+                        <>
+                          <ActionButton
+                            size="sm"
+                            variant="secondary"
+                            isPending={downloadingBaselineId === Number(backupId)}
+                            onClick={() => handleDownloadBaseline(Number(backupId), targetName)}
+                            title="Unduh file konfigurasi golden baseline ini (.txt)"
+                          >
+                            <Download className="size-3.5" />
+                            Unduh
+                          </ActionButton>
+                          <ActionButton
+                            size="sm"
+                            variant="secondary"
+                            isPending={loadingConfig === Number(backupId)}
+                            onClick={() => loadConfig(Number(backupId))}
+                            title="Lihat isi konfigurasi golden baseline ini"
+                          >
+                            <FileText className="size-3.5" />
+                            {viewingConfigId === Number(backupId) ? "Tutup" : "Config"}
+                          </ActionButton>
+                        </>
                       )}
                     </div>
                   </td>
@@ -1364,6 +1580,8 @@ export default function NcmDashboard({
             switches={switches}
             jobs={jobs}
             backups={backups}
+            baselines={baselines}
+            reviews={reviews}
           />
           <ReviewArea
             baselines={baselines}

@@ -215,14 +215,18 @@ export async function updateNcmSchedule(_prev: unknown, formData: FormData): Pro
   );
 }
 
+export async function triggerNcmBackupAction(switchId: number): Promise<NcmWriteResult> {
+  return runNcmWrite("BACKUP", "ncm_backup", `Switch #${switchId}`, switchId, "Backup on-demand dipicu", (config) =>
+    ncmLib.triggerNcmBackup(config, switchId),
+  );
+}
+
 export async function triggerNcmBackup(_prev: unknown, formData: FormData): Promise<NcmWriteResult> {
   void _prev;
   const idParsed = idString.safeParse(String(formData.get("switchId") ?? ""));
   if (!idParsed.success) return { message: "ID switch tidak valid." };
   const switchId = Number(idParsed.data);
-  return runNcmWrite("BACKUP", "ncm_backup", `Switch #${switchId}`, switchId, "Backup on-demand dipicu", (config) =>
-    ncmLib.triggerNcmBackup(config, switchId),
-  );
+  return triggerNcmBackupAction(switchId);
 }
 
 export async function createNcmBaseline(_prev: unknown, formData: FormData): Promise<NcmWriteResult> {

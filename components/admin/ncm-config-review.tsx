@@ -1126,12 +1126,13 @@ export function NcmConfigReview({
           </div>
           <ActionButton
             type="button"
+            variant="secondary"
             isPending={isTriggeringCycle}
             onClick={handleTriggerCycle}
-            className="bg-ops-warning/15 text-ops-warning border-ops-warning/30 hover:bg-ops-warning/25 font-bold"
+            className="border-amber-400/50 bg-amber-400/20 text-amber-300 font-bold hover:bg-amber-400/30 hover:text-amber-200 hover:border-amber-300 shadow-sm"
             title="Bandingkan seluruh switch ke baseline sekarang, reset siklus periode, dan kirim email hasil review"
           >
-            <Sparkles className="size-4 text-ops-warning" />
+            <Sparkles className="size-4 text-amber-300" />
             Jalankan Siklus Review Sekarang (All Switches)
           </ActionButton>
         </div>
@@ -1307,8 +1308,9 @@ export function NcmConfigReview({
                           <>
                             <ActionButton
                               size="sm"
+                              variant="secondary"
                               onClick={() => openPromoteModal(id)}
-                              className="bg-ops-warning/15 text-ops-warning border-ops-warning/30 hover:bg-ops-warning/25"
+                              className="border-amber-400/50 bg-amber-400/20 text-amber-300 font-bold hover:bg-amber-400/30 hover:text-amber-200 hover:border-amber-300"
                               title="Setujui dan jadikan backup ini sebagai Golden Baseline baru"
                             >
                               ★ Promote
@@ -1687,9 +1689,10 @@ export function NcmConfigReview({
                 </ActionButton>
                 <ActionButton
                   type="submit"
+                  variant="primary"
                   isPending={isPromoting}
                   disabled={!promoteReason.trim()}
-                  className="bg-ops-warning text-ops-text hover:bg-ops-warning/80 font-bold"
+                  className="bg-amber-400 text-amber-950 font-bold hover:bg-amber-300"
                 >
                   Konfirmasi &amp; Jadikan Baseline Baru
                 </ActionButton>
