@@ -24,6 +24,11 @@ describe("layoutRacks", () => {
     expect(out["Rack 1"].unplaced).toBe(true);
   });
 
+  it("orders rowless racks by their saved slot (drag order), then name", () => {
+    const out = byName(layoutRacks([rack("Alpha", null, 2), rack("Beta", null, 1), rack("Gamma")]));
+    expect([out.Beta.slot, out.Alpha.slot, out.Gamma.slot]).toEqual([1, 2, 3]);
+  });
+
   it("places racks by row and slot with rows ROW_PITCH apart", () => {
     const out = byName(layoutRacks([rack("B1", "B", 1), rack("A2", "A", 2), rack("A1", "A", 1)]));
     expect(out.A2.x - out.A1.x).toBeCloseTo(SLOT_PITCH);

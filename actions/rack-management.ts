@@ -2,12 +2,13 @@
 
 import { db } from "../db";
 import { racks, locations, devices } from "../db/schema";
-import { and, eq, asc, sql } from "drizzle-orm";
+import { and, eq, asc, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "../lib/action-auth";
+import type { RackMove } from "../lib/rack-order";
 
 // Form checkboxes submit "on" when checked; an unchecked checkbox submits
 // its hidden "false" twin (the browser never sends the field at all
@@ -263,4 +264,46 @@ export async function toggleRackAudit(id: number) {
     revalidatePath("/admin/rack");
     await logAudit({ action: "UPDATE", entity: "rack", entityId: id, entityName: rack.name, detail: `Audit: ${rack.isAuditable ? 'off' : 'on'}` });
     return { success: true };
+}
+
+// Drag-to-reorder from the 2D layout: new row/slot per moved rack. Racks are
+// keyed by name (unique per site, case-insensitive) because the layout also
+// shows legacy device-only racks that have no racks row; those cannot be
+// reordered and the whole move is refused. One transaction: a partial
+// reorder would leave two racks claiming the same slot.
+const reorderSchema = z.array(z.object({
+    name: z.string().min(1),
+    floorRow: z.string().trim().max(4).nullable()
+        .transform((v) => (v ? v.toUpperCase() : null)),
+    floorSlot: z.number().int().min(1).max(99),
+})).min(1).max(500);
+
+export async function reorderRacks(moves: RackMove[]) {
+    const auth = await requireActiveSiteAdminAction();
+    if (!auth.ok) return { message: auth.message };
+
+    const parsed = reorderSchema.safeParse(moves);
+    if (!parsed.success) return { message: "Urutan rak tidak valid." };
+
+    const keys = parsed.data.map((m) => m.name.toLowerCase());
+    const result = await db.transaction(async (tx) => {
+        const owned = await tx.select({ id: racks.id, name: racks.name }).from(racks)
+            .where(and(eq(racks.siteId, auth.activeSiteId), inArray(sql`lower(${racks.name})`, keys)))
+            .for("update");
+        const byKey = new Map(owned.map((r) => [r.name.toLowerCase(), r.id]));
+        const missing = parsed.data.find((m) => !byKey.has(m.name.toLowerCase()));
+        if (missing) return { message: `Rak "${missing.name}" belum terdaftar di Racks site ini. Tambahkan dulu sebelum mengatur urutan.` };
+
+        for (const m of parsed.data) {
+            await tx.update(racks).set({ floorRow: m.floorRow, floorSlot: m.floorSlot })
+                .where(and(eq(racks.id, byKey.get(m.name.toLowerCase())!), eq(racks.siteId, auth.activeSiteId)));
+        }
+        return { success: true as const };
+    });
+    if (!("success" in result)) return result;
+
+    revalidatePath("/admin/rack");
+    revalidatePath("/admin/rack-manage");
+    await logAudit({ action: "UPDATE", entity: "rack", entityName: parsed.data.map((m) => m.name).join(", "), detail: "Reordered floor position" });
+    return result;
 }

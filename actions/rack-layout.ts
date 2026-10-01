@@ -4,6 +4,7 @@ import { db } from "../db";
 import { devices, categories, checklistItems, checklistEntries, brands, locations, racks as racksTable } from "../db/schema";
 import { sql, eq, asc, desc, inArray, and, isNotNull } from "drizzle-orm";
 import { requireActiveSiteAction } from "../lib/action-auth";
+import { compareRackOrder } from "../lib/rack-order";
 
 export interface RackDevice {
     id: number;
@@ -172,13 +173,9 @@ export async function getRackLayout() {
         }
     }
 
-    return Array.from(racks.values()).sort((a, b) => {
-        // Sort by zone then rack name
-        if (a.zone !== b.zone) {
-            return (a.zone || "").localeCompare(b.zone || "");
-        }
-        return a.name.localeCompare(b.name);
-    });
+    // Same order as the 3D room (row, slot, name) so both views agree and a
+    // drag-reorder in 2D sticks.
+    return Array.from(racks.values()).sort(compareRackOrder);
 }
 
 export async function getRackStats() {
