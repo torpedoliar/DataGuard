@@ -1,10 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Box, Maximize, Minimize, RotateCcw, TriangleAlert } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
+import { troubledCritical } from "@/lib/rack-signals";
+import { CriticalAlert } from "./critical-alert";
 import { layoutRacks } from "./layout";
 import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
 
@@ -44,7 +46,7 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
     // What Auto resolved to on this GPU, reported back by the scene.
     const [autoResolved, setAutoResolved] = useState<Quality | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
+    const [alertOpen, setAlertOpen] = useState(false);
 
     // Picking a location in the filter bar opens that room.
     const [appliedLocation, setAppliedLocation] = useState<string | null>(null);
@@ -83,6 +85,19 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
     const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;
     const collisions = useMemo(() => layoutRacks(roomRacks).filter((p) => p.collision).length, [roomRacks]);
     const floorPlanUrl = roomRacks.map((r) => (r.locationId != null ? floorPlans[r.locationId] : undefined)).find(Boolean) ?? null;
+    const troubled = useMemo(() => troubledCritical(roomRacks), [roomRacks]);
+
+    // Critical popup: once per room per browser session; the chip reopens it.
+    useEffect(() => {
+        if (!room || troubled.length === 0) return;
+        const key = `rack3d-critical:${room}`;
+        try {
+            if (sessionStorage.getItem(key)) return;
+            sessionStorage.setItem(key, "1");
+        } catch { /* storage blocked: show it every time */ }
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot per room per session, gated by sessionStorage
+        setAlertOpen(true);
+    }, [room, troubled.length]);
 
     useEffect(() => {
         try {
@@ -121,21 +136,23 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
         setFocusPick(null);
         onSelectDevice(null);
     };
+    // Fullscreen the whole page and pin the scene over it, so the drawer and
+    // dialogs (portalled to <body>) stay visible.
     const toggleFullscreen = () => {
-        const el = containerRef.current;
-        if (!el) return;
-        if (document.fullscreenElement) {
-            void document.exitFullscreen();
-        } else {
-            void el.requestFullscreen().catch(() => { /* Fullscreen API blocked */ });
-        }
+        if (document.fullscreenElement) void document.exitFullscreen();
+        else void document.documentElement.requestFullscreen().catch(() => { /* Fullscreen API blocked */ });
     };
 
     useEffect(() => {
-        const onChange = () => setIsFullscreen(document.fullscreenElement === containerRef.current);
+        const onChange = () => setIsFullscreen(!!document.fullscreenElement);
         document.addEventListener("fullscreenchange", onChange);
         return () => document.removeEventListener("fullscreenchange", onChange);
     }, []);
+
+    const pickCritical = (device: RackDevice) => {
+        setAlertOpen(false);
+        onSelectDevice(device);
+    };
 
     if (!room) {
         return (
@@ -196,7 +213,7 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
                 )}
             </div>
 
-            <div ref={containerRef} className={`relative min-h-[480px] overflow-hidden rounded-xl border border-ops-border bg-ops-bg ${isFullscreen ? "h-screen" : "h-[70vh]"}`} aria-label="3D rack scene">
+            <div className={`overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene">
                 <button
                     onClick={toggleFullscreen}
                     aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
@@ -229,7 +246,16 @@ export default function RackView3D({ racks, locationFilter = null, floorPlans, s
                 <p className="pointer-events-none absolute bottom-3 left-3 text-[11px] text-ops-muted">
                     Drag to orbit · Scroll to zoom · Click a rack or device · Esc to go back
                 </p>
+                {troubled.length > 0 && !alertOpen && (
+                    <button
+                        onClick={() => setAlertOpen(true)}
+                        className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-lg bg-ops-danger px-3 py-1.5 text-sm font-semibold text-white shadow hover:opacity-90"
+                    >
+                        <TriangleAlert className="h-4 w-4" /> {troubled.length} critical
+                    </button>
+                )}
             </div>
+            <CriticalAlert open={alertOpen} items={troubled} onClose={() => setAlertOpen(false)} onPick={pickCritical} />
         </div>
     );
 }

@@ -29,3 +29,29 @@ export function foldIncidents(rows: { deviceId: number; severity: Severity; coun
     }
     return out;
 }
+
+export interface SignalDevice {
+    id: number;
+    name: string;
+    isCritical: boolean;
+    status?: string;
+    openIncidents: OpenIncidents;
+}
+
+// Why a critical device needs attention now, or null. Non-critical devices
+// never raise the critical alert; Pending (not audited yet) is not a problem.
+export function criticalProblem(d: SignalDevice): string | null {
+    if (!d.isCritical) return null;
+    const reasons: string[] = [];
+    if (d.status === "NOT OK") reasons.push("NOT OK in today's audit");
+    const n = d.openIncidents.count;
+    if (n > 0) reasons.push(`${n} open incident${n > 1 ? "s" : ""}`);
+    return reasons.length ? reasons.join(" · ") : null;
+}
+
+export function troubledCritical<D extends SignalDevice>(racks: { name: string; devices: D[] }[]) {
+    return racks.flatMap((r) => r.devices.flatMap((device) => {
+        const reason = criticalProblem(device);
+        return reason ? [{ device, rackName: r.name, reason }] : [];
+    }));
+}

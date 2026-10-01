@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldIncidents, NO_INCIDENTS } from "./rack-signals";
+import { criticalProblem, foldIncidents, NO_INCIDENTS, troubledCritical } from "./rack-signals";
 
 describe("foldIncidents", () => {
   it("sums counts per device and keeps the worst severity", () => {
@@ -21,5 +21,37 @@ describe("foldIncidents", () => {
 
   it("exposes an empty default", () => {
     expect(NO_INCIDENTS).toEqual({ count: 0, maxSeverity: null });
+  });
+});
+
+const sig = (extra: Partial<{ isCritical: boolean; status: string; count: number }> = {}) => ({
+  id: 1, name: "Core", isCritical: extra.isCritical ?? true, status: extra.status ?? "OK",
+  openIncidents: { count: extra.count ?? 0, maxSeverity: extra.count ? ("High" as const) : null },
+});
+
+describe("criticalProblem", () => {
+  it("is null for a healthy critical device and for any non-critical device", () => {
+    expect(criticalProblem(sig())).toBeNull();
+    expect(criticalProblem(sig({ isCritical: false, status: "NOT OK", count: 3 }))).toBeNull();
+  });
+
+  it("names today's failed check and open incidents", () => {
+    expect(criticalProblem(sig({ status: "NOT OK" }))).toBe("NOT OK in today's audit");
+    expect(criticalProblem(sig({ count: 1 }))).toBe("1 open incident");
+    expect(criticalProblem(sig({ status: "NOT OK", count: 2 }))).toBe("NOT OK in today's audit · 2 open incidents");
+  });
+
+  it("does not flag a Pending (not yet audited) critical device", () => {
+    expect(criticalProblem(sig({ status: "Pending" }))).toBeNull();
+  });
+});
+
+describe("troubledCritical", () => {
+  it("lists only critical devices with a problem, with their rack", () => {
+    const racks = [
+      { name: "R1", devices: [{ ...sig({ status: "NOT OK" }), id: 1 }, { ...sig(), id: 2 }] },
+      { name: "R2", devices: [{ ...sig({ isCritical: false, status: "NOT OK" }), id: 3 }, { ...sig({ count: 1 }), id: 4 }] },
+    ];
+    expect(troubledCritical(racks).map((t) => [t.device.id, t.rackName])).toEqual([[1, "R1"], [4, "R2"]]);
   });
 });

@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { FilteredDevice, SceneRack } from "@/lib/rack-filter";
+import { criticalProblem } from "@/lib/rack-signals";
 import { FACE_W, FRONT_Z, PLINTH, RACK_D, RACK_W, U, rackHeight, uToY } from "./constants";
 import { freeRanges, inRack, type FreeRange } from "./free-slots";
 import type { PlacedRack } from "./layout";
@@ -135,6 +136,8 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, se
     const devices = rack.devices.filter((d) => inRack(d, totalU));
     const free = useMemo(() => freeRanges(totalU, rack.devices), [totalU, rack.devices]);
     const hasFault = rack.devices.some((d) => d.status === "NOT OK");
+    // Beacon only while a critical device in this rack has a problem.
+    const alarm = rack.devices.some((d) => criticalProblem(d));
     const steel = <meshStandardMaterial color={dark ? "#2a3039" : "#16181c"} metalness={0.45} roughness={0.5} />;
 
     return (
@@ -185,6 +188,11 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, se
             {hasFault && (
                 <mesh rotation-x={-Math.PI / 2} position={[0, 0.004, RACK_D / 2 + 0.55]} material={sharedMaterials.pool}>
                     <planeGeometry args={[1.1, 0.9]} />
+                </mesh>
+            )}
+            {alarm && (
+                <mesh position={[0, H + 0.07, RACK_D / 2 - 0.22]} material={sharedMaterials.error}>
+                    <cylinderGeometry args={[0.035, 0.035, 0.07, 16]} />
                 </mesh>
             )}
         </group>

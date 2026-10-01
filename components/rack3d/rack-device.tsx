@@ -5,7 +5,8 @@ import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, Instance, Instances } from "@react-three/drei";
 import type { FilteredDevice } from "@/lib/rack-filter";
-import { FACE_W, FRONT_Z, U, uToY } from "./constants";
+import { SEVERITY_COLOR, type OpenIncidents } from "@/lib/rack-signals";
+import { FACE_W, FRONT_Z, RACK_W, U, uToY } from "./constants";
 import { deviceKind, type DeviceKind } from "./device-kind";
 import { ledMaterial, portMaterials, sharedMaterials } from "./materials";
 import { portFace, type PortFaceSlot } from "./port-face";
@@ -177,9 +178,44 @@ function Faceplate({ device, kind, uh, h, opacity, glow }: { device: FilteredDev
     );
 }
 
+// Thin amber frame on the faceplate of every critical device (quiet marker).
+function CriticalFrame({ h }: { h: number }) {
+    const t = 0.0015;
+    return (
+        <group position={[0, 0, FRONT_Z + 0.0025]}>
+            {[h / 2 - t / 2, -h / 2 + t / 2].map((y) => (
+                <mesh key={`h${y}`} position={[0, y, 0]} material={sharedMaterials.critical}>
+                    <planeGeometry args={[FACE_W, t]} />
+                </mesh>
+            ))}
+            {[FACE_W / 2 - t / 2, -FACE_W / 2 + t / 2].map((x) => (
+                <mesh key={`v${x}`} position={[x, 0, 0]} material={sharedMaterials.critical}>
+                    <planeGeometry args={[t, h]} />
+                </mesh>
+            ))}
+        </group>
+    );
+}
+
+// Open-incident count beside the rack at the device's height, coloured by
+// the worst open severity. A texture plane, not <Html>: no DOM per badge.
+function IncidentBadge({ incidents, h }: { incidents: OpenIncidents; h: number }) {
+    const tex = useLabelTexture(String(incidents.count), SEVERITY_COLOR[incidents.maxSeverity ?? "Low"], "#ffffff", 64, 32);
+    if (!tex) return null;
+    return (
+        <mesh position={[RACK_W / 2 + 0.035, 0, FRONT_Z]}>
+            <planeGeometry args={[0.05, Math.min(0.025, h * 0.9)]} />
+            <meshBasicMaterial map={tex} toneMapped={false} />
+        </mesh>
+    );
+}
+
 function NameTag({ device, h, opacity }: { device: FilteredDevice; h: number; opacity: number }) {
     const labelH = Math.min(0.012, h * 0.3);
-    const label = useLabelTexture(device.name, "rgba(15,23,42,0.85)");
+    const label = useLabelTexture(
+        device.isCritical ? `⚠ ${device.name}` : device.name,
+        device.isCritical ? "rgba(146,64,14,0.92)" : "rgba(15,23,42,0.85)",
+    );
     const logo = useImageTexture(device.brandLogo);
     const logoImg = logo?.image as { width: number; height: number } | undefined;
     const logoW = logoImg ? Math.min(0.05, labelH * 1.4 * (logoImg.width / logoImg.height)) : 0;
@@ -261,10 +297,12 @@ export function RackDevice({ device, selected, faded, accent, onSelect }: {
                 ))}
                 <Faceplate device={device} kind={kind} uh={uh} h={h} opacity={opacity} glow={hovered || selected ? accent : null} />
                 <NameTag device={device} h={h} opacity={opacity} />
+                {device.isCritical && <CriticalFrame h={h} />}
                 <mesh position={[FACE_W / 2 - 0.012, h / 2 - Math.min(0.008, h / 4), FRONT_Z + 0.003]} material={ledMaterial(device.status)}>
                     <sphereGeometry args={[0.0022, 12, 8]} />
                 </mesh>
             </group>
+            {device.openIncidents.count > 0 && <IncidentBadge incidents={device.openIncidents} h={h} />}
             {hovered && (
                 <Html position={[0, h / 2 + 0.02, FRONT_Z]} center pointerEvents="none" zIndexRange={[40, 0]}>
                     <div className="whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-[11px] font-medium text-white shadow">
