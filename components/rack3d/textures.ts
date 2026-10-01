@@ -22,6 +22,7 @@ function make(key: string, w: number, h: number, draw: (ctx: CanvasRenderingCont
 // Clone so each consumer can set its own repeat without touching the cache.
 export function repeated(tex: THREE.Texture, x: number, y: number) {
     const t = tex.clone();
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(x, y);
     t.needsUpdate = true;
     return t;
