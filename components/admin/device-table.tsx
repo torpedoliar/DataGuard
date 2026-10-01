@@ -104,19 +104,88 @@ type RackTheme = {
   dotColor: string;
 };
 
-const RACK_THEME: RackTheme = {
-  headerBg: "bg-ops-surface-raised border-y border-ops-border",
-  badgeBg: "bg-ops-accent/12",
-  badgeText: "text-ops-text",
-  badgeBorder: "border-ops-accent/30",
-  leftBorder: "border-l-ops-accent",
-  iconBg: "bg-ops-accent/12",
-  iconText: "text-ops-accent",
-  pillBg: "bg-ops-accent/10",
-  pillText: "text-ops-text",
-  pillBorder: "border-ops-accent/30",
-  dotColor: "bg-ops-accent",
-};
+// Header netral untuk semua rack; pembeda hanya via warna token tema
+// (left border + ikon + badge tint). Tidak ada hue mentah di sini.
+const RACK_PALETTES: RackTheme[] = [
+  {
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-accent/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-accent/30",
+    leftBorder: "border-l-ops-accent",
+    iconBg: "bg-ops-accent/12",
+    iconText: "text-ops-accent",
+    pillBg: "bg-ops-accent/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-accent/30",
+    dotColor: "bg-ops-accent",
+  },
+  {
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-info/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-info/30",
+    leftBorder: "border-l-ops-info",
+    iconBg: "bg-ops-info/12",
+    iconText: "text-ops-info",
+    pillBg: "bg-ops-info/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-info/30",
+    dotColor: "bg-ops-info",
+  },
+  {
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-success/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-success/30",
+    leftBorder: "border-l-ops-success",
+    iconBg: "bg-ops-success/12",
+    iconText: "text-ops-success",
+    pillBg: "bg-ops-success/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-success/30",
+    dotColor: "bg-ops-success",
+  },
+  {
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-warning/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-warning/30",
+    leftBorder: "border-l-ops-warning",
+    iconBg: "bg-ops-warning/12",
+    iconText: "text-ops-warning",
+    pillBg: "bg-ops-warning/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-warning/30",
+    dotColor: "bg-ops-warning",
+  },
+  {
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-orange/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-orange/30",
+    leftBorder: "border-l-ops-orange",
+    iconBg: "bg-ops-orange/12",
+    iconText: "text-ops-orange",
+    pillBg: "bg-ops-orange/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-orange/30",
+    dotColor: "bg-ops-orange",
+  },
+  {
+    headerBg: "bg-ops-surface-raised border-y border-ops-border",
+    badgeBg: "bg-ops-danger/12",
+    badgeText: "text-ops-text",
+    badgeBorder: "border-ops-danger/30",
+    leftBorder: "border-l-ops-danger",
+    iconBg: "bg-ops-danger/12",
+    iconText: "text-ops-danger",
+    pillBg: "bg-ops-danger/10",
+    pillText: "text-ops-text",
+    pillBorder: "border-ops-danger/30",
+    dotColor: "bg-ops-danger",
+  },
+];
 
 const UNASSIGNED_THEME: RackTheme = {
   headerBg: "bg-ops-surface-raised border-y border-ops-border",
@@ -132,9 +201,13 @@ const UNASSIGNED_THEME: RackTheme = {
   dotColor: "bg-ops-muted",
 };
 
-function getRackTheme(rackName: string): RackTheme {
+function getRackTheme(rackName: string, fallbackIndex = 0): RackTheme {
   if (!rackName || rackName === "Unassigned / Direct Placement") return UNASSIGNED_THEME;
-  return RACK_THEME;
+  let hash = 0;
+  for (let i = 0; i < rackName.length; i++) {
+    hash = (hash * 31 + rackName.charCodeAt(i)) >>> 0;
+  }
+  return RACK_PALETTES[(hash + fallbackIndex) % RACK_PALETTES.length];
 }
 
 export default function DeviceTable({
@@ -200,7 +273,7 @@ export default function DeviceTable({
   };
 
   const getSortIcon = (key: keyof Device) => {
-    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="size-3.5 text-slate-600" />;
+    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="size-3.5 text-ops-muted" />;
     return sortConfig.direction === "asc"
       ? <ArrowUp className="size-3.5 text-ops-accent" />
       : <ArrowDown className="size-3.5 text-ops-accent" />;
@@ -354,7 +427,7 @@ export default function DeviceTable({
               />
             ) : (
             paginatedGroupEntries.map(([rackName, rackDevices], rackIndex) => {
-                const theme = getRackTheme(rackName);
+                const theme = getRackTheme(rackName, startIndex + rackIndex);
                 const rackLocation = rackDevices.find((d) => d.locationName)?.locationName;
                 const rackZone = rackDevices.find((d) => d.zone)?.zone;
                 const rackAuditable = rackDevices[0]?.isRackAuditable;
@@ -390,7 +463,7 @@ export default function DeviceTable({
                                 </span>
                               )}
                               {rackAuditable === false && (
-                                <span className="rounded-md border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                                <span className="rounded-md border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[10px] font-semibold text-ops-muted">
                                   Non-Audit Rack
                                 </span>
                               )}
@@ -417,20 +490,20 @@ export default function DeviceTable({
                             theme.leftBorder
                           )}>
                             <div className="flex items-center gap-2">
-                              {!isActive && <span className="size-2 rounded-full bg-red-400 shrink-0" title="Inactive" />}
+                              {!isActive && <span className="size-2 rounded-full bg-ops-danger shrink-0" title="Inactive" />}
                               <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
                               {device.excludeChecklist && (
-                                <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 shrink-0" title="Excluded from checklist audit — stays in rack layout">
+                                <span className="rounded-full border border-ops-warning/30 bg-ops-warning/10 px-2 py-0.5 text-[10px] font-semibold text-ops-warning shrink-0" title="Excluded from checklist audit — stays in rack layout">
                                   Excluded
                                 </span>
                               )}
                               {device.isCritical && (
-                                <span className="shrink-0 rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300" title="Critical device — SIEM stamps critical_device on its events">
+                                <span className="shrink-0 rounded-full border border-ops-danger/40 bg-ops-danger/15 px-2 py-0.5 text-[10px] font-bold text-ops-danger" title="Critical device — SIEM stamps critical_device on its events">
                                   Critical
                                 </span>
                               )}
                               {device.isRackAuditable === false && (
-                                <span className="rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400 shrink-0" title="Rack is excluded from audit">
+                                <span className="rounded-full border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[10px] font-semibold text-ops-muted shrink-0" title="Rack is excluded from audit">
                                   Non-Audit Rack
                                 </span>
                               )}
@@ -485,12 +558,12 @@ export default function DeviceTable({
                                     title="Take out from rack"
                                     className="!size-7 p-0"
                                   >
-                                    <PackageOpen aria-hidden="true" className="size-3.5 text-amber-300" />
+                                    <PackageOpen aria-hidden="true" className="size-3.5 text-ops-warning" />
                                   </ActionButton>
                                 )}
                               </div>
                             ) : (
-                              <span className="inline-flex items-center gap-1 rounded border border-slate-500/20 bg-slate-500/5 px-2 py-0.5 text-[11px] text-ops-muted italic">
+                              <span className="inline-flex items-center gap-1 rounded border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[11px] text-ops-muted italic">
                                 Direct / No Rack
                               </span>
                             )}
@@ -500,10 +573,10 @@ export default function DeviceTable({
                             <button
                               type="button"
                               onClick={() => setManageDevice(device)}
-                              className="group/ip inline-flex items-center gap-1.5 rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted transition-colors hover:border-indigo-400/50 hover:bg-indigo-500/10 hover:text-indigo-300 focus:outline-none"
+                              className="group/ip inline-flex items-center gap-1.5 rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted transition-colors hover:border-ops-accent/50 hover:bg-ops-accent/10 hover:text-ops-accent focus:outline-none"
                               title="Click to manage device remotely"
                             >
-                              <MonitorPlay className="size-3 text-indigo-400 transition-transform group-hover/ip:scale-110 shrink-0" />
+                              <MonitorPlay className="size-3 text-ops-accent transition-transform group-hover/ip:scale-110 shrink-0" />
                               <span>{device.ipAddress}</span>
                             </button>
                           ) : (
@@ -522,17 +595,17 @@ export default function DeviceTable({
                           <div className="inline-flex items-center justify-end gap-1">
                             {device.ipAddress && (
                               <ActionButton type="button" variant="ghost" size="icon" onClick={() => setManageDevice(device)} aria-label="Manage device remotely" title="Manage device remotely" className="!size-8 p-0">
-                                <MonitorPlay aria-hidden="true" className="size-4 text-indigo-300" />
+                                <MonitorPlay aria-hidden="true" className="size-4 text-ops-accent" />
                               </ActionButton>
                             )}
                             <ActionButton href={`/admin/devices/${device.id}/network`} variant="ghost" size="icon" aria-label="Network ports" title="Network ports" className="!size-8 p-0">
-                              <Network aria-hidden="true" className="size-4 text-teal-300" />
+                              <Network aria-hidden="true" className="size-4 text-ops-accent" />
                             </ActionButton>
                             <ActionButton type="button" variant="ghost" size="icon" onClick={() => setPrintingDevice(device)} aria-label="Print QR" title="Print QR" className="!size-8 p-0">
                               <QrCode aria-hidden="true" className="size-4" />
                             </ActionButton>
                             <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingDevice(device)} aria-label="Edit" title="Edit" className="!size-8 p-0">
-                              <Edit aria-hidden="true" className="size-4 text-blue-300" />
+                              <Edit aria-hidden="true" className="size-4 text-ops-info" />
                             </ActionButton>
                             <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingDevice(device)} aria-label="Delete" title="Delete" className="!size-8 p-0">
                               <Trash2 aria-hidden="true" className="size-4" />
