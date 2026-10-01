@@ -1,13 +1,74 @@
 "use client";
 
-import { useMemo } from "react";
-import * as THREE from "three";
+import { useEffect, useMemo } from "react";
 import { Instance, Instances, MeshReflectorMaterial } from "@react-three/drei";
 import type { SceneRack } from "@/lib/rack-filter";
+import type { RoomAppearance } from "@/lib/room-appearance";
 import { ROOM_HEIGHT, TILE, rackHeight } from "./constants";
 import { coldAisleTiles, floorPlanRect, roomRect, type Bounds, type PlacedRack } from "./layout";
-import { floorTileTexture, perforatedTileTexture, repeated } from "./textures";
+import { floorTileTexture, perforatedTileTexture, repeated, wallpaperTexture } from "./textures";
 import { useImageTexture } from "./use-image-texture";
+import { useLabelTexture } from "./use-label-texture";
+
+// Room temperature on the back wall near the ceiling; red when above the
+// alert threshold. Manual reading from the daily audit, not live.
+function TempLabel({ temp, x, z }: { temp: { tempC: number; thresholdC: number | null }; x: number; z: number }) {
+    const over = temp.thresholdC != null && temp.tempC > temp.thresholdC;
+    const text = `${temp.tempC.toFixed(1)} °C${temp.thresholdC != null ? ` / max ${temp.thresholdC} °C` : ""}`;
+    const tex = useLabelTexture(text, over ? "#b91c1c" : "rgba(15,23,42,0.85)", "#f8fafc", 512, 64);
+    if (!tex) return null;
+    return (
+        <mesh position={[x, ROOM_HEIGHT - 0.45, z]}>
+            <planeGeometry args={[1.2, 0.15]} />
+            <meshBasicMaterial map={tex} toneMapped={false} />
+        </mesh>
+    );
+}
+
+const WALL_REPEAT = 1; // metres per wallpaper repeat (tile mode)
+
+// Four inward-facing walls + ceiling. Front faces only, so the camera still
+// sees into the room from outside (same as the old back-side box).
+function Walls({ r, dark, appearance }: { r: ReturnType<typeof roomRect>; dark: boolean; appearance: RoomAppearance }) {
+    const w = r.x1 - r.x0;
+    const d = r.z1 - r.z0;
+    const cx = (r.x0 + r.x1) / 2;
+    const cz = (r.z0 + r.z1) / 2;
+    const custom = useImageTexture(appearance.wallpaper === "custom" ? appearance.wallpaperPath : null);
+    const base = appearance.wallpaper === "custom" ? custom : appearance.wallpaper === "none" ? null : wallpaperTexture(appearance.wallpaper);
+    const stretch = appearance.wallpaper === "custom" && appearance.wallpaperMode === "stretch";
+
+    const walls = useMemo(() => [
+        { len: w, pos: [cx, ROOM_HEIGHT / 2, r.z0] as const, rot: 0 },
+        { len: w, pos: [cx, ROOM_HEIGHT / 2, r.z1] as const, rot: Math.PI },
+        { len: d, pos: [r.x0, ROOM_HEIGHT / 2, cz] as const, rot: Math.PI / 2 },
+        { len: d, pos: [r.x1, ROOM_HEIGHT / 2, cz] as const, rot: -Math.PI / 2 },
+    ], [w, d, cx, cz, r.x0, r.x1, r.z0, r.z1]);
+    const maps = useMemo(
+        () => (base ? walls.map((wall) => (stretch ? repeated(base, 1, 1) : repeated(base, wall.len / WALL_REPEAT, ROOM_HEIGHT / WALL_REPEAT))) : null),
+        [base, stretch, walls],
+    );
+    useEffect(() => () => maps?.forEach((t) => t.dispose()), [maps]);
+
+    const plain = dark ? "#1b222c" : "#c9ced4";
+    const tint = dark ? "#8f99a8" : "#ffffff"; // darkens the finish in dark mode
+    return (
+        <>
+            {walls.map((wall, i) => (
+                <mesh key={i} position={[...wall.pos]} rotation-y={wall.rot}>
+                    <planeGeometry args={[wall.len, ROOM_HEIGHT]} />
+                    {/* Keyed: three only compiles the map shader path when the
+                        material is created, so plain <-> textured needs a new one. */}
+                    <meshStandardMaterial key={maps ? "map" : "plain"} color={maps ? tint : plain} map={maps?.[i] ?? null} roughness={0.9} />
+                </mesh>
+            ))}
+            <mesh position={[cx, ROOM_HEIGHT, cz]} rotation-x={Math.PI / 2}>
+                <planeGeometry args={[w, d]} />
+                <meshStandardMaterial color={plain} roughness={0.9} />
+            </mesh>
+        </>
+    );
+}
 
 function CableTrays({ placed }: { placed: PlacedRack<SceneRack>[] }) {
     const rows = useMemo(() => {
@@ -58,12 +119,14 @@ function CableTrays({ placed }: { placed: PlacedRack<SceneRack>[] }) {
     );
 }
 
-export function Room({ placed, b, floorPlanUrl, dark, reflections }: {
+export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appearance }: {
     placed: PlacedRack<SceneRack>[];
     b: Bounds;
     floorPlanUrl: string | null;
     dark: boolean;
     reflections: boolean;
+    temp: { tempC: number; thresholdC: number | null } | null;
+    appearance: RoomAppearance;
 }) {
     const r = roomRect(b);
     const w = r.x1 - r.x0;
@@ -124,19 +187,16 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections }: {
                 </Instances>
             )}
 
-            {/* Walls: back faces only, so the camera sees in from any angle */}
-            <mesh position={[cx, ROOM_HEIGHT / 2 - 0.01, cz]}>
-                <boxGeometry args={[w, ROOM_HEIGHT, d]} />
-                <meshStandardMaterial color={dark ? "#1b222c" : "#c9ced4"} roughness={0.9} side={THREE.BackSide} />
-            </mesh>
+            <Walls r={r} dark={dark} appearance={appearance} />
 
             {panels.map(([x, z]) => (
                 <mesh key={`${x},${z}`} position={[x, ROOM_HEIGHT - 0.02, z]} rotation-x={Math.PI / 2}>
                     <planeGeometry args={[0.6, 1.2]} />
-                    <meshBasicMaterial color={dark ? "#d9e3f2" : "#ffffff"} toneMapped={false} />
+                    <meshBasicMaterial color={appearance.lightColor ?? (dark ? "#d9e3f2" : "#ffffff")} toneMapped={false} />
                 </mesh>
             ))}
 
+            {temp && <TempLabel temp={temp} x={cx} z={r.z0 + 0.02} />}
             <CableTrays placed={placed} />
         </group>
     );

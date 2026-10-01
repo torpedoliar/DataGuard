@@ -1,6 +1,7 @@
-import { getFloorPlans, getRackLayout, getRackStats } from "@/actions/rack-layout";
+import { getRackLayout, getRackStats, getRoomSettings } from "@/actions/rack-layout";
 import RackLayoutShell from "@/components/admin/rack-layout-shell";
 import { verifySession } from "@/lib/session";
+import { hasAdminAccess } from "@/lib/site-access";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Server, PieChart, MapPin } from "lucide-react";
@@ -13,7 +14,8 @@ export default async function RackPage() {
 
     const racks = await getRackLayout();
     const stats = await getRackStats();
-    const floorPlans = await getFloorPlans();
+    const rooms = await getRoomSettings();
+    const canEditAppearance = await hasAdminAccess();
     const { getCategories } = await import("@/actions/master-data");
     const categories = await getCategories();
 
@@ -88,7 +90,7 @@ export default async function RackPage() {
             )}
 
             {/* Rack Layout Visualization */}
-            <RackLayoutShell racks={racks} categories={categories} floorPlans={floorPlans} />
+            <RackLayoutShell racks={racks} categories={categories} rooms={rooms} canEditAppearance={canEditAppearance} siteName={session.activeSiteName ?? ""} />
         </main>
         <BottomNav />
         </>

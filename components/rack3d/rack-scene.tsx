@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { AdaptiveDpr, CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
+import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
 import { Bloom, DepthOfField, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
-import { ToneMappingMode } from "postprocessing";
+import { ToneMappingMode, type EffectComposer as ComposerImpl } from "postprocessing";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
+import type { ColorBy } from "@/lib/rack-signals";
+import type { RoomAppearance } from "@/lib/room-appearance";
 import { useIsDark } from "@/components/ui/theme-toggle";
 import { FRONT_Z, RACK_D, U, rackHeight, uToY } from "./constants";
 import { inRack } from "./free-slots";
+import { buildCables } from "./cable-route";
+import { Cables } from "./cables";
 import { bounds, layoutRacks, type Bounds, type PlacedRack } from "./layout";
 import { tickLeds } from "./materials";
 import { PRESETS, initialQuality, resolveQuality, type Quality, type QualitySetting } from "./quality";
@@ -28,6 +32,10 @@ export interface RackSceneProps {
     selectedDeviceId: number | null;
     focusDeviceId: number | null;
     onSelectDevice: (d: RackDevice | null) => void;
+    temp: { tempC: number; thresholdC: number | null } | null;
+    colorBy: ColorBy;
+    appearance: RoomAppearance;
+    captureRef?: RefObject<(() => string) | null>;
 }
 
 // Mirrors --color-ops-accent in app/globals.css (light / dark).
@@ -75,18 +83,21 @@ function ceilingSpots(b: Bounds): [number, number][] {
     return out;
 }
 
-function Lighting({ dark, b, preset }: { dark: boolean; b: Bounds; preset: (typeof PRESETS)[Quality] }) {
+function Lighting({ dark, b, preset, appearance }: { dark: boolean; b: Bounds; preset: (typeof PRESETS)[Quality]; appearance: RoomAppearance }) {
     const span = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 2;
     const spots = useMemo(() => ceilingSpots(b), [b]);
+    // Room tint + brightness (per location) on top of the theme's base light.
+    const k = appearance.lightBrightness;
+    const tint = appearance.lightColor;
     return (
         <>
-            <ambientLight intensity={dark ? 0.7 : 0.55} />
-            <hemisphereLight args={[dark ? "#7d9bcc" : "#ffffff", dark ? "#222b3a" : "#8f98a3", dark ? 1.3 : 1.1]} />
+            <ambientLight intensity={(dark ? 0.7 : 0.55) * k} />
+            <hemisphereLight args={[tint ?? (dark ? "#7d9bcc" : "#ffffff"), dark ? "#222b3a" : "#8f98a3", (dark ? 1.3 : 1.1) * k]} />
             {/* Aisle fill: soft light down the rows so faceplates read */}
             <directionalLight position={[b.maxX + 6, 2.5, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.9 : 0.9} color={dark ? "#c7d8f5" : "#ffffff"} />
             <directionalLight position={[b.minX - 6, 2.2, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.45 : 0.35} color={dark ? "#c7d8f5" : "#ffffff"} />
             {dark && spots.map(([x, z]) => (
-                <pointLight key={`${x},${z}`} position={[x, 2.9, z]} intensity={7} distance={8} decay={1.2} color="#e6eefc" />
+                <pointLight key={`${x},${z}`} position={[x, 2.9, z]} intensity={7 * k} distance={8} decay={1.2} color={tint ?? "#e6eefc"} />
             ))}
             {/* Lights-out mode: faint blue wash rising from the cold-aisle tiles */}
             {dark && <pointLight position={[(b.minX + b.maxX) / 2, 0.4, (b.minZ + b.maxZ) / 2]} color="#3b82f6" intensity={4} distance={6} decay={1.5} />}
@@ -112,10 +123,10 @@ function Lighting({ dark, b, preset }: { dark: boolean; b: Bounds; preset: (type
     );
 }
 
-function Effects({ preset, dofTarget }: { preset: (typeof PRESETS)[Quality]; dofTarget: [number, number, number] | null }) {
+function Effects({ preset, dofTarget, composerRef }: { preset: (typeof PRESETS)[Quality]; dofTarget: [number, number, number] | null; composerRef: RefObject<ComposerImpl | null> }) {
     if (!preset.bloom) return null; // low: renderer tone mapping, no composer
     return preset.ao ? (
-        <EffectComposer multisampling={4} frameBufferType={THREE.HalfFloatType}>
+        <EffectComposer ref={composerRef} multisampling={4} frameBufferType={THREE.HalfFloatType}>
             <N8AO aoRadius={0.4} distanceFalloff={0.5} intensity={2} quality="medium" halfRes />
             <Bloom mipmapBlur luminanceThreshold={1} intensity={0.9} />
             <DepthOfField target={dofTarget ?? [0, 0, 0]} worldFocusRange={1.4} bokehScale={dofTarget ? 3 : 0} />
@@ -124,13 +135,37 @@ function Effects({ preset, dofTarget }: { preset: (typeof PRESETS)[Quality]; dof
         </EffectComposer>
     ) : (
         // Medium: no MSAA render targets; SMAA is the cheap edge smoothing.
-        <EffectComposer multisampling={0} frameBufferType={THREE.HalfFloatType}>
+        <EffectComposer ref={composerRef} multisampling={0} frameBufferType={THREE.HalfFloatType}>
             <Bloom mipmapBlur luminanceThreshold={1} intensity={0.7} />
             <SMAA />
             <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
             <Vignette offset={0.3} darkness={0.5} />
         </EffectComposer>
     );
+}
+
+// Screenshot: render once at 2x through the same pipeline (composer when
+// effects are on) and read the canvas in the same task, so the drawing
+// buffer is still intact without preserveDrawingBuffer.
+function Capture({ captureRef, composerRef }: { captureRef: RefObject<(() => string) | null>; composerRef: RefObject<ComposerImpl | null> }) {
+    const { gl, scene, camera, size, invalidate } = useThree();
+    useEffect(() => {
+        captureRef.current = () => {
+            const ratio = gl.getPixelRatio();
+            const composer = composerRef.current;
+            gl.setPixelRatio(Math.min(ratio * 2, 4));
+            composer?.setSize(size.width, size.height);
+            if (composer) composer.render();
+            else gl.render(scene, camera);
+            const url = gl.domElement.toDataURL("image/png");
+            gl.setPixelRatio(ratio);
+            composer?.setSize(size.width, size.height);
+            invalidate();
+            return url;
+        };
+        return () => { captureRef.current = null; };
+    }, [captureRef, composerRef, gl, scene, camera, size, invalidate]);
+    return null;
 }
 
 function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
@@ -194,8 +229,6 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
         <CameraControls
             ref={ref}
             makeDefault
-            regress
-            draggingSmoothTime={0.08}
             minDistance={0.6}
             maxDistance={30}
             maxPolarAngle={Math.PI / 2 - 0.05}
@@ -204,7 +237,8 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
     );
 }
 
-export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice }: RackSceneProps) {
+export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef }: RackSceneProps) {
+    const composerRef = useRef<ComposerImpl>(null);
     const dark = useIsDark();
     const placed = useMemo(() => layoutRacks(racks), [racks]);
     const b = useMemo(() => bounds(placed), [placed]);
@@ -217,6 +251,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
     const accent = dark ? ACCENT.dark : ACCENT.light;
     // Other rows stand between the fly-to camera and the focused rack.
     const focusedRow = placed.find((p) => p.rack.name === focusRack)?.row;
+    const { cables, peerRacks } = useMemo(() => buildCables(placed, selectedDeviceId), [placed, selectedDeviceId]);
     const bg = dark ? "#0b0f15" : "#dfe3e8";
     const [focusPoint, setFocusPoint] = useState<[number, number, number]>([0, 1, 0]);
 
@@ -226,8 +261,6 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
             shadows={preset.shadows}
             dpr={preset.dpr}
             frameloop="demand"
-            // Orbit/zoom renders at half resolution until the camera settles.
-            performance={{ min: 0.5, debounce: 250 }}
             flat={preset.bloom}
             gl={{ antialias: !preset.bloom, powerPreference: "high-performance" }}
             camera={{ position: [0, 12, 12], fov: 38, near: 0.03, far: 120 }}
@@ -235,28 +268,30 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
         >
             <color attach="background" args={[bg]} />
             <fog attach="fog" args={[bg, 14, 45]} />
-            <Lighting dark={dark} b={b} preset={preset} />
-            <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} />
+            <Lighting dark={dark} b={b} preset={preset} appearance={appearance} />
+            <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} temp={temp} appearance={appearance} />
             {/* Raycasting and <Html> ignore visible=false, so other rows are not
                 rendered at all while a rack is focused. */}
-            {placed.filter((p) => focusedRow === undefined || p.row === focusedRow).map((p) => (
+            {placed.filter((p) => focusedRow === undefined || p.row === focusedRow || peerRacks.has(p.rack.name)).map((p) => (
                 <RackCabinet
                     key={p.rack.name}
                     placed={p}
                     dark={dark}
                     focused={focusRack === p.rack.name}
-                    faded={p.rack.dimmed || (!!focusRack && focusRack !== p.rack.name)}
+                    faded={p.rack.dimmed || (!!focusRack && focusRack !== p.rack.name && !peerRacks.has(p.rack.name))}
                     showFree={showFree}
                     accent={accent}
+                    colorBy={colorBy}
                     selectedDeviceId={selectedDeviceId}
                     onFocus={() => onFocusRack(p.rack.name)}
                     onSelectDevice={(d) => { onFocusRack(p.rack.name); onSelectDevice(d); }}
                 />
             ))}
+            <Cables cables={cables} />
             <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} onTarget={setFocusPoint} />
             <BlinkClock />
-            <AdaptiveDpr />
-            <Effects preset={preset} dofTarget={preset.dof && focusRack ? focusPoint : null} />
+            <Effects preset={preset} dofTarget={preset.dof && focusRack ? focusPoint : null} composerRef={composerRef} />
+            {captureRef && <Capture captureRef={captureRef} composerRef={composerRef} />}
         </Canvas>
     );
 }

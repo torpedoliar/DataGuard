@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Server } from "lucide-react";
-import type { RackData, RackDevice } from "@/actions/rack-layout";
+import type { RackData, RackDevice, RoomSettings } from "@/actions/rack-layout";
 import RackLayout from "@/components/admin/rack-layout";
 import RackFilterBar, { type RackView } from "@/components/admin/rack-filter-bar";
 import DeviceDetailPanel from "@/components/admin/device-detail-panel";
@@ -14,16 +14,25 @@ const VIEW_KEY = "rack-layout-view";
 interface RackLayoutShellProps {
     racks: RackData[];
     categories: { id: number; name: string; color: string | null }[];
-    floorPlans: Record<number, string>;
+    rooms: Record<number, RoomSettings>;
+    canEditAppearance: boolean;
+    siteName: string;
 }
 
-export default function RackLayoutShell({ racks, categories, floorPlans }: RackLayoutShellProps) {
+export default function RackLayoutShell({ racks, categories, rooms, canEditAppearance, siteName }: RackLayoutShellProps) {
     const [filters, setFilters] = useState<RackFilters>(EMPTY_FILTERS);
     const [selected, setSelected] = useState<RackDevice | null>(null);
     const [view, setView] = useState<RackView>("2d");
     const [noWebgl, setNoWebgl] = useState(false);
     const filtered = useMemo(() => applyRackFilters(racks, filters), [racks, filters]);
     const sceneRacks = useMemo(() => applyRackFiltersForScene(racks, filters), [racks, filters]);
+    const allDevices = useMemo(() => racks.flatMap((r) => r.devices), [racks]);
+    // Drawer connection click: select the peer if it is racked on this site.
+    const selectPeer = useCallback((id: number) => {
+        const peer = allDevices.find((d) => d.id === id);
+        if (peer) setSelected(peer);
+        return !!peer;
+    }, [allDevices]);
 
     useEffect(() => {
         try {
@@ -80,13 +89,15 @@ export default function RackLayoutShell({ racks, categories, floorPlans }: RackL
                 </p>
             )}
 
-            <DeviceDetailPanel device={selected} onClose={() => setSelected(null)} />
+            <DeviceDetailPanel device={selected} onClose={() => setSelected(null)} onSelectPeer={selectPeer} />
 
             {view === "3d" ? (
                 <RackView3D
                     racks={sceneRacks}
                     locationFilter={filters.location || null}
-                    floorPlans={floorPlans}
+                    rooms={rooms}
+                    canEditAppearance={canEditAppearance}
+                    siteName={siteName}
                     selectedDeviceId={selected?.id ?? null}
                     autoFocusDeviceId={singleMatchId(filtered, filters)}
                     onSelectDevice={setSelected}

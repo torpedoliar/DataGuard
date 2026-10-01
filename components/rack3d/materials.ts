@@ -18,6 +18,12 @@ function pool() {
     return m;
 }
 
+function basic(color: string) {
+    const m = new THREE.MeshBasicMaterial({ color, toneMapped: false });
+    m.userData.shared = true;
+    return m;
+}
+
 export const sharedMaterials = {
     ok: led("#22c55e", 3),
     pending: led("#f59e0b", 2.5),
@@ -33,6 +39,7 @@ export const sharedMaterials = {
     storage: led("#60a5fa", 2.5),
     lcd: led("#7dd3fc", 1.2),
     pool: pool(),
+    critical: basic("#f59e0b"),
 };
 
 export const ledMaterial = (status?: string) =>

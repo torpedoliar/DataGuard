@@ -17,6 +17,11 @@ describe("portFace", () => {
     expect(portFace(dev({ ports: [port(1, "1")] }), 0.04)).toBeNull();
   });
 
+  it("tags each slot with the documented port id (empty slots: null)", () => {
+    const face = portFace(dev({ faceplatePortCount: 2, faceplateRows: 1, ports: [port(41, "1")] }), 0.04)!;
+    expect(face.slots.map((s) => s.portId)).toEqual([41, null]);
+  });
+
   it("lays out exactly the configured access + uplink ports", () => {
     const face = portFace(dev({ faceplatePortCount: 8, faceplateUplinkCount: 2, faceplateRows: 2 }), 0.04)!;
     expect(face.slots.filter((s) => !s.uplink)).toHaveLength(8);

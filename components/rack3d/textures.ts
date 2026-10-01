@@ -22,6 +22,7 @@ function make(key: string, w: number, h: number, draw: (ctx: CanvasRenderingCont
 // Clone so each consumer can set its own repeat without touching the cache.
 export function repeated(tex: THREE.Texture, x: number, y: number) {
     const t = tex.clone();
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(x, y);
     t.needsUpdate = true;
     return t;
@@ -143,3 +144,54 @@ export function acquireLabel(text: string, bg: string, fg = "#f8fafc", w = 256, 
 }
 
 export const liveLabelCount = () => labels.size;
+
+// Wall finishes, one repeat ≈ 1 m (512 px). Drawn once and cached.
+export const wallpaperTexture = (kind: "brick" | "acoustic" | "concrete") => make(`wall-${kind}`, 512, 512, (ctx) => {
+    if (kind === "brick") {
+        ctx.fillStyle = "#c9c2b8"; // mortar
+        ctx.fillRect(0, 0, 512, 512);
+        const bw = 128;
+        const bh = 42;
+        for (let row = 0; row * bh < 512; row++) {
+            for (let col = -1; col * bw < 512; col++) {
+                const x = col * bw + (row % 2 ? bw / 2 : 0);
+                const s = 150 + Math.floor(Math.random() * 30);
+                ctx.fillStyle = `rgb(${s},${Math.floor(s * 0.48)},${Math.floor(s * 0.36)})`;
+                ctx.fillRect(x + 3, row * bh + 3, bw - 6, bh - 6);
+            }
+        }
+    } else if (kind === "acoustic") {
+        ctx.fillStyle = "#2f3642";
+        ctx.fillRect(0, 0, 512, 512);
+        for (let y = 0; y < 512; y += 128) {
+            for (let x = 0; x < 512; x += 128) {
+                ctx.fillStyle = (x + y) % 256 ? "#465062" : "#40495a";
+                ctx.fillRect(x + 4, y + 4, 120, 120);
+                ctx.fillStyle = "rgba(0,0,0,0.25)";
+                for (let i = 0; i < 6; i++) ctx.fillRect(x + 14 + i * 18, y + 14, 8, 100);
+            }
+        }
+    } else {
+        ctx.fillStyle = "#8d9196";
+        ctx.fillRect(0, 0, 512, 512);
+        for (let i = 0; i < 4000; i++) {
+            const g = 110 + Math.random() * 60;
+            ctx.fillStyle = `rgba(${g},${g},${g + 4},0.35)`;
+            ctx.fillRect(Math.random() * 512, Math.random() * 512, 2 + Math.random() * 3, 2 + Math.random() * 3);
+        }
+        ctx.strokeStyle = "rgba(60,62,66,0.5)";
+        ctx.lineWidth = 2;
+        for (const y of [0, 256]) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(512, y);
+            ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(50,52,56,0.6)"; // form-tie holes
+        for (const y of [64, 192, 320, 448]) for (const x of [64, 192, 320, 448]) {
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+}, true);
