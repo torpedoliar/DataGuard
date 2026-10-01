@@ -57,7 +57,9 @@ function Walls({ r, dark, appearance }: { r: ReturnType<typeof roomRect>; dark: 
             {walls.map((wall, i) => (
                 <mesh key={i} position={[...wall.pos]} rotation-y={wall.rot}>
                     <planeGeometry args={[wall.len, ROOM_HEIGHT]} />
-                    <meshStandardMaterial color={maps ? tint : plain} map={maps?.[i] ?? null} roughness={0.9} />
+                    {/* Keyed: three only compiles the map shader path when the
+                        material is created, so plain <-> textured needs a new one. */}
+                    <meshStandardMaterial key={maps ? "map" : "plain"} color={maps ? tint : plain} map={maps?.[i] ?? null} roughness={0.9} />
                 </mesh>
             ))}
             <mesh position={[cx, ROOM_HEIGHT, cz]} rotation-x={Math.PI / 2}>
