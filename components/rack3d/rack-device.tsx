@@ -94,6 +94,8 @@ function NetworkFace({ h }: { h: number }) {
 
 // The device's documented ports (network docs): real count and layout, link
 // LED lit + flickering only on Active ports, red on Down, dark otherwise.
+// Clicking a jack selects its port (peer preview + topology edit in the HUD);
+// the selected port's jack paints green, the peer end cyan.
 function DocumentedPorts({ slots }: { slots: PortFaceSlot[] }) {
     const groups = useMemo(() => ({
         jacks: slots,

@@ -14,7 +14,6 @@ import { useIsDark } from "@/components/ui/theme-toggle";
 import { FRONT_Z, RACK_D, U, rackHeight, uToY } from "./constants";
 import { inRack } from "./free-slots";
 import { buildCables } from "./cable-route";
-import { Cables } from "./cables";
 import { bounds, layoutRacks, type Bounds, type PlacedRack } from "./layout";
 import { tickLeds } from "./materials";
 import { PRESETS, initialQuality, resolveQuality, type Quality, type QualitySetting } from "./quality";
@@ -251,7 +250,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
     const accent = dark ? ACCENT.dark : ACCENT.light;
     // Other rows stand between the fly-to camera and the focused rack.
     const focusedRow = placed.find((p) => p.rack.name === focusRack)?.row;
-    const { cables, peerRacks } = useMemo(() => buildCables(placed, selectedDeviceId), [placed, selectedDeviceId]);
+    const { peerRacks } = useMemo(() => buildCables(placed, selectedDeviceId), [placed, selectedDeviceId]);
     const bg = dark ? "#0b0f15" : "#dfe3e8";
     const [focusPoint, setFocusPoint] = useState<[number, number, number]>([0, 1, 0]);
 
@@ -287,7 +286,6 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
                     onSelectDevice={(d) => { onFocusRack(p.rack.name); onSelectDevice(d); }}
                 />
             ))}
-            <Cables cables={cables} />
             <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} onTarget={setFocusPoint} />
             <BlinkClock />
             <Effects preset={preset} dofTarget={preset.dof && focusRack ? focusPoint : null} composerRef={composerRef} />

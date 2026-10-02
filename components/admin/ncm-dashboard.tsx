@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { Fragment, useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -283,6 +283,7 @@ function SwitchArea({
   }
 
   const busy = isAdding || isEditing || isDeleting || isCred;
+  const editingId = editing ? pick(editing, "id", "switch_id", "switchId") : null;
 
   return (
     <section className={`${cardClass} space-y-3`}>
@@ -344,8 +345,10 @@ function SwitchArea({
               const id = pick(sw, "id", "switch_id", "switchId");
               const model = pick(sw, "model", "switch_model");
               const credName = (sw.credential as { name?: string } | undefined)?.name || pick(sw, "credential_name");
+              const isEditingRow = editingId === id;
               return (
-                <tr key={id} className="border-t border-slate-800">
+                <Fragment key={id}>
+                <tr className={`border-t border-slate-800 ${isEditingRow ? "bg-ops-accent/5" : ""}`}>
                   <td className="py-2 pr-3">
                     <div className="font-semibold text-white">{pick(sw, "name", "hostname") || "-"}</div>
                     {model && <div className="text-xs text-ops-muted">{model}</div>}
@@ -376,7 +379,7 @@ function SwitchArea({
                         <Play className="size-3.5" />
                         Backup
                       </ActionButton>
-                      <ActionButton size="sm" variant="secondary" title="Edit switch" onClick={() => setEditing(sw)}>Edit</ActionButton>
+                      <ActionButton size="sm" variant="secondary" title="Edit switch" onClick={() => setEditing(isEditingRow ? null : sw)}>{isEditingRow ? "Tutup" : "Edit"}</ActionButton>
                       <ActionButton size="sm" variant="secondary" title="Rotasi kredensial" onClick={() => setCredFor(sw)}><KeyRound className="size-3.5" /></ActionButton>
                       <ActionButton size="sm" variant="danger" title="Hapus switch" disabled={busy} formAction={deleteAction} onClick={() => {}}>
                         <input type="hidden" name="id" value={id} />
@@ -385,6 +388,53 @@ function SwitchArea({
                     </div>
                   </td>
                 </tr>
+                {isEditingRow && (
+                <tr>
+                  <td colSpan={6} className="border-t border-ops-accent/30 bg-ops-accent/5 px-3 py-3">
+                    <form key={id} action={editAction} className="grid gap-3 md:grid-cols-4">
+                      <input type="hidden" name="id" value={id} />
+                      <div className="md:col-span-4 text-xs font-semibold uppercase tracking-wider text-ops-accent">
+                        Edit Switch #{id} — {pick(sw, "name", "hostname")}
+                      </div>
+                      <label className={labelClass}>Nama<input name="name" defaultValue={pick(sw, "name", "hostname")} required className={inputClass} /></label>
+                      <label className={labelClass}>IP<input name="ip" defaultValue={pick(sw, "ip_address", "ip", "host")} className={inputClass} /></label>
+                      <label className={labelClass}>Seri / Model<input name="model" defaultValue={model} placeholder="e.g. GS950/52PS" className={inputClass} /></label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className={labelClass}>
+                          Protokol
+                          <select name="protocol" defaultValue={pick(sw, "protocol") || "ssh"} className={inputClass}>
+                            {PROTOCOLS.map((p) => (
+                              <option key={p.value} value={p.value}>{p.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className={labelClass}>Port<input name="port" defaultValue={pick(sw, "port")} inputMode="numeric" className={inputClass} /></label>
+                      </div>
+
+                      {credentials.length > 0 && (
+                        <label className={`${labelClass} md:col-span-4`}>
+                          Ganti Profil Kredensial NCM (opsional)
+                          <select name="credentialId" defaultValue={pick(sw, "credential_id", "credentialId")} className={inputClass}>
+                            <option value="">(Pertahankan kredensial saat ini)</option>
+                            {credentials.map((c) => {
+                              const cId = pick(c, "id");
+                              const cName = pick(c, "name");
+                              const cUser = pick(c, "username");
+                              return <option key={cId} value={cId}>{cName} {cUser ? `(user: ${cUser})` : ""}</option>;
+                            })}
+                          </select>
+                        </label>
+                      )}
+
+                      <div className="flex justify-end gap-2 md:col-span-4 pt-1">
+                        <ActionButton type="button" variant="ghost" onClick={() => setEditing(null)}>Batal</ActionButton>
+                        <ActionButton type="submit" isPending={isEditing}>Simpan Perubahan</ActionButton>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>
@@ -628,50 +678,6 @@ function SwitchArea({
           </ActionButton>
         </div>
       </form>
-
-      {/* EDIT MODAL */}
-      {editing && (
-        <form action={editAction} className="grid gap-3 rounded-lg border border-ops-accent/30 bg-ops-accent/5 p-4 md:grid-cols-4">
-          <input type="hidden" name="id" value={pick(editing, "id", "switch_id", "switchId")} />
-          <div className="md:col-span-4 text-xs font-semibold uppercase tracking-wider text-ops-accent">
-            Edit Switch #{pick(editing, "id", "switch_id", "switchId")}
-          </div>
-          <label className={labelClass}>Nama<input name="name" defaultValue={pick(editing, "name", "hostname")} required className={inputClass} /></label>
-          <label className={labelClass}>IP<input name="ip" defaultValue={pick(editing, "ip_address", "ip", "host")} className={inputClass} /></label>
-          <label className={labelClass}>Seri / Model<input name="model" defaultValue={pick(editing, "model", "switch_model")} placeholder="e.g. GS950/52PS" className={inputClass} /></label>
-          <div className="grid grid-cols-2 gap-2">
-            <label className={labelClass}>
-              Protokol
-              <select name="protocol" defaultValue={pick(editing, "protocol") || "ssh"} className={inputClass}>
-                {PROTOCOLS.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className={labelClass}>Port<input name="port" defaultValue={pick(editing, "port")} inputMode="numeric" className={inputClass} /></label>
-          </div>
-
-          {credentials.length > 0 && (
-            <label className={`${labelClass} md:col-span-4`}>
-              Ganti Profil Kredensial NCM (opsional)
-              <select name="credentialId" defaultValue={pick(editing, "credential_id", "credentialId")} className={inputClass}>
-                <option value="">(Pertahankan kredensial saat ini)</option>
-                {credentials.map((c) => {
-                  const cId = pick(c, "id");
-                  const cName = pick(c, "name");
-                  const cUser = pick(c, "username");
-                  return <option key={cId} value={cId}>{cName} {cUser ? `(user: ${cUser})` : ""}</option>;
-                })}
-              </select>
-            </label>
-          )}
-
-          <div className="flex justify-end gap-2 md:col-span-4 pt-1">
-            <ActionButton type="button" variant="ghost" onClick={() => setEditing(null)}>Batal</ActionButton>
-            <ActionButton type="submit" isPending={isEditing}>Simpan Perubahan</ActionButton>
-          </div>
-        </form>
-      )}
 
       {/* ROTATE CREDENTIALS MODAL */}
       {credFor && (
