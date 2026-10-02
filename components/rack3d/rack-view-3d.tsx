@@ -10,10 +10,10 @@ import { rackSummary, tourOrder, troubledCritical, type ColorBy } from "@/lib/ra
 import { DEFAULT_APPEARANCE, type RoomAppearance } from "@/lib/room-appearance";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
+import { DeviceCardAnchor } from "./device-card-anchor";
 import { layoutRacks } from "./layout";
 import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
 import { downloadWithFooter, screenshotFooter, screenshotName } from "./screenshot";
-import { Rack3DNetworkHud } from "./rack-3d-network-hud";
 
 const RackScene = dynamic(() => import("./rack-scene"), {
     ssr: false,
@@ -324,6 +324,22 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     colorBy={colorBy}
                     appearance={appearance}
                     captureRef={captureRef}
+                    card={activeSelectedDevice && (
+                        <DeviceCardAnchor
+                            placed={roomRacks.length ? layoutRacks(roomRacks) : []}
+                            device={activeSelectedDevice}
+                            onClose={() => onSelectDevice(null)}
+                            onSelectPeer={(peerId) => {
+                                const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
+                                if (hit) {
+                                    setRoomPick(hit.locationName || UNASSIGNED);
+                                    setFocusPick(hit.name);
+                                    const dev = hit.devices.find((d) => d.id === peerId);
+                                    if (dev) onSelectDevice(dev);
+                                }
+                            }}
+                        />
+                    )}
                 />
                 {focusRack && (
                     <button
@@ -332,21 +348,6 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     >
                         <RotateCcw className="h-4 w-4" /> Back to room
                     </button>
-                )}
-                {activeSelectedDevice && (
-                    <Rack3DNetworkHud
-                        device={activeSelectedDevice}
-                        onClose={() => onSelectDevice(null)}
-                        onSelectPeer={(peerId) => {
-                            const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
-                            if (hit) {
-                                setRoomPick(hit.locationName || UNASSIGNED);
-                                setFocusPick(hit.name);
-                                const dev = hit.devices.find((d) => d.id === peerId);
-                                if (dev) onSelectDevice(dev);
-                            }
-                        }}
-                    />
                 )}
                 <p className="pointer-events-none absolute bottom-3 left-3 text-[11px] text-ops-muted">
                     Drag to orbit · Scroll to zoom · Click a rack or device · Esc to go back
