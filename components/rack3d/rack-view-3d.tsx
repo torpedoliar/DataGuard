@@ -11,6 +11,7 @@ import { DEFAULT_APPEARANCE, type RoomAppearance } from "@/lib/room-appearance";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
 import { DeviceCardPanel, type CardPort } from "./device-card-panel";
+import { DeviceFloatCard, type FloatPort } from "./device-float-card";
 import { getPortsByDevice } from "@/actions/network";
 import { layoutRacks } from "./layout";
 import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
@@ -341,6 +342,23 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     colorBy={colorBy}
                     appearance={appearance}
                     captureRef={captureRef}
+                    floatCard={(dev) => (
+                        <DeviceFloatCard
+                            device={dev}
+                            ports={cardDevice?.id === dev.id ? (cardPorts as FloatPort[]) : []}
+                            loading={cardDevice?.id === dev.id && cardLoading}
+                            onClose={() => onSelectDevice(null)}
+                            onPickPort={(p) => {
+                                const hit = racks.find((r) => r.devices.some((d) => d.id === p.connectedToDeviceId));
+                                if (hit) {
+                                    setRoomPick(hit.locationName || UNASSIGNED);
+                                    setFocusPick(hit.name);
+                                    const found = hit.devices.find((d) => d.id === p.connectedToDeviceId);
+                                    if (found) onSelectDevice(found);
+                                }
+                            }}
+                        />
+                    )}
                 />
                 </div>
                 {cardDevice && (
