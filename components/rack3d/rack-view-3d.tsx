@@ -10,7 +10,8 @@ import { rackSummary, tourOrder, troubledCritical, type ColorBy } from "@/lib/ra
 import { DEFAULT_APPEARANCE, type RoomAppearance } from "@/lib/room-appearance";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
-import { DeviceCardAnchor } from "./device-card-anchor";
+import { DeviceCardPanel, type CardPort } from "./device-card-panel";
+import { getPortsByDevice } from "@/actions/network";
 import { layoutRacks } from "./layout";
 import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
 import { downloadWithFooter, screenshotFooter, screenshotName } from "./screenshot";
@@ -65,6 +66,10 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const [saved, setSaved] = useState<Record<number, RoomAppearance>>({});
     const [touring, setTouring] = useState(false);
     const captureRef = useRef<(() => string) | null>(null);
+    // Ports for the docked card panel (network docs): fetched when the
+    // selection changes, stale responses discarded by id match.
+    const [cardPorts, setCardPorts] = useState<CardPort[]>([]);
+    const [cardLoading, setCardLoading] = useState(false);
 
     // Picking a location in the filter bar opens that room.
     const [appliedLocation, setAppliedLocation] = useState<string | null>(null);
@@ -101,6 +106,18 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const room = roomPick && rooms.has(roomPick) ? roomPick : rooms.keys().next().value ?? null;
     const roomRacks = useMemo(() => (room ? rooms.get(room) ?? [] : []), [room, rooms]);
     const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;
+    const cardDevice = selectedDeviceId == null ? null : racks.flatMap((r) => r.devices).find((d) => d.id === selectedDeviceId) ?? null;
+    const cardDeviceId = cardDevice?.id ?? null;
+    useEffect(() => {
+        if (cardDeviceId == null) return;
+        let alive = true;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch result for the selected device, guarded by alive + id match
+        setCardLoading(true);
+        getPortsByDevice(cardDeviceId)
+            .then((ports) => { if (alive) { setCardPorts(ports); setCardLoading(false); } })
+            .catch(() => { if (alive) { setCardPorts([]); setCardLoading(false); } });
+        return () => { alive = false; };
+    }, [cardDeviceId]);
     const order = useMemo(() => tourOrder(roomRacks), [roomRacks]);
     useEffect(() => {
         if (!touring || order.length === 0) return;
@@ -298,6 +315,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 {editingHere && locationId != null && (
                     <AppearancePanel locationId={locationId} value={appearance} onPreview={setPreview} onSaved={onSaved} onClose={closeEditor} />
                 )}
+                <div className="flex gap-3">
+                <div className="min-w-0 flex-1">
                 <RackScene
                     racks={roomRacks}
                     floorPlanUrl={floorPlanUrl}
@@ -313,22 +332,26 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     colorBy={colorBy}
                     appearance={appearance}
                     captureRef={captureRef}
-                    renderCard={(dev) => (
-                        <DeviceCardAnchor
-                            device={dev}
-                            onClose={() => onSelectDevice(null)}
-                            onSelectPeer={(peerId) => {
-                                const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
-                                if (hit) {
-                                    setRoomPick(hit.locationName || UNASSIGNED);
-                                    setFocusPick(hit.name);
-                                    const found = hit.devices.find((d) => d.id === peerId);
-                                    if (found) onSelectDevice(found);
-                                }
-                            }}
-                        />
-                    )}
                 />
+                </div>
+                {cardDevice && (
+                    <DeviceCardPanel
+                        device={cardDevice}
+                        ports={cardPorts}
+                        loading={cardLoading}
+                        onClose={() => onSelectDevice(null)}
+                        onSelectPeer={(peerId) => {
+                            const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
+                            if (hit) {
+                                setRoomPick(hit.locationName || UNASSIGNED);
+                                setFocusPick(hit.name);
+                                const found = hit.devices.find((d) => d.id === peerId);
+                                if (found) onSelectDevice(found);
+                            }
+                        }}
+                    />
+                )}
+                </div>
                 {focusRack && (
                     <button
                         onClick={backToRoom}
