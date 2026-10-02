@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
@@ -115,7 +115,7 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
     );
 }
 
-export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, onFocus, onSelectDevice }: {
+export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, onFocus, onSelectDevice, floatCard }: {
     placed: PlacedRack<SceneRack>;
     dark: boolean;
     focused: boolean;
@@ -126,6 +126,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
     selectedDeviceId: number | null;
     onFocus: () => void;
     onSelectDevice: (d: FilteredDevice) => void;
+    floatCard?: (d: FilteredDevice) => ReactNode;
 }) {
     const { rack } = placed;
     const totalU = rack.totalU || 42;
@@ -176,7 +177,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
             <Sign name={rack.name} collision={placed.collision} height={H} />
 
             {devices.map((d) => (
-                <RackDevice key={d.id} device={d} selected={d.id === selectedDeviceId} faded={faded} accent={accent} colorBy={colorBy} onSelect={onSelectDevice} />
+                <RackDevice key={d.id} device={d} selected={d.id === selectedDeviceId} faded={faded} accent={accent} colorBy={colorBy} onSelect={onSelectDevice} floatCard={d.id === selectedDeviceId ? floatCard?.(d) : undefined} />
             ))}
             {free.map((r) => (
                 <FreeSpace key={r.start} range={r} ghost={showFree} labelled={focused || r.size >= 4} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, Instance, Instances } from "@react-three/drei";
@@ -238,13 +238,14 @@ function NameTag({ device, h, opacity }: { device: FilteredDevice; h: number; op
     );
 }
 
-export function RackDevice({ device, selected, faded, accent, colorBy, onSelect }: {
+export function RackDevice({ device, selected, faded, accent, colorBy, onSelect, floatCard }: {
     device: FilteredDevice;
     selected: boolean;
     faded: boolean;
     accent: string;
     colorBy: ColorBy;
     onSelect: (d: FilteredDevice) => void;
+    floatCard?: ReactNode;
 }) {
     const uh = device.uHeight || 1;
     const h = uh * U - 0.0015;
@@ -306,7 +307,12 @@ export function RackDevice({ device, selected, faded, accent, colorBy, onSelect 
                 </mesh>
             </group>
             {device.openIncidents.count > 0 && <IncidentBadge incidents={device.openIncidents} h={h} />}
-            {hovered && (
+            {selected && floatCard != null && (
+                <Html position={[0, h + 0.06, FRONT_Z]} center zIndexRange={[40, 0]}>
+                    {floatCard}
+                </Html>
+            )}
+            {hovered && !selected && (
                 <Html position={[0, h / 2 + 0.02, FRONT_Z]} center pointerEvents="none" zIndexRange={[40, 0]}>
                     <div className="whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-[11px] font-medium text-white shadow">
                         {device.name} · U{device.rackPosition} · {uh}U
