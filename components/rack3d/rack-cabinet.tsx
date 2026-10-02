@@ -115,7 +115,7 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
     );
 }
 
-export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, onFocus, onSelectDevice, card }: {
+export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, onFocus, onSelectDevice, renderCard }: {
     placed: PlacedRack<SceneRack>;
     dark: boolean;
     focused: boolean;
@@ -126,7 +126,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
     selectedDeviceId: number | null;
     onFocus: () => void;
     onSelectDevice: (d: FilteredDevice) => void;
-    card?: ReactNode;
+    renderCard?: (d: FilteredDevice) => ReactNode;
 }) {
     const { rack } = placed;
     const totalU = rack.totalU || 42;
@@ -177,9 +177,8 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
             <Sign name={rack.name} collision={placed.collision} height={H} />
 
             {devices.map((d) => (
-                <RackDevice key={d.id} device={d} selected={d.id === selectedDeviceId} faded={faded} accent={accent} colorBy={colorBy} onSelect={onSelectDevice} />
+                <RackDevice key={d.id} device={d} selected={d.id === selectedDeviceId} faded={faded} accent={accent} colorBy={colorBy} onSelect={onSelectDevice} card={d.id === selectedDeviceId ? renderCard?.(d) : undefined} />
             ))}
-            {card}
             {free.map((r) => (
                 <FreeSpace key={r.start} range={r} ghost={showFree} labelled={focused || r.size >= 4} />
             ))}

@@ -89,9 +89,7 @@ export default function RackLayoutShell({ racks, categories, rooms, canEditAppea
                 </p>
             )}
 
-            {view === "2d" && (
-                <DeviceDetailPanel device={selected} onClose={() => setSelected(null)} onSelectPeer={selectPeer} />
-            )}
+            <DeviceDetailPanel device={selected} onClose={() => setSelected(null)} onSelectPeer={selectPeer} />
 
             {view === "3d" ? (
                 <RackView3D
@@ -100,7 +98,6 @@ export default function RackLayoutShell({ racks, categories, rooms, canEditAppea
                     rooms={rooms}
                     canEditAppearance={canEditAppearance}
                     siteName={siteName}
-                    selectedDevice={selected}
                     selectedDeviceId={selected?.id ?? null}
                     autoFocusDeviceId={singleMatchId(filtered, filters)}
                     onSelectDevice={setSelected}
