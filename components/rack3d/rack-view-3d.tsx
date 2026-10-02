@@ -30,7 +30,6 @@ interface RackView3DProps {
     racks: SceneRack[];
     locationFilter?: string | null;
     rooms: Record<number, RoomSettings>;
-    selectedDevice?: RackDevice | null;
     selectedDeviceId: number | null;
     autoFocusDeviceId: number | null;
     onSelectDevice: (d: RackDevice | null) => void;
@@ -39,7 +38,7 @@ interface RackView3DProps {
     siteName: string;
 }
 
-export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDevice = null, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable, canEditAppearance, siteName }: RackView3DProps) {
+export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable, canEditAppearance, siteName }: RackView3DProps) {
     const rooms = useMemo(() => {
         const map = new Map<string, SceneRack[]>();
         for (const r of racks) {
@@ -108,16 +107,6 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         const id = setInterval(() => setFocusPick((cur) => order[(order.indexOf(cur ?? "") + 1) % order.length]), TOUR_MS);
         return () => clearInterval(id);
     }, [touring, order]);
-    const activeSelectedDevice = useMemo(() => {
-        if (selectedDevice && selectedDevice.id === selectedDeviceId) return selectedDevice;
-        if (selectedDeviceId == null) return null;
-        for (const r of racks) {
-            const found = r.devices.find((d) => d.id === selectedDeviceId);
-            if (found) return found;
-        }
-        return selectedDevice;
-    }, [selectedDevice, selectedDeviceId, racks]);
-
     const collisions = useMemo(() => layoutRacks(roomRacks).filter((p) => p.collision).length, [roomRacks]);
     const locationId = roomRacks.find((r) => r.locationId != null)?.locationId ?? null;
     const settings = locationId != null ? roomSettings[locationId] : undefined;
@@ -324,18 +313,17 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     colorBy={colorBy}
                     appearance={appearance}
                     captureRef={captureRef}
-                    card={activeSelectedDevice && (
+                    renderCard={(dev) => (
                         <DeviceCardAnchor
-                            placed={roomRacks.length ? layoutRacks(roomRacks) : []}
-                            device={activeSelectedDevice}
+                            device={dev}
                             onClose={() => onSelectDevice(null)}
                             onSelectPeer={(peerId) => {
                                 const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
                                 if (hit) {
                                     setRoomPick(hit.locationName || UNASSIGNED);
                                     setFocusPick(hit.name);
-                                    const dev = hit.devices.find((d) => d.id === peerId);
-                                    if (dev) onSelectDevice(dev);
+                                    const found = hit.devices.find((d) => d.id === peerId);
+                                    if (found) onSelectDevice(found);
                                 }
                             }}
                         />

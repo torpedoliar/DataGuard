@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { ExternalLink, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { DeviceDrawer } from "@/actions/device-drawer";
+import PhotoModal from "@/components/report/photo-modal";
 
 interface DeviceCard3DProps {
     device: RackDevice;
@@ -18,11 +20,12 @@ interface DeviceCard3DProps {
 // at the call site — this file is the DOM content only, so it stays
 // unit-testable without WebGL). Port rows reuse the drawer connections:
 // a wired port flies the camera to the peer, an empty one opens Full Docs.
-export function DeviceCard3DContent({ device, drawer, loading, onClose, onSelectPeer }: DeviceCard3DProps) {
+export function DeviceCard3DContent({ device, drawer, loading, onClose, onSelectPeer, photoPath }: DeviceCard3DProps & { photoPath?: string | null }) {
     const router = useRouter();
     const connections = drawer?.connections ?? [];
     const linked = connections.length;
     const openFullDocs = () => router.push(`/admin/devices/${device.id}/network`);
+    const [photo, setPhoto] = useState<string | null>(null);
 
     return (
         <div className="w-64 rounded-xl border border-ops-border bg-ops-surface/95 shadow-xl backdrop-blur">
@@ -31,6 +34,9 @@ export function DeviceCard3DContent({ device, drawer, loading, onClose, onSelect
                     <p className="truncate text-sm font-bold text-ops-text">{device.name}</p>
                     <p className="truncate font-mono text-[11px] text-ops-muted">
                         {device.ipAddress ?? "no IP"} · {device.rackName ?? "no rack"}{device.rackPosition != null ? ` U${device.rackPosition}` : ""} · {device.brandName ?? "Generic"}
+                    </p>
+                    <p className="truncate text-[11px] text-ops-muted">
+                        {device.categoryName ?? "no category"} · {device.status ?? "Pending"}{device.assetCode ? ` · ${device.assetCode}` : ""}
                     </p>
                 </div>
                 <button
@@ -43,6 +49,18 @@ export function DeviceCard3DContent({ device, drawer, loading, onClose, onSelect
                 </button>
             </div>
             <div className="px-3 py-2">
+                {photoPath && (
+                    <button
+                        type="button"
+                        onClick={() => setPhoto(photoPath)}
+                        aria-label={`Enlarge photo of ${device.name}`}
+                        title="Click to enlarge"
+                        className="mb-2 block w-full cursor-zoom-in overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ops-accent/40"
+                    >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={photoPath} alt={device.name} className="h-24 w-full rounded-lg border border-ops-border object-cover transition-opacity hover:opacity-90" />
+                    </button>
+                )}
                 {loading ? (
                     <p className="py-2 text-center text-xs text-ops-muted">Loading ports…</p>
                 ) : connections.length === 0 ? (
@@ -84,6 +102,7 @@ export function DeviceCard3DContent({ device, drawer, loading, onClose, onSelect
                     </Link>
                 </div>
             </div>
+            {photo && <PhotoModal photoPath={photo} deviceName={device.name} onClose={() => setPhoto(null)} />}
         </div>
     );
 }
