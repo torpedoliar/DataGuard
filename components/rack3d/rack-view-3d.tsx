@@ -11,6 +11,7 @@ import { DEFAULT_APPEARANCE, type RoomAppearance } from "@/lib/room-appearance";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
 import { DeviceCardPanel, type CardPort } from "./device-card-panel";
+import { DeviceGameCard, PeerBadge, type GamePort } from "./game-cards";
 import { getPortsByDevice } from "@/actions/network";
 import { layoutRacks } from "./layout";
 import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
@@ -70,6 +71,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     // selection changes, stale responses discarded by id match.
     const [cardPorts, setCardPorts] = useState<CardPort[]>([]);
     const [cardLoading, setCardLoading] = useState(false);
+    // Game-style floating cards: picked port opens the peer badge next to it.
+    const [pickedPort, setPickedPort] = useState<GamePort | null>(null);
 
     // Picking a location in the filter bar opens that room.
     const [appliedLocation, setAppliedLocation] = useState<string | null>(null);
@@ -113,11 +116,24 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         let alive = true;
         // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch result for the selected device, guarded by alive + id match
         setCardLoading(true);
+        setPickedPort(null);
         getPortsByDevice(cardDeviceId)
             .then((ports) => { if (alive) { setCardPorts(ports); setCardLoading(false); } })
             .catch(() => { if (alive) { setCardPorts([]); setCardLoading(false); } });
         return () => { alive = false; };
     }, [cardDeviceId]);
+    const pickedPeer = pickedPort?.connectedToDeviceId != null
+        ? racks.flatMap((r) => r.devices).find((d) => d.id === pickedPort.connectedToDeviceId) ?? null
+        : null;
+    const flyToPeer = (peerId: number) => {
+        const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
+        if (hit) {
+            setRoomPick(hit.locationName || UNASSIGNED);
+            setFocusPick(hit.name);
+            const found = hit.devices.find((d) => d.id === peerId);
+            if (found) onSelectDevice(found);
+        }
+    };
     const order = useMemo(() => tourOrder(roomRacks), [roomRacks]);
     useEffect(() => {
         if (!touring || order.length === 0) return;
@@ -332,6 +348,28 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     colorBy={colorBy}
                     appearance={appearance}
                     captureRef={captureRef}
+                    gameCard={(dev) => (
+                        <>
+                            <DeviceGameCard
+                                device={dev}
+                                ports={cardDevice?.id === dev.id ? cardPorts : []}
+                                loading={cardDevice?.id === dev.id && cardLoading}
+                                side="right"
+                                onClose={() => onSelectDevice(null)}
+                                onPickPort={(p) => setPickedPort(p)}
+                            />
+                            {pickedPort && pickedPeer && cardDevice?.id === dev.id && (
+                                <PeerBadge
+                                    port={pickedPort}
+                                    peerName={pickedPeer.name}
+                                    peerPhoto={pickedPeer.photoPath ?? null}
+                                    side="left"
+                                    onClose={() => setPickedPort(null)}
+                                    onFlyTo={() => flyToPeer(pickedPeer.id)}
+                                />
+                            )}
+                        </>
+                    )}
                 />
                 </div>
                 {cardDevice && (
@@ -341,13 +379,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                         loading={cardLoading}
                         onClose={() => onSelectDevice(null)}
                         onSelectPeer={(peerId) => {
-                            const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
-                            if (hit) {
-                                setRoomPick(hit.locationName || UNASSIGNED);
-                                setFocusPick(hit.name);
-                                const found = hit.devices.find((d) => d.id === peerId);
-                                if (found) onSelectDevice(found);
-                            }
+                            setPickedPort(cardPorts.find((p) => p.connectedToDeviceId === peerId) ?? null);
+                            flyToPeer(peerId);
                         }}
                     />
                 )}
