@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
@@ -236,7 +236,7 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
     );
 }
 
-export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, }: RackSceneProps) {
+export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, gameCard }: RackSceneProps & { gameCard?: (d: RackDevice) => ReactNode }) {
     const composerRef = useRef<ComposerImpl>(null);
     const dark = useIsDark();
     const placed = useMemo(() => layoutRacks(racks), [racks]);
@@ -284,6 +284,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
                     selectedDeviceId={selectedDeviceId}
                     onFocus={() => onFocusRack(p.rack.name)}
                     onSelectDevice={(d) => { onFocusRack(p.rack.name); onSelectDevice(d); }}
+                    gameCard={gameCard}
                 />
             ))}
             <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} onTarget={setFocusPoint} />
