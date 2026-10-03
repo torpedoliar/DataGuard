@@ -8,9 +8,9 @@ import type { RackDevice, RoomSettings } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
 import { rackSummary, tourOrder, troubledCritical, type ColorBy } from "@/lib/rack-signals";
 import { DEFAULT_APPEARANCE, type RoomAppearance } from "@/lib/room-appearance";
+import DeviceDetailPanel from "@/components/admin/device-detail-panel";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
-import { DeviceCardPanel, type CardPort } from "./device-card-panel";
 import { DeviceFloatCard, type FloatPort } from "./device-float-card";
 import { getPortsByDevice } from "@/actions/network";
 import { layoutRacks } from "./layout";
@@ -35,12 +35,13 @@ interface RackView3DProps {
     selectedDeviceId: number | null;
     autoFocusDeviceId: number | null;
     onSelectDevice: (d: RackDevice | null) => void;
+    onSelectPeer: (deviceId: number) => boolean;
     onWebglUnavailable: () => void;
     canEditAppearance: boolean;
     siteName: string;
 }
 
-export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onWebglUnavailable, canEditAppearance, siteName }: RackView3DProps) {
+export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onSelectPeer, onWebglUnavailable, canEditAppearance, siteName }: RackView3DProps) {
     const rooms = useMemo(() => {
         const map = new Map<string, SceneRack[]>();
         for (const r of racks) {
@@ -67,9 +68,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const [saved, setSaved] = useState<Record<number, RoomAppearance>>({});
     const [touring, setTouring] = useState(false);
     const captureRef = useRef<(() => string) | null>(null);
-    // Ports for the docked card panel (network docs): fetched when the
-    // selection changes, stale responses discarded by id match.
-    const [cardPorts, setCardPorts] = useState<CardPort[]>([]);
+    // Ports for the in-scene float card: fetched when the selection changes.
+    const [cardPorts, setCardPorts] = useState<FloatPort[]>([]);
     const [cardLoading, setCardLoading] = useState(false);
 
     // Picking a location in the filter bar opens that room.
@@ -119,15 +119,6 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
             .catch(() => { if (alive) { setCardPorts([]); setCardLoading(false); } });
         return () => { alive = false; };
     }, [cardDeviceId]);
-    const flyToPeer = (peerId: number) => {
-        const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
-        if (hit) {
-            setRoomPick(hit.locationName || UNASSIGNED);
-            setFocusPick(hit.name);
-            const found = hit.devices.find((d) => d.id === peerId);
-            if (found) onSelectDevice(found);
-        }
-    };
     const order = useMemo(() => tourOrder(roomRacks), [roomRacks]);
     useEffect(() => {
         if (!touring || order.length === 0) return;
@@ -304,8 +295,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 )}
             </div>
 
-            <div className={`overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" onPointerDownCapture={stopTourOnInput} onWheelCapture={stopTourOnInput}>
-                <div className="absolute right-3 top-3 z-10 flex gap-2" data-keep-tour>
+            <div className={`relative overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" onPointerDownCapture={stopTourOnInput} onWheelCapture={stopTourOnInput}>
+                <div className="absolute right-3 top-3 z-30 flex gap-2" data-keep-tour>
                     <button onClick={touring ? () => setTouring(false) : startTour} aria-pressed={touring} title="Fly through every rack" className={overlayButton}>
                         {touring ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />} {touring ? "Stop tour" : "Tour"}
                     </button>
@@ -325,8 +316,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 {editingHere && locationId != null && (
                     <AppearancePanel locationId={locationId} value={appearance} onPreview={setPreview} onSaved={onSaved} onClose={closeEditor} />
                 )}
-                <div className="flex gap-3">
-                <div className="min-w-0 flex-1">
+                <div className="absolute inset-0">
                 <RackScene
                     racks={roomRacks}
                     floorPlanUrl={floorPlanUrl}
@@ -345,7 +335,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     floatCard={(dev) => (
                         <DeviceFloatCard
                             device={dev}
-                            ports={cardDevice?.id === dev.id ? (cardPorts as FloatPort[]) : []}
+                            ports={cardDevice?.id === dev.id ? cardPorts : []}
                             loading={cardDevice?.id === dev.id && cardLoading}
                             onClose={() => onSelectDevice(null)}
                             onPickPort={(p) => {
@@ -362,17 +352,13 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 />
                 </div>
                 {cardDevice && (
-                    <DeviceCardPanel
+                    <DeviceDetailPanel
+                        docked
                         device={cardDevice}
-                        ports={cardPorts}
-                        loading={cardLoading}
                         onClose={() => onSelectDevice(null)}
-                        onSelectPeer={(peerId) => {
-                            flyToPeer(peerId);
-                        }}
+                        onSelectPeer={onSelectPeer}
                     />
                 )}
-                </div>
                 {focusRack && (
                     <button
                         onClick={backToRoom}

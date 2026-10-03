@@ -7,10 +7,12 @@ import PhotoModal from "@/components/report/photo-modal";
 import DeviceNetworkSummary from "./device-network-summary";
 import { AuditSection, ConnectionsSection, IncidentsSection, SiemSection, useDeviceDrawer } from "./device-drawer-sections";
 
-export default function DeviceDetailPanel({ device, onClose, onSelectPeer }: {
+export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docked = false }: {
     device: RackDevice | null;
     onClose: () => void;
     onSelectPeer?: (deviceId: number) => boolean;
+    /** Inside the 3D box, not a page overlay. 2D keeps the overlay. */
+    docked?: boolean;
 }) {
     const [photo, setPhoto] = useState<string | null>(null);
     const drawer = useDeviceDrawer(device?.id ?? null);
@@ -30,12 +32,13 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer }: {
         ["PIC group", drawer.loading ? "…" : pic || "-"],
     ];
 
-    return (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
+    const aside = (
             <aside
                 role="dialog"
                 aria-label="Device details"
-                className="h-full w-full max-w-sm overflow-y-auto border-l border-ops-border bg-ops-surface p-6 shadow-xl"
+                className={docked
+                    ? "absolute inset-y-0 right-0 z-20 h-full w-full max-w-sm overflow-y-auto border-l border-ops-border bg-ops-surface p-6 shadow-xl"
+                    : "h-full w-full max-w-sm overflow-y-auto border-l border-ops-border bg-ops-surface p-6 shadow-xl"}
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between mb-4">
@@ -94,7 +97,16 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer }: {
                 <DeviceNetworkSummary key={device.id} device={device} />
                 {drawer.data && <ConnectionsSection drawer={drawer.data} onSelectPeer={onSelectPeer} />}
             </aside>
+    );
+
+    return (
+        <>
+            {docked ? aside : (
+                <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
+                    {aside}
+                </div>
+            )}
             {photo && <PhotoModal photoPath={photo} deviceName={device.name} onClose={() => setPhoto(null)} />}
-        </div>
+        </>
     );
 }
