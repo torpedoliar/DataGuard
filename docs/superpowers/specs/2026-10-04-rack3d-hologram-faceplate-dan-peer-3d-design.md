@@ -55,7 +55,8 @@ Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama d
   `router.refresh`) sehingga mengekstrak SVG-nya berarti menyentuh halaman 2D — di luar
   lingkup (lihat Non-goals).
 - Slot kosong tetap dirender (abu, dengan nomor slot, kotak putus-putus seperti faceplate 2D)
-  supaya slot kosong masih bisa dipakai memulai link.
+  supaya bentuk faceplate utuh dan slot kosong bukan area buta di kartu. Slot kosong tidak
+  punya aksi (lihat §2).
 - **Hologram tidak membuat port baru.** Provisioning port (`QuickAddPortModal` → `addPort`,
   butuh `getVlans()`) tetap di network docs; hologram hanya bisa *menghubungkan* port yang
   sudah ada (`PortLinkDialog` → `updatePort`, pilih dari `getPortsByDevice` device tujuan).
@@ -66,15 +67,16 @@ Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama d
   pesan ringkas "Faceplate not configured" + tombol ke network docs. Tidak ada grid generik
   (network docs adalah satu-satunya sumber kebenaran port).
 - **Bahasa:** teks baru di hologram memakai bahasa Inggris, mengikuti copy hologram yang
-  sudah ada ("Not linked", "No ports documented.", "Loading ports…", "Panel", "Full Docs").
-  Satu pengecualian yang disengaja: strip hover dan `aria-label` memakai `describeSlot()`
-  apa adanya, jadi tetap berbahasa Indonesia (teksnya dibagi dengan faceplate 2D — lihat §2).
-- **VLAN di dialog:** `getPortsByDevice` tidak mengembalikan `trunkVlans`; tambahkan
-  `trunkVlans: networkPorts.trunkVlans` ke `select` di `actions/network.ts:112`. Tanpa ini
-  `describeSlot` kehilangan info trunk untuk port sekamar (port peer dari
-  `RackDevicePort` tidak punya field itu sama sekali). Setelah ditambah, `FloatPort` menjadi
-  bentuk yang sama persis dengan `NetworkPortRow` (tipe parameter `describeSlot`), sehingga
-  `describeSlot(plate.slots[i])` bisa dipanggil tanpa cast.
+  sudah ada ("Not linked", "Loading ports…", "Panel", "Full Docs", "Faceplate not
+  configured", "empty"). Pengecualian yang disengaja: strip hover dan `aria-label` untuk slot
+  **terisi** memakai `describeSlot()` apa adanya, jadi tetap berbahasa Indonesia (teksnya
+  dibagi dengan faceplate 2D — lihat §2).
+- **Tidak ada perubahan action.** `getPortsByDevice` **sudah** memilih `trunkVlans`
+  (`actions/network.ts:123`), jadi `FloatPort` sudah punya semua field yang dibutuhkan
+  `describeSlot` dan **bentuknya sudah identik dengan `NetworkPortRow`** (tipe parameter
+  `describeSlot`) — tidak perlu cast, tidak perlu ubah `select`. (Catatan: `RackDevicePort`
+  dari `getRackLayout` memang tidak punya `trunkVlans`, tapi hologram memakai port dari
+  `getPortsByDevice`, bukan dari `device.ports`.)
 - Lebar kartu `w-72` → `w-80` supaya slot 48 port masih nyaman di-hover.
 - Port yang tidak bisa dipetakan ke slot (`plate.unplaced`) ditampilkan sebagai baris kecil
   di bawah faceplate dengan jumlahnya, bukan dijatuhkan diam-diam.
@@ -86,10 +88,17 @@ Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama d
 
 ### 2. Hover + klik slot
 
-- **Hover slot** → strip satu baris di bawah faceplate memakai `describeSlot(slot)` dari
-  `components/admin/device-faceplate.tsx` (fungsi yang sama dengan faceplate 2D, sehingga
-  teksnya konsisten dan tidak ada duplikasi format). `describeSlot` diimpor apa adanya;
-  tidak dipindah ke `lib/` di pekerjaan ini.
+- **Hover slot** → strip satu baris di bawah faceplate. Untuk slot **terisi** memakai
+  `describeSlot(slot)` dari `components/admin/device-faceplate.tsx` (fungsi yang sama dengan
+  faceplate 2D, sehingga teksnya konsisten dan tidak ada duplikasi format). `describeSlot`
+  diimpor apa adanya; tidak dipindah ke `lib/` di pekerjaan ini.
+- **Pengecualian slot kosong.** `describeSlot` mengakhiri cabang kosongnya dengan
+  "... klik untuk provisioning port" (`device-faceplate.tsx:50`) — kalimat yang benar di
+  faceplate 2D tapi **salah di hologram**, karena slot kosong di sini tidak punya aksi (§2).
+  Jadi strip untuk slot kosong memakai teks sendiri: `Slot N — empty` (atau
+  `Uplink slot N — empty`), dibangkitkan di hologram. `aria-label` slot kosong memakai teks
+  yang sama, bukan `describeSlot`, supaya pembaca layar tidak menjanjikan aksi yang tidak ada.
+  Slot terisi tetap memakai `describeSlot` apa adanya (termasuk bahasanya yang Indonesia).
 - **Klik slot terisi** → dua hal terjadi bersamaan:
   1. Panel informasi kecil muncul di dalam hologram: nama port, mode, VLAN/trunk, speed,
      media, deskripsi, dan peer (`→ Nama :Port`) + dua tombol: `[Edit link]` (membuka
@@ -151,24 +160,56 @@ sama / room lain / belum ter-rack diambil di `RackView3D`, karena di situlah `ra
 
 ### 4. Dua hologram, room sama
 
-- State baru `peerDeviceId: number | null` di `RackView3D`. Diisi **hanya** ketika peer
-  berada di room yang sedang tampil; peer di lokasi lain memakai `PeerRackCard` (§7) dan
-  tidak mengisi `peerDeviceId`.
-- Klik port dengan peer sekamar → `setPeerDeviceId(peerId)`. `selectedDeviceId` **tidak**
-  berubah, jadi `CameraRig` tidak dapat target baru dan kamera diam.
+- State baru di `RackView3D`:
+  - `peerDeviceId: number | null` — device peer yang sedang ditampilkan.
+  - `peerPickedRoom: string | null` — room saat peer itu dipilih.
+
+  Turunannya:
+  ```ts
+  const allDevices = racks.flatMap((r) => r.devices);
+  const peerDevice = peerDeviceId == null ? null : allDevices.find((d) => d.id === peerDeviceId) ?? null;
+  const peerRack = peerDevice == null ? null : racks.find((r) => r.devices.some((d) => d.id === peerDevice.id)) ?? null;
+  const peerRoomKey = peerRack == null ? null : (peerRack.locationName || UNASSIGNED);
+  const peerInRoom = peerRack != null && peerRoomKey === room;
+  const peerCardRack = peerRack != null && !peerInRoom ? peerRack : null;
+  ```
+  Tiga hasil: `peerInRoom` → hologram kedua; `peerCardRack` → `PeerRackCard` (§7);
+  `peerDevice == null` → tidak ada yang ditampilkan (peer tidak ter-rack, sudah di-route ke
+  network docs). `peerDeviceId` **diisi untuk peer room lain juga**, karena `PeerRackCard`
+  butuh device + rack-nya.
+- Klik port dengan peer → `setPeerDeviceId(peer.id); setPeerPickedRoom(room);`
+  `selectedDeviceId` **tidak** berubah, jadi `CameraRig` tidak dapat target baru dan kamera diam.
+- Reset saat room berubah: `if (peerDeviceId !== null && peerPickedRoom !== room) setPeerDeviceId(null);`
+  — kartu peer beda-lokasi hidup selama room tidak berubah. Tanpa `peerPickedRoom`, aturan
+  reset berbasis "peer bukan di room ini" akan langsung menghapus kartu beda-lokasi, jadi dua
+  state ini memang perlu dipisah.
 - Gate kartu di `rack-cabinet.tsx:180` diperluas dari `d.id === selectedDeviceId` menjadi
-  `d.id === selectedDeviceId || d.id === peerDeviceId`. `selected` (slide-out rail + glow)
+  `d.id === selectedDeviceId || d.id === peerDeviceId`. `RackView3D` sudah menyaring peer
+  room lain lebih dulu (`peerDeviceId={peerInRoom ? peerDeviceId : null}`), jadi `RackCabinet`
+  cukup menerima satu prop dan tidak perlu tahu soal room. `selected` (slide-out rail + glow)
   tetap hanya untuk device yang diklik; device peer tidak meluncur keluar.
+- **Reset saat pilihan utama hilang.** `peerDeviceId` tidak boleh hidup tanpa hologram utama,
+  karena stagger butuh device dasar. Tiga jalur menghapus pilihan dan **tidak** lewat
+  `onClose`: tombol Escape (`rack-view-3d.tsx:192`), `onPointerMissed` di dalam scene
+  (`rack-scene.tsx:266`), dan `pickRoom`/`backToRoom`. Jadi reset tidak boleh digantungkan
+  pada `onClose`; pakai guard render-time di `RackView3D`:
+  `if (selectedDeviceId === null && peerDeviceId !== null) setPeerDeviceId(null);`
+  (pola yang sama dengan guard room, lolos `react-hooks/set-state-in-effect`).
+- **Peer tidak boleh device yang sama.** Kalau data lama menyimpan link ke diri sendiri,
+  `peerDeviceId === selectedDeviceId` akan menumpuk dua hologram di satu device. Jangan
+  setel peer kalau `peer.id === selectedDeviceId`.
 - **Penting:** `RackScene` tidak merender rack di luar baris yang difokus (atau di luar
   `peerRacks`) — lihat `rack-scene.tsx:274`. `buildCables(placed, selectedDeviceId)` hanya
   menghitung peer dari link device terpilih, jadi rack peer sekamar bisa ter-skip ketika ada
   rack yang difokus dan peer berada di rack lain. Perbaikan: `buildCables` menerima daftar
   id yang dicari, bukan satu id — `buildCables(placed, [selectedDeviceId, peerDeviceId])` —
   sehingga baris rack yang memuat device peer ikut dirender.
-- `RackScene` meneruskan prop `peerDeviceId` ke `RackCabinet`.
+- `RackScene` menerima prop baru `peerDeviceId?: number | null` dan meneruskannya ke
+  `RackCabinet`, serta memakainya untuk pencarian `buildCables` (di bawah).
 - Port peer diambil dengan `getPortsByDevice(peerDeviceId)` (action yang sudah ada), state
   `peerPorts` / `peerLoading` sejajar dengan `cardPorts` / `cardLoading`.
-- Hologram peer memakai komponen `DeviceHologram` yang sama; yang berbeda hanya prop.
+- Hologram peer memakai komponen `DeviceHologram` yang sama; yang berbeda hanya prop
+  (`onPickPort` tidak diberikan ⇒ anti-loop; `offsetY` dari stagger).
   Tombol **Panel** di hologram peer memanggil `setPanelFor(peerDeviceId)` — `selectedDeviceId`
   tidak berubah, jadi kamera tetap diam (lihat §6).
 - Anti-loop: hanya hologram utama yang memandu perpindahan. Slot terisi di hologram peer
@@ -204,23 +245,25 @@ utama, `peer` ke hologram peer). `DeviceHologram` menerima prop baru
 `offsetY?: number` (default `0`) dan menerapkannya pada elemen terluarnya; `RackView3D`
 menghitung `hologramStagger(...)` sekali dengan `useMemo` dari device terpilih + device peer.
 
-- **Rack dan lokasi sama** (`locationName === locationName` **dan** `rackName === rackName`
-  **dan** `rackName != null`) **dan** `|base.u - peer.u| < 4` (selisih di bawah 4U) →
-  **yang U-nya lebih kecil digeser turun `+9rem`, yang lebih besar digeser naik `-9rem`**
-  (deterministik, tidak pernah bertukar posisi saat kamera diorbit).
-- Selain itu → `{ base: 0, peer: 0 }`.
+- **Gerbang pertama:** lokasi dan rack harus sama. Jika
+  `base.locationName !== peer.locationName` **atau** `base.rackName !== peer.rackName`
+  **atau** `base.rackName == null` **atau** `peer.rackName == null` → `{ base: 0, peer: 0 }`.
+  Dua kartu yang tidak mungkin berdekatan di layar tidak perlu digeser.
+- Hanya kalau gerbang itu lolos, urutan aturan berikut menentukan hasil (jangan dibalik):
 
-Urutan aturan menentukan hasil (jangan dibalik):
+  1. `base.u == null` dan `peer.u == null` → `{ base: -9, peer: +9 }`.
+  2. Hanya `base.u == null` → `{ base: -9, peer: +9 }` (yang tanpa U dianggap lebih tinggi).
+  3. Hanya `peer.u == null` → `{ base: +9, peer: -9 }` (kebalikannya).
+  4. Keduanya ada angka dan `|base.u - peer.u| >= 4` → `{ base: 0, peer: 0 }`.
+  5. Keduanya ada angka dan `|base.u - peer.u| < 4`:
+     - `base.u < peer.u` → `{ base: +9, peer: -9 }`
+     - `base.u > peer.u` → `{ base: -9, peer: +9 }`
+     - `base.u === peer.u` → `{ base: -9, peer: +9 }` (kasus U sama masuk ke cabang ini; tidak
+       ada aturan "U sama" terpisah)
 
-1. `base.u == null` dan `peer.u == null` → `{ base: -9, peer: +9 }`.
-2. Hanya `base.u == null` → `{ base: -9, peer: +9 }` (yang tanpa U dianggap lebih tinggi).
-3. Hanya `peer.u == null` → `{ base: +9, peer: -9 }` (kebalikannya).
-4. Keduanya ada angka dan `|base.u - peer.u| >= 4` → `{ base: 0, peer: 0 }`.
-5. Keduanya ada angka dan `|base.u - peer.u| < 4`:
-   - `base.u < peer.u` → `{ base: +9, peer: -9 }`
-   - `base.u > peer.u` → `{ base: -9, peer: +9 }`
-   - `base.u === peer.u` → `{ base: -9, peer: +9 }` (kasus U sama masuk ke cabang ini; tidak
-     ada aturan "U sama" terpisah)
+Catatan implementasi: aturan 1-3 hanya relevan setelah gerbang lokasi/rack lolos, jadi cabang
+`u == null` tidak perlu diulang di dalamnya. `base` = hologram device yang diklik, `peer` =
+hologram device ujung.
 
 Slot U yang dipakai adalah `device.rackPosition` (1-based, sama dengan `uToY(device.rackPosition ?? 1)`
 di `rack-device.tsx:252`); `0` dan nilai negatif diperlakukan sebagai tidak diketahui
@@ -229,8 +272,10 @@ di `rack-device.tsx:252`); `0` dan nilai negatif diperlakukan sebagai tidak dike
 Offset diterapkan sebagai `translateY` CSS pada elemen dalam `<Html>`, **bukan** posisi
 world-space: hasilnya deterministik dalam piksel dan tidak berubah saat kamera diorbit.
 
-`// ponytail: 9rem cukup untuk kartu setinggi ~260px pada U berdekatan; kalau kartu
-// // memanjang, ganti dengan pengukuran tinggi kartu.`
+```ts
+// ponytail: 9rem cukup untuk kartu setinggi ~260px pada U berdekatan; kalau kartu
+// memanjang, ganti dengan pengukuran tinggi kartu.
+```
 
 ### 6. Panel dock: kunci ke device, bukan ke boolean
 
@@ -246,6 +291,25 @@ yang sekarang ada di `rack-view-3d.tsx:114`, dan membuat tombol Panel dari holog
 bekerja: `setPanelFor(peerDeviceId)` — `selectedDeviceId` sengaja **tidak** diubah supaya
 kamera tetap di tempat. `panelDevice` dicari dari daftar device semua rack (`racks`
 di-flatten), bukan hanya rack yang difokus.
+
+Guard lama punya satu tugas yang masih dibutuhkan: memilih device **lain** harus menutup
+panel device sebelumnya, supaya panel mengikuti pilihan terbaru. Karena `panelFor` sekarang
+boleh berbeda dari `selectedDeviceId` (itulah cara panel peer bekerja), guard tidak bisa lagi
+membandingkan keduanya. Gantinya, ingat device yang terakhir dipilih:
+
+```ts
+const [panelFor, setPanelFor] = useState<number | null>(null);
+const [appliedPanelSel, setAppliedPanelSel] = useState<number | null>(null);
+if (selectedDeviceId !== appliedPanelSel) {
+    setAppliedPanelSel(selectedDeviceId);
+    if (panelFor !== null && panelFor !== selectedDeviceId) setPanelFor(null);
+}
+const setPanelOpenState = (open: boolean) => setPanelFor(open ? selectedDeviceId : null);
+const panelOpen = panelFor !== null;
+```
+
+Pola "ingat nilai sebelumnya" ini sama dengan `appliedSelected` / `appliedAuto` yang sudah
+ada di `rack-view-3d.tsx:91-110`.
 
 Semua yang sudah bergantung pada `panelOpen` (offset topnav, `shift` AppearancePanel, chip
 kritis) tetap memakai `panelOpen` — tidak ada perubahan perilaku.
@@ -294,13 +358,13 @@ Isi `peer-rack-card.tsx`:
 |---|---|
 | Faceplate hologram | `buildFaceplate()` (`lib/faceplate.ts`), warna `faceplateSlotColors()` |
 | Teks hover slot | `describeSlot()` (`components/admin/device-faceplate.tsx`) |
-| Port + VLAN + peer + status device | `getPortsByDevice(deviceId)` (sudah ada; `trunkVlans` ditambahkan ke `select`) |
+| Port + VLAN + peer + status device | `getPortsByDevice(deviceId)` (sudah ada dan sudah memilih `trunkVlans`; tidak diubah) |
 | Daftar device tujuan dialog link | `deviceOptions` (sudah ada, dari `getDevices()`) |
 | Kartu 3D rack peer | `racks` (sudah di client) |
 | Riwayat audit + SIEM | `useDeviceDrawer()` (sudah ada) |
 
-Tidak ada migrasi, tidak ada dependency baru, tidak ada perubahan semantik action —
-satu field ditambahkan ke `select` `getPortsByDevice`.
+Tidak ada migrasi, tidak ada dependency baru, tidak ada perubahan action sama sekali —
+`actions/network.ts` tidak disentuh.
 
 ### 9. Error handling
 
@@ -309,19 +373,19 @@ satu field ditambahkan ke `select` `getPortsByDevice`.
 - Device peer **tetap ada** tetapi ter-mute oleh filter (`device.isMuted`, opacity 0,12) →
   belum ditangani; hologram peer tetap muncul. Catat sebagai batasan yang diketahui, bukan
   bug yang diperbaiki di pekerjaan ini.
-- `getPortsByDevice(peer)` gagal / kosong → hologram peer menampilkan pesan "No ports
-  documented. Provision in Full Docs." dan tetap bisa ditutup. Port peer yang hilang dari
-  daftar tidak bisa diklik (tidak ada slot yang memetakan ke id-nya).
-- Device **tanpa port sama sekali** → pesan "No ports documented. Provision in Full Docs."
-  menggantikan faceplate; tombol Full Docs tetap ada. Tidak ada jalur link/provisioning dari
-  hologram (§2, §1).
+- `getPortsByDevice(peer)` gagal / kosong → sama seperti device biasa: faceplate tetap
+  dirender dengan semua slot kosong (tidak ada pesan khusus), dan hologram tetap bisa ditutup.
+- Device dengan faceplate terkonfigurasi tetapi **belum punya satu port pun** → faceplate
+  kosong dirender (semua slot putus-putus), footer `0/0 Linked`. **Tidak** ada pesan
+  "No ports documented" — §1 menetapkan slot kosong selalu dirender, jadi kabar "belum ada
+  port" disampaikan oleh faceplate kosong itu sendiri, bukan oleh pesan yang menggantikannya.
 - Device tanpa faceplate → pesan + tombol ke network docs (§1).
 - Peer belum ter-rack → fallback route ke network docs peer (§3).
-- Ganti room (`roomPick` berubah) atau pindah rack fokus → `peerDeviceId` di-reset, karena
-  device peer mungkin bukan lagi bagian dari room yang tampil. Reset ditulis sebagai guard
-  render-time mengikuti pola yang sudah dipakai repo di `rack-view-3d.tsx:114`
-  (`if (peerDeviceId !== null && peerNotInRoom) setPeerDeviceId(null);`), bukan `useEffect`
-  — pola ini yang lolos aturan lint `react-hooks/set-state-in-effect` di repo ini.
+- Ganti room (`roomPick` berubah) → `peerDeviceId` di-reset, karena kartu/hologram peer hanya
+  masuk akal di room yang sedang tampil (§4). Reset ditulis sebagai guard render-time
+  mengikuti pola yang sudah dipakai repo di `rack-view-3d.tsx:114`
+  (`if (peerDeviceId !== null && peerPickedRoom !== room) setPeerDeviceId(null);`), bukan
+  `useEffect` — pola ini yang lolos aturan lint `react-hooks/set-state-in-effect` di repo ini.
 - Kartu 3D rack peer gagal membuat WebGL context → komponen tidak dirender; sisanya
   (hologram, info, link) tetap jalan. Tombol **Pindah ke lokasi** tetap tersedia karena
   header/tombol adalah DOM di luar Canvas.
@@ -330,7 +394,7 @@ satu field ditambahkan ke `select` `getPortsByDevice`.
 
 | File | Perubahan |
 |---|---|
-| `actions/network.ts` | Tambah `trunkVlans` ke `select` `getPortsByDevice` |
+| `actions/network.ts` | **Tidak berubah** — `trunkVlans` sudah ada di `select` `getPortsByDevice` |
 | `components/rack3d/device-hologram.tsx` | Faceplate SVG menggantikan `<ul>` port; strip hover; panel info slot; `onPickPort` opsional; seam `hoveredSlotKey`/`selectedSlotKey`; `offsetY`; prop `device` diperluas dengan field faceplate |
 | `components/rack3d/device-hologram.test.tsx` | Disesuaikan: faceplate, hover strip, panel info, dialog link, `offsetY`, tanpa faceplate |
 | `components/rack3d/hologram-offset.ts` | **Baru** — `hologramStagger` murni |
@@ -347,18 +411,23 @@ satu field ditambahkan ke `select` `getPortsByDevice`.
 ### 11. Testing
 
 - `hologram-offset.test.ts`: rack sama + 1U → base `+9`, peer `-9`; rack sama + 10U → `0/0`;
-  rack beda → `0/0`; `locationName` beda → `0/0`; `rackName` null → `0/0`; `base.u > peer.u`
-  → `base -9, peer +9`; `u` sama → `{ base: -9, peer: +9 }`; `base.u === null` dan
-  `peer.u === null` → `{ -9, +9 }`; hanya `peer.u === null` → `{ +9, -9 }`; `u: 0` → `0/0`.
+  rack beda → `0/0`; `locationName` beda → `0/0`; `rackName` null (salah satu) → `0/0`;
+  `base.u > peer.u` → `base -9, peer +9`; `u` sama → `{ base: -9, peer: +9 }`;
+  `base.u === null` dan `peer.u === null` (rack sama) → `{ -9, +9 }`; hanya `peer.u === null`
+  (rack sama) → `{ +9, -9 }`; hanya `base.u === null` → `{ -9, +9 }`; `u: 0` → diperlakukan
+  `null` (rack sama, peer punya U) → `{ -9, +9 }`, bukan crash.
 - `cable-route.test.ts`: `buildCables(placed, [sel, peer])` memasukkan rack peer ke
   `peerRacks` dan menggambar kabel untuk kedua device; `buildCables(placed, [sel, null])`
   tidak berubah dari perilaku sekarang.
 - `device-hologram.test.tsx`: faceplate merender rect sejumlah `portCount + uplinkCount`;
   `hoveredSlotKey` pada slot terisi → strip memuat VLAN dan nama device peer;
-  `selectedSlotKey` pada slot terisi → panel info memuat `Edit link`; `selectedSlotKey` pada
-  slot kosong → tidak ada panel info; slot terisi tanpa peer → panel info memuat `Edit link`
-  tetapi tidak memicu aksi peer; device tanpa faceplate → "Faceplate not configured"
-  + link network docs; `offsetY` diterapkan sebagai `translateY` pada elemen terluar.
+  `hoveredSlotKey` pada slot kosong → strip **tidak** memuat "provisioning" (teks
+  "empty", §2); `selectedSlotKey` pada slot terisi → panel info memuat `Edit link`;
+  `selectedSlotKey` pada slot kosong → tidak ada panel info; slot terisi tanpa peer → panel
+  info memuat `Edit link` tetapi tidak memicu aksi peer; device tanpa faceplate →
+  "Faceplate not configured" + link network docs; `offsetY` diterapkan sebagai `translateY`
+  pada elemen terluar; `ports={[]}` tanpa loading → "No ports documented. Provision in Full
+  Docs."
 - Test `onPickPort` opsional: karena pemanggilan klik tidak bisa disimulasikan di lingkungan
   node, bagian ini **tidak** diuji lewat event. Yang diuji adalah aksi peer tetap tersedia
   lewat tombol `Edit link` (yang memang memanggil `onPickPort`), dan difokuskan pada
