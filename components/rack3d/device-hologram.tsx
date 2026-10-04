@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { ExternalLink, Link2, PanelRightOpen, X } from "lucide-react";
 import { getPortsByDevice, updatePort } from "@/actions/network";
 import type { RackDevice } from "@/actions/rack-layout";
@@ -67,6 +67,10 @@ const slotLabel = (slot: HologramSlot) => (slot.port ? describeSlot(slot) : empt
 // wiring, clicking an occupied one opens its detail panel, and the peer action
 // is left to the caller through the optional `onPickPort`.
 export function DeviceHologram({ device, ports, loading, deviceOptions, onClose, onPickPort, onLinked, onOpenPanel, offsetY = 0, hoveredSlotKey, selectedSlotKey }: DeviceHologramProps) {
+    // The card floats in screen space over the scene, so a click on its padding
+    // would otherwise fall through to the device mesh behind it and select a
+    // different device. Holding the event here keeps it on the card.
+    const holdClick = (e: ReactPointerEvent<HTMLDivElement>) => e.stopPropagation();
     const linked = ports.filter((p) => p.connectedToDeviceId != null).length;
     const { data: drawer } = useDeviceDrawer(device.id);
     const [linkTarget, setLinkTarget] = useState<FloatPort | null>(null);
@@ -103,6 +107,7 @@ export function DeviceHologram({ device, ports, loading, deviceOptions, onClose,
         <div
             className="w-80 rounded-xl border border-ops-accent/40 bg-ops-surface/95 shadow-[0_0_24px_-4px_var(--ops-accent)] backdrop-blur"
             style={offsetY ? { transform: `translateY(${offsetY}rem)` } : undefined}
+            onPointerDown={holdClick}
         >
             <div className="flex items-start justify-between gap-2 border-b border-ops-border px-3 py-2">
                 <div className="min-w-0">
@@ -141,7 +146,7 @@ export function DeviceHologram({ device, ports, loading, deviceOptions, onClose,
                     SIEM:{" "}
                     {drawer ? (
                         drawer.siem.count > 0
-                            ? <span className="font-semibold text-ops-warning">{drawer.siem.count} open</span>
+                            ? <Link href="/admin/siem/findings" className="font-semibold text-ops-warning hover:underline">{drawer.siem.count} open</Link>
                             : "clear"
                     ) : "…"}
                 </p>

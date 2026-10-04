@@ -7,8 +7,11 @@ vi.mock("next/link", () => ({
     default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 // The hologram reads audit/SIEM summary through the shared drawer hook.
+// Drawer data is per test: the default has nothing to link, one test supplies
+// an open SIEM finding so the summary line has a real target.
+const drawerState: { data: unknown } = { data: null };
 vi.mock("@/components/admin/device-drawer-sections", () => ({
-    useDeviceDrawer: () => ({ loading: false, data: null }),
+    useDeviceDrawer: () => ({ loading: false, data: drawerState.data }),
 }));
 
 import { DeviceHologram } from "./device-hologram";
@@ -69,6 +72,17 @@ describe("DeviceHologram faceplate", () => {
         const html = renderToStaticMarkup(<DeviceHologram device={device} {...baseProps} hoveredSlotKey="access-3" />);
         expect(html).toContain("empty");
         expect(html).not.toContain("provisioning");
+    });
+
+    it("links the SIEM summary to the findings page instead of leaving it as text", () => {
+        drawerState.data = { lastAudit: null, siem: { count: 1, latest: [{ id: 4 }] }, incidents: [{ id: 9 }] };
+        try {
+            const html = renderToStaticMarkup(<DeviceHologram device={device} {...baseProps} />);
+            expect(html).toContain('href="/admin/siem/findings"');
+            expect(html).toContain(">1 open<");
+        } finally {
+            drawerState.data = null;
+        }
     });
 
     it("opens a detail panel with the link entry point for an occupied slot", () => {
