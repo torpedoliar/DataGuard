@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   updateCalls: [] as { table: unknown; set: unknown; where: unknown }[],
   insertCalls: [] as unknown[],
   deleteCalls: [] as { table: unknown; where: unknown }[],
+  transactionCalls: 0,
 }));
 
 vi.mock("../lib/action-auth", () => ({
@@ -81,6 +82,36 @@ vi.mock("../db", () => ({
       };
       return chain;
     },
+    // updatePort wraps its link bookkeeping in db.transaction; the tx handle
+    // exposes the same recorder so call order is still asserted.
+    transaction: (fn: (tx: unknown) => unknown) => {
+      mocks.transactionCalls += 1;
+      const tx = {
+        insert: (table: unknown) => {
+          mocks.insertCalls.push(table);
+          const chain: Record<string, (...args: unknown[]) => unknown> = {};
+          chain.values = () => chain;
+          chain.returning = () => chain;
+          chain.then = (...args: unknown[]) => {
+            const [onFulfilled, onRejected] = args;
+            return Promise.resolve(mocks.insertResult()).then(
+              onFulfilled as (value: unknown) => unknown,
+              onRejected as ((reason: unknown) => unknown) | undefined,
+            );
+          };
+          return chain;
+        },
+        update: (table: unknown) => {
+          const entry = { table, set: undefined as unknown, where: undefined as unknown };
+          mocks.updateCalls.push(entry);
+          const chain: Record<string, (...args: unknown[]) => unknown> = {};
+          chain.set = (setValue: unknown) => { entry.set = setValue; return chain; };
+          chain.where = (whereValue: unknown) => { entry.where = whereValue; return Promise.resolve(); };
+          return chain;
+        },
+      };
+      return fn(tx);
+    },
   },
 }));
 
@@ -113,6 +144,7 @@ beforeEach(() => {
   mocks.updateCalls.length = 0;
   mocks.insertCalls.length = 0;
   mocks.deleteCalls.length = 0;
+  mocks.transactionCalls = 0;
   mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
   mocks.selectResult.mockResolvedValue([]);
   mocks.insertResult.mockResolvedValue([]);
@@ -175,6 +207,9 @@ describe("updatePort bidirectional link integrity (#34)", () => {
 
     expect(mocks.updateCalls[3].set).toEqual({ connectedToDeviceId: 5, connectedToPortId: 1 });
     expect(queryOf(mocks.updateCalls[3].where).params).toEqual([11]); // back-link new peer
+
+    // Every link mutation runs inside one transaction — no half-applied link.
+    expect(mocks.transactionCalls).toBe(1);
   });
 
   it("rejects a port linking to itself", async () => {
@@ -220,6 +255,9 @@ describe("addPort bidirectional auto-link (#34)", () => {
 
     expect(link.set).toEqual({ connectedToDeviceId: 5, connectedToPortId: 77 });
     expect(queryOf(link.where).params).toEqual([9]);
+
+    // Insert + auto-link run in one transaction.
+    expect(mocks.transactionCalls).toBe(1);
   });
 
   it("does not auto-link when connectedToPortId is absent", async () => {

@@ -157,26 +157,30 @@ export async function addPort(data: typeof networkPorts.$inferInsert) {
     assertFaceplateSlotInRange(data.portIndex, device);
 
     try {
-        const [inserted] = await db.insert(networkPorts).values(data).returning({ id: networkPorts.id });
+        // Insert + auto-link run in one transaction, so a failure never leaves
+        // the target's old back-link released with no replacement written.
+        await db.transaction(async (tx) => {
+            const [inserted] = await tx.insert(networkPorts).values(data).returning({ id: networkPorts.id });
 
-        // Attempt bidirectional connection if connectedToPortId is provided
-        if (data.connectedToPortId && inserted) {
-            // Release the target port's previous back-link so the old peer does
-            // not keep a stale one-directional pointer to it. Never release the
-            // just-inserted port's own forward link.
-            await db.update(networkPorts)
-                .set({ connectedToDeviceId: null, connectedToPortId: null })
-                .where(and(
-                    eq(networkPorts.connectedToPortId, data.connectedToPortId),
-                    ne(networkPorts.id, inserted.id),
-                ));
-            await db.update(networkPorts)
-                .set({
-                    connectedToDeviceId: data.deviceId,
-                    connectedToPortId: inserted.id
-                })
-                .where(eq(networkPorts.id, data.connectedToPortId));
-        }
+            // Attempt bidirectional connection if connectedToPortId is provided
+            if (data.connectedToPortId && inserted) {
+                // Release the target port's previous back-link so the old peer
+                // does not keep a stale one-directional pointer to it. Never
+                // release the just-inserted port's own forward link.
+                await tx.update(networkPorts)
+                    .set({ connectedToDeviceId: null, connectedToPortId: null })
+                    .where(and(
+                        eq(networkPorts.connectedToPortId, data.connectedToPortId),
+                        ne(networkPorts.id, inserted.id),
+                    ));
+                await tx.update(networkPorts)
+                    .set({
+                        connectedToDeviceId: data.deviceId,
+                        connectedToPortId: inserted.id
+                    })
+                    .where(eq(networkPorts.id, data.connectedToPortId));
+            }
+        });
         await logAudit({ action: "CREATE", entity: "network_port", entityName: data.portName, detail: `DeviceID: ${data.deviceId}, Mode: ${data.portMode || '-'}` });
     } catch (error) {
         throw new Error("Gagal menyimpan port jaringan baru. Pastikan koneksi server stabil.");
@@ -462,31 +466,35 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
     assertFaceplateSlotInRange(data.portIndex, currentPort[0]);
 
     try {
-        await db.update(networkPorts).set(data).where(eq(networkPorts.id, id));
+        // Link bookkeeping runs in one transaction: a failure halfway must not
+        // leave the old link released while the new one was never written.
+        await db.transaction(async (tx) => {
+            await tx.update(networkPorts).set(data).where(eq(networkPorts.id, id));
 
-        // Handle Bidirectional cable disconnects/reconnects. The connection only
-        // changes when the caller explicitly sends connectedToPortId (null =
-        // clear, id = relink); an omitted field keeps the stored link so that
-        // editing unrelated fields never destroys the remote back-pointer.
-        const oldConn = currentPort[0].connectedToPortId;
-        const newConn = data.connectedToPortId === undefined ? oldConn : data.connectedToPortId;
+            // Handle Bidirectional cable disconnects/reconnects. The connection
+            // only changes when the caller explicitly sends connectedToPortId
+            // (null = clear, id = relink); an omitted field keeps the stored link
+            // so that editing unrelated fields never destroys the remote pointer.
+            const oldConn = currentPort[0].connectedToPortId;
+            const newConn = data.connectedToPortId === undefined ? oldConn : data.connectedToPortId;
 
-        if (oldConn !== newConn) {
-            // Unlink the old peer first so it never keeps a stale one-directional
-            // pointer to this port.
-            if (oldConn) {
-                await db.update(networkPorts).set({ connectedToDeviceId: null, connectedToPortId: null }).where(eq(networkPorts.id, oldConn));
+            if (oldConn !== newConn) {
+                // Unlink the old peer first so it never keeps a stale
+                // one-directional pointer to this port.
+                if (oldConn) {
+                    await tx.update(networkPorts).set({ connectedToDeviceId: null, connectedToPortId: null }).where(eq(networkPorts.id, oldConn));
+                }
+                // Replace: before taking over the new target, release any port
+                // still pointing at it (the pair it formed is broken on both
+                // sides), then write the back-pointer from it to this port.
+                if (newConn && data.deviceId) {
+                    await tx.update(networkPorts)
+                        .set({ connectedToDeviceId: null, connectedToPortId: null })
+                        .where(and(eq(networkPorts.connectedToPortId, newConn), ne(networkPorts.id, id)));
+                    await tx.update(networkPorts).set({ connectedToDeviceId: data.deviceId, connectedToPortId: id }).where(eq(networkPorts.id, newConn));
+                }
             }
-            // Replace: before taking over the new target, clear its old forward
-            // link so that port's previous peer is unlinked too. Then write the
-            // back-pointer from the new target to this port.
-            if (newConn && data.deviceId) {
-                await db.update(networkPorts)
-                    .set({ connectedToDeviceId: null, connectedToPortId: null })
-                    .where(and(eq(networkPorts.connectedToPortId, newConn), ne(networkPorts.id, id)));
-                await db.update(networkPorts).set({ connectedToDeviceId: data.deviceId, connectedToPortId: id }).where(eq(networkPorts.id, newConn));
-            }
-        }
+        });
         await logAudit({ action: "UPDATE", entity: "network_port", entityId: id, entityName: data.portName, detail: `DeviceID: ${data.deviceId || '-'}` });
     } catch (error) {
         throw new Error("Gagal memperbarui konfigurasi port jaringan. Silakan ulangi.");

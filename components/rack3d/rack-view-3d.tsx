@@ -357,26 +357,30 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                             deviceOptions={deviceOptions}
                             onClose={() => onSelectDevice(null)}
                             onPickPort={(p) => {
+                                if (p.connectedToDeviceId == null) return;
                                 const hit = racks.find((r) => r.devices.some((d) => d.id === p.connectedToDeviceId));
                                 if (hit) {
                                     setRoomPick(hit.locationName || UNASSIGNED);
                                     setFocusPick(hit.name);
                                     const found = hit.devices.find((d) => d.id === p.connectedToDeviceId);
                                     if (found) onSelectDevice(found);
+                                } else {
+                                    // Peer is not racked here: open its network docs.
+                                    router.push(`/admin/devices/${p.connectedToDeviceId}/network`);
                                 }
                             }}
                             onLinked={(targetDeviceId) => {
-                                // After the link is saved both ends point at each
-                                // other, so surface the target device already filled.
+                                // Both ends now point at each other, so surface the
+                                // target device already filled. If it is not racked
+                                // here, its network docs still show the new link.
                                 const hit = racks.find((r) => r.devices.some((d) => d.id === targetDeviceId));
-                                const found = racks.flatMap((r) => r.devices).find((d) => d.id === targetDeviceId);
+                                const found = hit?.devices.find((d) => d.id === targetDeviceId);
                                 if (hit && found) {
                                     setRoomPick(hit.locationName || UNASSIGNED);
                                     setFocusPick(hit.name);
-                                }
-                                if (found) onSelectDevice(found);
-                                if (cardDeviceId != null) {
-                                    getPortsByDevice(cardDeviceId).then(setCardPorts).catch(() => { /* keep the old list */ });
+                                    onSelectDevice(found);
+                                } else {
+                                    router.push(`/admin/devices/${targetDeviceId}/network`);
                                 }
                             }}
                             onOpenPanel={() => setPanelOpenState(true)}
@@ -419,7 +423,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 {troubled.length > 0 && !alertOpen && (
                     <button
                         onClick={() => setAlertOpen(true)}
-                        className={`absolute bottom-3 z-10 flex items-center gap-1.5 rounded-lg bg-ops-danger px-3 py-1.5 text-sm font-semibold text-white shadow hover:opacity-90 ${cardDevice ? "right-[calc(24rem+0.75rem)]" : "right-3"}`}
+                        className={`absolute bottom-3 z-10 flex items-center gap-1.5 rounded-lg bg-ops-danger px-3 py-1.5 text-sm font-semibold text-white shadow hover:opacity-90 ${panelOpen ? "right-[calc(24rem+0.75rem)]" : "right-3"}`}
                     >
                         <TriangleAlert className="h-4 w-4" /> {troubled.length} critical
                     </button>

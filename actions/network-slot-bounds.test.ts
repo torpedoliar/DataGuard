@@ -69,6 +69,32 @@ vi.mock("../db", () => ({
       };
       return chain;
     },
+    // addPort runs its insert + auto-link inside db.transaction; the tx handle
+    // reuses the same recorders so call assertions stay valid.
+    transaction: (fn: (tx: unknown) => unknown) => fn({
+      insert: (table: unknown) => {
+        mocks.insertCalls.push(table);
+        const chain: Record<string, (...args: unknown[]) => unknown> = {};
+        chain.values = () => chain;
+        chain.returning = () => chain;
+        chain.then = (...args: unknown[]) => {
+          const [onFulfilled, onRejected] = args;
+          return Promise.resolve(mocks.insertResult()).then(
+            onFulfilled as (value: unknown) => unknown,
+            onRejected as ((reason: unknown) => unknown) | undefined,
+          );
+        };
+        return chain;
+      },
+      update: (table: unknown) => {
+        const entry = { table, set: undefined as unknown, where: undefined as unknown };
+        mocks.updateCalls.push(entry);
+        const chain: Record<string, (...args: unknown[]) => unknown> = {};
+        chain.set = (setValue: unknown) => { entry.set = setValue; return chain; };
+        chain.where = (whereValue: unknown) => { entry.where = whereValue; return Promise.resolve(); };
+        return chain;
+      },
+    }),
   },
 }));
 
