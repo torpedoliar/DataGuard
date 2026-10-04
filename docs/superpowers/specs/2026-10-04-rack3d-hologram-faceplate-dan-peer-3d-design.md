@@ -35,9 +35,25 @@
 Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama dengan faceplate
 2D dan export PDF. Tidak ada geometri baru, tidak ada perubahan DB/action.
 
-- Hologram merender `<svg viewBox={`0 0 ${plate.width} ${plate.height}`}>` dengan satu `<rect>`
-  per slot dari `plate.slots`, warna dari `faceplateSlotColors(slot.port)` (hijau Active,
-  merah Down, abu kosong, aksen mode Trunk/Routed/LACP) — persis palet faceplate 2D.
+- Hologram merender `<svg viewBox={`0 0 ${plate.width} ${plate.height}`}>` dengan satu `<g>`
+  per slot dari `plate.slots`, **memakai ulang resep render faceplate 2D**
+  (`components/admin/device-faceplate.tsx:207-296`) supaya hasilnya identik:
+  - `<title>{describeSlot(slot)}</title>`
+  - `<rect rx={1.5}>` fill `faceplateSlotColors(slot.port).fill`, stroke `colors.stroke`
+    (jadi `#f8fafc` + `strokeWidth` 1.4 saat hover), `strokeDasharray`
+    `slot.port ? undefined : "2 1.5"` (slot kosong putus-putus)
+  - slot uplink: bar horizontal (`x+3`, `y+h/2-1.5`, `w-6`, tinggi 3, rx 0.6, `#000` opacity .35);
+    slot tembaga: notch (`x+w/2-3`, `y+h-4.5`, 6, 3, rx 0.5, `#000` opacity .3)
+  - `colors.accent` → bar kiri (`x`, `y`, lebar 2, tinggi `h`, rx 1) untuk mode Trunk/Routed/LACP
+  - **indikator terhubung** yang sudah dipakai 2D: `<circle cx={x+w-2.6} cy={y+2.6} r={1.3} fill="#f8fafc" opacity={0.85} />`
+    saat `slot.port?.connectedToPortId` — inilah yang membuat port terhubung terlihat tanpa hover
+  - nomor slot `<text>` tengah, `fontSize 7`, monospace, `fontWeight 600`, fill `colors.label`,
+    `pointerEvents="none"`
+  - label blok dari `plate.blocks` (`fontSize 6`, `#94a3b8`, monospace) + chassis `rect` rx 3
+- Resep ini **disalin**, bukan diekstrak jadi komponen bersama: faceplate 2D terikat pada
+  modalnya sendiri (`edit-port-modal`, `quick-add-port-modal`, `updatePortSlot`,
+  `router.refresh`) sehingga mengekstrak SVG-nya berarti menyentuh halaman 2D — di luar
+  lingkup (lihat Non-goals).
 - Slot kosong tetap dirender (abu, dengan nomor slot, kotak putus-putus seperti faceplate 2D)
   supaya slot kosong masih bisa dipakai memulai link.
 - **Hologram tidak membuat port baru.** Provisioning port (`QuickAddPortModal` → `addPort`,
@@ -83,9 +99,9 @@ Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama d
   **belum punya port sama sekali**, dialog tetap terbuka tetapi daftar port `Not linked`
   kosong; pesan "No ports documented. Provision in Full Docs." menggantikan faceplate.
 - **Info yang tetap terlihat tanpa hover** (penting karena sentuhan/touch tidak punya hover):
-  port yang sudah terhubung selalu diberi **tanda terhubung** (garis bawah + titik) pada
-  slot-nya, jadi VLAN/peer tidak hanya bisa ditemukan lewat hover. Nomor slot juga selalu
-  tercetak di slot.
+  port yang sudah terhubung selalu diberi **indikator terhubung** pada slot-nya (lingkaran
+  `#f8fafc` di kanan-atas — sama dengan faceplate 2D baris 278-280), jadi peer tidak hanya
+  bisa ditemukan lewat hover. Nomor slot juga selalu tercetak di slot.
 - Slot bisa difokus keyboard (`tabIndex`, `role="button"`, `aria-label={describeSlot(slot)}`,
   `onKeyDown` untuk Enter/Space) — meniru faceplate 2D
   (`components/admin/device-faceplate.tsx:215-225`).
@@ -335,7 +351,8 @@ satu field ditambahkan ke `select` `getPortsByDevice`.
 
 - Tidak mengubah DB atau semantik `updatePort` (sudah selesai di spec sebelumnya).
 - Tidak mengubah faceplate 2D / export PDF (hanya memakai `buildFaceplate` + `describeSlot`);
-  `describeSlot` tidak dipindah ke `lib/`.
+  `describeSlot` tidak dipindah ke `lib/`, dan resep SVG 2D disalin ke hologram bukan
+  diekstrak jadi komponen bersama.
 - Tidak menambah dependency.
 - Tidak mengubah cara kabel digambar (hanya daftar id yang dicari) atau cara kamera fly-to
   bekerja untuk kasus lain.
