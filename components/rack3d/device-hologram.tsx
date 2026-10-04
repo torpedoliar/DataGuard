@@ -6,6 +6,8 @@ import { ExternalLink, Link2, PanelRightOpen, X } from "lucide-react";
 import { getPortsByDevice, updatePort } from "@/actions/network";
 import type { RackDevice } from "@/actions/rack-layout";
 import { useDeviceDrawer } from "@/components/admin/device-drawer-sections";
+import { buildFaceplate, faceplateSlotColors, isUplinkMedia, isFaceplateConfigured, FACEPLATE_PALETTE, type FaceplateSlot } from "@/lib/faceplate";
+import { describeSlot } from "@/components/admin/device-faceplate";
 
 export type FloatPort = Awaited<ReturnType<typeof getPortsByDevice>>[number];
 
@@ -15,18 +17,30 @@ export interface HologramDeviceOption {
     locationName: string | null;
 }
 
+type HologramDevice = Pick<RackDevice, "id" | "name" | "ipAddress" | "status" | "openIncidents" | "faceplatePortCount" | "faceplateUplinkCount" | "faceplateRows" | "faceplateNumbering" | "rackPosition" | "rackName" | "locationName">;
+
 interface DeviceHologramProps {
-    device: Pick<RackDevice, "id" | "name" | "ipAddress" | "status" | "openIncidents">;
+    device: HologramDevice;
     ports: FloatPort[];
     loading: boolean;
     deviceOptions: HologramDeviceOption[];
     onClose: () => void;
-    /** Clicked a wired port: fly to its peer. */
-    onPickPort: (port: FloatPort) => void;
+    /**
+     * Clicked a port that already has a peer: the caller decides what to show
+     * (second hologram, rack card, or the peer's network docs). Omitted for the
+     * peer's own hologram so it cannot spawn a third one.
+     */
+    onPickPort?: (port: FloatPort) => void;
     /** A new link was saved; the caller selects the target device. */
     onLinked: (targetDeviceId: number) => void;
-    /** Open the full detail panel docked on the right. */
+    /** Open the full detail panel docked on the right, for this device. */
     onOpenPanel: () => void;
+    /** Screen-space vertical offset in rem, from `hologramStagger`. */
+    offsetY?: number;
+    /** Test seam: render as if this slot were hovered / selected. */
+    hoveredSlotKey?: string | null;
+    /** Test seam: render as if this slot were hovered / selected. */
+    selectedSlotKey?: string | null;
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -35,21 +49,61 @@ const STATUS_DOT: Record<string, string> = {
     Pending: "bg-ops-muted",
 };
 
+type HologramSlot = FaceplateSlot<FloatPort>;
+
+// An empty slot has nothing to open: `describeSlot` ends its empty branch with
+// "klik untuk provisioning port", which is true on the 2D faceplate but false
+// here, so the hologram words empty slots itself.
+const emptySlotLabel = (slot: HologramSlot) =>
+    slot.block === "uplink" ? `Uplink slot ${slot.slotNumber} — empty` : `Slot ${slot.slotNumber} — empty`;
+
+const slotLabel = (slot: HologramSlot) => (slot.port ? describeSlot(slot) : emptySlotLabel(slot));
+
 // Network-docs hologram floating above the selected device in the 3D scene.
 // DOM inside a plain drei <Html> (same proven pattern as the cable labels: no
 // distanceFactor, so the pixel size stays constant and the text stays crisp —
 // brightness comes from high-contrast tokens + glow, not canvas rasterisation).
-// A wired port flies to its peer; an empty port opens the one-dialog link form.
-export function DeviceHologram({ device, ports, loading, deviceOptions, onClose, onPickPort, onLinked, onOpenPanel }: DeviceHologramProps) {
+// The body is the device's documented faceplate: hovering a slot shows its
+// wiring, clicking an occupied one opens its detail panel, and the peer action
+// is left to the caller through the optional `onPickPort`.
+export function DeviceHologram({ device, ports, loading, deviceOptions, onClose, onPickPort, onLinked, onOpenPanel, offsetY = 0, hoveredSlotKey, selectedSlotKey }: DeviceHologramProps) {
     const linked = ports.filter((p) => p.connectedToDeviceId != null).length;
     const { data: drawer } = useDeviceDrawer(device.id);
     const [linkTarget, setLinkTarget] = useState<FloatPort | null>(null);
+    const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+    const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+    const hovered = hoveredSlotKey !== undefined ? hoveredSlotKey : hoveredKey;
+    const selected = selectedSlotKey !== undefined ? selectedSlotKey : selectedKey;
+
+    const config = {
+        portCount: device.faceplatePortCount,
+        uplinkCount: device.faceplateUplinkCount,
+        rows: device.faceplateRows,
+        numbering: device.faceplateNumbering,
+    };
+    const configured = isFaceplateConfigured(config);
+    const plate = configured ? buildFaceplate(config, ports) : null;
+    const slots = plate?.slots ?? [];
+    const hoveredSlot = slots.find((s) => s.key === hovered) ?? null;
+    const selectedSlot = slots.find((s) => s.key === selected) ?? null;
 
     const peerOptions = deviceOptions.filter((d) => d.id !== device.id);
     const statusLabel = device.status ?? "Pending";
 
+    const activate = (slot: HologramSlot) => {
+        // Empty slots are display only: there is no port to link, and creating
+        // ports stays in the network docs.
+        if (!slot.port) return;
+        setSelectedKey(slot.key);
+        if (slot.port.connectedToDeviceId != null) onPickPort?.(slot.port);
+    };
+
     return (
-        <div className="w-72 rounded-xl border border-ops-accent/40 bg-ops-surface/95 shadow-[0_0_24px_-4px_var(--ops-accent)] backdrop-blur">
+        <div
+            className="w-80 rounded-xl border border-ops-accent/40 bg-ops-surface/95 shadow-[0_0_24px_-4px_var(--ops-accent)] backdrop-blur"
+            style={offsetY ? { transform: `translateY(${offsetY}rem)` } : undefined}
+        >
             <div className="flex items-start justify-between gap-2 border-b border-ops-border px-3 py-2">
                 <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-ops-text">{device.name}</p>
@@ -93,36 +147,138 @@ export function DeviceHologram({ device, ports, loading, deviceOptions, onClose,
                 </p>
             </div>
 
-            <div className="max-h-56 overflow-y-auto px-3 py-2">
+            <div className="max-h-56 overflow-auto px-3 py-2">
                 {loading ? (
                     <p className="py-2 text-center text-xs text-ops-muted">Loading ports…</p>
-                ) : ports.length === 0 ? (
-                    <p className="py-2 text-center text-xs text-ops-muted">No ports documented.</p>
+                ) : !plate ? (
+                    <p className="space-y-1 py-2 text-center text-xs text-ops-muted">
+                        <span className="block">Faceplate not configured.</span>
+                        <Link href={`/admin/devices/${device.id}/network`} className="font-semibold text-ops-accent hover:underline">
+                            Set it up in Full Docs
+                        </Link>
+                    </p>
                 ) : (
-                    <ul className="space-y-1">
-                        {ports.map((p) => {
-                            const wired = p.connectedToDeviceId != null;
-                            return (
-                                <li key={p.id}>
-                                    <button
-                                        type="button"
-                                        onClick={() => { if (wired) onPickPort(p); else setLinkTarget(p); }}
-                                        aria-label={wired ? `Port ${p.portName} to ${p.connectedToDeviceName}` : `Link port ${p.portName} to a target device`}
-                                        className="flex min-h-9 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs hover:bg-ops-surface-raised"
+                    <>
+                        <svg
+                            viewBox={`0 0 ${plate.width} ${plate.height}`}
+                            // A 4-port plate would be a stamp in a 320px card, so it
+                            // stretches to the card; a 48-port plate keeps its
+                            // intrinsic width and scrolls instead of shrinking its
+                            // slots below a hoverable size.
+                            style={{ width: "100%", minWidth: `${plate.width}px` }}
+                            role="group"
+                            aria-label={`Faceplate ${device.name}, ${plate.slots.length} slots`}
+                        >
+                            <rect x={0} y={0} width={plate.width} height={plate.height} rx={3} fill={FACEPLATE_PALETTE.chassis.fill} stroke={FACEPLATE_PALETTE.chassis.stroke} strokeWidth={0.8} />
+                            {plate.blocks.map((block) => (
+                                <text key={block.block} x={block.x} y={block.labelY} fontSize={6} fill="#94a3b8" fontFamily="monospace">{block.label}</text>
+                            ))}
+                            {plate.slots.map((slot) => {
+                                const colors = faceplateSlotColors(slot.port);
+                                const uplinkSlot = slot.block === "uplink" || isUplinkMedia(slot.port?.mediaType);
+                                const isHovered = hovered === slot.key;
+                                const label = slotLabel(slot);
+                                return (
+                                    <g
+                                        key={slot.key}
+                                        role={slot.port ? "button" : undefined}
+                                        tabIndex={slot.port ? 0 : undefined}
+                                        aria-label={label}
+                                        className={slot.port ? "cursor-pointer" : undefined}
+                                        onClick={() => activate(slot)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter" || event.key === " ") {
+                                                event.preventDefault();
+                                                activate(slot);
+                                            }
+                                        }}
+                                        onMouseEnter={() => setHoveredKey(slot.key)}
+                                        onMouseLeave={() => setHoveredKey((cur) => (cur === slot.key ? null : cur))}
+                                        onFocus={() => setHoveredKey(slot.key)}
+                                        onBlur={() => setHoveredKey((cur) => (cur === slot.key ? null : cur))}
                                     >
-                                        <span className={`size-1.5 shrink-0 rounded-full ${p.status === "Active" ? "bg-ops-success" : "bg-ops-muted"}`} />
-                                        <span className="font-mono font-semibold text-ops-text">{p.portName}</span>
-                                        {p.vlanNumber != null && <span className="font-mono text-[10px] text-ops-accent">VLAN {p.vlanNumber}</span>}
-                                        <span className={`truncate ${wired ? "text-ops-text" : "text-ops-muted"}`}>
-                                            {wired ? `→ ${p.connectedToDeviceName}${p.connectedToPortName ? ` :${p.connectedToPortName}` : ""}` : "Not linked"}
-                                        </span>
-                                    </button>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                                        <title>{label}</title>
+                                        <rect
+                                            x={slot.x}
+                                            y={slot.y}
+                                            width={slot.width}
+                                            height={slot.height}
+                                            rx={1.5}
+                                            fill={colors.fill}
+                                            stroke={isHovered ? "#f8fafc" : colors.stroke}
+                                            strokeWidth={isHovered ? 1.4 : 0.7}
+                                            strokeDasharray={slot.port ? undefined : "2 1.5"}
+                                        />
+                                        {uplinkSlot ? (
+                                            <rect x={slot.x + 3} y={slot.y + slot.height / 2 - 1.5} width={slot.width - 6} height={3} rx={0.6} fill="#000000" opacity={0.35} />
+                                        ) : (
+                                            <rect x={slot.x + slot.width / 2 - 3} y={slot.y + slot.height - 4.5} width={6} height={3} rx={0.5} fill="#000000" opacity={0.3} />
+                                        )}
+                                        {colors.accent && <rect x={slot.x} y={slot.y} width={2} height={slot.height} rx={1} fill={colors.accent} />}
+                                        {slot.port?.connectedToPortId && (
+                                            <circle cx={slot.x + slot.width - 2.6} cy={slot.y + 2.6} r={1.3} fill="#f8fafc" opacity={0.85} />
+                                        )}
+                                        <text
+                                            x={slot.x + slot.width / 2}
+                                            y={slot.y + slot.height / 2 + 1}
+                                            textAnchor="middle"
+                                            fontSize={7}
+                                            fontFamily="monospace"
+                                            fontWeight={600}
+                                            fill={colors.label}
+                                            pointerEvents="none"
+                                        >
+                                            {slot.slotNumber}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                        </svg>
+                        {plate.unplaced.length > 0 && (
+                            <p className="mt-1 text-[11px] text-ops-muted">{plate.unplaced.length} port not on the faceplate</p>
+                        )}
+                    </>
                 )}
             </div>
+
+            {hoveredSlot && (
+                <div className="border-b border-ops-border bg-ops-bg/60 px-3 py-1.5 text-[11px] text-ops-text">
+                    <span className="block truncate">{slotLabel(hoveredSlot)}</span>
+                </div>
+            )}
+
+            {selectedSlot?.port && (
+                <div className="space-y-1 border-b border-ops-border bg-ops-bg/60 px-3 py-2 text-[11px]">
+                    <p className="font-mono font-semibold text-ops-text">{selectedSlot.port.portName}</p>
+                    <p className="text-ops-muted">{selectedSlot.port.status ?? "Status not set"}{selectedSlot.port.portMode ? ` · ${selectedSlot.port.portMode}` : ""}</p>
+                    {(selectedSlot.port.speed || selectedSlot.port.mediaType) && (
+                        <p className="text-ops-muted">{[selectedSlot.port.speed, selectedSlot.port.mediaType].filter(Boolean).join(" ")}</p>
+                    )}
+                    {selectedSlot.port.trunkVlans && <p className="text-ops-muted">Trunk: {selectedSlot.port.trunkVlans}</p>}
+                    {selectedSlot.port.description && <p className="text-ops-muted">&ldquo;{selectedSlot.port.description}&rdquo;</p>}
+                    <p className={selectedSlot.port.connectedToDeviceId != null ? "text-ops-text" : "text-ops-muted"}>
+                        {selectedSlot.port.connectedToDeviceId != null
+                            ? `→ ${selectedSlot.port.connectedToDeviceName ?? "unknown"}${selectedSlot.port.connectedToPortName ? ` :${selectedSlot.port.connectedToPortName}` : ""}`
+                            : "Not linked"}
+                    </p>
+                    <div className="flex justify-end gap-2 pt-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setSelectedKey(null)}
+                            className="rounded-md border border-ops-border px-2 py-1 text-ops-text hover:bg-ops-surface-raised"
+                        >
+                            Tutup
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setLinkTarget(selectedSlot.port)}
+                            className="flex items-center gap-1 rounded-md bg-ops-accent px-2 py-1 font-semibold text-white hover:opacity-90"
+                        >
+                            <Link2 className="size-3" /> Edit link
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <div className="flex items-center justify-between gap-2 border-t border-ops-border px-3 py-2">
                 <span className="font-mono text-[11px] text-ops-success">{linked}/{ports.length} Linked</span>
@@ -148,7 +304,7 @@ export function DeviceHologram({ device, ports, loading, deviceOptions, onClose,
                     port={linkTarget}
                     deviceOptions={peerOptions}
                     onClose={() => setLinkTarget(null)}
-                    onSaved={(targetDeviceId) => { setLinkTarget(null); onLinked(targetDeviceId); }}
+                    onSaved={(targetDeviceId) => { setLinkTarget(null); setSelectedKey(null); onLinked(targetDeviceId); }}
                 />
             )}
         </div>
