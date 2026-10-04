@@ -74,6 +74,10 @@ describe("DeviceHologram faceplate", () => {
     it("opens a detail panel with the link entry point for an occupied slot", () => {
         const html = renderToStaticMarkup(<DeviceHologram device={device} {...baseProps} selectedSlotKey="access-1" />);
         expect(html).toContain("Edit link");
+        // Spec §2: the panel itself lists the VLAN, not only the trunk list. The
+        // aria-label of every slot already carries `describeSlot`, so the assertion
+        // has to hit the panel's own line or it passes without the panel showing it.
+        expect(html).toContain(">VLAN 10 (SRV)<");
     });
 
     it("offers the link button for an occupied slot that has no peer yet", () => {

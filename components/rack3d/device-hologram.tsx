@@ -251,6 +251,9 @@ export function DeviceHologram({ device, ports, loading, deviceOptions, onClose,
                 <div className="space-y-1 border-b border-ops-border bg-ops-bg/60 px-3 py-2 text-[11px]">
                     <p className="font-mono font-semibold text-ops-text">{selectedSlot.port.portName}</p>
                     <p className="text-ops-muted">{selectedSlot.port.status ?? "Status not set"}{selectedSlot.port.portMode ? ` · ${selectedSlot.port.portMode}` : ""}</p>
+                    {selectedSlot.port.portMode === "Access" && selectedSlot.port.vlanNumber != null && (
+                        <p className="text-ops-muted">VLAN {selectedSlot.port.vlanNumber}{selectedSlot.port.vlanName ? ` (${selectedSlot.port.vlanName})` : ""}</p>
+                    )}
                     {(selectedSlot.port.speed || selectedSlot.port.mediaType) && (
                         <p className="text-ops-muted">{[selectedSlot.port.speed, selectedSlot.port.mediaType].filter(Boolean).join(" ")}</p>
                     )}
