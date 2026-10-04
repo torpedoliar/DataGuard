@@ -219,15 +219,28 @@ kritis) tetap memakai `panelOpen` — tidak ada perubahan perilaku.
 
 ### 7. Kartu 3D rack peer (room lain)
 
-Komponen baru `components/rack3d/peer-rack-card.tsx`.
+Dua file baru, dipisah supaya bisa diuji:
+
+- `components/rack3d/peer-rack-mini.tsx` — **hanya** bagian R3F (Canvas + bentuk rack +
+  slab). Tidak pernah diimpor test.
+- `components/rack3d/peer-rack-card.tsx` — kerangka DOM (header, label, tombol) yang
+  mengimpor mini lewat `next/dynamic` dengan `ssr: false`, persis pola yang sudah dipakai
+  `rack-view-3d.tsx:21` untuk `RackScene`. Test mem-mock `next/dynamic`, jadi R3F tidak
+  pernah dimuat di lingkungan `node` (repo tanpa jsdom — §2).
+
+Isi `peer-rack-mini.tsx`:
 
 - **Canvas terpisah** (`<Canvas frameloop="demand">`, sekali render, tanpa composer, tanpa
   Html, tanpa material bersama) supaya tidak menyentuh Canvas utama yang memakai
   `frameloop="demand"` + post-processing + material LED bersama. Kamera tetap dengan
-  `lookAt` ke tengah rack; grup rack di-skala `1 / max(rackHeight, 1)` supaya selalu muat.
+  `lookAt` ke tengah rack; grup rack di-skala `1 / max(rackHeight(totalU), 1)` supaya selalu
+  muat.
 - Isi: badan rack sederhana (balok) + satu slab per device, posisi Y dari `rackPosition`,
-  tinggi dari `uHeight`, warna dari `categoryColor`. Device peer diberi glow/aksen +
-  name tag DOM di bawah canvas.
+  tinggi dari `uHeight`, warna dari `categoryColor`. Device peer diberi glow/aksen.
+- Props mini: `{ devices: RackDevice[]; totalU: number; peerId: number }`.
+
+Isi `peer-rack-card.tsx`:
+
 - Header: `Room B · Rack R2 · U12`. Bawah: nama device peer + port tujuan.
 - Props: `{ rack: SceneRack; peer: RackDevice; portName: string | null; onMove: () => void; onClose: () => void }`.
   `rack` dibutuhkan untuk `totalU` + daftar device (slab), `peer` untuk posisi U + nama,
@@ -288,8 +301,9 @@ satu field ditambahkan ke `select` `getPortsByDevice`.
 | `components/rack3d/hologram-offset.test.ts` | **Baru** |
 | `components/rack3d/cable-route.ts` | `buildCables` menerima daftar id, bukan satu id |
 | `components/rack3d/cable-route.test.ts` | Disesuaikan dengan signature baru + kasus dua id |
-| `components/rack3d/peer-rack-card.tsx` | **Baru** — Canvas mini rack peer |
-| `components/rack3d/peer-rack-card.test.tsx` | **Baru** |
+| `components/rack3d/peer-rack-mini.tsx` | **Baru** — Canvas mini rack peer (R3F saja, tidak diimpor test) |
+| `components/rack3d/peer-rack-card.tsx` | **Baru** — kerangka DOM kartu peer; mengimpor mini lewat `next/dynamic` |
+| `components/rack3d/peer-rack-card.test.tsx` | **Baru** — mock `next/dynamic`, uji markup |
 | `components/rack3d/rack-view-3d.tsx` | `peerDeviceId`, `peerPorts`, `panelFor` jadi id device, wiring kartu peer + stagger |
 | `components/rack3d/rack-cabinet.tsx` | Gate kartu: dua id, bukan satu |
 | `components/rack3d/rack-scene.tsx` | Teruskan `peerDeviceId`, panggil `buildCables` dengan dua id |
