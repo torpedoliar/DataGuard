@@ -16,3 +16,26 @@ export const SLIDE = 0.3;          // selected device pulled out on its rails
 
 export const rackHeight = (totalU: number) => totalU * U + PLINTH + TOP;
 export const uToY = (u: number) => PLINTH + (u - 1) * U; // bottom edge of slot u
+
+/**
+ * Camera and group transform for the peer rack miniature (peer-rack-mini.tsx).
+ *
+ * The miniature renders at one fixed zoom with no user controls, so the framing
+ * has to be right for every rack height on its own — a rack taller or shorter
+ * than the author happened to test would push its ends out of the viewport and
+ * hide the very slab the card exists to show. Reproducing the transform here
+ * (rather than inlining it in the R3F component, which no test in this repo can
+ * render) is what lets constants.test.ts assert the whole rack stays on screen.
+ */
+
+export const peerRackFraming = (totalU: number) => {
+    const scale = Math.min(1 / Math.max(rackHeight(totalU), 1), 1);
+    return {
+        scale,
+        offsetY: -(rackHeight(totalU) * scale) / 2,
+        // Pulled back 1.3x from the original framing: the rack is 2 m tall and
+        // 1.07 m deep, so the near-axis view needs the margin to fit it whole.
+        camera: [0.85 * 1.3, 0.2 * 1.3, 1.15 * 1.3] as [number, number, number],
+        fov: 34,
+    };
+};

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import type { RackDevice } from "@/actions/rack-layout";
-import { RACK_D, RACK_W, U, rackHeight, uToY } from "./constants";
+import { RACK_D, RACK_W, U, peerRackFraming, rackHeight, uToY } from "./constants";
 import { inRack } from "./free-slots";
 
 // A demand-driven canvas has no controls, so the camera is aimed once. The rack
@@ -25,13 +25,16 @@ function LookAtCentre() {
 // scene's framing or fade state.
 export default function PeerRackMini({ devices, totalU, peerId }: { devices: RackDevice[]; totalU: number; peerId: number }) {
     const H = rackHeight(totalU);
-    const scale = 1 / Math.max(H, 1);
+    // Framing is shared with constants.test.ts, which projects the same
+    // transform and asserts the whole rack — U1 through the top unit of any
+    // height — stays inside the viewport.
+    const { scale, offsetY, camera, fov } = peerRackFraming(totalU);
     return (
-        <Canvas frameloop="demand" dpr={[1, 1.5]} camera={{ position: [0.85, 0.2, 1.15], fov: 34, near: 0.01, far: 20 }} gl={{ antialias: true }}>
+        <Canvas frameloop="demand" dpr={[1, 1.5]} camera={{ position: camera, fov, near: 0.01, far: 20 }} gl={{ antialias: true }}>
             <ambientLight intensity={1.5} />
             <directionalLight position={[1.5, 2, 2]} intensity={1.8} />
             <LookAtCentre />
-            <group scale={scale} position={[0, -0.5, 0]}>
+            <group scale={scale} position={[0, offsetY, 0]}>
                 <mesh position={[0, H / 2, 0]}>
                     <boxGeometry args={[RACK_W, H, RACK_D]} />
                     <meshStandardMaterial color="#16181c" metalness={0.45} roughness={0.5} />
