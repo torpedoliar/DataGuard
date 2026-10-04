@@ -74,17 +74,20 @@ export interface CableInfo {
     label: string | null;
 }
 
-// Cables of the selected device to every documented peer, plus the racks
-// those peers sit in (the scene keeps them visible and un-faded).
-export function buildCables(placed: PlacedRack<SceneRack>[], selectedDeviceId: number | null): { cables: CableInfo[]; peerRacks: Set<string> } {
+// Cables of every watched device to its documented peers, plus the racks those
+// peers sit in (the scene keeps them visible and un-faded). More than one
+// device is watched at a time because a same-room peer gets its own hologram,
+// and a focused row must keep the peer's rack on screen.
+export function buildCables(placed: PlacedRack<SceneRack>[], watchedDeviceIds: (number | null)[]): { cables: CableInfo[]; peerRacks: Set<string> } {
     const peerRacks = new Set<string>();
-    if (selectedDeviceId == null || placed.length === 0) return { cables: [], peerRacks };
+    const ids = watchedDeviceIds.filter((id): id is number => id != null);
+    if (ids.length === 0 || placed.length === 0) return { cables: [], peerRacks };
 
     type Where = { p: PlacedRack<SceneRack>; d: SceneRack["devices"][number] };
     const where = new Map<number, Where>();
     for (const p of placed) for (const d of p.rack.devices) where.set(d.id, { p, d });
-    const self = where.get(selectedDeviceId);
-    if (!self) return { cables: [], peerRacks };
+    const selves = ids.map((id) => where.get(id)).filter((w): w is Where => w != null);
+    if (selves.length === 0) return { cables: [], peerRacks };
 
     const trayY = Math.max(...placed.map((p) => rackHeight(p.rack.totalU || 42))) + 0.35;
     const aisleX = Math.max(...placed.map((p) => p.x)) + RACK_W / 2 + 0.6;
@@ -93,21 +96,27 @@ export function buildCables(placed: PlacedRack<SceneRack>[], selectedDeviceId: n
         portId == null ? null : portFace(w.d, (w.d.uHeight || 1) * U - 0.0015)?.slots.find((s) => s.portId === portId) ?? null;
     const isNetwork = (w: Where) => deviceKind(w.d.categoryName, w.d.name) === "network";
 
-    const cables = self.d.ports
-        .filter((port) => port.connectedToDeviceId != null)
-        .map((port, lane): CableInfo => {
-            const mySlot = slotOf(self, port.id);
-            const peer = where.get(port.connectedToDeviceId!);
-            if (peer) peerRacks.add(peer.p.rack.name);
-            const a = portAnchor(placement(self.p), self.d, mySlot, SLIDE);
-            const b = peer ? portAnchor(placement(peer.p), peer.d, slotOf(peer, port.connectedToPortId)) : null;
-            const kind = cableKind(port.portMode, mySlot?.uplink ?? false, peer ? isNetwork(peer) : false, isNetwork(self));
-            return {
-                key: String(port.id),
-                points: routeCable(a, b, { trayY, aisleX, lane, sameRack: peer?.p === self.p }),
-                color: CABLE_COLOR[kind],
-                label: peer ? null : "to another room",
-            };
-        });
+    // One lane per cable across all watched devices, so two devices never draw
+    // their cables at the same height.
+    let lane = -1;
+    const cables = selves.flatMap((self) =>
+        self.d.ports
+            .filter((port) => port.connectedToDeviceId != null)
+            .map((port): CableInfo => {
+                lane += 1;
+                const mySlot = slotOf(self, port.id);
+                const peer = where.get(port.connectedToDeviceId!);
+                if (peer) peerRacks.add(peer.p.rack.name);
+                const a = portAnchor(placement(self.p), self.d, mySlot, SLIDE);
+                const b = peer ? portAnchor(placement(peer.p), peer.d, slotOf(peer, port.connectedToPortId)) : null;
+                const kind = cableKind(port.portMode, mySlot?.uplink ?? false, peer ? isNetwork(peer) : false, isNetwork(self));
+                return {
+                    key: String(port.id),
+                    points: routeCable(a, b, { trayY, aisleX, lane, sameRack: peer?.p === self.p }),
+                    color: CABLE_COLOR[kind],
+                    label: peer ? null : "to another room",
+                };
+            }),
+    );
     return { cables, peerRacks };
 }

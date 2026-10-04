@@ -82,20 +82,35 @@ describe("buildCables", () => {
       rack("R1", 1, [dev(1, 10, [port(11, { connectedToDeviceId: 2, connectedToPortId: 21 }), port(12)])]),
       rack("R2", 2, [dev(2, 5, [port(21)])]),
     ]);
-    const { cables, peerRacks } = buildCables(placed, 1);
+    const { cables, peerRacks } = buildCables(placed, [1]);
     expect(cables).toHaveLength(1);
     expect(cables[0].label).toBeNull();
     expect([...peerRacks]).toEqual(["R2"]);
   });
 
-  it("labels a cable whose peer is not in this room", () => {
+  it("keeps the rack of every watched device so a focused row still renders them", () => {
+    // Device 1 (R1) links to 2 (R2); device 2 links to 3 (R3). Watching both
+    // ends must keep R2 and R3 declared, or a focused row drops them from the
+    // scene and the second hologram has no device to attach to.
+    const placed = layoutRacks([
+      rack("R1", 1, [dev(1, 10, [port(11, { connectedToDeviceId: 2, connectedToPortId: 21 })])]),
+      rack("R2", 2, [dev(2, 5, [port(21, { connectedToDeviceId: 3, connectedToPortId: 31 })])]),
+      rack("R3", 3, [dev(3, 7, [port(31)])]),
+    ]);
+    const { cables, peerRacks } = buildCables(placed, [1, 2]);
+    expect(cables.map((c) => c.key).sort()).toEqual(["11", "21"]);
+    expect([...peerRacks].sort()).toEqual(["R2", "R3"]);
+  });
+
+  it("ignores null entries in the watch list", () => {
     const placed = layoutRacks([rack("R1", 1, [dev(1, 10, [port(11, { connectedToDeviceId: 99 })])])]);
-    const { cables, peerRacks } = buildCables(placed, 1);
+    const { cables, peerRacks } = buildCables(placed, [1, null]);
     expect(cables[0].label).toBe("to another room");
     expect(peerRacks.size).toBe(0);
   });
 
   it("draws nothing without a selection", () => {
-    expect(buildCables(layoutRacks([rack("R1", 1, [dev(1, 10)])]), null).cables).toEqual([]);
+    expect(buildCables(layoutRacks([rack("R1", 1, [dev(1, 10)])]), []).cables).toEqual([]);
+    expect(buildCables(layoutRacks([rack("R1", 1, [dev(1, 10)])]), [null]).cables).toEqual([]);
   });
 });
