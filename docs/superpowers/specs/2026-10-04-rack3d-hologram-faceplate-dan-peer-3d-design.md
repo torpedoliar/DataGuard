@@ -117,9 +117,11 @@ Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama d
   port yang sudah terhubung selalu diberi **indikator terhubung** pada slot-nya (lingkaran
   `#f8fafc` di kanan-atas — sama dengan faceplate 2D baris 278-280), jadi peer tidak hanya
   bisa ditemukan lewat hover. Nomor slot juga selalu tercetak di slot.
-- Slot bisa difokus keyboard (`tabIndex`, `role="button"`, `aria-label={describeSlot(slot)}`,
-  `onKeyDown` untuk Enter/Space) — meniru faceplate 2D
-  (`components/admin/device-faceplate.tsx:215-225`).
+- Slot **terisi** bisa difokus keyboard (`tabIndex`, `role="button"`,
+  `aria-label={describeSlot(slot)}`, `onKeyDown` untuk Enter/Space) — meniru faceplate 2D
+  (`components/admin/device-faceplate.tsx:215-225`). Slot **kosong** tidak diberi
+  `role`/`tabIndex`/`onKeyDown`, karena tidak ada aksi yang bisa dijalankan — menandainya
+  sebagai tombol akan membuat Tab berhenti di elemen mati. Keduanya tetap punya `<title>`.
 
 `DeviceHologram` menjadi pemilik state panel info (satu `selectedSlot`), dan prop baru
 `onPickPort?: (port: FloatPort) => void` menjadi **opsional**: kalau tidak diberikan,
@@ -419,15 +421,15 @@ Tidak ada migrasi, tidak ada dependency baru, tidak ada perubahan action sama se
 - `cable-route.test.ts`: `buildCables(placed, [sel, peer])` memasukkan rack peer ke
   `peerRacks` dan menggambar kabel untuk kedua device; `buildCables(placed, [sel, null])`
   tidak berubah dari perilaku sekarang.
-- `device-hologram.test.tsx`: faceplate merender rect sejumlah `portCount + uplinkCount`;
+- `device-hologram.test.tsx`: faceplate merender satu slot per `portCount + uplinkCount`;
   `hoveredSlotKey` pada slot terisi → strip memuat VLAN dan nama device peer;
   `hoveredSlotKey` pada slot kosong → strip **tidak** memuat "provisioning" (teks
   "empty", §2); `selectedSlotKey` pada slot terisi → panel info memuat `Edit link`;
   `selectedSlotKey` pada slot kosong → tidak ada panel info; slot terisi tanpa peer → panel
   info memuat `Edit link` tetapi tidak memicu aksi peer; device tanpa faceplate →
   "Faceplate not configured" + link network docs; `offsetY` diterapkan sebagai `translateY`
-  pada elemen terluar; `ports={[]}` tanpa loading → "No ports documented. Provision in Full
-  Docs."
+  pada elemen terluar; `ports={[]}` pada device **berfaceplate** → faceplate tetap dirender,
+  footer `0/0 Linked`, dan **tidak** ada pesan "No ports documented" (§9).
 - Test `onPickPort` opsional: karena pemanggilan klik tidak bisa disimulasikan di lingkungan
   node, bagian ini **tidak** diuji lewat event. Yang diuji adalah aksi peer tetap tersedia
   lewat tombol `Edit link` (yang memang memanggil `onPickPort`), dan difokuskan pada
