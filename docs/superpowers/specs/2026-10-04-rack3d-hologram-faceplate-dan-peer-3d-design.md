@@ -100,7 +100,7 @@ diambil di `RackView3D`, karena di situlah `racks` (semua rack semua lokasi) ter
 ### 5. Penempatan saat U berdekatan
 
 1U = 0,04445 m. Dua device 1U bersebelahan hanya berjarak beberapa piksel di layar,
-sementara kartu ~250 px — jadi tanpa aturan, dua kartu pasti tumpang-tindih.
+sementara kartu `w-80` tingginya ~260 px — jadi tanpa aturan, dua kartu pasti tumpang-tindih.
 
 Aturan (fungsi murni `hologramStagger`, file baru `components/rack3d/hologram-offset.ts`,
 supaya bisa diuji tanpa R3F):
@@ -119,8 +119,8 @@ export function hologramStagger(base: HologramAnchor, peer: HologramAnchor): { b
 Offset diterapkan sebagai `translateY` CSS pada elemen dalam `<Html>`, **bukan** posisi
 world-space: hasilnya deterministik dalam piksel dan tidak berubah saat kamera diorbit.
 
-`// ponytail: 9rem cukup untuk kartu ~250px pada U berdekatan; kalau kartu memanjang,
-// // ganti dengan pengukuran tinggi kartu.`
+`// ponytail: 9rem cukup untuk kartu setinggi ~260px pada U berdekatan; kalau kartu
+// // memanjang, ganti dengan pengukuran tinggi kartu.`
 
 ### 6. Panel dock: kunci ke device, bukan ke boolean
 
