@@ -19,7 +19,8 @@
 
 - **Faceplate, bukan daftar port.** Hologram menggambar faceplate network docs; hover satu
   slot memunculkan strip info (VLAN + device ujung); klik slot terisi memunculkan panel
-  informasi; klik slot kosong membuka dialog link.
+  informasi **dan langsung menampilkan peer** di view yang sama; klik slot kosong membuka
+  dialog link.
 - **Hologram dulu, panel lewat tombol** (dipertahankan dari spec sebelumnya).
 - **Room sama: jangan fly to.** Dua device sama-sama menampilkan hologram.
 - **Dua kartu terpisah, bertingkat** bila posisi U kedua device berdekatan.
@@ -42,9 +43,20 @@ Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama d
 - Device tanpa faceplate dikonfigurasi (`isFaceplateConfigured` false) → hologram jatuh ke
   pesan ringkas "Faceplate belum dikonfigurasi" + tombol ke network docs. Tidak ada grid
   generik (network docs adalah satu-satunya sumber kebenaran port).
+- **VLAN di dialog:** `getPortsByDevice` tidak mengembalikan `trunkVlans`; tambahkan
+  `trunkVlans: networkPorts.trunkVlans` ke `select` di `actions/network.ts:112`. Tanpa ini
+  `describeSlot` kehilangan info trunk untuk port sekamar (port peer dari
+  `RackDevicePort` tidak punya field itu sama sekali). Setelah ditambah, `FloatPort` menjadi
+  bentuk yang sama persis dengan `NetworkPortRow` (tipe parameter `describeSlot`), sehingga
+  `describeSlot(plate.slots[i])` bisa dipanggil tanpa cast.
 - Lebar kartu `w-72` → `w-80` supaya slot 48 port masih nyaman di-hover.
 - Port yang tidak bisa dipetakan ke slot (`plate.unplaced`) ditampilkan sebagai baris kecil
   di bawah faceplate dengan jumlahnya, bukan dijatuhkan diam-diam.
+- Prop `device` di `DeviceHologram` diperluas dari
+  `Pick<RackDevice, "id" | "name" | "ipAddress" | "status" | "openIncidents">` menjadi
+  `Pick<RackDevice, "id" | "name" | "ipAddress" | "status" | "openIncidents" | "faceplatePortCount" | "faceplateUplinkCount" | "faceplateRows" | "faceplateNumbering" | "rackPosition" | "rackName" | "locationName">`.
+  `faceplate*` membentuk config `buildFaceplate`; `rackPosition` dipakai `hologramStagger`;
+  `rackName` + `locationName` dipakai untuk memutuskan peer sekamar.
 
 ### 2. Hover + klik slot
 
@@ -61,6 +73,11 @@ Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama d
 - **Klik slot kosong** → `PortLinkDialog` (sudah ada, tidak berubah).
 - Slot bisa difokus keyboard (`tabIndex`, `role="button"`, `aria-label={describeSlot(slot)}`).
 
+`DeviceHologram` menjadi pemilik state panel info (satu `selectedSlot`), dan prop baru
+`onPickPort?: (port: FloatPort) => void` menjadi **opsional**: kalau tidak diberikan,
+klik slot terisi hanya membuka panel info tanpa memandu perpindahan. Hologram utama
+memberikan `onPickPort`; hologram peer tidak (anti-loop §4).
+
 ### 3. Aksi peer saat slot terisi diklik
 
 Bergantung lokasi peer:
@@ -71,8 +88,11 @@ Bergantung lokasi peer:
 | Room lain | `PeerRackCard` (kartu 3D rack peer) muncul di dalam view yang sama. Kamera tidak bergerak sampai kartu diklik. |
 | Tidak ter-rack (`racks` tidak memuat device itu) | Fallback lama: `router.push('/admin/devices/{id}/network')`. |
 
-Tidak ada perubahan pada `onPickPort` di `DeviceHologram` — keputusan room sama / room lain
-diambil di `RackView3D`, karena di situlah `racks` (semua rack semua lokasi) tersedia.
+Predikat room: sebuah rack termasuk room yang sedang tampil bila
+`(rack.locationName || UNASSIGNED) === room`, dengan `room` dan `UNASSIGNED` persis seperti
+yang sudah dipakai `RackView3D` hari ini (`rack-view-3d.tsx:117`, `:363`). Keputusan room
+sama / room lain / belum ter-rack diambil di `RackView3D`, karena di situlah `racks`
+(semua rack semua lokasi) tersedia.
 
 ### 4. Dua hologram, room sama
 
@@ -84,6 +104,12 @@ diambil di `RackView3D`, karena di situlah `racks` (semua rack semua lokasi) ter
 - Gate kartu di `rack-cabinet.tsx:180` diperluas dari `d.id === selectedDeviceId` menjadi
   `d.id === selectedDeviceId || d.id === peerDeviceId`. `selected` (slide-out rail + glow)
   tetap hanya untuk device yang diklik; device peer tidak meluncur keluar.
+- **Penting:** `RackScene` tidak merender rack di luar baris yang difokus (atau di luar
+  `peerRacks`) — lihat `rack-scene.tsx:274`. `buildCables(placed, selectedDeviceId)` hanya
+  menghitung peer dari link device terpilih, jadi rack peer sekamar bisa ter-skip ketika ada
+  rack yang difokus dan peer berada di rack lain. Perbaikan: `buildCables` menerima daftar
+  id yang dicari, bukan satu id — `buildCables(placed, [selectedDeviceId, peerDeviceId])` —
+  sehingga baris rack yang memuat device peer ikut dirender.
 - `RackScene` meneruskan prop `peerDeviceId` ke `RackCabinet`.
 - Port peer diambil dengan `getPortsByDevice(peerDeviceId)` (action yang sudah ada), state
   `peerPorts` / `peerLoading` sejajar dengan `cardPorts` / `cardLoading`.
@@ -93,9 +119,17 @@ diambil di `RackView3D`, karena di situlah `racks` (semua rack semua lokasi) ter
 - Anti-loop: hanya hologram utama yang memandu perpindahan. Slot terisi di hologram peer
   hanya memunculkan panel info-nya sendiri (tidak menambah kartu ketiga); slot kosong di
   hologram peer tetap membuka `PortLinkDialog`. Jumlah hologram selalu ≤ 2.
+- `onLinked` dari hologram peer (link baru disimpan) **tidak** memindahkan kamera: kalau
+  device tujuan ada di room ini dan bukan `selectedDeviceId`, `peerDeviceId` diganti ke
+  device itu; kalau tidak ada di room ini, tidak ada kartu baru (`PeerRackCard` hanya
+  dipicu dari hologram utama).
 - Menutup hologram utama (`onClose`) juga mereset `peerDeviceId = null`.
+- Menutup hologram peer (`onClose`) hanya mereset `peerDeviceId = null`; `selectedDeviceId`
+  tidak berubah.
 - Ganti peer: klik port lain di hologram utama menimpa `peerDeviceId` (kartu peer lama
   hilang, kartu peer baru muncul di posisi stagger hasil hitung ulang).
+- Kalau port yang diklik menunjuk peer yang **sama** dengan `peerDeviceId` sekarang, state
+  tidak berubah (tidak ada kedip kartu).
 
 ### 5. Penempatan saat U berdekatan
 
@@ -110,6 +144,11 @@ export type HologramAnchor = { locationName: string | null; rackName: string | n
 export function hologramStagger(base: HologramAnchor, peer: HologramAnchor): { base: number; peer: number };
 ```
 
+Nilai yang dikembalikan adalah jumlah rem untuk `translateY` (`base` ke `DeviceHologram`
+utama, `peer` ke hologram peer). `DeviceHologram` menerima prop baru
+`offsetY?: number` (default `0`) dan menerapkannya pada elemen terluarnya; `RackView3D`
+menghitung `hologramStagger(...)` sekali dengan `useMemo` dari device terpilih + device peer.
+
 - **Rack sama** (`locationName` + `rackName` sama dan `rackName != null`) **dan** selisih U
   `< 4U` → `base` yang U-nya lebih rendah digeser turun `+9rem`, yang lebih tinggi digeser
   naik `-9rem` (U sama → base naik, peer turun; deterministik, tidak pernah bertukar posisi
@@ -119,6 +158,11 @@ export function hologramStagger(base: HologramAnchor, peer: HologramAnchor): { b
 Offset diterapkan sebagai `translateY` CSS pada elemen dalam `<Html>`, **bukan** posisi
 world-space: hasilnya deterministik dalam piksel dan tidak berubah saat kamera diorbit.
 
+Arah offset diambil dari `u` (posisi U device), dan `u` kecil (rendah di rack) muncul
+**rendah** di layar karena kamera berada di atas. Jadi kalau `u` sama atau `base.u > peer.u`:
+`base` turun `+9rem`, `peer` naik `-9rem`. Selain itu dibalik. Aturan ini deterministik
+untuk semua kombinasi, termasuk `u === null` pada salah satu sisi.
+
 `// ponytail: 9rem cukup untuk kartu setinggi ~260px pada U berdekatan; kalau kartu
 // // memanjang, ganti dengan pengukuran tinggi kartu.`
 
@@ -126,13 +170,16 @@ world-space: hasilnya deterministik dalam piksel dan tidak berubah saat kamera d
 
 `panelFor` berubah dari `boolean` menjadi `number | null` (id device), dan
 `panelOpen = panelFor !== null`. Panel merender device yang id-nya sama dengan `panelFor`:
-`panelDevice = panelFor == null ? null : rackDevices.find((d) => d.id === panelFor) ?? null`,
-lalu `{panelDevice && <DeviceDetailPanel device={panelDevice} … />}` — jadi panel bisa
-menampilkan device peer tanpa mengubah `selectedDeviceId`.
+`panelDevice = panelFor == null ? null : allDevices.find((d) => d.id === panelFor) ?? null`
+(`allDevices` = `racks.flatMap((r) => r.devices)`, sumber yang sama dengan `cardDevice` di
+`rack-view-3d.tsx:120`), lalu `{panelDevice && <DeviceDetailPanel device={panelDevice} … />}`
+— jadi panel bisa menampilkan device peer tanpa mengubah `selectedDeviceId`.
 
 Ini menghapus guard `if (panelFor !== null && panelFor !== selectedDeviceId) setPanelFor(null)`
 yang sekarang ada di `rack-view-3d.tsx:114`, dan membuat tombol Panel dari hologram peer
-bekerja: `setPanelFor(peerId)` + menseleksi peer.
+bekerja: `setPanelFor(peerDeviceId)` — `selectedDeviceId` sengaja **tidak** diubah supaya
+kamera tetap di tempat. `panelDevice` dicari dari daftar device semua rack (`racks`
+di-flatten), bukan hanya rack yang difokus.
 
 Semua yang sudah bergantung pada `panelOpen` (offset topnav, `shift` AppearancePanel, chip
 kritis) tetap memakai `panelOpen` — tidak ada perubahan perilaku.
@@ -149,8 +196,13 @@ Komponen baru `components/rack3d/peer-rack-card.tsx`.
   tinggi dari `uHeight`, warna dari `categoryColor`. Device peer diberi glow/aksen +
   name tag DOM di bawah canvas.
 - Header: `Room B · Rack R2 · U12`. Bawah: nama device peer + port tujuan.
-- Tombol aksi: **Pindah ke lokasi** → `setRoomPick(peer.locationName)`,
-  `setFocusPick(peer.rackName)`, `onSelectDevice(peer)`. Tombol **Tutup** menutup kartu.
+- Props: `{ rack: SceneRack; peer: RackDevice; portName: string | null; onMove: () => void; onClose: () => void }`.
+  `rack` dibutuhkan untuk `totalU` + daftar device (slab), `peer` untuk posisi U + nama,
+  `portName` untuk label port tujuan. Tidak ada fetch di dalam komponen.
+- Tombol aksi **Pindah ke lokasi** memanggil `onMove`; `RackView3D` yang menjalankan
+  `setRoomPick(peer.locationName || UNASSIGNED)`, `setFocusPick(peer.rackName)`,
+  `onSelectDevice(peer)` — pola yang sama dengan `onPickPort` yang sudah ada
+  (`rack-view-3d.tsx:363`). Tombol **Tutup** memanggil `onClose` (`peerDeviceId = null`).
 - Posisi kartu: `absolute bottom-14 left-3 z-20`, lebar ~260px, di dalam kotak scene 3D
   (view yang sama), tidak menutupi topnav kanan atau panel dock.
 - Sumber data: `racks` yang **sudah ada di client** (`getRackLayout()` mengembalikan semua
@@ -163,55 +215,79 @@ Komponen baru `components/rack3d/peer-rack-card.tsx`.
 |---|---|
 | Faceplate hologram | `buildFaceplate()` (`lib/faceplate.ts`), warna `faceplateSlotColors()` |
 | Teks hover slot | `describeSlot()` (`components/admin/device-faceplate.tsx`) |
-| Port + VLAN + peer + status device | `getPortsByDevice(deviceId)` (sudah ada) |
+| Port + VLAN + peer + status device | `getPortsByDevice(deviceId)` (sudah ada; `trunkVlans` ditambahkan ke `select`) |
 | Daftar device tujuan dialog link | `deviceOptions` (sudah ada, dari `getDevices()`) |
 | Kartu 3D rack peer | `racks` (sudah di client) |
 | Riwayat audit + SIEM | `useDeviceDrawer()` (sudah ada) |
 
-Tidak ada perubahan `actions/`, tidak ada migrasi, tidak ada dependency baru.
+Tidak ada migrasi, tidak ada dependency baru, tidak ada perubahan semantik action —
+satu field ditambahkan ke `select` `getPortsByDevice`.
 
 ### 9. Error handling
 
-- Device peer hilang dari `racks` saat kartu terbuka → kartu peer ditutup (state
-  `peerDeviceId` di-reset bila device tidak ditemukan).
+- Device peer hilang dari `racks` saat kartu terbuka → device peer tidak ditemukan →
+  `peerDeviceId` di-reset, `PeerRackCard` tidak dirender.
+- Device peer **tetap ada** tetapi ter-mute oleh filter (`device.isMuted`, opacity 0,12) →
+  belum ditangani; hologram peer tetap muncul. Catat sebagai batasan yang diketahui, bukan
+  bug yang diperbaiki di pekerjaan ini.
+- Hologram device yang ter-mute (`isMuted`) tetap muncul selama ia device terpilih —
+  perilaku sekarang tidak berubah.
 - `getPortsByDevice(peer)` gagal / kosong → hologram peer menampilkan "No ports documented."
-  dan tetap bisa ditutup.
+  dan tetap bisa ditutup. Port peer yang hilang dari daftar tidak bisa diklik (tidak ada
+  slot yang memetakan ke id-nya).
 - Device tanpa faceplate → pesan + tombol ke network docs (§1).
 - Peer belum ter-rack → fallback route ke network docs peer (§3).
+- Ganti room (`roomPick` berubah) atau pindah rack fokus → `peerDeviceId` di-reset, karena
+  device peer mungkin bukan lagi bagian dari room yang tampil. Reset ditulis sebagai guard
+  render-time mengikuti pola yang sudah dipakai repo di `rack-view-3d.tsx:114`
+  (`if (peerDeviceId !== null && peerNotInRoom) setPeerDeviceId(null);`), bukan `useEffect`
+  — pola ini yang lolos aturan lint `react-hooks/set-state-in-effect` di repo ini.
 - Kartu 3D rack peer gagal membuat WebGL context → komponen tidak dirender; sisanya
-  (hologram, info, link) tetap jalan.
+  (hologram, info, link) tetap jalan. Tombol **Pindah ke lokasi** tetap tersedia karena
+  header/tombol adalah DOM di luar Canvas.
 
 ### 10. File
 
 | File | Perubahan |
 |---|---|
-| `components/rack3d/device-hologram.tsx` | Faceplate SVG menggantikan `<ul>` port; strip hover; panel info slot; prop `device` diperluas dengan field faceplate |
-| `components/rack3d/device-hologram.test.tsx` | Disesuaikan: faceplate, hover strip, panel info, dialog link |
+| `actions/network.ts` | Tambah `trunkVlans` ke `select` `getPortsByDevice` |
+| `components/rack3d/device-hologram.tsx` | Faceplate SVG menggantikan `<ul>` port; strip hover; panel info slot; `onPickPort` jadi opsional; prop `device` diperluas dengan field faceplate |
+| `components/rack3d/device-hologram.test.tsx` | Disesuaikan: faceplate, hover strip, panel info, dialog link, `onPickPort` opsional |
 | `components/rack3d/hologram-offset.ts` | **Baru** — `hologramStagger` murni |
 | `components/rack3d/hologram-offset.test.ts` | **Baru** |
+| `components/rack3d/cable-route.ts` | `buildCables` menerima daftar id, bukan satu id |
+| `components/rack3d/cable-route.test.ts` | Disesuaikan dengan signature baru + kasus dua id |
 | `components/rack3d/peer-rack-card.tsx` | **Baru** — Canvas mini rack peer |
 | `components/rack3d/peer-rack-card.test.tsx` | **Baru** |
 | `components/rack3d/rack-view-3d.tsx` | `peerDeviceId`, `peerPorts`, `panelFor` jadi id device, wiring kartu peer + stagger |
 | `components/rack3d/rack-cabinet.tsx` | Gate kartu: dua id, bukan satu |
-| `components/rack3d/rack-scene.tsx` | Teruskan `peerDeviceId` |
+| `components/rack3d/rack-scene.tsx` | Teruskan `peerDeviceId`, panggil `buildCables` dengan dua id |
 
 ### 11. Testing
 
 - `hologram-offset.test.ts`: rack sama + 1U → `±9rem`; rack sama + 10U → `0/0`; rack beda →
-  `0/0`; `rackName` null → `0/0`; U sama → base naik, peer turun.
+  `0/0`; `rackName` null → `0/0`; `u` sama → base turun, peer naik; `u === null` di salah
+  satu sisi → deterministik.
+- `cable-route.test.ts`: `buildCables(placed, [sel, peer])` memasukkan rack peer ke
+  `peerRacks` dan menggambar kabel untuk kedua device; `buildCables(placed, [sel, null])`
+  tidak berubah dari perilaku sekarang.
 - `device-hologram.test.tsx`: faceplate merender rect sejumlah `portCount + uplinkCount`;
   hover slot terisi → strip memuat VLAN dan nama device peer; klik slot terisi → panel info
-  memuat `[Edit link]`; klik slot kosong → `PortLinkDialog`; device tanpa faceplate → pesan
-  + link network docs.
+  memuat `[Edit link]`; klik slot kosong → `PortLinkDialog`; `onPickPort` tidak diberikan →
+  klik slot terisi tidak memanggil apa pun; device tanpa faceplate → pesan + link network
+  docs.
 - `peer-rack-card.test.tsx`: header memuat nama room/rack/U device peer; klik **Pindah ke
   lokasi** memanggil `onMove`.
 - Gate: `npm run test`, `npm run lint`, `npm run typecheck` hijau pada file yang diubah dan
-  seluruh suite.
+  seluruh suite (jalankan vitest dengan `--exclude "**/.kilo/**"`).
 
 ### Non-goals
 
-- Tidak mengubah DB, `actions/network.ts`, atau `updatePort` (sudah selesai di spec sebelumnya).
-- Tidak mengubah faceplate 2D / export PDF (hanya memakai `buildFaceplate` + `describeSlot`).
+- Tidak mengubah DB atau semantik `updatePort` (sudah selesai di spec sebelumnya).
+- Tidak mengubah faceplate 2D / export PDF (hanya memakai `buildFaceplate` + `describeSlot`);
+  `describeSlot` tidak dipindah ke `lib/`.
 - Tidak menambah dependency.
-- Tidak mengubah cara kabel digambar atau cara kamera fly-to bekerja untuk kasus lain.
+- Tidak mengubah cara kabel digambar (hanya daftar id yang dicari) atau cara kamera fly-to
+  bekerja untuk kasus lain.
 - Tidak membuat hologram untuk lebih dari dua device sekaligus.
+- Tidak menangani device peer yang ter-mute filter (§9).
