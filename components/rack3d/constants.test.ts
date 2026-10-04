@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RACK_D, U, peerRackFraming, rackHeight, uToY } from "./constants";
+import { RACK_D, RACK_W, U, peerRackFraming, rackHeight, uToY } from "./constants";
 
 /**
  * The peer-rack miniature is its own <Canvas> with no controls and one fixed
@@ -55,6 +55,27 @@ describe("peerRackFraming", () => {
         for (let u = 1; u <= 42; u++) {
             const y = uToY(u) + U / 2;
             expect(Math.abs(ndcY(42, y, faceZ))).toBeLessThan(1);
+        }
+    });
+
+    it("starts far enough back to show the whole rack with margin", () => {
+        // The card is small and the user can now orbit, so the opening view has
+        // to read as the whole rack at a glance, not cropped to the viewport edge.
+        for (const totalU of [1, 12, 42, 48]) {
+            for (const u of [1, totalU]) {
+                const y = uToY(u) + U / 2;
+                expect(Math.abs(ndcY(totalU, y, faceZ))).toBeLessThan(0.8);
+            }
+        }
+    });
+
+    it("keeps the closest zoom outside the rack", () => {
+        // minDistance is measured from the look-at point (the origin). Anything
+        // inside the scaled rack's radius lets the camera clip through the chassis.
+        for (const totalU of [1, 42, 48]) {
+            const { scale, minDistance } = peerRackFraming(totalU);
+            const reach = Math.hypot(RACK_W / 2, rackHeight(totalU) / 2, RACK_D / 2) * scale;
+            expect(minDistance).toBeGreaterThan(reach);
         }
     });
 });

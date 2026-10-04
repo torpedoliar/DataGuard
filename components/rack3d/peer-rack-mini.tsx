@@ -1,22 +1,25 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
+import { CameraControls } from "@react-three/drei";
 import type { RackDevice } from "@/actions/rack-layout";
 import { RACK_D, RACK_W, U, peerRackFraming, rackHeight, uToY } from "./constants";
 import { inRack } from "./free-slots";
 
-// A demand-driven canvas has no controls, so the camera is aimed once. The rack
+// Aims the camera at the rack centre once, then hands it to the user. The rack
 // is drawn in metres and scaled down to a unit cube, which keeps the geometry
 // identical to the main scene without touching it.
-function LookAtCentre() {
-    const camera = useThree((s) => s.camera);
+function AimCentre({ minDistance }: { minDistance: number }) {
+    const ref = useRef<CameraControls>(null);
     const invalidate = useThree((s) => s.invalidate);
     useEffect(() => {
-        camera.lookAt(0, 0, 0);
+        const controls = ref.current;
+        if (!controls) return;
+        controls.setLookAt(controls.camera.position.x, controls.camera.position.y, controls.camera.position.z, 0, 0, 0, false);
         invalidate();
-    }, [camera, invalidate]);
-    return null;
+    }, [invalidate]);
+    return <CameraControls ref={ref} makeDefault minDistance={minDistance} maxDistance={4} />;
 }
 
 // Peer rack in miniature, for the other-room card: a plain chassis plus one
@@ -28,12 +31,12 @@ export default function PeerRackMini({ devices, totalU, peerId }: { devices: Rac
     // Framing is shared with constants.test.ts, which projects the same
     // transform and asserts the whole rack — U1 through the top unit of any
     // height — stays inside the viewport.
-    const { scale, offsetY, camera, fov } = peerRackFraming(totalU);
+    const { scale, offsetY, camera, fov, minDistance } = peerRackFraming(totalU);
     return (
         <Canvas frameloop="demand" dpr={[1, 1.5]} camera={{ position: camera, fov, near: 0.01, far: 20 }} gl={{ antialias: true }}>
             <ambientLight intensity={1.5} />
             <directionalLight position={[1.5, 2, 2]} intensity={1.8} />
-            <LookAtCentre />
+            <AimCentre minDistance={minDistance} />
             <group scale={scale} position={[0, offsetY, 0]}>
                 <mesh position={[0, H / 2, 0]}>
                     <boxGeometry args={[RACK_W, H, RACK_D]} />

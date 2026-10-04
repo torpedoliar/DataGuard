@@ -9,7 +9,7 @@ import type { SceneRack } from "@/lib/rack-filter";
 // on the server, and the DOM shell below stays testable in the node env.
 const PeerRackMini = dynamic(() => import("./peer-rack-mini"), {
     ssr: false,
-    loading: () => <div className="grid h-32 place-items-center text-xs text-ops-muted">Loading rack…</div>,
+    loading: () => <div className="grid h-56 place-items-center text-xs text-ops-muted">Loading rack…</div>,
 });
 
 const UNASSIGNED = "Unassigned Location";
@@ -39,7 +39,7 @@ export function PeerRackCard({ rack, peer, portName, onMove, onClose }: {
                     <X className="size-3.5" />
                 </button>
             </div>
-            <div className="h-32 bg-ops-bg">
+            <div className="h-56 bg-ops-bg">
                 <PeerRackMini devices={rack.devices} totalU={rack.totalU || 42} peerId={peer.id} />
             </div>
             <div className="space-y-1 border-t border-ops-border px-3 py-2">
