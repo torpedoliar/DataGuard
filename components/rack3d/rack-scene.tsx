@@ -29,6 +29,7 @@ export interface RackSceneProps {
     onFocusRack: (name: string | null) => void;
     showFree: boolean;
     selectedDeviceId: number | null;
+    peerDeviceId?: number | null;
     focusDeviceId: number | null;
     onSelectDevice: (d: RackDevice | null) => void;
     temp: { tempC: number; thresholdC: number | null } | null;
@@ -236,7 +237,7 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
     );
 }
 
-export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, floatCard }: RackSceneProps & { floatCard?: (d: RackDevice) => ReactNode }) {
+export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, peerDeviceId = null, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, floatCard }: RackSceneProps & { floatCard?: (d: RackDevice) => ReactNode }) {
     const composerRef = useRef<ComposerImpl>(null);
     const dark = useIsDark();
     const placed = useMemo(() => layoutRacks(racks), [racks]);
@@ -250,7 +251,13 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
     const accent = dark ? ACCENT.dark : ACCENT.light;
     // Other rows stand between the fly-to camera and the focused rack.
     const focusedRow = placed.find((p) => p.rack.name === focusRack)?.row;
-    const { peerRacks } = useMemo(() => buildCables(placed, selectedDeviceId), [placed, selectedDeviceId]);
+    // Both watched devices keep their rows and their peer racks in the scene: a
+    // same-room peer in another rack would otherwise be dropped while a rack is
+    // focused, and the peer hologram would have no device to sit on.
+    const { peerRacks } = useMemo(
+        () => buildCables(placed, [selectedDeviceId, peerDeviceId]),
+        [placed, selectedDeviceId, peerDeviceId],
+    );
     const bg = dark ? "#0b0f15" : "#dfe3e8";
     const [focusPoint, setFocusPoint] = useState<[number, number, number]>([0, 1, 0]);
 
@@ -282,6 +289,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
                     accent={accent}
                     colorBy={colorBy}
                     selectedDeviceId={selectedDeviceId}
+                    peerDeviceId={peerDeviceId}
                     onFocus={() => onFocusRack(p.rack.name)}
                     onSelectDevice={(d) => { onFocusRack(p.rack.name); onSelectDevice(d); }}
                     floatCard={floatCard}

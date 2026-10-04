@@ -115,7 +115,7 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
     );
 }
 
-export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, onFocus, onSelectDevice, floatCard }: {
+export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, peerDeviceId, onFocus, onSelectDevice, floatCard }: {
     placed: PlacedRack<SceneRack>;
     dark: boolean;
     focused: boolean;
@@ -124,6 +124,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
     accent: string;
     colorBy: ColorBy;
     selectedDeviceId: number | null;
+    peerDeviceId: number | null;
     onFocus: () => void;
     onSelectDevice: (d: FilteredDevice) => void;
     floatCard?: (d: FilteredDevice) => ReactNode;
@@ -177,7 +178,18 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
             <Sign name={rack.name} collision={placed.collision} height={H} />
 
             {devices.map((d) => (
-                <RackDevice key={d.id} device={d} selected={d.id === selectedDeviceId} faded={faded} accent={accent} colorBy={colorBy} onSelect={onSelectDevice} floatCard={d.id === selectedDeviceId ? floatCard?.(d) : undefined} />
+                <RackDevice
+                    key={d.id}
+                    device={d}
+                    // `selected` stays a single-device flag, so only the clicked
+                    // device slides out on its rails; the peer just gets a card.
+                    selected={d.id === selectedDeviceId}
+                    faded={faded}
+                    accent={accent}
+                    colorBy={colorBy}
+                    onSelect={onSelectDevice}
+                    floatCard={d.id === selectedDeviceId || d.id === peerDeviceId ? floatCard?.(d) : undefined}
+                />
             ))}
             {free.map((r) => (
                 <FreeSpace key={r.start} range={r} ghost={showFree} labelled={focused || r.size >= 4} />

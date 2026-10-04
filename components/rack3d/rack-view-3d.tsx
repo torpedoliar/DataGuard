@@ -12,6 +12,8 @@ import DeviceDetailPanel from "@/components/admin/device-detail-panel";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
 import { DeviceHologram, type FloatPort, type HologramDeviceOption } from "./device-hologram";
+import { hologramStagger } from "./hologram-offset";
+import { PeerRackCard } from "./peer-rack-card";
 import { getPortsByDevice } from "@/actions/network";
 import { getDevices } from "@/actions/master-data";
 import { layoutRacks } from "./layout";
@@ -109,16 +111,55 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         }
     }
     // Picking a different device (or clearing) starts with the hologram only;
-    // the docked panel is reopened deliberately per selection.
+    // the docked panel is reopened deliberately per selection. The panel is
+    // keyed to a device id, so the peer hologram's Panel button can dock the
+    // peer without hijacking the selection (which would move the camera).
     const [panelFor, setPanelFor] = useState<number | null>(null);
-    if (panelFor !== null && panelFor !== selectedDeviceId) setPanelFor(null);
+    const [appliedPanelSel, setAppliedPanelSel] = useState<number | null>(null);
+    if (selectedDeviceId !== appliedPanelSel) {
+        setAppliedPanelSel(selectedDeviceId);
+        if (panelFor !== null && panelFor !== selectedDeviceId) setPanelFor(null);
+    }
     const setPanelOpenState = (open: boolean) => setPanelFor(open ? selectedDeviceId : null);
-    const panelOpen = panelFor !== null && panelFor === selectedDeviceId;
+    const panelOpen = panelFor !== null;
     const room = roomPick && rooms.has(roomPick) ? roomPick : rooms.keys().next().value ?? null;
     const roomRacks = useMemo(() => (room ? rooms.get(room) ?? [] : []), [room, rooms]);
     const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;
-    const cardDevice = selectedDeviceId == null ? null : racks.flatMap((r) => r.devices).find((d) => d.id === selectedDeviceId) ?? null;
+    // Flattened once: both the peer lookup and the docked panel need it.
+    const allDevices = useMemo(() => racks.flatMap((r) => r.devices), [racks]);
+    const cardDevice = selectedDeviceId == null ? null : allDevices.find((d) => d.id === selectedDeviceId) ?? null;
     const cardDeviceId = cardDevice?.id ?? null;
+    const panelDevice = panelFor == null ? null : allDevices.find((d) => d.id === panelFor) ?? null;
+
+    // The peer currently shown: a second hologram when it sits in this room, a
+    // 3D rack card when it does not. `peerPickedRoom` is what lets the card
+    // survive until the user changes room.
+    const [peerDeviceId, setPeerDeviceId] = useState<number | null>(null);
+    const [peerPickedRoom, setPeerPickedRoom] = useState<string | null>(null);
+    const [peerPorts, setPeerPorts] = useState<FloatPort[]>([]);
+    const [peerLoading, setPeerLoading] = useState(false);
+
+    const peerDevice = peerDeviceId == null ? null : allDevices.find((d) => d.id === peerDeviceId) ?? null;
+    const peerRack = peerDevice == null ? null : racks.find((r) => r.devices.some((d) => d.id === peerDevice.id)) ?? null;
+    const peerInRoom = peerRack != null && (peerRack.locationName || UNASSIGNED) === room;
+    const peerCardRack = peerRack != null && !peerInRoom ? peerRack : null;
+    const peerPortName = peerDeviceId == null ? null : cardPorts.find((p) => p.connectedToDeviceId === peerDeviceId)?.connectedToPortName ?? null;
+
+    // Render-time resets, the pattern this repo uses instead of an effect the
+    // lint rule rejects: the peer must not outlive its room, its base device or
+    // its own identity.
+    if (peerDeviceId !== null && peerPickedRoom !== room) setPeerDeviceId(null);
+    if (peerDeviceId !== null && selectedDeviceId === null) setPeerDeviceId(null);
+    if (peerDeviceId !== null && peerDeviceId === selectedDeviceId) setPeerDeviceId(null);
+
+    const stagger = useMemo(() => {
+        if (!peerInRoom || !cardDevice || !peerDevice) return { base: 0, peer: 0 };
+        // Inlined rather than a helper so the dependency array stays honest.
+        return hologramStagger(
+            { locationName: cardDevice.locationName, rackName: cardDevice.rackName, u: cardDevice.rackPosition },
+            { locationName: peerDevice.locationName, rackName: peerDevice.rackName, u: peerDevice.rackPosition },
+        );
+    }, [peerInRoom, cardDevice, peerDevice]);
     useEffect(() => {
         if (cardDeviceId == null) return;
         let alive = true;
@@ -129,6 +170,17 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
             .catch(() => { if (alive) { setCardPorts([]); setCardLoading(false); } });
         return () => { alive = false; };
     }, [cardDeviceId]);
+    const peerFetchId = peerInRoom && peerDevice ? peerDevice.id : null;
+    useEffect(() => {
+        if (peerFetchId == null) return;
+        let alive = true;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch result for the peer device, guarded by alive + id match
+        setPeerLoading(true);
+        getPortsByDevice(peerFetchId)
+            .then((ports) => { if (alive) { setPeerPorts(ports); setPeerLoading(false); } })
+            .catch(() => { if (alive) { setPeerPorts([]); setPeerLoading(false); } });
+        return () => { alive = false; };
+    }, [peerFetchId]);
     useEffect(() => {
         let alive = true;
         getDevices()
@@ -343,57 +395,82 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     onFocusRack={setFocusPick}
                     showFree={showFree}
                     selectedDeviceId={selectedDeviceId}
+                    peerDeviceId={peerInRoom ? peerDeviceId : null}
                     focusDeviceId={selectedDeviceId ?? (focusRack ? autoFocusDeviceId : null)}
                     onSelectDevice={onSelectDevice}
                     temp={temp}
                     colorBy={colorBy}
                     appearance={appearance}
                     captureRef={captureRef}
-                    floatCard={(dev) => (
-                        <DeviceHologram
-                            device={dev}
-                            ports={cardDevice?.id === dev.id ? cardPorts : []}
-                            loading={cardDevice?.id === dev.id && cardLoading}
-                            deviceOptions={deviceOptions}
-                            onClose={() => onSelectDevice(null)}
-                            onPickPort={(p) => {
-                                if (p.connectedToDeviceId == null) return;
-                                const hit = racks.find((r) => r.devices.some((d) => d.id === p.connectedToDeviceId));
-                                if (hit) {
-                                    setRoomPick(hit.locationName || UNASSIGNED);
-                                    setFocusPick(hit.name);
-                                    const found = hit.devices.find((d) => d.id === p.connectedToDeviceId);
-                                    if (found) onSelectDevice(found);
-                                } else {
-                                    // Peer is not racked here: open its network docs.
-                                    router.push(`/admin/devices/${p.connectedToDeviceId}/network`);
-                                }
-                            }}
-                            onLinked={(targetDeviceId) => {
-                                // Both ends now point at each other, so surface the
-                                // target device already filled. If it is not racked
-                                // here, its network docs still show the new link.
-                                const hit = racks.find((r) => r.devices.some((d) => d.id === targetDeviceId));
-                                const found = hit?.devices.find((d) => d.id === targetDeviceId);
-                                if (hit && found) {
+                    floatCard={(dev) => {
+                        const isPeer = dev.id === peerDeviceId;
+                        const isBase = dev.id === cardDeviceId;
+                        return (
+                            <DeviceHologram
+                                device={dev}
+                                ports={isBase ? cardPorts : isPeer ? peerPorts : []}
+                                loading={isBase ? cardLoading : isPeer ? peerLoading : false}
+                                deviceOptions={deviceOptions}
+                                offsetY={isPeer ? stagger.peer : stagger.base}
+                                onClose={() => { if (isPeer) setPeerDeviceId(null); else onSelectDevice(null); }}
+                                // Only the base hologram may guide movement, so the
+                                // peer cannot spawn a third card.
+                                onPickPort={isPeer ? undefined : (p) => {
+                                    const peerId = p.connectedToDeviceId;
+                                    if (peerId == null || peerId === selectedDeviceId) return;
+                                    const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
+                                    const found = hit?.devices.find((d) => d.id === peerId);
+                                    if (!hit || !found) {
+                                        // Not racked in this site: the peer's docs are
+                                        // the only place that can show it.
+                                        router.push(`/admin/devices/${peerId}/network`);
+                                        return;
+                                    }
+                                    setPeerDeviceId(found.id);
+                                    setPeerPickedRoom(room);
+                                }}
+                                onLinked={(targetDeviceId) => {
+                                    const hit = racks.find((r) => r.devices.some((d) => d.id === targetDeviceId));
+                                    const found = hit?.devices.find((d) => d.id === targetDeviceId);
+                                    if (!found || !hit) {
+                                        router.push(`/admin/devices/${targetDeviceId}/network`);
+                                        return;
+                                    }
+                                    if (isPeer) {
+                                        // Linking from the peer keeps the camera put:
+                                        // only swap which device the second card shows.
+                                        if (found.id !== selectedDeviceId && (hit.locationName || UNASSIGNED) === room) setPeerDeviceId(found.id);
+                                        return;
+                                    }
                                     setRoomPick(hit.locationName || UNASSIGNED);
                                     setFocusPick(hit.name);
                                     onSelectDevice(found);
-                                } else {
-                                    router.push(`/admin/devices/${targetDeviceId}/network`);
-                                }
-                            }}
-                            onOpenPanel={() => setPanelOpenState(true)}
-                        />
-                    )}
+                                }}
+                                onOpenPanel={() => setPanelFor(dev.id)}
+                            />
+                        );
+                    }}
                 />
                 </div>
-                {cardDevice && panelOpen && (
+                {panelDevice && panelOpen && (
                     <DeviceDetailPanel
                         docked
-                        device={cardDevice}
+                        device={panelDevice}
                         onClose={() => setPanelOpenState(false)}
                         onSelectPeer={onSelectPeer}
+                    />
+                )}
+                {peerCardRack && peerDevice && (
+                    <PeerRackCard
+                        rack={peerCardRack}
+                        peer={peerDevice}
+                        portName={peerPortName}
+                        onMove={() => {
+                            setRoomPick(peerCardRack.locationName || UNASSIGNED);
+                            setFocusPick(peerCardRack.name);
+                            onSelectDevice(peerDevice);
+                        }}
+                        onClose={() => setPeerDeviceId(null)}
                     />
                 )}
                 {focusRack && (
