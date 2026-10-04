@@ -38,11 +38,20 @@ Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama d
 - Hologram merender `<svg viewBox={`0 0 ${plate.width} ${plate.height}`}>` dengan satu `<rect>`
   per slot dari `plate.slots`, warna dari `faceplateSlotColors(slot.port)` (hijau Active,
   merah Down, abu kosong, aksen mode Trunk/Routed/LACP) — persis palet faceplate 2D.
-- Slot kosong tetap dirender (abu, dengan nomor slot) supaya provisioning dari slot kosong
-  masih bisa.
+- Slot kosong tetap dirender (abu, dengan nomor slot, kotak putus-putus seperti faceplate 2D)
+  supaya slot kosong masih bisa dipakai memulai link.
+- **Hologram tidak membuat port baru.** Provisioning port (`QuickAddPortModal` → `addPort`,
+  butuh `getVlans()`) tetap di network docs; hologram hanya bisa *menghubungkan* port yang
+  sudah ada (`PortLinkDialog` → `updatePort`, pilih dari `getPortsByDevice` device tujuan).
+  Tombol **Full Docs** adalah jalur keluar untuk provisioning. Ini disengaja: satu dialog
+  (link) di hologram, provisioning tidak diduplikasi.
 - Device tanpa faceplate dikonfigurasi (`isFaceplateConfigured` false) → hologram jatuh ke
-  pesan ringkas "Faceplate belum dikonfigurasi" + tombol ke network docs. Tidak ada grid
-  generik (network docs adalah satu-satunya sumber kebenaran port).
+  pesan ringkas "Faceplate not configured" + tombol ke network docs. Tidak ada grid generik
+  (network docs adalah satu-satunya sumber kebenaran port).
+- **Bahasa:** teks baru di hologram memakai bahasa Inggris, mengikuti copy hologram yang
+  sudah ada ("Not linked", "No ports documented.", "Loading ports…", "Panel", "Full Docs").
+  Satu pengecualian yang disengaja: strip hover dan `aria-label` memakai `describeSlot()`
+  apa adanya, jadi tetap berbahasa Indonesia (teksnya dibagi dengan faceplate 2D — lihat §2).
 - **VLAN di dialog:** `getPortsByDevice` tidak mengembalikan `trunkVlans`; tambahkan
   `trunkVlans: networkPorts.trunkVlans` ke `select` di `actions/network.ts:112`. Tanpa ini
   `describeSlot` kehilangan info trunk untuk port sekamar (port peer dari
@@ -70,13 +79,37 @@ Sumber geometri: `buildFaceplate()` di `lib/faceplate.ts` — sumber yang sama d
      `PortLinkDialog` untuk port itu) dan `[Tutup]`.
   2. Aksi peer dijalankan sesuai §3 (hologram kedua bila sekamar, kartu 3D rack peer bila
      beda lokasi).
-- **Klik slot kosong** → `PortLinkDialog` (sudah ada, tidak berubah).
-- Slot bisa difokus keyboard (`tabIndex`, `role="button"`, `aria-label={describeSlot(slot)}`).
+- **Klik slot kosong** → `PortLinkDialog` (sudah ada, tidak berubah). Kalau device ini
+  **belum punya port sama sekali**, dialog tetap terbuka tetapi daftar port `Not linked`
+  kosong; pesan "No ports documented. Provision in Full Docs." menggantikan faceplate.
+- **Info yang tetap terlihat tanpa hover** (penting karena sentuhan/touch tidak punya hover):
+  port yang sudah terhubung selalu diberi **tanda terhubung** (garis bawah + titik) pada
+  slot-nya, jadi VLAN/peer tidak hanya bisa ditemukan lewat hover. Nomor slot juga selalu
+  tercetak di slot.
+- Slot bisa difokus keyboard (`tabIndex`, `role="button"`, `aria-label={describeSlot(slot)}`,
+  `onKeyDown` untuk Enter/Space) — meniru faceplate 2D
+  (`components/admin/device-faceplate.tsx:215-225`).
 
 `DeviceHologram` menjadi pemilik state panel info (satu `selectedSlot`), dan prop baru
 `onPickPort?: (port: FloatPort) => void` menjadi **opsional**: kalau tidak diberikan,
 klik slot terisi hanya membuka panel info tanpa memandu perpindahan. Hologram utama
 memberikan `onPickPort`; hologram peer tidak (anti-loop §4).
+
+**Seam test (lingkungan node, tanpa jsdom).** Repo menjalankan Vitest di `environment:
+"node"` tanpa jsdom dan tanpa `@testing-library` (`vitest.config.ts`), jadi klik/hover tidak
+bisa disimulasikan. Mengikuti pola yang sudah dipakai repo (`components/checklist/field-audit-card.test.ts`
+mengekstrak handler murni; `components/ui/theme-toggle.test.tsx` mem-mock `globalThis.document`),
+`DeviceHologram` menerima dua prop opsional yang dikendalikan pemanggil untuk pratinjau
+keadaan:
+
+```ts
+/** Test seam: render as if this slot were hovered / selected. Ignored once the user interacts. */
+hoveredSlotKey?: string | null;
+selectedSlotKey?: string | null;
+```
+
+Keduanya default `undefined` (state internal yang dipakai). Ini yang membuat strip hover dan
+panel info bisa diuji lewat `renderToStaticMarkup` tanpa menambah dependency atau jsdom.
 
 ### 3. Aksi peer saat slot terisi diklik
 
@@ -230,8 +263,6 @@ satu field ditambahkan ke `select` `getPortsByDevice`.
 - Device peer **tetap ada** tetapi ter-mute oleh filter (`device.isMuted`, opacity 0,12) →
   belum ditangani; hologram peer tetap muncul. Catat sebagai batasan yang diketahui, bukan
   bug yang diperbaiki di pekerjaan ini.
-- Hologram device yang ter-mute (`isMuted`) tetap muncul selama ia device terpilih —
-  perilaku sekarang tidak berubah.
 - `getPortsByDevice(peer)` gagal / kosong → hologram peer menampilkan "No ports documented."
   dan tetap bisa ditutup. Port peer yang hilang dari daftar tidak bisa diklik (tidak ada
   slot yang memetakan ke id-nya).
@@ -251,8 +282,8 @@ satu field ditambahkan ke `select` `getPortsByDevice`.
 | File | Perubahan |
 |---|---|
 | `actions/network.ts` | Tambah `trunkVlans` ke `select` `getPortsByDevice` |
-| `components/rack3d/device-hologram.tsx` | Faceplate SVG menggantikan `<ul>` port; strip hover; panel info slot; `onPickPort` jadi opsional; prop `device` diperluas dengan field faceplate |
-| `components/rack3d/device-hologram.test.tsx` | Disesuaikan: faceplate, hover strip, panel info, dialog link, `onPickPort` opsional |
+| `components/rack3d/device-hologram.tsx` | Faceplate SVG menggantikan `<ul>` port; strip hover; panel info slot; `onPickPort` opsional; seam `hoveredSlotKey`/`selectedSlotKey`; `offsetY`; prop `device` diperluas dengan field faceplate |
+| `components/rack3d/device-hologram.test.tsx` | Disesuaikan: faceplate, hover strip, panel info, dialog link, `offsetY`, tanpa faceplate |
 | `components/rack3d/hologram-offset.ts` | **Baru** — `hologramStagger` murni |
 | `components/rack3d/hologram-offset.test.ts` | **Baru** |
 | `components/rack3d/cable-route.ts` | `buildCables` menerima daftar id, bukan satu id |
@@ -272,12 +303,17 @@ satu field ditambahkan ke `select` `getPortsByDevice`.
   `peerRacks` dan menggambar kabel untuk kedua device; `buildCables(placed, [sel, null])`
   tidak berubah dari perilaku sekarang.
 - `device-hologram.test.tsx`: faceplate merender rect sejumlah `portCount + uplinkCount`;
-  hover slot terisi → strip memuat VLAN dan nama device peer; klik slot terisi → panel info
-  memuat `[Edit link]`; klik slot kosong → `PortLinkDialog`; `onPickPort` tidak diberikan →
-  klik slot terisi tidak memanggil apa pun; device tanpa faceplate → pesan + link network
-  docs.
-- `peer-rack-card.test.tsx`: header memuat nama room/rack/U device peer; klik **Pindah ke
-  lokasi** memanggil `onMove`.
+  `hoveredSlotKey` pada slot terisi → strip memuat VLAN dan nama device peer;
+  `selectedSlotKey` pada slot terisi → panel info memuat `Edit link`; `selectedSlotKey` pada
+  slot kosong → tidak ada panel info; device tanpa faceplate → "Faceplate not configured"
+  + link network docs; `offsetY` diterapkan sebagai `translateY` pada elemen terluar.
+- Test `onPickPort` opsional: karena pemanggilan klik tidak bisa disimulasikan di lingkungan
+  node, bagian ini **tidak** diuji lewat event. Yang diuji adalah aksi peer tetap tersedia
+  lewat tombol `Edit link` (yang memang memanggil `onPickPort`), dan difokuskan pada
+  pemanggilan handler secara langsung seperti pola `handleChecklistPhotoFile`.
+- `peer-rack-card.test.tsx`: header memuat nama room/rack/U device peer; tombol tersedia
+  lewat markup (klik tidak disimulasikan — handler `onMove` diuji dengan memanggil prop
+  secara langsung atau lewat seam yang sama).
 - Gate: `npm run test`, `npm run lint`, `npm run typecheck` hijau pada file yang diubah dan
   seluruh suite (jalankan vitest dengan `--exclude "**/.kilo/**"`).
 
@@ -291,3 +327,6 @@ satu field ditambahkan ke `select` `getPortsByDevice`.
   bekerja untuk kasus lain.
 - Tidak membuat hologram untuk lebih dari dua device sekaligus.
 - Tidak menangani device peer yang ter-mute filter (§9).
+- Tidak menambah provisioning port di hologram (tetap di network docs) dan tidak menyentuh
+  `QuickAddPortModal`/`addPort`/`getVlans` (§1).
+- Tidak menambah jsdom / `@testing-library` — seam prop (§2) sudah cukup.
