@@ -11,8 +11,9 @@ import { DEFAULT_APPEARANCE, type RoomAppearance } from "@/lib/room-appearance";
 import DeviceDetailPanel from "@/components/admin/device-detail-panel";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
-import { DeviceFloatCard, type FloatPort } from "./device-float-card";
+import { DeviceHologram, type FloatPort, type HologramDeviceOption } from "./device-hologram";
 import { getPortsByDevice } from "@/actions/network";
+import { getDevices } from "@/actions/master-data";
 import { layoutRacks } from "./layout";
 import { QUALITY_LABELS, QUALITY_SETTINGS, parseQualitySetting, type Quality, type QualitySetting } from "./quality";
 import { downloadWithFooter, screenshotFooter, screenshotName } from "./screenshot";
@@ -68,9 +69,12 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const [saved, setSaved] = useState<Record<number, RoomAppearance>>({});
     const [touring, setTouring] = useState(false);
     const captureRef = useRef<(() => string) | null>(null);
-    // Ports for the in-scene float card: fetched when the selection changes.
+    // Ports for the in-scene hologram: fetched when the selection changes.
     const [cardPorts, setCardPorts] = useState<FloatPort[]>([]);
     const [cardLoading, setCardLoading] = useState(false);
+    // Full detail docked panel — opened only from the hologram's Panel button.
+    // Site devices for the link dialog's target picker.
+    const [deviceOptions, setDeviceOptions] = useState<HologramDeviceOption[]>([]);
 
     // Picking a location in the filter bar opens that room.
     const [appliedLocation, setAppliedLocation] = useState<string | null>(null);
@@ -104,6 +108,12 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
             setFocusPick(hit.name);
         }
     }
+    // Picking a different device (or clearing) starts with the hologram only;
+    // the docked panel is reopened deliberately per selection.
+    const [panelFor, setPanelFor] = useState<number | null>(null);
+    if (panelFor !== null && panelFor !== selectedDeviceId) setPanelFor(null);
+    const setPanelOpenState = (open: boolean) => setPanelFor(open ? selectedDeviceId : null);
+    const panelOpen = panelFor !== null && panelFor === selectedDeviceId;
     const room = roomPick && rooms.has(roomPick) ? roomPick : rooms.keys().next().value ?? null;
     const roomRacks = useMemo(() => (room ? rooms.get(room) ?? [] : []), [room, rooms]);
     const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;
@@ -119,6 +129,13 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
             .catch(() => { if (alive) { setCardPorts([]); setCardLoading(false); } });
         return () => { alive = false; };
     }, [cardDeviceId]);
+    useEffect(() => {
+        let alive = true;
+        getDevices()
+            .then((list) => { if (alive) setDeviceOptions(list.map((d) => ({ id: d.id, name: d.name, locationName: d.locationName ?? null }))); })
+            .catch(() => { /* picker stays empty; linking then falls back to full docs */ });
+        return () => { alive = false; };
+    }, []);
     const order = useMemo(() => tourOrder(roomRacks), [roomRacks]);
     useEffect(() => {
         if (!touring || order.length === 0) return;
@@ -296,7 +313,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
             </div>
 
             <div className={`relative overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" onPointerDownCapture={stopTourOnInput} onWheelCapture={stopTourOnInput}>
-                <div className="absolute right-3 top-3 z-30 flex gap-2" data-keep-tour>
+                <div className={`absolute top-3 z-30 flex gap-2 ${panelOpen ? "right-[calc(24rem+0.75rem)]" : "right-3"}`} data-keep-tour>
                     <button onClick={touring ? () => setTouring(false) : startTour} aria-pressed={touring} title="Fly through every rack" className={overlayButton}>
                         {touring ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />} {touring ? "Stop tour" : "Tour"}
                     </button>
@@ -314,7 +331,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     </button>
                 </div>
                 {editingHere && locationId != null && (
-                    <AppearancePanel locationId={locationId} value={appearance} onPreview={setPreview} onSaved={onSaved} onClose={closeEditor} />
+                    <AppearancePanel locationId={locationId} value={appearance} onPreview={setPreview} onSaved={onSaved} onClose={closeEditor} shift={panelOpen} />
                 )}
                 <div className="absolute inset-0">
                 <RackScene
@@ -333,10 +350,11 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     appearance={appearance}
                     captureRef={captureRef}
                     floatCard={(dev) => (
-                        <DeviceFloatCard
+                        <DeviceHologram
                             device={dev}
                             ports={cardDevice?.id === dev.id ? cardPorts : []}
                             loading={cardDevice?.id === dev.id && cardLoading}
+                            deviceOptions={deviceOptions}
                             onClose={() => onSelectDevice(null)}
                             onPickPort={(p) => {
                                 const hit = racks.find((r) => r.devices.some((d) => d.id === p.connectedToDeviceId));
@@ -347,15 +365,30 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                                     if (found) onSelectDevice(found);
                                 }
                             }}
+                            onLinked={(targetDeviceId) => {
+                                // After the link is saved both ends point at each
+                                // other, so surface the target device already filled.
+                                const hit = racks.find((r) => r.devices.some((d) => d.id === targetDeviceId));
+                                const found = racks.flatMap((r) => r.devices).find((d) => d.id === targetDeviceId);
+                                if (hit && found) {
+                                    setRoomPick(hit.locationName || UNASSIGNED);
+                                    setFocusPick(hit.name);
+                                }
+                                if (found) onSelectDevice(found);
+                                if (cardDeviceId != null) {
+                                    getPortsByDevice(cardDeviceId).then(setCardPorts).catch(() => { /* keep the old list */ });
+                                }
+                            }}
+                            onOpenPanel={() => setPanelOpenState(true)}
                         />
                     )}
                 />
                 </div>
-                {cardDevice && (
+                {cardDevice && panelOpen && (
                     <DeviceDetailPanel
                         docked
                         device={cardDevice}
-                        onClose={() => onSelectDevice(null)}
+                        onClose={() => setPanelOpenState(false)}
                         onSelectPeer={onSelectPeer}
                     />
                 )}
@@ -386,7 +419,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 {troubled.length > 0 && !alertOpen && (
                     <button
                         onClick={() => setAlertOpen(true)}
-                        className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-lg bg-ops-danger px-3 py-1.5 text-sm font-semibold text-white shadow hover:opacity-90"
+                        className={`absolute bottom-3 z-10 flex items-center gap-1.5 rounded-lg bg-ops-danger px-3 py-1.5 text-sm font-semibold text-white shadow hover:opacity-90 ${cardDevice ? "right-[calc(24rem+0.75rem)]" : "right-3"}`}
                     >
                         <TriangleAlert className="h-4 w-4" /> {troubled.length} critical
                     </button>

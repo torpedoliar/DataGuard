@@ -457,6 +457,8 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
 
     if (currentPort.length === 0) throw new Error("Port tidak ditemukan di site aktif.");
 
+    if (data.connectedToPortId === id) throw new Error("Port tidak dapat terhubung ke dirinya sendiri.");
+
     assertFaceplateSlotInRange(data.portIndex, currentPort[0]);
 
     try {
@@ -470,12 +472,18 @@ export async function updatePort(id: number, data: Partial<typeof networkPorts.$
         const newConn = data.connectedToPortId === undefined ? oldConn : data.connectedToPortId;
 
         if (oldConn !== newConn) {
-            // Unlink old
+            // Unlink the old peer first so it never keeps a stale one-directional
+            // pointer to this port.
             if (oldConn) {
                 await db.update(networkPorts).set({ connectedToDeviceId: null, connectedToPortId: null }).where(eq(networkPorts.id, oldConn));
             }
-            // Link new
+            // Replace: before taking over the new target, clear its old forward
+            // link so that port's previous peer is unlinked too. Then write the
+            // back-pointer from the new target to this port.
             if (newConn && data.deviceId) {
+                await db.update(networkPorts)
+                    .set({ connectedToDeviceId: null, connectedToPortId: null })
+                    .where(and(eq(networkPorts.connectedToPortId, newConn), ne(networkPorts.id, id)));
                 await db.update(networkPorts).set({ connectedToDeviceId: data.deviceId, connectedToPortId: id }).where(eq(networkPorts.id, newConn));
             }
         }

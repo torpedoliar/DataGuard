@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updatePort } from "@/actions/network";
+import { getPortsByDevice, updatePort } from "@/actions/network";
 import { Loader2, X, Settings2 } from "lucide-react";
 
 type Vlan = { id: number; vlanId: number; name: string };
@@ -51,9 +51,26 @@ export default function EditPortModal({
     const [speed, setSpeed] = useState(port.speed || "1G");
     const [mediaType, setMediaType] = useState(port.mediaType || "Copper (RJ45)");
     const [connectedToDeviceId, setConnectedToDeviceId] = useState(port.connectedToDeviceId ? port.connectedToDeviceId.toString() : "");
+    const [connectedToPortId, setConnectedToPortId] = useState(port.connectedToPortId ? port.connectedToPortId.toString() : "");
+    const [targetPorts, setTargetPorts] = useState<{ id: number; portName: string }[]>([]);
     const [description, setDescription] = useState(port.description || "");
 
     const [error, setError] = useState<string | null>(null);
+
+    // Load the target device's ports so the pair can be filled from this side.
+    useEffect(() => {
+        const id = connectedToDeviceId ? Number.parseInt(connectedToDeviceId, 10) : null;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the port list for "no device" has no external cause to subscribe to
+        if (!id) { setTargetPorts([]); return; }
+        let alive = true;
+        getPortsByDevice(id).then((list) => { if (alive) setTargetPorts(list.map((p) => ({ id: p.id, portName: p.portName }))); });
+        return () => { alive = false; };
+    }, [connectedToDeviceId]);
+
+    const pickDevice = (value: string) => {
+        setConnectedToDeviceId(value);
+        setConnectedToPortId("");
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -74,13 +91,9 @@ export default function EditPortModal({
                     speed: speed as "10/100M" | "1G" | "10G" | "25G" | "40G" | "100G" | "Auto",
                     mediaType: mediaType as "Copper (RJ45)" | "Fiber (SFP/SFP+)" | "Twinax (DAC)",
                     connectedToDeviceId: targetDeviceId,
-                    // Carry the stored remote port only when the target device is
-                    // unchanged (null otherwise), so updatePort keeps the existing
-                    // back-link instead of treating the omission as an unlink.
-                    connectedToPortId:
-                        targetDeviceId !== null && targetDeviceId === port.connectedToDeviceId
-                            ? port.connectedToPortId
-                            : null,
+                    // Send both ends: picking the target port here links the pair
+                    // from this side alone (updatePort writes the remote back-link).
+                    connectedToPortId: connectedToPortId ? Number.parseInt(connectedToPortId, 10) : null,
                     description: description || null,
                 });
                 router.refresh();
@@ -234,12 +247,26 @@ export default function EditPortModal({
                             </label>
                             <select
                                 value={connectedToDeviceId}
-                                onChange={(e) => setConnectedToDeviceId(e.target.value)}
+                                onChange={(e) => pickDevice(e.target.value)}
                                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
                                 disabled={isPending}
                             >
                                 <option value="">-- No Connection --</option>
                                 {otherDevices.map(d => <option key={d.id} value={d.id}>{d.name} ({d.locationName || "-"})</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                                Target Port
+                            </label>
+                            <select
+                                value={connectedToPortId}
+                                onChange={(e) => setConnectedToPortId(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                disabled={isPending || !connectedToDeviceId}
+                            >
+                                <option value="">{connectedToDeviceId ? "-- Select port --" : "-- Pick a device first --"}</option>
+                                {targetPorts.map(p => <option key={p.id} value={p.id}>{p.portName}</option>)}
                             </select>
                         </div>
                         <div>

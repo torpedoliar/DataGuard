@@ -15,12 +15,14 @@ const WALL_LABEL: Record<Wallpaper, string> = {
 const field = "h-8 w-full rounded-md border border-ops-border bg-ops-bg px-2 text-sm text-ops-text";
 
 // Live-preview editor for one room's look; Save writes it to the location.
-export function AppearancePanel({ locationId, value, onPreview, onSaved, onClose }: {
+export function AppearancePanel({ locationId, value, onPreview, onSaved, onClose, shift = false }: {
     locationId: number;
     value: RoomAppearance;
     onPreview: (a: RoomAppearance) => void;
     onSaved: (a: RoomAppearance) => void;
     onClose: () => void;
+    /** Device detail occupies the right edge; sit just left of it. */
+    shift?: boolean;
 }) {
     const [draft, setDraft] = useState(value);
     const [file, setFile] = useState<File | null>(null);
@@ -63,7 +65,7 @@ export function AppearancePanel({ locationId, value, onPreview, onSaved, onClose
     };
 
     return (
-        <div role="dialog" aria-label="Room appearance" className="absolute right-3 top-14 z-20 w-72 space-y-3 rounded-xl border border-ops-border bg-ops-surface/95 p-4 text-sm shadow-xl backdrop-blur">
+        <div role="dialog" aria-label="Room appearance" className={`absolute top-14 z-30 w-72 space-y-3 rounded-xl border border-ops-border bg-ops-surface/95 p-4 text-sm shadow-xl backdrop-blur ${shift ? "right-[calc(24rem+0.75rem)]" : "right-3"}`}>
             <div className="flex items-center justify-between">
                 <h4 className="font-semibold text-ops-text">Room appearance</h4>
                 <button type="button" onClick={onClose} aria-label="Close appearance" className="text-ops-muted hover:text-ops-text"><X className="h-4 w-4" /></button>

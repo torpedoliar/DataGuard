@@ -161,10 +161,28 @@ describe("updatePort bidirectional link integrity (#34)", () => {
     };
     await updatePort(1, data);
 
-    expect(mocks.updateCalls).toHaveLength(3);
+    // row update, unlink old peer, release the new target's own back-links
+    // (Replace), then write the new back-link.
+    expect(mocks.updateCalls).toHaveLength(4);
     expect(queryOf(mocks.updateCalls[1].where).params).toEqual([9]); // unlink old peer
-    expect(mocks.updateCalls[2].set).toEqual({ connectedToDeviceId: 5, connectedToPortId: 1 });
-    expect(queryOf(mocks.updateCalls[2].where).params).toEqual([11]); // back-link new peer
+
+    const release = mocks.updateCalls[2];
+    expect(release.set).toEqual({ connectedToDeviceId: null, connectedToPortId: null });
+    const releaseWhere = queryOf(release.where);
+    expect(releaseWhere.sql).toContain('"network_ports"."connected_to_port_id"');
+    expect(releaseWhere.sql).toContain("<>");
+    expect(releaseWhere.params).toEqual([11, 1]); // other ports pointing at the new target
+
+    expect(mocks.updateCalls[3].set).toEqual({ connectedToDeviceId: 5, connectedToPortId: 1 });
+    expect(queryOf(mocks.updateCalls[3].where).params).toEqual([11]); // back-link new peer
+  });
+
+  it("rejects a port linking to itself", async () => {
+    mocks.selectResult.mockResolvedValue([linkedPortRow]);
+
+    await expect(updatePort(1, { deviceId: 5, connectedToDeviceId: 5, connectedToPortId: 1 }))
+      .rejects.toThrow("Port tidak dapat terhubung ke dirinya sendiri.");
+    expect(mocks.updateCalls).toHaveLength(0);
   });
 
   it("does not touch the DB when unauthorized", async () => {
