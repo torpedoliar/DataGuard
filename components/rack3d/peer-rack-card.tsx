@@ -40,7 +40,7 @@ export function PeerRackCard({ rack, peer, portName, onMove, onClose }: {
                 </button>
             </div>
             <div className="h-56 bg-ops-bg">
-                <PeerRackMini devices={rack.devices} totalU={rack.totalU || 42} peerId={peer.id} />
+                <PeerRackMini rack={rack} peerId={peer.id} />
             </div>
             <div className="space-y-1 border-t border-ops-border px-3 py-2">
                 <p className="truncate text-xs font-semibold text-ops-text">{peer.name}</p>

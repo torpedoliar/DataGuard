@@ -40,7 +40,7 @@ export function Cables({ cables }: { cables: CableInfo[] }) {
                         <meshStandardMaterial color={c.color} emissive={c.color} emissiveIntensity={0.35} roughness={0.5} />
                     </mesh>
                     {c.label && (
-                        <Html position={c.points[c.points.length - 1]} center pointerEvents="none" zIndexRange={[30, 0]}>
+                        <Html position={c.points[c.points.length - 1]} center style={{ pointerEvents: "none" }} zIndexRange={[30, 0]}>
                             <div className="whitespace-nowrap rounded bg-black/75 px-1.5 py-0.5 text-[10px] text-white">{c.label}</div>
                         </Html>
                     )}

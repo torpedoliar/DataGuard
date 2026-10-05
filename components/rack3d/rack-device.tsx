@@ -312,8 +312,10 @@ export function RackDevice({ device, selected, faded, accent, colorBy, onSelect,
                     {floatCard}
                 </Html>
             )}
+            {/* Screen-space Html ignores the pointerEvents prop; set the DOM
+                style so the tooltip cannot steal hover and repeatedly disappear. */}
             {hovered && !selected && (
-                <Html position={[0, h / 2 + 0.02, FRONT_Z]} center pointerEvents="none" zIndexRange={[40, 0]}>
+                <Html position={[0, h / 2 + 0.02, FRONT_Z]} center style={{ pointerEvents: "none" }} zIndexRange={[40, 0]}>
                     <div className="whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-[11px] font-medium text-white shadow">
                         {device.name} · U{device.rackPosition} · {uh}U
                     </div>

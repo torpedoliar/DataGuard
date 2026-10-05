@@ -364,7 +364,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 )}
             </div>
 
-            <div className={`relative overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" onPointerDownCapture={stopTourOnInput} onWheelCapture={stopTourOnInput}>
+            <div className={`overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" onPointerDownCapture={stopTourOnInput} onWheelCapture={stopTourOnInput}>
                 <div className={`absolute top-3 z-30 flex gap-2 ${panelOpen ? "right-[calc(24rem+0.75rem)]" : "right-3"}`} data-keep-tour>
                     <button onClick={touring ? () => setTouring(false) : startTour} aria-pressed={touring} title="Fly through every rack" className={overlayButton}>
                         {touring ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />} {touring ? "Stop tour" : "Tour"}
