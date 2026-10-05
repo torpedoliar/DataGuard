@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import * as THREE from "three";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type RootState } from "@react-three/fiber";
 import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
 import { Bloom, DepthOfField, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode, type EffectComposer as ComposerImpl } from "postprocessing";
@@ -19,6 +19,7 @@ import { tickLeds } from "./materials";
 import { PRESETS, initialQuality, resolveQuality, type Quality, type QualitySetting } from "./quality";
 import { RackCabinet } from "./rack-cabinet";
 import { Room } from "./room";
+import { pointerNdc } from "./pointer-ndc";
 
 export interface RackSceneProps {
     racks: SceneRack[];
@@ -40,6 +41,18 @@ export interface RackSceneProps {
 
 // Mirrors --color-ops-accent in app/globals.css (light / dark).
 const ACCENT = { light: "#0d9488", dark: "#5eead4" };
+
+// R3F's default pointer math reads `offsetX`, which is relative to whatever DOM
+// node the event targeted. The hologram card and the tooltip wrappers sit inside
+// the same div the events are bound to, so a click on one reports offsets against
+// itself and the ray selects a device that is not under the cursor. Measure
+// against the canvas rect instead; `clientX` is viewport-absolute.
+function pointerFromCanvas(event: { clientX: number; clientY: number }, state: RootState) {
+    const rect = state.gl.domElement.getBoundingClientRect();
+    const [x, y] = pointerNdc(event.clientX, event.clientY, rect);
+    state.pointer.set(x, y);
+    state.raycaster.setFromCamera(state.pointer, state.camera);
+}
 
 // Probe the GPU on a throwaway context so the first frame already uses the
 // right preset (switching SoftShadows after materials compiled breaks their
@@ -270,6 +283,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
             flat={preset.bloom}
             gl={{ antialias: !preset.bloom, powerPreference: "high-performance" }}
             camera={{ position: [0, 12, 12], fov: 38, near: 0.03, far: 120 }}
+            onCreated={(state) => state.setEvents({ compute: pointerFromCanvas })}
             onPointerMissed={() => onSelectDevice(null)}
         >
             <color attach="background" args={[bg]} />
