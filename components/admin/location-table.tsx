@@ -14,6 +14,7 @@ import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Edit2, Search, Trash2, X 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition, type ReactNode } from "react";
 import EditLocationModal from "./edit-location-modal";
+import RoomLayoutEditor from "./room-layout-editor";
 
 type Location = {
   id: number;
@@ -30,7 +31,8 @@ type SortDir = "asc" | "desc";
 
 const fieldClass = "ops-input h-9 px-3 text-sm";
 
-export default function LocationTable({ locations }: { locations: Location[] }) {
+export default function LocationTable({ locations, canEditLayout = false }: { locations: Location[]; canEditLayout?: boolean }) {
+  const [layoutRoomId, setLayoutRoomId] = useState<number | null>(null);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -139,6 +141,7 @@ export default function LocationTable({ locations }: { locations: Location[] }) 
                   <td className="px-5 py-3 text-ops-muted">{location.createdAt ? new Date(location.createdAt).toLocaleDateString("id-ID") : "-"}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
+                      {canEditLayout && <ActionButton type="button" variant="secondary" size="sm" onClick={() => setLayoutRoomId(location.id)}>Atur Layout</ActionButton>}
                       <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingLocation(location)} title="Edit">
                         <Edit2 className="size-4 text-blue-300" />
                       </ActionButton>
@@ -162,6 +165,7 @@ export default function LocationTable({ locations }: { locations: Location[] }) 
       </DataTableFrame>
 
       {editingLocation && <EditLocationModal location={editingLocation} onClose={() => setEditingLocation(null)} />}
+      {layoutRoomId !== null && <RoomLayoutEditor roomId={layoutRoomId} onClose={() => setLayoutRoomId(null)} />}
     </div>
   );
 }

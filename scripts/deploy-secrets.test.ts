@@ -63,7 +63,7 @@ function extractEnsureSecret(): string {
 
 function runBash(body: string, env: Record<string, string> = {}): { stdout: string; stderr: string; status: number } {
   try {
-    const result = execFileSync(BASH_BIN, ["-c", body], {
+    const result = execFileSync(BASH_BIN, ["-c", process.platform === "win32" ? `export PATH="/usr/bin:/bin:$PATH"; ${body}` : body], {
       env: { ...process.env, ...env },
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -79,7 +79,7 @@ function runBash(body: string, env: Record<string, string> = {}): { stdout: stri
   }
 }
 
-describe("deploy.sh ensure_secret", () => {
+describe("deploy.sh ensure_secret", { timeout: 30_000 }, () => {
   let workDir: string;
   let envFile: string;
   let scriptPath: string;

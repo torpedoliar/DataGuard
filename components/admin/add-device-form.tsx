@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type ChangeEvent } from "react";
 import clsx from "clsx";
+import FacilitySpecFields, { emptyFacility } from "./facility-spec-fields";
+import type { FacilityAsset } from "@/lib/facility-asset";
 
 type Category = {
   id: number;
@@ -62,6 +64,7 @@ export default function AddDeviceForm({
   brands: Brand[];
   locations: Location[];
 }) {
+  const [facility, setFacility] = useState<FacilityAsset | null>(null);
   const [racks, setRacks] = useState<Rack[]>([]);
   const [occupiedSlots, setOccupiedSlots] = useState<Record<number, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,6 +75,7 @@ export default function AddDeviceForm({
     const result = await addDevice(prevState, formData);
     if (result?.success) {
       setForm(EMPTY_FORM);
+      setFacility(null);
       setOccupiedSlots({});
       if (fileInputRef.current) fileInputRef.current.value = "";
       router.refresh();
@@ -112,6 +116,9 @@ export default function AddDeviceForm({
 
   return (
     <form action={action}>
+      {facility && <input type="hidden" name="facilityAsset" value={JSON.stringify({ ...facility, locationId: Number(form.locationId) || null })} />}
+      <label className="mb-4 block text-sm">Jenis aset<select className="ops-input ml-3 p-2" value={facility?.assetType ?? "standard"} onChange={(e) => { setFacility(e.target.value === "standard" ? null : emptyFacility(e.target.value === "ups" ? "floor-standing" : "in-row")); setForm((f) => ({ ...f, rackName: "", rackPosition: "" })); }}><option value="standard">Standard / rack device</option><option value="pac">PAC</option><option value="ups">UPS</option></select></label>
+      {facility && <div className="mb-4 rounded border border-ops-border p-4"><FacilitySpecFields asset={facility} onChange={setFacility} /><p className="mt-2 text-xs">Aset baru Unplaced; atur posisi melalui Layout Ruangan setelah disimpan.</p></div>}
       <FormSection
         title="Add New Device"
         description="Register device identity, placement, network address, and optional evidence photo."
@@ -167,13 +174,14 @@ export default function AddDeviceForm({
 
           <label>
             <span className={labelClass}>Category *</span>
-            <select name="categoryId" required value={form.categoryId} onChange={setField("categoryId")} className={fieldClass}>
+            {facility && <input type="hidden" name="categoryId" value="1" />}
+            <select name={facility ? undefined : "categoryId"} disabled={!!facility} required={!facility} value={form.categoryId} onChange={setField("categoryId")} className={fieldClass}>
               <option value="">Select category</option>
               {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
             </select>
           </label>
 
-          <div className="border-t border-ops-border pt-5 md:col-span-2 xl:col-span-3">
+          {!facility && <div className="border-t border-ops-border pt-5 md:col-span-2 xl:col-span-3">
             <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-ops-text">
               <Server className="size-4 text-ops-accent" />
               Rack Selection
@@ -230,7 +238,7 @@ export default function AddDeviceForm({
                 </select>
               </label>
             </div>
-          </div>
+          </div>}
 
           <label>
             <span className={labelClass}>Location {form.rackName ? "(from rack)" : "*"}</span>

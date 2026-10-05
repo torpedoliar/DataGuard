@@ -14,6 +14,7 @@ export interface Anchor {
     facing: 1 | -1;
     rowZ: number;
     rackTop: number;
+    direction?: [number, number];
 }
 
 interface RackPlacement { x: number; z: number; rotationY: number; rackTop: number }
@@ -31,7 +32,9 @@ export function portAnchor(
     const uh = device.uHeight || 1;
     const y = uToY(device.rackPosition ?? 1) + (uh * U) / 2 + (slot?.y ?? 0);
     const lz = FRONT_Z + 0.004 + slide;
-    return { pos: [rack.x + dir * (slot?.x ?? 0), y, rack.z + dir * lz], facing: dir, rowZ: rack.z, rackTop: rack.rackTop };
+    const sin = Math.sin(rack.rotationY), cos = Math.cos(rack.rotationY);
+    const x = slot?.x ?? 0;
+    return { pos: [rack.x + x * cos + lz * sin, y, rack.z - x * sin + lz * cos], facing: dir, direction: [sin, cos], rowZ: rack.z, rackTop: rack.rackTop };
 }
 
 const dedupe = (pts: Vec3[]) =>
@@ -43,7 +46,7 @@ const dedupe = (pts: Vec3[]) =>
 // outside this room ends just above the rack.
 export function routeCable(a: Anchor, b: Anchor | null, opts: { trayY: number; aisleX: number; lane: number; sameRack: boolean }): Vec3[] {
     const off = opts.lane * LANE;
-    const front = (e: Anchor): Vec3 => [e.pos[0], e.pos[1], e.pos[2] + e.facing * (OUT + off)];
+    const front = (e: Anchor): Vec3 => [e.pos[0] + (e.direction?.[0] ?? 0) * (OUT + off), e.pos[1], e.pos[2] + (e.direction?.[1] ?? e.facing) * (OUT + off)];
     const a1 = front(a);
     if (!b) return dedupe([a.pos, a1, [a1[0], a.rackTop + 0.15 + off, a1[2]]]);
     if (opts.sameRack) {

@@ -45,8 +45,15 @@ import clsx from "clsx";
 import DeleteDeviceModal from "./delete-device-modal";
 import EditDeviceForm from "./edit-device-form";
 import PrintQRModal from "./print-qr-modal";
+import FacilityConversionWizard from "./facility-conversion-wizard";
+import { facilityLabel, type AssetType, type FacilitySpecs } from "@/lib/facility-asset";
 
 type Device = {
+  assetType?: AssetType;
+  facilitySpecs?: FacilitySpecs | null;
+  floorX?: number | null;
+  floorZ?: number | null;
+  floorRotation?: number | null;
   id: number;
   name: string;
   assetCode: string | null;
@@ -214,11 +221,15 @@ export default function DeviceTable({
   devices,
   brands,
   locations,
+  canConvert = false,
 }: {
+  canConvert?: boolean;
   devices: Device[];
   brands: Brand[];
   locations: Location[];
 }) {
+  const [conversionId, setConversionId] = useState<number | null>(null);
+  const [selectedAssetType, setSelectedAssetType] = useState("");
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [deletingDevice, setDeletingDevice] = useState<Device | null>(null);
   const [printingDevice, setPrintingDevice] = useState<Device | null>(null);
@@ -296,7 +307,7 @@ export default function DeviceTable({
       (selectedStatus === "active" && device.isActive !== false) ||
       (selectedStatus === "inactive" && device.isActive === false);
 
-    return matchesSearch && matchesCategory && matchesBrand && matchesRack && matchesStatus;
+    return matchesSearch && matchesCategory && matchesBrand && matchesRack && matchesStatus && (!selectedAssetType || (device.assetType ?? "standard") === selectedAssetType);
   });
 
   const sortedDevices = [...filteredDevices].sort((a, b) => {
@@ -312,7 +323,7 @@ export default function DeviceTable({
 
   const groups: Record<string, Device[]> = {};
   sortedDevices.forEach((device) => {
-    const rackName = device.rackName || "Unassigned / Direct Placement";
+    const rackName = device.assetType === "pac" || device.assetType === "ups" ? `${device.locationName ?? "Unassigned"} / ${device.assetType === "pac" ? "Cooling" : "Power"}` : device.rackName || "Unassigned / Direct Placement";
     if (!groups[rackName]) groups[rackName] = [];
     groups[rackName].push(device);
   });
@@ -325,6 +336,7 @@ export default function DeviceTable({
 
   const resetFilters = () => {
     setSearchQuery("");
+    setSelectedAssetType("");
     setSelectedCategory("");
     setSelectedBrand("");
     setSelectedRack("");
@@ -333,7 +345,7 @@ export default function DeviceTable({
     setCurrentPage(1);
   };
 
-  const hasFilters = searchQuery || selectedCategory || selectedBrand || selectedRack || selectedStatus;
+  const hasFilters = searchQuery || selectedCategory || selectedBrand || selectedRack || selectedStatus || selectedAssetType;
 
   const totalRacks = groupEntries.length;
   const totalPages = Math.ceil(totalRacks / racksPerPage);
@@ -368,6 +380,8 @@ export default function DeviceTable({
                 <Filter className="size-3.5" />
                 Filters
               </div>
+              <select aria-label="Jenis aset" value={selectedAssetType} onChange={(event) => { setSelectedAssetType(event.target.value); setCurrentPage(1); }} className={fieldClass}><option value="">Semua aset</option><option value="standard">Standard</option><option value="pac">PAC / Cooling</option><option value="ups">UPS / Power</option></select>
+              {canConvert && devices.some((d) => !d.assetType || d.assetType === "standard") && <ActionButton type="button" variant="secondary" size="sm" onClick={() => setConversionId(0)}>Konversi PAC/UPS</ActionButton>}
               <select value={selectedCategory} onChange={(event) => { setSelectedCategory(event.target.value); setCurrentPage(1); }} className={`${fieldClass} min-w-36`}>
                 <option value="">All Categories</option>
                 {uniqueCategories.map((category) => <option key={category} value={category}>{category}</option>)}
@@ -492,6 +506,7 @@ export default function DeviceTable({
                             <div className="flex items-center gap-2">
                               {!isActive && <span className="size-2 rounded-full bg-ops-danger shrink-0" title="Inactive" />}
                               <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
+                              {device.assetType && device.assetType !== "standard" && <span className="text-[10px] text-ops-muted">{facilityLabel(device.assetType, device.facilitySpecs)}</span>}
                               {device.excludeChecklist && (
                                 <span className="rounded-full border border-ops-warning/30 bg-ops-warning/10 px-2 py-0.5 text-[10px] font-semibold text-ops-warning shrink-0" title="Excluded from checklist audit — stays in rack layout">
                                   Excluded
@@ -564,7 +579,7 @@ export default function DeviceTable({
                               </div>
                             ) : (
                               <span className="inline-flex items-center gap-1 rounded border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[11px] text-ops-muted italic">
-                                Direct / No Rack
+                                {device.assetType === "pac" || device.assetType === "ups" ? device.floorX != null ? `Floor X ${device.floorX} / Z ${device.floorZ} m` : "Unplaced" : "Direct / No Rack"}
                               </span>
                             )}
                           </td>
@@ -593,6 +608,7 @@ export default function DeviceTable({
                         </td>
                         <td className="sticky right-0 z-10 bg-ops-surface-raised dark:bg-[#0e1626] group-hover:bg-ops-surface transition-colors border-l border-ops-border/70 shadow-[-4px_0_8px_rgba(0,0,0,0.12)] px-3 py-2 text-right">
                           <div className="inline-flex items-center justify-end gap-1">
+                            {canConvert && (!device.assetType || device.assetType === "standard") && <ActionButton type="button" variant="ghost" size="sm" onClick={() => setConversionId(device.id)}>Konversi</ActionButton>}
                             {device.ipAddress && (
                               <ActionButton type="button" variant="ghost" size="icon" onClick={() => setManageDevice(device)} aria-label="Manage device remotely" title="Manage device remotely" className="!size-8 p-0">
                                 <MonitorPlay aria-hidden="true" className="size-4 text-ops-accent" />
@@ -680,6 +696,7 @@ export default function DeviceTable({
         </div>
       )}
 
+      {conversionId !== null && <FacilityConversionWizard devices={devices.filter((d) => !d.assetType || d.assetType === "standard").map((d) => ({ ...d, assetType: "standard" as const }))} locations={locations} initialDeviceId={conversionId || undefined} onClose={() => setConversionId(null)} />}
       {editingDevice && (
         <EditDeviceForm device={editingDevice} onClose={() => setEditingDevice(null)} brands={brands} locations={locations} />
       )}

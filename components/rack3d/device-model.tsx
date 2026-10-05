@@ -10,6 +10,7 @@ import { portFace, type PortFaceSlot } from "./port-face";
 import { repeated, ventTexture } from "./textures";
 import { useLabelTexture } from "./use-label-texture";
 import { useImageTexture } from "./use-image-texture";
+import { FacilityModel } from "./facility-model";
 
 const FRONT_Z = 0.36;
 // Device opacity is React-driven (filter mute x rack fade); tells useFade to skip it.
@@ -233,6 +234,7 @@ function NameTag({ device, h, opacity }: { device: FilteredDevice; h: number; op
 export function DeviceModel({ device, opacity = 1, glow = null, marker = "#64748b", detailed = true }: {
     device: FilteredDevice; opacity?: number; glow?: string | null; marker?: string; detailed?: boolean;
 }) {
+    if (device.assetType === "pac" || device.assetType === "ups") return <FacilityModel device={device} opacity={opacity} detailed={detailed} />;
     const uh = device.uHeight || 1;
     const h = uh * U - 0.0015;
     const kind = deviceKind(device.categoryName, device.name);

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Loader2, TriangleAlert, XCircle } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
+import { facilityLabel } from "@/lib/facility-asset";
 import PhotoModal from "@/components/report/photo-modal";
 import DeviceNetworkSummary from "./device-network-summary";
 import { AuditSection, ConnectionsSection, IncidentsSection, SiemSection, useDeviceDrawer } from "./device-drawer-sections";
@@ -27,13 +28,25 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
     if (!device) return null;
 
     const pic = drawer.data?.picGroups.map((g) => g.name).join(", ");
+    const facility = device.assetType === "pac" || device.assetType === "ups";
+    const specs = device.facilitySpecs;
+    const facilityRows: [string, string | null][] = facility ? [
+        ["Jenis aset", facilityLabel(device.assetType!, specs)],
+        ["Penempatan", device.floorX != null && device.floorZ != null ? `X ${device.floorX} m / Z ${device.floorZ} m / ${device.floorRotation ?? 0}°` : "Unplaced"],
+        ["Model", specs?.model ?? "Belum diketahui"],
+        ["Serial number", specs?.serialNumber ?? "Belum diketahui"],
+        ["Dimensi W/D/H (mm)", `${specs?.widthMm ?? "?"} / ${specs?.depthMm ?? "?"} / ${specs?.heightMm ?? "?"}`],
+        ["Instalasi", specs?.installedOn ?? "Belum diketahui"],
+        ["Maintenance", specs?.maintainedOn ?? "Belum diketahui"],
+        ["Coverage notes", specs?.coverageNotes ?? "-"],
+        ...(specs?.subtype === "floor-standing" ? [["Kapasitas UPS", `${specs.capacityKva ?? "?"} kVA / ${specs.ratedKw ?? "?"} kW`], ["Battery", specs.battery]] as [string, string | null][] : specs ? [["Cooling capacity", `${specs.coolingKw ?? "?"} kW`], ["Supply airflow", specs.supplyAirflow ?? "Belum diketahui"]] as [string, string | null][] : []),
+    ] : [];
     const rows: [string, string | null][] = [
         ["Name", device.name],
         ["Brand", device.brandName || "-"],
         ["Category", device.categoryName],
         ["Location", device.locationName || "-"],
-        ["Rack", device.rackName],
-        ["Position", `U${device.rackPosition}`],
+        ...(facility ? facilityRows : [["Rack", device.rackName], ["Position", device.rackPosition != null ? `U${device.rackPosition}` : "Unplaced"]] as [string, string | null][]),
         ["Zone", device.zone || "-"],
         ["IP address", device.ipAddress || "-"],
         ["Asset code", device.assetCode || "-"],
@@ -92,7 +105,7 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
                         </div>
                     ))}
                     <div>
-                        <label className="text-xs text-ops-muted">Status</label>
+                        <label className="text-xs text-ops-muted">Status audit</label>
                         <p className={`font-medium ${
                             device.status === "NOT OK" ? "text-ops-danger" :
                             device.status === "OK" ? "text-ops-success" : "text-ops-muted"

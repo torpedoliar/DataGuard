@@ -215,7 +215,7 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
     }
     // Reordering a filtered list would renumber slots without the hidden
     // racks and collide with them: only reorder the full layout.
-    const reorderable = !hasFilters;
+    const reorderable = !hasFilters && !racks.some((rack) => rack.layoutMode === "manual");
 
 
     useEffect(() => { setIsClient(true); }, []);

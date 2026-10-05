@@ -6,6 +6,7 @@ import { Environment, Lightformer } from "@react-three/drei";
 import type { RackDevice } from "@/actions/rack-layout";
 import { waitForImageTexture } from "./use-image-texture";
 import { DeviceModel } from "./device-model";
+import { facilityDimensions } from "@/lib/facility-asset";
 
 const InspectControls = lazy(() => import("./device-inspect-controls"));
 
@@ -43,7 +44,7 @@ class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boole
 }
 
 export function previewVisualKey(device: RackDevice) {
-    return JSON.stringify([device.id, device.name, device.categoryName, device.brandLogo, device.uHeight, device.status, device.isCritical, device.faceplatePortCount, device.faceplateUplinkCount, device.faceplateRows, device.faceplateNumbering, device.ports]);
+    return JSON.stringify([device.id, device.name, device.categoryName, device.brandLogo, device.uHeight, device.status, device.isCritical, device.faceplatePortCount, device.faceplateUplinkCount, device.faceplateRows, device.faceplateNumbering, device.ports, device.assetType, device.facilitySpecs]);
 }
 
 export default function DevicePreview({ device }: { device: RackDevice }) {
@@ -53,7 +54,9 @@ export default function DevicePreview({ device }: { device: RackDevice }) {
 function Preview({ device }: { device: RackDevice }) {
     const [inspect, setInspect] = useState(false);
     const [image, setImage] = useState<string | null | undefined>(undefined);
-    const cameraDistance = Math.max(0.8, (device.uHeight || 1) * 0.06);
+    const facility = device.assetType === "pac" || device.assetType === "ups";
+    const dimensions = facilityDimensions({ assetType: device.assetType ?? "standard", facilitySpecs: device.facilitySpecs ?? null });
+    const cameraDistance = facility ? Math.max(dimensions.width, dimensions.depth, dimensions.height) * 2 : Math.max(0.8, (device.uHeight || 1) * 0.06);
     return (
         <section aria-label="Device model" className="mb-4 overflow-hidden rounded-lg border border-ops-border bg-ops-bg">
             <div className="h-44">

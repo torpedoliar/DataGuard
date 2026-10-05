@@ -8,6 +8,7 @@ export type RackView = "2d" | "3d";
 
 interface RackFilterBarProps {
     racks: RackData[];
+    facilities?: { zone: string | null; locationName: string | null }[];
     categories: { id: number; name: string; color: string | null }[];
     filters: RackFilters;
     onChange: (filters: RackFilters) => void;
@@ -18,9 +19,9 @@ interface RackFilterBarProps {
 
 const selectClass = "h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent min-w-[120px]";
 
-export default function RackFilterBar({ racks, categories, filters, onChange, view, onViewChange, disable3d }: RackFilterBarProps) {
-    const zones = Array.from(new Set(racks.map((r) => r.zone).filter((z): z is string => !!z))).sort();
-    const locations = Array.from(new Set(racks.map((r) => r.locationName).filter((l): l is string => !!l))).sort();
+export default function RackFilterBar({ racks, facilities = [], categories, filters, onChange, view, onViewChange, disable3d }: RackFilterBarProps) {
+    const zones = Array.from(new Set([...racks, ...facilities].map((r) => r.zone).filter((z): z is string => !!z))).sort();
+    const locations = Array.from(new Set([...racks, ...facilities].map((r) => r.locationName).filter((l): l is string => !!l))).sort();
     const set = (patch: Partial<RackFilters>) => onChange({ ...filters, ...patch });
 
     return (

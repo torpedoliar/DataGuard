@@ -2,6 +2,10 @@ import { compareRackOrder, naturally, rowKey } from "@/lib/rack-order";
 import { RACK_D, RACK_W, ROOM_MARGIN, ROW_PITCH, SLOT_PITCH, TILE } from "./constants";
 
 export interface LayoutRack {
+    layoutMode?: string;
+    floorX?: number | null;
+    floorZ?: number | null;
+    floorRotation?: number | null;
     name: string;
     floorRow: string | null;
     floorSlot: number | null;
@@ -29,6 +33,12 @@ export const UNPLACED_ROW = "Unplaced";
 // with no slot) are fitted into the free slots after the row's last slot.
 // Duplicates are flagged so the UI can warn.
 export function layoutRacks<R extends LayoutRack>(racks: R[]): PlacedRack<R>[] {
+    if (racks.some((r) => r.layoutMode === "manual")) {
+        return racks.flatMap((rack): PlacedRack<R>[] => rack.floorX == null || rack.floorZ == null ? [] : [{
+            rack, row: rack.name, slot: rack.floorSlot ?? 1, x: rack.floorX, z: rack.floorZ,
+            rotationY: (rack.floorRotation ?? 0) * Math.PI / 180, collision: false, unplaced: false,
+        }]);
+    }
     const rows = new Map<string, R[]>();
     const ordered = racks.filter((r) => rowKey(r.floorRow)).sort(compareRackOrder);
     for (const r of ordered) {
@@ -103,8 +113,8 @@ export const tileKey = (x: number, z: number) => `${Math.round(x / TILE) || 0},$
 export function coldAisleTiles(list: PlacedRack[]): Set<string> {
     const set = new Set<string>();
     for (const p of list) {
-        const dir = p.rotationY === 0 ? 1 : -1;
-        set.add(tileKey(p.x, p.z + dir * (RACK_D / 2 + TILE / 2)));
+        const distance = RACK_D / 2 + TILE / 2;
+        set.add(tileKey(p.x + Math.sin(p.rotationY) * distance, p.z + Math.cos(p.rotationY) * distance));
     }
     return set;
 }

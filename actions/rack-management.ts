@@ -9,6 +9,8 @@ import { verifySession } from "../lib/session";
 import { logAudit } from "../lib/audit";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "../lib/action-auth";
 import type { RackMove } from "../lib/rack-order";
+import { lockLayoutRooms, bumpLayoutRevision } from "@/lib/room-layout-data";
+import { rackHeight } from "@/components/rack3d/constants";
 
 // Form checkboxes submit "on" when checked; an unchecked checkbox submits
 // its hidden "false" twin (the browser never sends the field at all
@@ -124,7 +126,7 @@ export async function addRack(prevState: unknown, formData: FormData) {
     }
 
     try {
-        await db.insert(racks).values({
+        const insertRack = (handle: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]) => handle.insert(racks).values({
             siteId: auth.activeSiteId,
             name: parsed.data.name,
             zone: parsed.data.zone || null,
@@ -135,6 +137,11 @@ export async function addRack(prevState: unknown, formData: FormData) {
             floorSlot: parsed.data.floorSlot ?? null,
             facing: parsed.data.facing ?? "front",
         });
+        if (parsed.data.locationId) await db.transaction(async (tx) => {
+            await lockLayoutRooms(tx, auth.activeSiteId, [parsed.data.locationId]);
+            await insertRack(tx);
+            await bumpLayoutRevision(tx, auth.activeSiteId, [parsed.data.locationId]);
+        }); else await insertRack(db);
 
         revalidatePath("/admin/rack-manage");
         revalidatePath("/admin/rack");
@@ -173,7 +180,7 @@ export async function updateRack(prevState: unknown, formData: FormData) {
         // absent isAuditable keeps the stored value (never force-flips to
         // false), and an absent zone keeps the stored zone while an explicit
         // empty string clears it to NULL (matching addRack's || null).
-        await db.update(racks).set({
+        const saveRack = (handle: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]) => handle.update(racks).set({
             name: parsed.data.name,
             zone: parsed.data.zone === undefined ? current.zone : (parsed.data.zone === "" ? null : parsed.data.zone),
             totalU: parsed.data.totalU,
@@ -182,7 +189,20 @@ export async function updateRack(prevState: unknown, formData: FormData) {
             floorRow: parsed.data.floorRow,
             floorSlot: parsed.data.floorSlot,
             facing: parsed.data.facing,
+            ...(parsed.data.locationId !== undefined && parsed.data.locationId !== current.locationId ? { floorX: null, floorZ: null, floorRotation: null } : {}),
         }).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
+        if (current.locationId || parsed.data.locationId) await db.transaction(async (tx) => {
+            const roomRows = await lockLayoutRooms(tx, auth.activeSiteId, [current.locationId, parsed.data.locationId]);
+            const [locked] = await tx.select().from(racks).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId))).for("update");
+            if (!locked || locked.locationId !== current.locationId || locked.name !== current.name || locked.totalU !== current.totalU) throw new Error("Rack berubah. Muat ulang form.");
+            if (roomRows.some((r) => r.id === current.locationId && r.layoutMode === "manual") && ((parsed.data.floorRow !== undefined && parsed.data.floorRow !== current.floorRow) || (parsed.data.floorSlot !== undefined && parsed.data.floorSlot !== current.floorSlot) || (parsed.data.facing !== undefined && parsed.data.facing !== current.facing))) {
+                throw new Error("Gunakan Atur Layout Ruangan untuk posisi room manual.");
+            }
+            const currentRoom = roomRows.find((r) => r.id === current.locationId);
+            if (currentRoom?.layoutMode === "manual" && locked.floorX !== null && parsed.data.totalU !== undefined && rackHeight(parsed.data.totalU) > currentRoom.roomHeightM!) throw new Error("Tinggi rack melebihi ruangan; ubah layout atau lepas penempatan dahulu.");
+            await saveRack(tx);
+            await bumpLayoutRevision(tx, auth.activeSiteId, [current.locationId, parsed.data.locationId]);
+        }); else await saveRack(db);
 
         // Cascade rename to devices referencing this rack by name
         // (case-insensitive match, consistent with the merged layout, #33)
@@ -202,6 +222,7 @@ export async function updateRack(prevState: unknown, formData: FormData) {
         if (error instanceof Error && error.message.includes("UNIQUE constraint")) {
             return { message: "Nama rak ini sudah terdaftar. Silakan gunakan nama lain." };
         }
+        if (error instanceof Error && /Gunakan Atur Layout|Rack berubah|Ruangan tidak ditemukan|Tinggi rack/.test(error.message)) return { message: error.message };
         return { message: "Terjadi kesalahan saat memperbarui konfigurasi rak." };
     }
 }
@@ -220,7 +241,7 @@ export async function deleteRack(id: number) {
     try {
         const rack = await db.query.racks.findFirst({
             where: and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)),
-            columns: { name: true },
+            columns: { name: true, locationId: true },
         });
         if (!rack) return { message: "Rak tidak ditemukan di site aktif." };
 
@@ -236,7 +257,15 @@ export async function deleteRack(id: number) {
             return { message: rackInUseMessage };
         }
 
-        await db.delete(racks).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
+        if (rack.locationId) await db.transaction(async (tx) => {
+            await lockLayoutRooms(tx, auth.activeSiteId, [rack.locationId]);
+            const [locked] = await tx.select().from(racks).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId))).for("update");
+            if (!locked || locked.locationId !== rack.locationId || locked.name !== rack.name) throw new Error("Rack berubah.");
+            const [{ count }] = await tx.select({ count: sql<number>`count(*)::int` }).from(devices).where(and(eq(devices.siteId, auth.activeSiteId), sql`lower(${devices.rackName}) = lower(${locked.name})`));
+            if (count > 0) throw new Error(rackInUseMessage);
+            await tx.delete(racks).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
+            await bumpLayoutRevision(tx, auth.activeSiteId, [rack.locationId]);
+        }); else await db.delete(racks).where(and(eq(racks.id, id), eq(racks.siteId, auth.activeSiteId)));
 
         revalidatePath("/admin/rack-manage");
         revalidatePath("/admin/rack");
@@ -286,10 +315,14 @@ export async function reorderRacks(moves: RackMove[]) {
     if (!parsed.success) return { message: "Urutan rak tidak valid." };
 
     const keys = parsed.data.map((m) => m.name.toLowerCase());
+    const roomCandidates = await db.select({ locationId: racks.locationId }).from(racks).where(and(eq(racks.siteId, auth.activeSiteId), inArray(sql`lower(${racks.name})`, keys)));
     const result = await db.transaction(async (tx) => {
-        const owned = await tx.select({ id: racks.id, name: racks.name }).from(racks)
+        const lockedRooms = await lockLayoutRooms(tx, auth.activeSiteId, roomCandidates.map((r) => r.locationId));
+        if (lockedRooms.some((r) => r.layoutMode === "manual")) return { message: "Room manual menggunakan Atur Layout Ruangan." };
+        const owned = await tx.select({ id: racks.id, name: racks.name, locationId: racks.locationId }).from(racks)
             .where(and(eq(racks.siteId, auth.activeSiteId), inArray(sql`lower(${racks.name})`, keys)))
             .for("update");
+        if (owned.some((r) => r.locationId != null && !lockedRooms.some((room) => room.id === r.locationId))) return { message: "Lokasi rack berubah. Muat ulang layout." };
         const byKey = new Map(owned.map((r) => [r.name.toLowerCase(), r.id]));
         const missing = parsed.data.find((m) => !byKey.has(m.name.toLowerCase()));
         if (missing) return { message: `Rak "${missing.name}" belum terdaftar di Racks site ini. Tambahkan dulu sebelum mengatur urutan.` };
@@ -298,6 +331,7 @@ export async function reorderRacks(moves: RackMove[]) {
             await tx.update(racks).set({ floorRow: m.floorRow, floorSlot: m.floorSlot })
                 .where(and(eq(racks.id, byKey.get(m.name.toLowerCase())!), eq(racks.siteId, auth.activeSiteId)));
         }
+        await bumpLayoutRevision(tx, auth.activeSiteId, owned.map((r) => r.locationId));
         return { success: true as const };
     });
     if (!("success" in result)) return result;

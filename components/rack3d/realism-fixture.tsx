@@ -7,6 +7,7 @@ import type { RackDevice } from "@/actions/rack-layout";
 import { DEFAULT_APPEARANCE } from "@/lib/room-appearance";
 import DeviceDetailPanel from "@/components/admin/device-detail-panel";
 import type { Quality } from "./quality";
+import { facilityAssetSchema } from "@/lib/facility-asset";
 const RackScene = dynamic(() => import("./rack-scene"), { ssr: false });
 const devices = ["Server", "Network", "Storage", "UPS", "Cooling"].map((kind, i) => ({
     id: i + 1, name: `Synthetic ${kind}`, brandName: null, brandLogo: null, categoryId: i, categoryName: kind, categoryColor: "#4f859c", locationName: "Synthetic room", photoPath: null, rackName: "Demo rack", rackPosition: 2 + i * 6, uHeight: i === 1 ? 1 : 2, zone: null, status: "OK", faceplatePortCount: i === 1 ? 24 : null, faceplateUplinkCount: i === 1 ? 4 : null, faceplateRows: 2, faceplateNumbering: "sequential", ports: [], isCritical: false, ipAddress: null, assetCode: null, openIncidents: { count: 0, maxSeverity: null }, isMuted: false,
@@ -17,6 +18,9 @@ const racks: SceneRack[] = [
     { name: "Demo rack", zone: null, totalU: 42, devices, occupiedU: [], locationName: "Synthetic room", locationId: 1, floorRow: "A", floorSlot: 1, facing: "front", hasMatchingDevices: true, dimmed: false },
     { name: "Peer rack", zone: null, totalU: 42, devices: [peer], occupiedU: [], locationName: "Synthetic room", locationId: 1, floorRow: "B", floorSlot: 1, facing: "front", hasMatchingDevices: true, dimmed: false },
 ];
+const facilities: RackDevice[] = (["in-row", "top-blow", "floor-standing"] as const).map((subtype, i) => ({ ...devices[0], id: 500 + i, name: `Synthetic ${subtype}`, rackName: null, rackPosition: null, uHeight: null,
+    ...facilityAssetSchema.parse({ assetType: subtype === "floor-standing" ? "ups" : "pac", facilitySpecs: { subtype, ...(subtype === "in-row" ? { widthMm: 300 } : subtype === "floor-standing" ? { capacityKva: 20 } : {}) }, locationId: 1, floorX: 3 + i * 2, floorZ: 4, floorRotation: 0 }),
+}));
 const drawer = { loading: false, error: false, data: { picGroups: [], lastAudit: null, incidents: [], siem: { count: 0, latest: [] }, connections: [] } };
 export default function RealismFixture() {
     const [selected, setSelected] = useState<RackDevice | null>(devices[1]);
@@ -26,6 +30,7 @@ export default function RealismFixture() {
     const [fullscreen, setFullscreen] = useState(false);
     const [showFree, setShowFree] = useState(false);
     const [dense, setDense] = useState(false);
+    const [facilityOnly, setFacilityOnly] = useState(false);
     const sceneRacks: SceneRack[] = dense ? Array.from({ length: 8 }, (_, rackIndex) => ({
         ...racks[0], name: `Synthetic dense ${rackIndex + 1}`, floorRow: rackIndex < 4 ? "A" : "B", floorSlot: rackIndex % 4 + 1,
         devices: Array.from({ length: 30 }, (_, index) => ({ ...devices[index % devices.length], id: 100 + rackIndex * 30 + index, name: `Synthetic device ${rackIndex * 30 + index + 1}`, rackName: `Synthetic dense ${rackIndex + 1}`, rackPosition: index + 1, uHeight: 1, ports: [] })),
@@ -42,13 +47,15 @@ export default function RealismFixture() {
             <label>Brightness <input aria-label="Fixture brightness" type="range" min={0} max={2} step={0.1} value={brightness} onChange={(event) => setBrightness(Number(event.target.value))} /></label>
         </div>
         <div aria-label="Fixture scene" className={fullscreen ? "fixed inset-0 z-40" : "relative h-[80vh]"}>
-            <div className="absolute left-3 top-3 z-30 flex gap-2">
+            <div className="absolute left-3 right-3 top-3 z-30 flex flex-wrap gap-2">
                 <button onClick={() => document.fullscreenElement ? void document.exitFullscreen() : void document.documentElement.requestFullscreen()}>{fullscreen ? "Exit fullscreen" : "Enter fullscreen"}</button>
                 <button onClick={() => setFocus(focus ? null : "Demo rack")}>{focus ? "Whole room" : "Focus demo rack"}</button>
                 <button onClick={() => setShowFree(!showFree)}>Toggle free U</button>
+                <button onClick={() => { setFacilityOnly(!facilityOnly); setFocus(null); setSelected(null); }}>Facility-only room</button>
+                {facilities.map((d) => <button key={d.id} onClick={() => setSelected(d)}>{d.name}</button>)}
                 <button onClick={() => { setDense(!dense); setFocus(null); setSelected(null); }}>{dense ? "Small fixture" : "Dense fixture"}</button>
             </div>
-            <RackScene racks={sceneRacks} floorPlanUrl={null} qualitySetting={quality} focusRack={focus} onFocusRack={setFocus} showFree={showFree} selectedDeviceId={selected?.id ?? null} peerDeviceId={selected?.id === 2 ? peer.id : null} floatCard={(device) => device.id === peer.id ? <div className="rounded bg-ops-surface p-2 text-ops-text">Synthetic peer card</div> : null} focusDeviceId={null} onSelectDevice={setSelected} temp={null} colorBy="category" appearance={{ ...DEFAULT_APPEARANCE, lightBrightness: brightness }} />
+            <RackScene facilities={facilities} roomSettings={{ layoutMode: "manual", roomWidthM: 10, roomDepthM: 8, roomHeightM: 3.2, floorPlanPath: null, tempC: null, tempThresholdC: null, appearance: DEFAULT_APPEARANCE }} racks={facilityOnly ? [] : sceneRacks.map((r, i) => ({ ...r, layoutMode: "manual", floorX: 1 + i * 0.8, floorZ: 1, floorRotation: 0 }))} floorPlanUrl={null} qualitySetting={quality} focusRack={focus} onFocusRack={setFocus} showFree={showFree} selectedDeviceId={selected?.id ?? null} peerDeviceId={selected?.id === 2 ? peer.id : null} floatCard={(device) => device.id === peer.id ? <div className="rounded bg-ops-surface p-2 text-ops-text">Synthetic peer card</div> : null} focusDeviceId={null} onSelectDevice={setSelected} temp={null} colorBy="category" appearance={{ ...DEFAULT_APPEARANCE, lightBrightness: brightness }} />
             {selected && <DeviceDetailPanel key={selected.id} docked device={selected} drawerState={drawer} networkState={{ ports: [], loading: false }} onClose={() => setSelected(null)} />}
         </div>
     </main>;

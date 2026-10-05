@@ -47,6 +47,16 @@ function render(selectedDeviceId = 1) {
 }
 beforeEach(() => { hooks.values = []; hooks.cursor = 0; });
 describe("RackView3D integration", () => {
+    it("opens a selected floor asset in a room with no racks and keeps unknown kW", () => {
+        const facility = { ...devices[0], id: 500, assetType: "ups", facilitySpecs: { subtype: "floor-standing", capacityKva: 20, ratedKw: null }, rackName: null, rackPosition: null, uHeight: null, locationId: 7, locationName: "Power room", floorX: 2, floorZ: 3 } as unknown as import("@/actions/rack-layout").RackDevice;
+        let tree: ReactElement;
+        do {
+            hooks.cursor = 0; hooks.changed = false;
+            tree = RackView3D({ racks: [], facilities: [facility], rooms: {}, selectedDeviceId: 500, autoFocusDeviceId: null, onSelectDevice: () => {}, onSelectPeer: () => true, onWebglUnavailable: () => {}, canEditAppearance: false, siteName: "Site" });
+        } while (hooks.changed);
+        expect((find(tree!, "rack-scene").props as { facilities: unknown[] }).facilities).toEqual([facility]);
+        expect((find(tree!, "detail-panel").props as { device: unknown }).device).toBe(facility);
+    });
     it("opens the panel without moving selection and shares the selected device's loading state", () => {
         const card = (find(render(), "rack-scene").props as { floatCard: (device: unknown) => ReactElement }).floatCard(devices[0]);
         (card.props as { onOpenPanel: () => void }).onOpenPanel();

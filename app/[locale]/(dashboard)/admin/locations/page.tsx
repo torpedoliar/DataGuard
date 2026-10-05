@@ -5,12 +5,14 @@ import Link from "next/link";
 import { MapPin, Server } from "lucide-react";
 import AddLocationForm from "@/components/admin/add-location-form";
 import LocationTable from "@/components/admin/location-table";
+import { hasAdminAccess } from "@/lib/site-access";
 
 export default async function LocationsPage() {
     const session = await verifySession();
     if (!session || !["admin", "superadmin"].includes(session.role)) redirect("/checklist");
 
     const locations = await getLocations();
+    const canEditLayout = await hasAdminAccess();
 
     return (
         <div className="px-4 py-6 lg:px-6">
@@ -62,7 +64,7 @@ export default async function LocationsPage() {
                 <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white">
                     Locations List
                 </h3>
-                <LocationTable locations={locations} />
+                <LocationTable locations={locations} canEditLayout={canEditLayout} />
             </div>
         </div>
     );

@@ -5,6 +5,7 @@ import type { FilteredDevice } from "@/lib/rack-filter";
 vi.mock("./materials", () => ({ sharedMaterials: {}, portMaterials: [], ledMaterial: () => null }));
 import { DeviceModel, deviceOpacity } from "./device-model";
 import { U } from "./constants";
+import { FacilityModel } from "./facility-model";
 
 function find(e: ReactElement, type: unknown): ReactElement | undefined {
     if (e.type === type) return e;
@@ -13,6 +14,11 @@ function find(e: ReactElement, type: unknown): ReactElement | undefined {
     }
 }
 describe("DeviceModel", () => {
+    it("uses the floor-standing model instead of a fake U chassis for facilities", () => {
+        const tree = DeviceModel({ device: { assetType: "ups", facilitySpecs: null, uHeight: null } as FilteredDevice });
+        expect(find(tree, FacilityModel)).toBeDefined();
+        expect(find(tree, RoundedBox)).toBeUndefined();
+    });
     it("owns decorative opacity without mutating shared LEDs", () => {
         expect(deviceOpacity(0.12)).toEqual({ userData: { ownFade: true }, transparent: true, opacity: 0.12 });
         const tree = DeviceModel({ device: { uHeight: 1, categoryName: "Server", name: "Server" } as FilteredDevice, opacity: 0.12 });

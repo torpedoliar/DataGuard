@@ -12,13 +12,13 @@ import { useLabelTexture } from "./use-label-texture";
 
 // Room temperature on the back wall near the ceiling; red when above the
 // alert threshold. Manual reading from the daily audit, not live.
-function TempLabel({ temp, x, z }: { temp: { tempC: number; thresholdC: number | null }; x: number; z: number }) {
+function TempLabel({ temp, x, z, height = ROOM_HEIGHT }: { temp: { tempC: number; thresholdC: number | null }; x: number; z: number; height?: number }) {
     const over = temp.thresholdC != null && temp.tempC > temp.thresholdC;
     const text = `${temp.tempC.toFixed(1)} °C${temp.thresholdC != null ? ` / max ${temp.thresholdC} °C` : ""}`;
     const tex = useLabelTexture(text, over ? "#b91c1c" : "rgba(15,23,42,0.85)", "#f8fafc", 512, 64);
     if (!tex) return null;
     return (
-        <mesh position={[x, ROOM_HEIGHT - 0.45, z]}>
+        <mesh position={[x, height - 0.45, z]}>
             <planeGeometry args={[1.2, 0.15]} />
             <meshBasicMaterial map={tex} toneMapped={false} />
         </mesh>
@@ -29,7 +29,7 @@ const WALL_REPEAT = 1; // metres per wallpaper repeat (tile mode)
 
 // Four inward-facing walls + ceiling. Front faces only, so the camera still
 // sees into the room from outside (same as the old back-side box).
-function Walls({ r, dark, appearance }: { r: ReturnType<typeof roomRect>; dark: boolean; appearance: RoomAppearance }) {
+function Walls({ r, dark, appearance, height = ROOM_HEIGHT }: { r: ReturnType<typeof roomRect>; dark: boolean; appearance: RoomAppearance; height?: number }) {
     const w = r.x1 - r.x0;
     const d = r.z1 - r.z0;
     const cx = (r.x0 + r.x1) / 2;
@@ -39,14 +39,14 @@ function Walls({ r, dark, appearance }: { r: ReturnType<typeof roomRect>; dark: 
     const stretch = appearance.wallpaper === "custom" && appearance.wallpaperMode === "stretch";
 
     const walls = useMemo(() => [
-        { len: w, pos: [cx, ROOM_HEIGHT / 2, r.z0] as const, rot: 0 },
-        { len: w, pos: [cx, ROOM_HEIGHT / 2, r.z1] as const, rot: Math.PI },
-        { len: d, pos: [r.x0, ROOM_HEIGHT / 2, cz] as const, rot: Math.PI / 2 },
-        { len: d, pos: [r.x1, ROOM_HEIGHT / 2, cz] as const, rot: -Math.PI / 2 },
-    ], [w, d, cx, cz, r.x0, r.x1, r.z0, r.z1]);
+        { len: w, pos: [cx, height / 2, r.z0] as const, rot: 0 },
+        { len: w, pos: [cx, height / 2, r.z1] as const, rot: Math.PI },
+        { len: d, pos: [r.x0, height / 2, cz] as const, rot: Math.PI / 2 },
+        { len: d, pos: [r.x1, height / 2, cz] as const, rot: -Math.PI / 2 },
+    ], [w, d, cx, cz, r.x0, r.x1, r.z0, r.z1, height]);
     const maps = useMemo(
-        () => (base ? walls.map((wall) => (stretch ? repeated(base, 1, 1) : repeated(base, wall.len / WALL_REPEAT, ROOM_HEIGHT / WALL_REPEAT))) : null),
-        [base, stretch, walls],
+        () => (base ? walls.map((wall) => (stretch ? repeated(base, 1, 1) : repeated(base, wall.len / WALL_REPEAT, height / WALL_REPEAT))) : null),
+        [base, stretch, walls, height],
     );
     useEffect(() => () => maps?.forEach((t) => t.dispose()), [maps]);
 
@@ -56,13 +56,13 @@ function Walls({ r, dark, appearance }: { r: ReturnType<typeof roomRect>; dark: 
         <>
             {walls.map((wall, i) => (
                 <mesh key={i} position={[...wall.pos]} rotation-y={wall.rot}>
-                    <planeGeometry args={[wall.len, ROOM_HEIGHT]} />
+                    <planeGeometry args={[wall.len, height]} />
                     {/* Keyed: three only compiles the map shader path when the
                         material is created, so plain <-> textured needs a new one. */}
                     <meshStandardMaterial key={maps ? "map" : "plain"} color={maps ? tint : plain} map={maps?.[i] ?? null} roughness={0.9} />
                 </mesh>
             ))}
-            <mesh position={[cx, ROOM_HEIGHT, cz]} rotation-x={Math.PI / 2}>
+            <mesh position={[cx, height, cz]} rotation-x={Math.PI / 2}>
                 <planeGeometry args={[w, d]} />
                 <meshStandardMaterial color={plain} roughness={0.9} />
             </mesh>
@@ -119,7 +119,9 @@ function CableTrays({ placed }: { placed: PlacedRack<SceneRack>[] }) {
     );
 }
 
-export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appearance }: {
+export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appearance, exactBounds = false, roomHeight = ROOM_HEIGHT }: {
+    exactBounds?: boolean;
+    roomHeight?: number;
     placed: PlacedRack<SceneRack>[];
     b: Bounds;
     floorPlanUrl: string | null;
@@ -128,7 +130,7 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
     temp: { tempC: number; thresholdC: number | null } | null;
     appearance: RoomAppearance;
 }) {
-    const r = roomRect(b);
+    const r = exactBounds ? { x0: b.minX, x1: b.maxX, z0: b.minZ, z1: b.maxZ } : roomRect(b);
     const w = r.x1 - r.x0;
     const d = r.z1 - r.z0;
     const cx = (r.x0 + r.x1) / 2;
@@ -139,7 +141,8 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
     useEffect(() => () => floorTex.dispose(), [floorTex]);
     const plan = useImageTexture(floorPlanUrl);
     const planImg = plan?.image as { width: number; height: number } | undefined;
-    const planRect = planImg ? floorPlanRect(b, planImg.width / planImg.height) : null;
+    const aspect = planImg ? planImg.width / planImg.height : 1;
+    const planRect = planImg ? exactBounds ? { width: Math.min(w, d * aspect), depth: Math.min(d, w / aspect), cx, cz } : floorPlanRect(b, aspect) : null;
     const cold = useMemo(() => [...coldAisleTiles(placed)].map((k) => k.split(",").map(Number) as [number, number]), [placed]);
     const panels = useMemo(() => {
         const out: [number, number][] = [];
@@ -192,17 +195,17 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
                 </Instances>
             )}
 
-            <Walls r={r} dark={dark} appearance={appearance} />
+            <Walls r={r} dark={dark} appearance={appearance} height={roomHeight} />
 
             {panels.map(([x, z]) => (
-                <group key={`${x},${z}`} position={[x, ROOM_HEIGHT - 0.03, z]}>
+                <group key={`${x},${z}`} position={[x, roomHeight - 0.03, z]}>
                     <mesh><boxGeometry args={[0.66, 0.05, 1.26]} /><meshStandardMaterial color="#a2a9af" metalness={0.75} roughness={0.4} /></mesh>
                     <mesh position={[0, -0.026, 0]} rotation-x={Math.PI / 2}><planeGeometry args={[0.6, 1.2]} /><meshStandardMaterial color={appearance.lightBrightness === 0 ? "#626970" : "#f1f2ed"} emissive={appearance.lightColor ?? "#ffffff"} emissiveIntensity={appearance.lightBrightness * 0.6} /></mesh>
                 </group>
             ))}
 
-            {temp && <TempLabel temp={temp} x={cx} z={r.z0 + 0.02} />}
-            <CableTrays placed={placed} />
+            {temp && <TempLabel temp={temp} x={cx} z={r.z0 + 0.02} height={roomHeight} />}
+            {!exactBounds && <CableTrays placed={placed} />}
         </group>
     );
 }

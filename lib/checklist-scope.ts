@@ -11,7 +11,25 @@ type ScopeDevice = {
   categoryId: number;
   rackName: string | null;
   rackPosition: number | null;
+  assetType?: string;
+  locationId?: number | null;
+  locationName?: string | null;
 };
+
+export const rackScopeKey = (name: string) => `rack:${name.toLowerCase()}`;
+
+export function facilityScopeKey(device: ScopeDevice) {
+  return device.assetType === "pac" || device.assetType === "ups" ? `facility:${device.locationId ?? "unassigned"}:${device.assetType}` : null;
+}
+
+export function facilityAuditGroups(devices: ScopeDevice[]) {
+  const groups = new Map<string, { name: string; label: string; zone: string | null }>();
+  for (const device of devices) {
+    const key = facilityScopeKey(device);
+    if (key) groups.set(key, { name: key, label: `${device.locationName ?? "Unassigned"} / ${device.assetType === "pac" ? "Cooling" : "Power"}`, zone: null });
+  }
+  return [...groups.values()];
+}
 
 type ScopeRack = { name: string; zone: string | null };
 
@@ -32,7 +50,11 @@ export function selectScopeDevices<T extends ScopeDevice>(
   let inScope: T[];
   if (mode === "rack" && active.rackNames && active.rackNames.length > 0) {
     const names = new Set(active.rackNames.map((name) => name.toLowerCase()));
-    inScope = devices.filter((d) => names.has((d.rackName ?? "").toLowerCase()));
+    inScope = devices.filter((d) => {
+      const facility = facilityScopeKey(d);
+      if (facility) return names.has(facility.toLowerCase());
+      return !!d.rackName && (names.has(rackScopeKey(d.rackName)) || names.has(d.rackName.toLowerCase()));
+    });
   } else if (active.categoryId) {
     inScope = devices.filter((d) => d.categoryId === active.categoryId);
   } else {

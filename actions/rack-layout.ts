@@ -7,8 +7,15 @@ import { requireActiveSiteAction } from "../lib/action-auth";
 import { compareRackOrder } from "../lib/rack-order";
 import { foldIncidents, NO_INCIDENTS, type OpenIncidents } from "../lib/rack-signals";
 import { resolveAppearance, type RoomAppearance } from "../lib/room-appearance";
+import type { AssetType, FacilitySpecs } from "@/lib/facility-asset";
 
 export interface RackDevice {
+    assetType?: AssetType;
+    facilitySpecs?: FacilitySpecs | null;
+    locationId?: number | null;
+    floorX?: number | null;
+    floorZ?: number | null;
+    floorRotation?: number | null;
     id: number;
     name: string;
     brandName: string | null;
@@ -49,6 +56,11 @@ export interface RackDevicePort {
 }
 
 export interface RackData {
+    id?: number;
+    layoutMode?: "legacy" | "manual";
+    floorX?: number | null;
+    floorZ?: number | null;
+    floorRotation?: number | null;
     name: string;
     zone: string | null;
     totalU: number;
@@ -64,8 +76,22 @@ export interface RackData {
 export async function getRackLayout() {
     const auth = await requireActiveSiteAction();
     if (!auth.ok) return [];
+    return (await loadSiteLayout(auth.activeSiteId)).racks;
+}
 
-    const siteId = auth.activeSiteId;
+export async function getSiteLayout() {
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return { racks: [], facilities: [] };
+    return loadSiteLayout(auth.activeSiteId);
+}
+
+export async function getFacilityLayout() {
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return [];
+    return (await loadSiteLayout(auth.activeSiteId)).facilities;
+}
+
+async function loadSiteLayout(siteId: number) {
 
     // Get all devices with rack info
     const allDevices = await db
@@ -90,6 +116,12 @@ export async function getRackLayout() {
             isCritical: devices.isCritical,
             ipAddress: devices.ipAddress,
             assetCode: devices.assetCode,
+            assetType: devices.assetType,
+            facilitySpecs: devices.facilitySpecs,
+            locationId: devices.locationId,
+            floorX: devices.floorX,
+            floorZ: devices.floorZ,
+            floorRotation: devices.floorRotation,
         })
         .from(devices)
         .leftJoin(categories, eq(devices.categoryId, categories.id))
@@ -103,7 +135,7 @@ export async function getRackLayout() {
 
     // Ports of every racked device: faceplate drawing + cable routing in 3D.
     const portsByDevice = new Map<number, RackDevicePort[]>();
-    const rackedIds = allDevices.filter((d) => d.rackName).map((d) => d.id);
+    const rackedIds = allDevices.filter((d) => d.rackName || d.assetType !== "standard").map((d) => d.id);
     if (rackedIds.length > 0) {
         const ports = await db
             .select({
@@ -143,6 +175,7 @@ export async function getRackLayout() {
             .where(and(
                 inArray(checklistItems.deviceId, deviceIds),
                 eq(checklistEntries.checkDate, today),
+                eq(checklistEntries.siteId, siteId),
             ))
             .orderBy(desc(checklistEntries.checkDate), desc(checklistEntries.checkTime));
 
@@ -178,6 +211,10 @@ export async function getRackLayout() {
             floorRow: racksTable.floorRow,
             floorSlot: racksTable.floorSlot,
             facing: racksTable.facing,
+            floorX: racksTable.floorX,
+            floorZ: racksTable.floorZ,
+            floorRotation: racksTable.floorRotation,
+            layoutMode: locations.layoutMode,
         })
         .from(racksTable)
         .leftJoin(locations, eq(racksTable.locationId, locations.id))
@@ -189,6 +226,11 @@ export async function getRackLayout() {
     // Initialize map with predefined racks
     for (const rackDef of predefinedRacks) {
         racks.set(rackDef.name.toLowerCase(), {
+            id: rackDef.id,
+            layoutMode: rackDef.layoutMode ?? "legacy",
+            floorX: rackDef.floorX,
+            floorZ: rackDef.floorZ,
+            floorRotation: rackDef.floorRotation,
             name: rackDef.name,
             zone: rackDef.zone,
             totalU: rackDef.totalU || 42,
@@ -245,7 +287,13 @@ export async function getRackLayout() {
 
     // Same order as the 3D room (row, slot, name) so both views agree and a
     // drag-reorder in 2D sticks.
-    return Array.from(racks.values()).sort(compareRackOrder);
+    return {
+        racks: Array.from(racks.values()).sort(compareRackOrder),
+        facilities: allDevices.filter((d) => d.assetType !== "standard").map((device): RackDevice => ({
+            ...device, status: latestStatuses[device.id] || "Pending", ports: portsByDevice.get(device.id) ?? [],
+            openIncidents: incidentsByDevice.get(device.id) ?? NO_INCIDENTS,
+        })),
+    };
 }
 
 export async function getRackStats() {
@@ -298,6 +346,12 @@ export async function getRackStats() {
 }
 
 export interface RoomSettings {
+    name?: string;
+    layoutMode?: "legacy" | "manual";
+    layoutRevision?: number;
+    roomWidthM?: number | null;
+    roomDepthM?: number | null;
+    roomHeightM?: number | null;
     floorPlanPath: string | null;
     // Room temperature for the 3D label; null when not measured or excluded.
     tempC: number | null;
@@ -313,6 +367,12 @@ export async function getRoomSettings(): Promise<Record<number, RoomSettings>> {
     const rows = await db
         .select({
             id: locations.id,
+            name: locations.name,
+            layoutMode: locations.layoutMode,
+            layoutRevision: locations.layoutRevision,
+            roomWidthM: locations.roomWidthM,
+            roomDepthM: locations.roomDepthM,
+            roomHeightM: locations.roomHeightM,
             floorPlanPath: locations.floorPlanPath,
             tempC: locations.tempC,
             tempThresholdC: locations.tempThresholdC,
@@ -327,6 +387,12 @@ export async function getRoomSettings(): Promise<Record<number, RoomSettings>> {
         .where(eq(locations.siteId, auth.activeSiteId));
 
     return Object.fromEntries(rows.map((r) => [r.id, {
+        name: r.name,
+        layoutMode: r.layoutMode,
+        layoutRevision: r.layoutRevision,
+        roomWidthM: r.roomWidthM,
+        roomDepthM: r.roomDepthM,
+        roomHeightM: r.roomHeightM,
         floorPlanPath: r.floorPlanPath,
         tempC: r.excludeTempCheck ? null : r.tempC,
         tempThresholdC: r.tempThresholdC,

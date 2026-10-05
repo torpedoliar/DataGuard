@@ -1,4 +1,4 @@
-import { getRackLayout, getRackStats, getRoomSettings } from "@/actions/rack-layout";
+import { getSiteLayout, getRackStats, getRoomSettings } from "@/actions/rack-layout";
 import RackLayoutShell from "@/components/admin/rack-layout-shell";
 import { verifySession } from "@/lib/session";
 import { hasAdminAccess } from "@/lib/site-access";
@@ -12,7 +12,7 @@ export default async function RackPage() {
     const session = await verifySession();
     if (!session || !["admin", "superadmin"].includes(session.role)) redirect("/checklist");
 
-    const racks = await getRackLayout();
+    const { racks, facilities } = await getSiteLayout();
     const stats = await getRackStats();
     const rooms = await getRoomSettings();
     const canEditAppearance = await hasAdminAccess();
@@ -90,7 +90,7 @@ export default async function RackPage() {
             )}
 
             {/* Rack Layout Visualization */}
-            <RackLayoutShell racks={racks} categories={categories} rooms={rooms} canEditAppearance={canEditAppearance} siteName={session.activeSiteName ?? ""} />
+            <RackLayoutShell facilities={facilities} racks={racks} categories={categories} rooms={rooms} canEditAppearance={canEditAppearance} siteName={session.activeSiteName ?? ""} />
         </main>
         <BottomNav />
         </>

@@ -10,6 +10,8 @@ import { Server, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 import DeviceHealthTrend from "./device-health-trend";
+import FacilitySpecFields from "./facility-spec-fields";
+import { facilityAssetSchema, type AssetType, type FacilityAsset, type FacilitySpecs } from "@/lib/facility-asset";
 
 type Category = {
   id: number;
@@ -24,6 +26,11 @@ type Brand = {
 };
 
 type Device = {
+  assetType?: AssetType;
+  facilitySpecs?: FacilitySpecs | null;
+  floorX?: number | null;
+  floorZ?: number | null;
+  floorRotation?: number | null;
   id: number;
   name: string;
   assetCode: string | null;
@@ -75,6 +82,7 @@ const fieldClass = "ops-input w-full px-3 py-2 text-sm";
 const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
 
 export default function EditDeviceForm({ device, onClose, brands, locations }: EditDeviceFormProps) {
+  const [facility, setFacility] = useState<FacilityAsset | null>(() => device.assetType === "pac" || device.assetType === "ups" ? facilityAssetSchema.parse({ ...device, floorX: device.floorX ?? null, floorZ: device.floorZ ?? null, floorRotation: device.floorRotation ?? null }) : null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [racks, setRacks] = useState<Rack[]>([]);
   const [occupiedSlots, setOccupiedSlots] = useState<Record<number, string>>({});
@@ -133,6 +141,7 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
 
         <form action={action} className="min-h-0 flex-1 overflow-y-auto">
           <input type="hidden" name="id" value={device.id} />
+          {facility && <><input type="hidden" name="facilityAsset" value={JSON.stringify(facility)} /><div className="p-5"><FacilitySpecFields asset={facility} onChange={setFacility} fixedType /><p className="mt-2 text-xs">Jenis PAC/UPS tetap. Penempatan diubah melalui Layout Ruangan.</p></div></>}
 
           <div className="p-5">
             <DeviceHealthTrend deviceId={device.id} />
@@ -210,13 +219,13 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
 
               <label className="md:col-span-2">
                 <span className={labelClass}>Location *</span>
-                <select name="locationId" defaultValue={device.locationId?.toString() || ""} required className={fieldClass}>
+                <select name="locationId" defaultValue={device.locationId?.toString() || ""} required className={fieldClass} onChange={(event) => { if (facility) setFacility({ ...facility, locationId: Number(event.target.value) || null, floorX: null, floorZ: null, floorRotation: null }); }}>
                   <option value="">Select location</option>
                   {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
                 </select>
               </label>
 
-              <div className="border-t border-ops-border pt-5 md:col-span-2">
+              {!facility && <div className="border-t border-ops-border pt-5 md:col-span-2">
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-ops-text">
                   <Server className="size-4 text-ops-accent" />
                   Rack Position
@@ -276,7 +285,7 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                     </select>
                   </label>
                 </div>
-              </div>
+              </div>}
 
               <div className="border-t border-ops-border pt-5 md:col-span-2">
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-ops-text">

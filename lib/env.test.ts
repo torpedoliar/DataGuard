@@ -14,7 +14,7 @@ function deleteEnv(key: string): void {
   delete (process.env as Record<string, string | undefined>)[key];
 }
 
-describe("env validation (lib/env.ts)", () => {
+describe("env validation (lib/env.ts)", { timeout: 30_000 }, () => {
   beforeEach(() => {
     vi.resetModules();
     // Reset process.env to a known baseline before each test

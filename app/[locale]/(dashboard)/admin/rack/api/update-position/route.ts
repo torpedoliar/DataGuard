@@ -28,6 +28,9 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Device not found" }, { status: 404 });
         }
 
+        if (deviceA.assetType === "pac" || deviceA.assetType === "ups") {
+            return NextResponse.json({ error: "Fasilitas menggunakan Layout Ruangan, bukan rack/U." }, { status: 400 });
+        }
         const newUHeight = uHeight !== undefined ? uHeight : (deviceA.uHeight || 1);
 
         let targetZone: string | null = null;

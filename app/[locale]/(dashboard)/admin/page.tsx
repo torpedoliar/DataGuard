@@ -3,6 +3,7 @@ import AddDeviceForm from "@/components/admin/add-device-form";
 import DeviceTable from "@/components/admin/device-table";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
+import { hasAdminAccess } from "@/lib/site-access";
 import {
   Boxes,
   Building2,
@@ -154,7 +155,7 @@ export default async function AdminPage() {
           <h2 className="text-lg font-bold text-ops-text">Device List ({devices.length})</h2>
           <p className="text-sm text-ops-muted">Search, filter, sort, remote-manage, and maintain device inventory.</p>
         </div>
-        <DeviceTable devices={devices} brands={brands} locations={locations} />
+        <DeviceTable devices={devices} brands={brands} locations={locations} canConvert={await hasAdminAccess()} />
       </section>
     </main>
   );

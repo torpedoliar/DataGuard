@@ -1,6 +1,7 @@
 import { sql, relations } from "drizzle-orm";
 import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, jsonb, index, real } from "drizzle-orm/pg-core";
 import { AnyPgColumn } from "drizzle-orm/pg-core";
+import type { AssetType, FacilitySpecs } from "@/lib/facility-asset";
 
 // ==================== ENUMS ====================
 export const roleEnum = pgEnum("role", ["superadmin", "admin", "staff"]);
@@ -143,6 +144,11 @@ export const locations = pgTable("locations", {
   wallpaper: text("wallpaper"),
   wallpaperPath: text("wallpaper_path"),
   wallpaperMode: text("wallpaper_mode"),
+  roomWidthM: real("room_width_m"),
+  roomDepthM: real("room_depth_m"),
+  roomHeightM: real("room_height_m"),
+  layoutMode: text("layout_mode").$type<"legacy" | "manual">().notNull().default("legacy"),
+  layoutRevision: integer("layout_revision").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -163,6 +169,9 @@ export const racks = pgTable("racks", {
   floorRow: text("floor_row"),
   floorSlot: integer("floor_slot"),
   facing: text("facing").default("front"),
+  floorX: real("floor_x"),
+  floorZ: real("floor_z"),
+  floorRotation: real("floor_rotation"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   siteNameUnique: uniqueIndex("racks_site_name_lower_unique").on(table.siteId, sql`lower(${table.name})`),
@@ -195,6 +204,11 @@ export const devices = pgTable("devices", {
   categoryId: integer("category_id").references(() => categories.id).notNull(),
   name: text("name").notNull(),
   assetCode: text("asset_code"),
+  assetType: text("asset_type").$type<AssetType>().notNull().default("standard"),
+  facilitySpecs: jsonb("facility_specs").$type<FacilitySpecs>(),
+  floorX: real("floor_x"),
+  floorZ: real("floor_z"),
+  floorRotation: real("floor_rotation"),
   brandId: integer("brand_id").references(() => brands.id),
   location: text("location").notNull().default(""),
   locationId: integer("location_id").references(() => locations.id),

@@ -29,10 +29,12 @@ const RackScene = dynamic(() => import("./rack-scene"), {
 const QUALITY_KEY = "rack3d-quality";
 const TOUR_MS = 5000;
 const UNASSIGNED = "Unassigned Location";
+const roomKey = (asset: { locationId?: number | null; locationName?: string | null }) => asset.locationId != null ? `room:${asset.locationId}` : asset.locationName || UNASSIGNED;
 const selectClass = "h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent";
 const overlayButton = "flex items-center gap-1.5 rounded-lg border border-ops-border bg-ops-surface/90 px-3 py-1.5 text-sm font-medium text-ops-text shadow backdrop-blur hover:bg-ops-surface";
 
 interface RackView3DProps {
+    facilities?: RackDevice[];
     racks: SceneRack[];
     locationFilter?: string | null;
     rooms: Record<number, RoomSettings>;
@@ -45,15 +47,17 @@ interface RackView3DProps {
     siteName: string;
 }
 
-export default function RackView3D({ racks, locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onSelectPeer, onWebglUnavailable, canEditAppearance, siteName }: RackView3DProps) {
+export default function RackView3D({ racks, facilities = [], locationFilter = null, rooms: roomSettings, selectedDeviceId, autoFocusDeviceId, onSelectDevice, onSelectPeer, onWebglUnavailable, canEditAppearance, siteName }: RackView3DProps) {
     const rooms = useMemo(() => {
         const map = new Map<string, SceneRack[]>();
         for (const r of racks) {
-            const key = r.locationName || UNASSIGNED;
+            const key = roomKey(r);
             map.set(key, [...(map.get(key) ?? []), r]);
         }
+        for (const d of facilities) { const key = roomKey(d); if (!map.has(key)) map.set(key, []); }
+        for (const [id] of Object.entries(roomSettings)) { const key = `room:${id}`; if (!map.has(key)) map.set(key, []); }
         return new Map([...map.entries()].sort(([a], [b]) => a.localeCompare(b)));
-    }, [racks]);
+    }, [racks, facilities, roomSettings]);
 
     const [roomPick, setRoomPick] = useState<string | null>(null);
     const [focusPick, setFocusPick] = useState<string | null>(null);
@@ -85,8 +89,9 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const [appliedLocation, setAppliedLocation] = useState<string | null>(null);
     if (locationFilter !== appliedLocation) {
         setAppliedLocation(locationFilter);
-        if (locationFilter && rooms.has(locationFilter)) {
-            setRoomPick(locationFilter);
+        const key = locationFilter ? [...rooms.keys()].find((key) => key === locationFilter || racks.some((r) => roomKey(r) === key && r.locationName === locationFilter) || facilities.some((d) => roomKey(d) === key && d.locationName === locationFilter) || roomSettings[Number(key.replace("room:", ""))]?.name === locationFilter) : null;
+        if (key) {
+            setRoomPick(key);
             setFocusPick(null);
         }
     }
@@ -98,8 +103,11 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         setAppliedAuto(autoFocusDeviceId);
         const hit = autoFocusDeviceId != null ? racks.find((r) => r.devices.some((d) => d.id === autoFocusDeviceId)) : undefined;
         if (hit) {
-            setRoomPick(hit.locationName || UNASSIGNED);
+            setRoomPick(roomKey(hit));
             setFocusPick(hit.name);
+        } else {
+            const floor = facilities.find((d) => d.id === autoFocusDeviceId);
+            if (floor) { setRoomPick(roomKey(floor)); setFocusPick(null); }
         }
     }
     // Selecting a device from anywhere (drawer connection, critical popup)
@@ -109,8 +117,11 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         setAppliedSelected(selectedDeviceId);
         const hit = selectedDeviceId != null ? racks.find((r) => r.devices.some((d) => d.id === selectedDeviceId)) : undefined;
         if (hit) {
-            setRoomPick(hit.locationName || UNASSIGNED);
+            setRoomPick(roomKey(hit));
             setFocusPick(hit.name);
+        } else {
+            const floor = facilities.find((d) => d.id === selectedDeviceId);
+            if (floor) { setRoomPick(roomKey(floor)); setFocusPick(null); }
         }
     }
     // Picking a different device (or clearing) starts with the hologram only;
@@ -124,15 +135,16 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         if (panelFor !== null && panelFor !== selectedDeviceId) setPanelFor(null);
     }
     const setPanelOpenState = (open: boolean) => setPanelFor(open ? selectedDeviceId : null);
-    const panelOpen = panelFor !== null;
+    const selectedFacility = facilities.find((d) => d.id === selectedDeviceId);
+    const panelOpen = panelFor !== null || !!selectedFacility;
     const room = roomPick && rooms.has(roomPick) ? roomPick : rooms.keys().next().value ?? null;
     const roomRacks = useMemo(() => (room ? rooms.get(room) ?? [] : []), [room, rooms]);
     const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;
     // Flattened once: both the peer lookup and the docked panel need it.
-    const allDevices = useMemo(() => racks.flatMap((r) => r.devices), [racks]);
+    const allDevices = useMemo(() => [...racks.flatMap((r) => r.devices), ...facilities], [racks, facilities]);
     const cardDevice = selectedDeviceId == null ? null : allDevices.find((d) => d.id === selectedDeviceId) ?? null;
     const cardDeviceId = cardDevice?.id ?? null;
-    const panelDevice = panelFor == null ? null : allDevices.find((d) => d.id === panelFor) ?? null;
+    const panelDevice = panelFor == null ? selectedFacility ?? null : allDevices.find((d) => d.id === panelFor) ?? null;
 
     // The peer currently shown: a second hologram when it sits in this room, a
     // 3D rack card when it does not. `peerPickedRoom` is what lets the card
@@ -146,7 +158,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
 
     const peerDevice = peerDeviceId == null ? null : allDevices.find((d) => d.id === peerDeviceId) ?? null;
     const peerRack = peerDevice == null ? null : racks.find((r) => r.devices.some((d) => d.id === peerDevice.id)) ?? null;
-    const peerInRoom = peerRack != null && (peerRack.locationName || UNASSIGNED) === room;
+    const peerInRoom = peerRack != null && roomKey(peerRack) === room;
     const peerCardRack = peerRack != null && !peerInRoom ? peerRack : null;
     const baseDrawer = useDeviceDrawer(cardDeviceId);
     const peerDrawer = useDeviceDrawer(peerDevice?.id ?? null);
@@ -208,7 +220,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         return () => clearInterval(id);
     }, [touring, order]);
     const collisions = useMemo(() => layoutRacks(roomRacks).filter((p) => p.collision).length, [roomRacks]);
-    const locationId = roomRacks.find((r) => r.locationId != null)?.locationId ?? null;
+    const locationId = room?.startsWith("room:") ? Number(room.slice(5)) : roomRacks.find((r) => r.locationId != null)?.locationId ?? facilities.find((d) => roomKey(d) === room)?.locationId ?? null;
     const settings = locationId != null ? roomSettings[locationId] : undefined;
     const floorPlanUrl = settings?.floorPlanPath ?? null;
     const temp = settings?.tempC != null ? { tempC: settings.tempC, thresholdC: settings.tempThresholdC } : null;
@@ -221,7 +233,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         closeEditor();
         router.refresh();
     };
-    const troubled = useMemo(() => troubledCritical(roomRacks), [roomRacks]);
+    const troubled = useMemo(() => [...troubledCritical(roomRacks), ...facilities.filter((d) => roomKey(d) === room && d.isCritical && (d.status === "NOT OK" || d.openIncidents.count > 0)).map((device) => ({ device: { ...device, isMuted: false }, rackName: "Floor", reason: "Audit / incident" }))], [roomRacks, facilities, room]);
 
     // Critical popup: once per room per browser session; the chip reopens it.
     useEffect(() => {
@@ -333,7 +345,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                                 name === room ? "bg-ops-accent/15 text-ops-accent" : "text-ops-muted hover:text-ops-text"
                             }`}
                         >
-                            {name}
+                            {name.startsWith("room:") ? roomSettings[Number(name.slice(5))]?.name ?? racks.find((r) => roomKey(r) === name)?.locationName ?? facilities.find((d) => roomKey(d) === name)?.locationName ?? name : name}
                         </button>
                     ))}
                 </div>
@@ -401,6 +413,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 <div className="absolute inset-0">
                 <RackScene
                     racks={roomRacks}
+                    facilities={facilities.filter((d) => roomKey(d) === room)}
+                    roomSettings={settings}
                     floorPlanUrl={floorPlanUrl}
                     qualitySetting={quality}
                     onAutoQuality={setAutoResolved}
@@ -409,7 +423,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                     showFree={showFree}
                     selectedDeviceId={selectedDeviceId}
                     peerDeviceId={peerInRoom ? peerDeviceId : null}
-                    focusDeviceId={selectedDeviceId ?? (focusRack ? autoFocusDeviceId : null)}
+                    focusDeviceId={selectedDeviceId ?? (focusRack || facilities.some((d) => d.id === autoFocusDeviceId) ? autoFocusDeviceId : null)}
                     onSelectDevice={onSelectDevice}
                     temp={temp}
                     colorBy={colorBy}
@@ -436,6 +450,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                                     const hit = racks.find((r) => r.devices.some((d) => d.id === peerId));
                                     const found = hit?.devices.find((d) => d.id === peerId);
                                     if (!hit || !found) {
+                                        const floor = facilities.find((d) => d.id === peerId);
+                                        if (floor) { onSelectDevice(floor); return; }
                                         // Not racked in this site: the peer's docs are
                                         // the only place that can show it.
                                         router.push(`/admin/devices/${peerId}/network`);
@@ -448,16 +464,18 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                                     const hit = racks.find((r) => r.devices.some((d) => d.id === targetDeviceId));
                                     const found = hit?.devices.find((d) => d.id === targetDeviceId);
                                     if (!found || !hit) {
+                                        const floor = facilities.find((d) => d.id === targetDeviceId);
+                                        if (floor) { onSelectDevice(floor); return; }
                                         router.push(`/admin/devices/${targetDeviceId}/network`);
                                         return;
                                     }
                                     if (isPeer) {
                                         // Linking from the peer keeps the camera put:
                                         // only swap which device the second card shows.
-                                        if (found.id !== selectedDeviceId && (hit.locationName || UNASSIGNED) === room) setPeerDeviceId(found.id);
+                                        if (found.id !== selectedDeviceId && (roomKey(hit)) === room) setPeerDeviceId(found.id);
                                         return;
                                     }
-                                    setRoomPick(hit.locationName || UNASSIGNED);
+                                    setRoomPick(roomKey(hit));
                                     setFocusPick(hit.name);
                                     onSelectDevice(found);
                                 }}
@@ -474,7 +492,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                         device={panelDevice}
                         networkState={panelDevice.id === cardDeviceId ? { ports: cardPorts, loading: cardLoading || cardLoadedId !== cardDeviceId, error: cardError && cardLoadedId === cardDeviceId } : panelDevice.id === peerDevice?.id ? { ports: peerPorts, loading: peerLoading || peerLoadedId !== peerDevice?.id, error: peerError && peerLoadedId === peerDevice?.id } : undefined}
                         drawerState={panelDevice.id === cardDeviceId ? baseDrawer : panelDevice.id === peerDevice?.id ? peerDrawer : panelDrawer}
-                        onClose={() => setPanelOpenState(false)}
+                        onClose={() => { setPanelOpenState(false); if (selectedFacility) onSelectDevice(null); }}
                         onSelectPeer={onSelectPeer}
                     />
                 )}
@@ -484,7 +502,7 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                         peer={peerDevice}
                         portName={peerPortName}
                         onMove={() => {
-                            setRoomPick(peerCardRack.locationName || UNASSIGNED);
+                            setRoomPick(roomKey(peerCardRack));
                             setFocusPick(peerCardRack.name);
                             onSelectDevice(peerDevice);
                         }}

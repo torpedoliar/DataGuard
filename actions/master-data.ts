@@ -26,6 +26,11 @@ import { checkRackCollision, rackCapacityErrorMessage, rackPlacementExceedsCapac
 import { logAudit } from "../lib/audit";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "../lib/action-auth";
 import { deleteUploadFile, saveUploadFile } from "../lib/upload";
+import { parseFacilityForm } from "@/lib/facility-form";
+import { facilityAssetSchema, facilityDimensions } from "@/lib/facility-asset";
+import { validateRoomLayout } from "@/lib/room-layout";
+import { readRoomAssets, roomAssetFootprints } from "@/lib/room-layout-data";
+import { lockLayoutRooms, bumpLayoutRevision } from "@/lib/room-layout-data";
 
 // Schemas
 const deviceSchema = z.object({
@@ -164,6 +169,11 @@ export async function getDevices() {
             id: devices.id,
             name: devices.name,
             assetCode: devices.assetCode,
+            assetType: devices.assetType,
+            facilitySpecs: devices.facilitySpecs,
+            floorX: devices.floorX,
+            floorZ: devices.floorZ,
+            floorRotation: devices.floorRotation,
             brandId: devices.brandId,
             brandName: brands.name,
             brandLogo: brands.logoPath,
@@ -198,6 +208,14 @@ export async function addDevice(prevState: unknown, formData: FormData) {
     const parsed = deviceSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
+    let facility;
+    try { facility = parseFacilityForm(formData); } catch (error) { return { message: (error as Error).message }; }
+    if (facility && (parsed.data.rackName || parsed.data.rackPosition)) return { message: "Fasilitas tidak menggunakan rack/U." };
+    if (facility && (facility.locationId !== parsed.data.locationId || facility.floorX !== null)) return { message: "Aset baru harus Unplaced pada ruangan yang dipilih." };
+    if (facility) {
+        const room = await db.query.locations.findFirst({ where: and(eq(locations.id, facility.locationId!), eq(locations.siteId, auth.activeSiteId)) });
+        if (!room) return { message: "Ruangan tidak ditemukan di site aktif." };
+    }
     let rackTotalU: number | null = null;
     if (parsed.data.rackName) {
         const targetRack = await db.query.racks.findFirst({
@@ -237,7 +255,7 @@ export async function addDevice(prevState: unknown, formData: FormData) {
             );
         }
 
-        await db.insert(devices).values({
+        const insertDevice = async (handle: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]) => handle.insert(devices).values({
             siteId: auth.activeSiteId,
             name: parsed.data.name,
             assetCode: parsed.data.assetCode || null,
@@ -247,13 +265,25 @@ export async function addDevice(prevState: unknown, formData: FormData) {
             zone: parsed.data.zone || null,
             rackName: parsed.data.rackName || null,
             rackPosition: parsed.data.rackPosition || null,
-            uHeight: parsed.data.uHeight || 1,
+            uHeight: facility ? null : parsed.data.uHeight || 1,
+            assetType: facility?.assetType ?? "standard",
+            facilitySpecs: facility?.facilitySpecs ?? null,
             ipAddress: parsed.data.ipAddress || null,
             description: parsed.data.description || null,
             photoPath,
             excludeChecklist: parsed.data.excludeChecklist ?? false,
             isCritical: parsed.data.isCritical ?? false,
         });
+        if (facility) await db.transaction(async (tx) => {
+            await lockLayoutRooms(tx, auth.activeSiteId, [facility.locationId]);
+            const categoryName = facility.assetType === "pac" ? "Cooling" : "Power";
+            await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`facility-category:${categoryName}`}))`);
+            let [category] = await tx.select({ id: categories.id }).from(categories).where(sql`lower(${categories.name}) = lower(${categoryName})`);
+            if (!category) [category] = await tx.insert(categories).values({ name: categoryName }).returning({ id: categories.id });
+            parsed.data.categoryId = category.id;
+            await insertDevice(tx);
+            await bumpLayoutRevision(tx, auth.activeSiteId, [facility.locationId]);
+        }); else await insertDevice(db);
         revalidatePath("/admin");
         revalidatePath("/admin", "layout");
         revalidatePath("/admin/rack");
@@ -282,6 +312,14 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
             where: and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)),
         });
         if (!existingDevice) return { message: "Perangkat tidak ditemukan di site aktif." };
+        const existingFacility = existingDevice.assetType === "pac" || existingDevice.assetType === "ups" ? facilityAssetSchema.parse(existingDevice) : undefined;
+        const facility = parseFacilityForm(formData, existingFacility);
+        if (!existingFacility && facility) return { message: "Gunakan wizard untuk konversi device existing." };
+        if (existingFacility && (!facility || facility.assetType !== existingDevice.assetType)) return { message: "Jenis fasilitas tidak dapat diubah melalui edit biasa." };
+        if (facility && (parsed.data.rackName || parsed.data.rackPosition)) return { message: "Fasilitas tidak menggunakan rack/U." };
+        const movingFacility = !!facility && facility.locationId !== existingDevice.locationId;
+        if (facility && (facility.locationId !== (parsed.data.locationId ?? existingDevice.locationId) || (movingFacility ? facility.floorX !== null || facility.floorZ !== null || facility.floorRotation !== null : facility.floorX !== existingDevice.floorX || facility.floorZ !== existingDevice.floorZ || facility.floorRotation !== existingDevice.floorRotation))) return { message: "Pindah ruangan harus Unplaced; posisi diatur melalui Layout Ruangan." };
+        if (facility) { parsed.data.categoryId = existingDevice.categoryId; parsed.data.uHeight = undefined; }
 
         let rackTotalU: number | null = null;
         if (parsed.data.rackName) {
@@ -321,16 +359,11 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
                 { kind: "photo", directory: "devices" },
             );
 
-            // Remove old photo if exists
-            if (existingDevice.photoPath) {
-                try { await deleteUploadFile(existingDevice.photoPath); } catch (e) { }
-            }
         } else if (deletePhoto && existingDevice.photoPath) {
-            try { await deleteUploadFile(existingDevice.photoPath); } catch (e) { }
             photoPath = null;
         }
 
-        await db.update(devices).set({
+        const saveDevice = (handle: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]) => handle.update(devices).set({
             name: parsed.data.name,
             assetCode: parsed.data.assetCode || null,
             brandId: parsed.data.brandId,
@@ -339,7 +372,9 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
             zone: parsed.data.zone,
             rackName: parsed.data.rackName,
             rackPosition: parsed.data.rackPosition,
-            uHeight: parsed.data.uHeight,
+            uHeight: facility ? null : parsed.data.uHeight,
+            facilitySpecs: facility?.facilitySpecs,
+            ...(movingFacility ? { floorX: null, floorZ: null, floorRotation: null } : {}),
             ipAddress: parsed.data.ipAddress,
             description: parsed.data.description,
             photoPath,
@@ -357,6 +392,25 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
         // just-saved groups — or leave stale ones.
         const groupIds = (formData.getAll("groupIds") as string[]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
         const boundGroupIds = await db.transaction(async (tx) => {
+            if (!facility && existingDevice.assetType === "standard") {
+                await lockLayoutRooms(tx, auth.activeSiteId, [existingDevice.locationId]);
+                const [locked] = await tx.select().from(devices).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId))).for("update");
+                if (!locked || locked.assetType !== "standard" || locked.locationId !== existingDevice.locationId) throw new Error("Perangkat berubah atau sudah dikonversi. Muat ulang form.");
+            }
+            if (facility) {
+                const lockedRooms = await lockLayoutRooms(tx, auth.activeSiteId, [existingDevice.locationId, facility.locationId]);
+                const room = lockedRooms.find((r) => r.id === facility.locationId);
+                const [current] = await tx.select().from(devices).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId))).for("update");
+                if (!current || current.assetType !== existingDevice.assetType || current.locationId !== existingDevice.locationId || current.floorX !== existingDevice.floorX || current.floorZ !== existingDevice.floorZ || current.floorRotation !== existingDevice.floorRotation || JSON.stringify(current.facilitySpecs) !== JSON.stringify(existingDevice.facilitySpecs)) throw new Error("Data fasilitas berubah. Muat ulang form.");
+                if (!movingFacility && room?.layoutMode === "manual" && current.floorX !== null && current.floorZ !== null) {
+                    const roomData = await readRoomAssets(tx, auth.activeSiteId, room.id);
+                    const footprints = roomAssetFootprints(roomData, true).filter((a) => a.key !== `device:${id}`);
+                    const validation = validateRoomLayout({ width: room.roomWidthM!, depth: room.roomDepthM!, height: room.roomHeightM! }, [...footprints, { key: `device:${id}`, x: current.floorX, z: current.floorZ, rotation: current.floorRotation ?? 0, ...facilityDimensions(facility) }]);
+                    if (validation.errors.length) throw new Error(validation.errors.join(" "));
+                }
+                await bumpLayoutRevision(tx, auth.activeSiteId, [current.locationId, facility.locationId]);
+            }
+            await saveDevice(tx);
             const validGroups = groupIds.length > 0
                 ? await tx.select({ id: deviceGroups.id }).from(deviceGroups)
                     .where(and(inArray(deviceGroups.id, groupIds), eq(deviceGroups.siteId, auth.activeSiteId)))
@@ -373,6 +427,9 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
         revalidatePath("/admin");
         revalidatePath("/admin", "layout");
         revalidatePath("/admin/rack");
+        if (existingDevice.photoPath && existingDevice.photoPath !== photoPath) {
+            try { await deleteUploadFile(existingDevice.photoPath); } catch { /* Saved row owns the new photo; retain an orphan rather than fail the save. */ }
+        }
         revalidatePath("/admin/device-groups");
         await logAudit({
             action: "UPDATE",
@@ -577,15 +634,21 @@ export async function deleteDevice(id: number, reason?: string) {
             // Re-read inside the transaction: state may have changed since the preflight.
             const device = await tx.query.devices.findFirst({
                 where: and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)),
-                columns: { id: true, name: true, photoPath: true },
+                columns: { id: true, name: true, photoPath: true, assetType: true, locationId: true },
             });
             if (!device) return { kind: "missing" };
+            if (device.assetType === "pac" || device.assetType === "ups") {
+                await lockLayoutRooms(tx, auth.activeSiteId, [device.locationId]);
+                const [locked] = await tx.select().from(devices).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId))).for("update");
+                if (!locked || locked.locationId !== device.locationId || locked.assetType !== device.assetType) throw new Error("Lokasi perangkat berubah. Muat ulang sebelum menghapus.");
+            }
 
             const dependencies = await collectDeviceUsage(tx, id);
             const blockingCount = sumBlockingDeviceDependencies(dependencies);
             if (blockingCount > 0) return { kind: "blocked", blockingCount };
 
             await tx.delete(devices).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId)));
+            if (device.assetType === "pac" || device.assetType === "ups") await bumpLayoutRevision(tx, auth.activeSiteId, [device.locationId]);
             return { kind: "deleted", photoPath: device.photoPath, deviceName: device.name };
         });
 

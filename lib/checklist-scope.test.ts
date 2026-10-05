@@ -24,6 +24,17 @@ describe("sortRacksByLayout", () => {
 });
 
 describe("selectScopeDevices", () => {
+  it("keeps a real rack name distinct from a facility group with the same text", () => {
+    const assets = [
+      { id: 10, name: "Network", categoryId: 1, rackName: "facility:7:ups", rackPosition: 1 },
+      { id: 11, name: "UPS", categoryId: 2, rackName: null, rackPosition: null, assetType: "ups", locationId: 7 },
+    ];
+    expect(selectScopeDevices(assets, [], "rack", { rackNames: ["rack:facility:7:ups"] }).map((d) => d.id)).toEqual([10]);
+  });
+  it("selects room power groups without pretending they are real racks", () => {
+    const assets = [...devices, { id: 6, name: "UPS", categoryId: 3, rackName: null, rackPosition: null, assetType: "ups", locationId: 7 }];
+    expect(selectScopeDevices(assets, racks, "rack", { rackNames: ["facility:7:ups"] }).map((d) => d.id)).toEqual([6]);
+  });
   it("returns every device when no scope is active", () => {
     const result = selectScopeDevices(devices, racks, "category", {});
     expect(result.map((d) => d.id)).toEqual([1, 2, 3, 4, 5]);

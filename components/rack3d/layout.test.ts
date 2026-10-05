@@ -11,6 +11,13 @@ const onHalfTile = (v: number) => {
 };
 
 describe("layoutRacks", () => {
+  it("keeps manual coordinates fixed and excludes unplaced cabinets", () => {
+    const placed = { ...rack("Manual"), layoutMode: "manual", floorX: 2, floorZ: 3, floorRotation: 90 };
+    const missing = { ...rack("Unplaced"), layoutMode: "manual", floorX: null, floorZ: null, floorRotation: null };
+    const out = layoutRacks([placed, missing]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ x: 2, z: 3, rotationY: Math.PI / 2 });
+  });
   it("returns nothing for no racks", () => {
     expect(layoutRacks([])).toEqual([]);
   });

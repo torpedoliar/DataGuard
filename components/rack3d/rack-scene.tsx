@@ -6,7 +6,9 @@ import { Canvas, useFrame, useThree, type RootState } from "@react-three/fiber";
 import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
 import { Bloom, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode, type EffectComposer as ComposerImpl } from "postprocessing";
-import type { RackDevice } from "@/actions/rack-layout";
+import type { RackDevice, RoomSettings } from "@/actions/rack-layout";
+import { FacilityModel } from "./facility-model";
+import { facilityDimensions } from "@/lib/facility-asset";
 import type { SceneRack } from "@/lib/rack-filter";
 import type { ColorBy } from "@/lib/rack-signals";
 import type { RoomAppearance } from "@/lib/room-appearance";
@@ -23,6 +25,8 @@ import { Room } from "./room";
 import { pointerNdc } from "./pointer-ndc";
 
 export interface RackSceneProps {
+    facilities?: RackDevice[];
+    roomSettings?: RoomSettings;
     racks: SceneRack[];
     floorPlanUrl: string | null;
     qualitySetting: QualitySetting;
@@ -179,7 +183,8 @@ function Capture({ captureRef, composerRef }: { captureRef: RefObject<(() => str
     return null;
 }
 
-function CameraRig({ placed, b, focusRack, focusDeviceId }: {
+function CameraRig({ placed, b, focusRack, focusDeviceId, facilities = [] }: {
+    facilities?: { device: RackDevice; x: number; z: number; dimensions: { height: number; width: number; depth: number } }[];
     placed: PlacedRack<SceneRack>[];
     b: Bounds;
     focusRack: string | null;
@@ -214,17 +219,23 @@ function CameraRig({ placed, b, focusRack, focusDeviceId }: {
             ? placed.flatMap((p) => p.rack.devices.map((d) => ({ p, d })))
                 .find((x) => x.d.id === focusDeviceId && inRack(x.d, x.p.rack.totalU || 42))
             : undefined;
+        const floor = facilities.find((a) => a.device.id === focusDeviceId);
+        if (floor) {
+            const distance = Math.max(2, floor.dimensions.height * 1.8);
+            return [floor.x + distance * 0.5, floor.dimensions.height * 0.8, floor.z + distance, floor.x, floor.dimensions.height / 2, floor.z].join(",");
+        }
         const p = hit?.p ?? placed.find((x) => x.rack.name === focusRack);
         if (!p) return home.join(",");
-        const dir = p.rotationY === 0 ? 1 : -1;
         if (hit) {
             const y = uToY(hit.d.rackPosition ?? 1) + ((hit.d.uHeight || 1) * U) / 2;
-            const fz = p.z + dir * FRONT_Z;
-            return [p.x + 0.25, y + 0.2, fz + dir * 1.2, p.x, y, fz].join(",");
+            const sin = Math.sin(p.rotationY), cos = Math.cos(p.rotationY);
+            const fx = p.x + sin * FRONT_Z, fz = p.z + cos * FRONT_Z;
+            return [fx + sin * 1.2 + cos * 0.25, y + 0.2, fz + cos * 1.2 - sin * 0.25, fx, y, fz].join(",");
         }
         const H = rackHeight(p.rack.totalU || 42);
-        return [p.x, H * 0.55, p.z + dir * (RACK_D / 2 + Math.max(2.4, H * 2)), p.x, H * 0.45, p.z + dir * (RACK_D / 2)].join(",");
-    }, [placed, focusRack, focusDeviceId, home]);
+        const sin = Math.sin(p.rotationY), cos = Math.cos(p.rotationY), distance = RACK_D / 2 + Math.max(2.4, H * 2);
+        return [p.x + sin * distance, H * 0.55, p.z + cos * distance, p.x + sin * RACK_D / 2, H * 0.45, p.z + cos * RACK_D / 2].join(",");
+    }, [placed, focusRack, focusDeviceId, home, facilities]);
 
     useEffect(() => {
         const c = ref.current;
@@ -246,11 +257,17 @@ function CameraRig({ placed, b, focusRack, focusDeviceId }: {
     );
 }
 
-export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, peerDeviceId = null, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, floatCard }: RackSceneProps & { floatCard?: (d: RackDevice) => ReactNode }) {
+export default function RackScene({ racks, facilities = [], roomSettings, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, peerDeviceId = null, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, floatCard }: RackSceneProps & { floatCard?: (d: RackDevice) => ReactNode }) {
     const composerRef = useRef<ComposerImpl>(null);
     const dark = useIsDark();
-    const placed = useMemo(() => layoutRacks(racks), [racks]);
-    const b = useMemo(() => bounds(placed), [placed]);
+    const manual = roomSettings?.layoutMode === "manual";
+    const placed = useMemo(() => layoutRacks(racks).map((p) => manual ? { ...p, x: p.x - (roomSettings?.roomWidthM ?? 0) / 2, z: p.z - (roomSettings?.roomDepthM ?? 0) / 2 } : p), [racks, manual, roomSettings?.roomWidthM, roomSettings?.roomDepthM]);
+    const floorAssets = useMemo(() => facilities.filter((d) => d.floorX != null && d.floorZ != null).map((d) => ({ device: d, x: d.floorX! - (manual ? (roomSettings?.roomWidthM ?? 0) / 2 : 0), z: d.floorZ! - (manual ? (roomSettings?.roomDepthM ?? 0) / 2 : 0), dimensions: facilityDimensions({ assetType: d.assetType!, facilitySpecs: d.facilitySpecs ?? null }) })), [facilities, manual, roomSettings?.roomWidthM, roomSettings?.roomDepthM]);
+    const b = useMemo(() => {
+        if (manual) return { minX: -(roomSettings?.roomWidthM ?? 10) / 2, maxX: (roomSettings?.roomWidthM ?? 10) / 2, minZ: -(roomSettings?.roomDepthM ?? 8) / 2, maxZ: (roomSettings?.roomDepthM ?? 8) / 2 };
+        const base = bounds(placed);
+        return { minX: Math.min(base.minX, ...floorAssets.map((a) => a.x - Math.max(a.dimensions.width, a.dimensions.depth) / 2)), maxX: Math.max(base.maxX, ...floorAssets.map((a) => a.x + Math.max(a.dimensions.width, a.dimensions.depth) / 2)), minZ: Math.min(base.minZ, ...floorAssets.map((a) => a.z - Math.max(a.dimensions.width, a.dimensions.depth) / 2)), maxZ: Math.max(base.maxZ, ...floorAssets.map((a) => a.z + Math.max(a.dimensions.width, a.dimensions.depth) / 2)) };
+    }, [placed, floorAssets, manual, roomSettings?.roomWidthM, roomSettings?.roomDepthM]);
     // Auto = GPU heuristic only. No FPS monitor: with frameloop="demand" an
     // idle scene renders ~8 fps (LED blink) and would always read as slow.
     const [autoQuality] = useState<Quality>(() => initialQuality(rendererName(), isMobile()));
@@ -285,7 +302,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
             <color attach="background" args={[bg]} />
             <fog attach="fog" args={[bg, 14, 45]} />
             <Lighting dark={dark} b={b} preset={preset} appearance={appearance} />
-            <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} temp={temp} appearance={appearance} />
+            <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} temp={temp} appearance={appearance} exactBounds={manual} roomHeight={roomSettings?.roomHeightM ?? undefined} />
             {/* Raycasting and <Html> ignore visible=false, so other rows are not
                 rendered at all while a rack is focused. */}
             {placed.filter((p) => focusedRow === undefined || p.row === focusedRow || peerRacks.has(p.rack.name)).map((p) => (
@@ -306,8 +323,13 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
                     floatCard={floatCard}
                 />
             ))}
+            {floorAssets.map(({ device, x, z, dimensions }) => <group key={device.id} position={[x, dimensions.height / 2, z]} rotation-y={(device.floorRotation ?? 0) * Math.PI / 180} onClick={(event) => { event.stopPropagation(); onFocusRack(null); onSelectDevice(device); }}>
+                <FacilityModel device={device} opacity={(device as RackDevice & { isMuted?: boolean }).isMuted ? 0.18 : 1} detailed={quality === "high" || selectedDeviceId === device.id} />
+                <mesh position={[0, -dimensions.height / 2 + 0.045, dimensions.depth / 2 + 0.004]}><boxGeometry args={[dimensions.width * 0.65, 0.025, 0.006]} /><meshBasicMaterial color={colorBy === "audit" ? device.status === "NOT OK" ? "#dc2626" : device.status === "OK" ? "#16a34a" : "#64748b" : device.categoryColor ?? "#64748b"} /></mesh>
+                {selectedDeviceId === device.id && <mesh><boxGeometry args={[dimensions.width + 0.025, dimensions.height + 0.025, dimensions.depth + 0.025]} /><meshBasicMaterial color={accent} wireframe /></mesh>}
+            </group>)}
             <AnimatedCables placed={placed} selectedDeviceId={selectedDeviceId} peerDeviceId={peerDeviceId} />
-            <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} />
+            <CameraRig facilities={floorAssets} placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} />
             <BlinkClock />
             <Effects preset={preset} composerRef={composerRef} />
             {captureRef && <Capture captureRef={captureRef} composerRef={composerRef} />}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SceneRack } from "@/lib/rack-filter";
 import type { RackDevice, RackDevicePort } from "@/actions/rack-layout";
 import { layoutRacks } from "./layout";
-import { buildCables, cableKind, routeCable, type Anchor, type Vec3 } from "./cable-route";
+import { buildCables, cableKind, routeCable, portAnchor, type Anchor, type Vec3 } from "./cable-route";
 
 const anchor = (x: number, y: number, z: number, rowZ: number, facing: 1 | -1 = 1): Anchor =>
   ({ pos: [x, y, z], facing, rowZ, rackTop: 2 });
@@ -10,6 +10,14 @@ const axisAligned = (pts: Vec3[]) => pts.slice(1).every((p, i) =>
   p.filter((v, k) => Math.abs(v - pts[i][k]) > 1e-9).length === 1);
 
 describe("routeCable", () => {
+  it("rotates actual port anchors with a manually rotated cabinet", () => {
+    const a = portAnchor({ x: 2, z: 3, rotationY: Math.PI / 2, rackTop: 2 }, { rackPosition: 1, uHeight: 1 }, { x: 0.1, y: 0 });
+    expect(a.pos[0]).toBeCloseTo(2.439);
+    expect(a.pos[2]).toBeCloseTo(2.9);
+    const points = routeCable(a, null, { trayY: 2.4, aisleX: 3, lane: 0, sameRack: false });
+    expect(points[1][0]).toBeGreaterThan(points[0][0]);
+    expect(points[1][2]).toBeCloseTo(points[0][2]);
+  });
   const opts = { trayY: 2.4, aisleX: 3, lane: 0, sameRack: false };
 
   it("runs port to port along the tray with right angles only (same row)", () => {

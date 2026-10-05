@@ -4,14 +4,14 @@ import { useActionState, useEffect, useMemo, useState, useCallback, useRef, useT
 import { useRouter } from "next/navigation";
 import { submitChecklist, getAuditEntryByDate } from "@/actions/checklist";
 import ActionButton from "@/components/ui/action-button";
-import { selectScopeDevices, sortRacksByLayout, type AuditScopeMode } from "@/lib/checklist-scope";
+import { selectScopeDevices, sortRacksByLayout, facilityAuditGroups, facilityScopeKey, rackScopeKey, type AuditScopeMode } from "@/lib/checklist-scope";
 import { CalendarDays, ChevronDown, Clock3, Layers3, Server, Send, Search, Thermometer } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
 import FieldAuditCard from "./field-audit-card";
 
 type Category = { id: number; name: string };
-type Device = { id: number; name: string; locationName: string | null; categoryId: number; rackName: string | null; rackPosition: number | null; locationId: number | null };
+type Device = { assetType?: string; id: number; name: string; locationName: string | null; categoryId: number; rackName: string | null; rackPosition: number | null; locationId: number | null };
 type Rack = { id: number; name: string; zone: string | null };
 export type MeasuredLocation = { id: number; name: string; tempC: number | null; tempThresholdC: number | null };
 
@@ -144,7 +144,7 @@ export default function ChecklistForm({
     return scopedDevices.filter((d) => d.name.toLowerCase().includes(filter.toLowerCase()));
   }, [scopedDevices, filter]);
 
-  const sortedRacks = useMemo(() => sortRacksByLayout(racks), [racks]);
+  const sortedRacks = useMemo(() => [...sortRacksByLayout(racks).map((r) => ({ ...r, name: rackScopeKey(r.name), label: r.name })), ...facilityAuditGroups(devices).map((r, i) => ({ ...r, id: -i - 1 }))], [racks, devices]);
   const today = new Date().toISOString().split("T")[0];
   const now = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const [checkDate, setCheckDate] = useState(today);
@@ -409,7 +409,7 @@ export default function ChecklistForm({
                       {activeRacks.length === 0
                         ? `All racks (${devices.length} devices)`
                         : activeRacks.length === 1
-                          ? `${activeRacks[0]} (${devices.filter((d) => (d.rackName ?? "").toLowerCase() === activeRacks[0].toLowerCase()).length} devices)`
+                          ? `${sortedRacks.find((r) => r.name === activeRacks[0])?.label ?? activeRacks[0]} (${devices.filter((d) => (facilityScopeKey(d) ?? (d.rackName ? rackScopeKey(d.rackName) : "")).toLowerCase() === activeRacks[0].toLowerCase()).length} devices)`
                           : `${activeRacks.length} racks selected`}
                     </span>
                   </div>
@@ -435,7 +435,7 @@ export default function ChecklistForm({
                   <div className="p-1 space-y-0.5">
                     {sortedRacks.map((rack) => {
                       const count = devices.filter(
-                        (d) => (d.rackName ?? "").toLowerCase() === rack.name.toLowerCase(),
+                        (d) => (facilityScopeKey(d) ?? (d.rackName ? rackScopeKey(d.rackName) : "")).toLowerCase() === rack.name.toLowerCase(),
                       ).length;
                       const active = activeRacks.includes(rack.name);
                       return (
@@ -464,7 +464,7 @@ export default function ChecklistForm({
                               className="size-4 rounded border-ops-border accent-[#5eead4] pointer-events-none"
                               tabIndex={-1}
                             />
-                            <span className="truncate">{rack.name}</span>
+                            <span className="truncate">{rack.label}</span>
                             {rack.zone && (
                               <span className="shrink-0 rounded bg-ops-bg px-1.5 py-0.5 text-[10px] font-semibold text-ops-muted">
                                 {rack.zone}
@@ -517,7 +517,7 @@ export default function ChecklistForm({
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-ops-text">
             {activeCategory?.name
-              ?? (activeRacks.length === 1 ? activeRacks[0] : null)
+              ?? (activeRacks.length === 1 ? sortedRacks.find((r) => r.name === activeRacks[0])?.label ?? activeRacks[0] : null)
               ?? (activeRacks.length > 1 ? `${activeRacks.length} racks` : null)
               ?? "All Devices"}
           </h2>

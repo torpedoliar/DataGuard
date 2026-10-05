@@ -22,7 +22,7 @@ const tx = {
   update: () => ({ set: (set: Record<string, unknown>) => ({ where: () => { mocks.updates.push({ set }); return Promise.resolve(); } }) }),
 };
 vi.mock("../db", () => ({
-  db: { transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx) },
+  db: { select: () => ({ from: () => ({ where: () => Promise.resolve(mocks.owned.map((r) => ({ ...r, locationId: null }))) }) }), transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx) },
 }));
 
 import { reorderRacks } from "./rack-management";
