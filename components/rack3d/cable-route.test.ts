@@ -109,6 +109,34 @@ describe("buildCables", () => {
     expect(peerRacks.size).toBe(0);
   });
 
+  it("deduplicates reciprocal links and slides only the selected endpoint", () => {
+    const placed = layoutRacks([
+      rack("R1", 1, [dev(1, 10, [port(11, { connectedToDeviceId: 2, connectedToPortId: 21 })])]),
+      rack("R2", 2, [dev(2, 5, [port(21, { connectedToDeviceId: 1, connectedToPortId: 11 })])]),
+    ]);
+    const resting = buildCables(placed, [1, 2], null).cables;
+    const selected = buildCables(placed, [1, 2], 2).cables;
+    expect(selected).toHaveLength(1);
+    expect(selected[0].points[0]).toEqual(resting[0].points[0]);
+    expect(selected[0].points.at(-1)![2] - resting[0].points.at(-1)![2]).toBeCloseTo(0.3);
+  });
+
+  it("uses current animated endpoints instead of jumping to the final slide", () => {
+    const placed = layoutRacks([rack("R1", 1, [dev(1, 10, [port(11, { connectedToDeviceId: 99 })])])]);
+    const resting = buildCables(placed, [1], null).cables[0];
+    expect(buildCables(placed, [1], 1, 0, new Map()).cables[0].points[0]).toEqual(resting.points[0]);
+    const moving = buildCables(placed, [1], 1, 0, new Map([[1, 0.12]])).cables[0];
+    expect(moving.points[0][2] - resting.points[0][2]).toBeCloseTo(0.12);
+  });
+
+  it("does not invent a cross-room cable for an invalid same-room device", () => {
+    const placed = layoutRacks([rack("R1", 1, [
+      dev(1, 10, [port(11, { connectedToDeviceId: 2 })]), dev(2, 43),
+    ])]);
+    expect(buildCables(placed, [1]).cables).toEqual([]);
+    expect(buildCables(placed, [2]).cables).toEqual([]);
+  });
+
   it("draws nothing without a selection", () => {
     expect(buildCables(layoutRacks([rack("R1", 1, [dev(1, 10)])]), []).cables).toEqual([]);
     expect(buildCables(layoutRacks([rack("R1", 1, [dev(1, 10)])]), [null]).cables).toEqual([]);

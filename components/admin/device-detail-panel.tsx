@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useState } from "react";
 import { Loader2, TriangleAlert, XCircle } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
@@ -7,15 +9,21 @@ import PhotoModal from "@/components/report/photo-modal";
 import DeviceNetworkSummary from "./device-network-summary";
 import { AuditSection, ConnectionsSection, IncidentsSection, SiemSection, useDeviceDrawer } from "./device-drawer-sections";
 
-export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docked = false }: {
+const DevicePreview = dynamic(() => import("@/components/rack3d/device-preview"), { ssr: false });
+const TABS = ["Overview", "Network", "Connections", "Docs"] as const;
+
+export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docked = false, drawerState, networkState }: {
     device: RackDevice | null;
     onClose: () => void;
     onSelectPeer?: (deviceId: number) => boolean;
     /** Inside the 3D box, not a page overlay. 2D keeps the overlay. */
     docked?: boolean;
+    drawerState?: ReturnType<typeof useDeviceDrawer>;
+    networkState?: React.ComponentProps<typeof DeviceNetworkSummary>["supplied"];
 }) {
+    const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
     const [photo, setPhoto] = useState<string | null>(null);
-    const drawer = useDeviceDrawer(device?.id ?? null);
+    const drawer = useDeviceDrawer(device?.id ?? null, drawerState);
     if (!device) return null;
 
     const pic = drawer.data?.picGroups.map((g) => g.name).join(", ");
@@ -53,7 +61,16 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
                         Critical device. Coordinate with the PIC before any action.
                     </div>
                 )}
-                {device.photoPath && (
+                {docked && <DevicePreview key={device.id} device={device} />}
+                {docked && <div role="tablist" aria-label="Device information" className="mb-4 flex border-b border-ops-border">{TABS.map((name, index) => <button key={name} id={`device-${device.id}-tab-${name}`} type="button" role="tab" aria-controls={`device-${device.id}-panel`} tabIndex={tab === name ? 0 : -1} aria-selected={tab === name} onKeyDown={(event) => {
+                    const next = event.key === "ArrowRight" ? (index + 1) % TABS.length : event.key === "ArrowLeft" ? (index + TABS.length - 1) % TABS.length : event.key === "Home" ? 0 : event.key === "End" ? TABS.length - 1 : null;
+                    if (next === null) return;
+                    event.preventDefault();
+                    setTab(TABS[next]);
+                    document.getElementById(`device-${device.id}-tab-${TABS[next]}`)?.focus();
+                }} onClick={() => setTab(name)} className={`flex-1 border-b-2 px-1 py-2 text-xs font-semibold ${tab === name ? "border-ops-accent text-ops-accent" : "border-transparent text-ops-muted"}`}>{name}</button>)}</div>}
+                <div id={`device-${device.id}-panel`} role={docked ? "tabpanel" : undefined} aria-labelledby={docked ? `device-${device.id}-tab-${tab}` : undefined}>
+                {(!docked || tab === "Docs") && device.photoPath && (
                     <div className="mb-4">
                         <button
                             type="button"
@@ -67,7 +84,7 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
                         </button>
                     </div>
                 )}
-                <div className="space-y-3">
+                {(!docked || tab === "Overview") && <div className="space-y-3">
                     {rows.map(([label, value]) => (
                         <div key={label}>
                             <label className="text-xs text-ops-muted">{label}</label>
@@ -83,19 +100,22 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
                             {device.status || "Pending"}
                         </p>
                     </div>
-                </div>
+                </div>}
+                {drawer.error && <p role="alert" className="mt-4 text-xs text-ops-danger">Unable to load device details.</p>}
                 {drawer.loading && (
                     <p className="mt-5 flex items-center gap-2 text-xs text-ops-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading audit, incidents and cabling…</p>
                 )}
-                {drawer.data && (
+                {drawer.data && (!docked || tab === "Overview") && (
                     <>
                         <AuditSection drawer={drawer.data} onPhoto={setPhoto} />
                         <IncidentsSection drawer={drawer.data} />
                         <SiemSection drawer={drawer.data} />
                     </>
                 )}
-                <DeviceNetworkSummary key={device.id} device={device} />
-                {drawer.data && <ConnectionsSection drawer={drawer.data} onSelectPeer={onSelectPeer} />}
+                {(!docked || tab === "Network") && <DeviceNetworkSummary key={device.id} device={device} supplied={networkState} />}
+                {drawer.data && (!docked || tab === "Connections") && <ConnectionsSection drawer={drawer.data} onSelectPeer={onSelectPeer} />}
+                {docked && tab === "Docs" && <div className="space-y-2 text-sm"><Link href={`/admin/devices/${device.id}/network`} className="font-semibold text-ops-accent hover:underline">Open network documentation</Link>{!device.photoPath && <p className="text-xs text-ops-muted">No device photograph documented.</p>}<p className="text-xs text-ops-muted">Ports, VLANs and cabling use the existing network documentation.</p></div>}
+                </div>
             </aside>
     );
 

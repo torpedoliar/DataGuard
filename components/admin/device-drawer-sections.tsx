@@ -9,20 +9,21 @@ import { SEVERITY_COLOR, type Severity } from "@/lib/rack-signals";
 
 // Drawer data for one device, re-fetched when the device changes; a stale
 // response for the previous device is ignored.
-export function useDeviceDrawer(deviceId: number | null) {
-    const [loaded, setLoaded] = useState<{ id: number; data: DeviceDrawer | null } | null>(null);
+export function useDeviceDrawer(deviceId: number | null, supplied?: { loading: boolean; data: DeviceDrawer | null; error?: boolean }) {
+    const [loaded, setLoaded] = useState<{ id: number; data: DeviceDrawer | null; error: boolean } | null>(null);
 
     useEffect(() => {
-        if (deviceId == null) return;
+        if (deviceId == null || supplied !== undefined) return;
         let alive = true;
         getDeviceDrawer(deviceId)
-            .then((data) => { if (alive) setLoaded({ id: deviceId, data }); })
-            .catch(() => { if (alive) setLoaded({ id: deviceId, data: null }); });
+            .then((data) => { if (alive) setLoaded({ id: deviceId, data, error: data === null }); })
+            .catch(() => { if (alive) setLoaded({ id: deviceId, data: null, error: true }); });
         return () => { alive = false; };
-    }, [deviceId]);
+    }, [deviceId, supplied]);
 
     const ready = deviceId != null && loaded?.id === deviceId;
-    return { loading: deviceId != null && !ready, data: ready ? loaded.data : null };
+    if (supplied !== undefined) return { ...supplied, error: supplied.error ?? false };
+    return { loading: deviceId != null && !ready, data: ready ? loaded.data : null, error: ready ? loaded.error : false };
 }
 
 function Section({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {

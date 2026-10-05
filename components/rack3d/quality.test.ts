@@ -38,6 +38,14 @@ describe("parseQualitySetting", () => {
 });
 
 describe("PRESETS", () => {
+  it("keeps operational detail sharp without dormant depth of field", () => {
+    expect(PRESETS.high.dof).toBe(false);
+    expect(QUALITY_LABELS.high).not.toContain("depth of field");
+  });
+  it("reserves repeated scene reflection passes for high quality", () => {
+    expect(PRESETS.medium.reflections).toBe(false);
+    expect(PRESETS.high.reflections).toBe(true);
+  });
   it("never gets cheaper going up a level", () => {
     const cost = (q: keyof typeof PRESETS) => Object.values(PRESETS[q]).filter((v) => v === true).length + PRESETS[q].dpr[1];
     expect(cost("low")).toBeLessThan(cost("medium"));

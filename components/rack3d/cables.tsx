@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { Html } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
+import { SLIDE } from "./constants";
+import type { SceneRack } from "@/lib/rack-filter";
+import type { PlacedRack } from "./layout";
+import { buildCables } from "./cable-route";
+import { ScreenHtml as Html } from "./screen-html";
 import type { CableInfo, Vec3 } from "./cable-route";
 
 // Polyline with small rounded bends, so tubes don't kink at the corners.
@@ -24,7 +29,7 @@ function rounded(points: Vec3[], radius = 0.025) {
     return path;
 }
 
-// At most one device's ports (<= ~52 tubes): plain meshes, no instancing.
+// ponytail: selected and peer ports use plain tubes; instance if dense cabling exceeds the laptop budget.
 export function Cables({ cables }: { cables: CableInfo[] }) {
     const geos = useMemo(
         () => cables.map((c) => new THREE.TubeGeometry(rounded(c.points), Math.max(24, c.points.length * 12), 0.005, 6, false)),
@@ -36,8 +41,8 @@ export function Cables({ cables }: { cables: CableInfo[] }) {
         <>
             {cables.map((c, i) => (
                 <group key={c.key}>
-                    <mesh geometry={geos[i]}>
-                        <meshStandardMaterial color={c.color} emissive={c.color} emissiveIntensity={0.35} roughness={0.5} />
+                    <mesh geometry={geos[i]} raycast={() => null}>
+                        <meshStandardMaterial color={c.color} emissive={c.color} emissiveIntensity={0.06} roughness={0.5} />
                     </mesh>
                     {c.label && (
                         <Html position={c.points[c.points.length - 1]} center style={{ pointerEvents: "none" }} zIndexRange={[30, 0]}>
@@ -48,4 +53,24 @@ export function Cables({ cables }: { cables: CableInfo[] }) {
             ))}
         </>
     );
+}
+
+export function AnimatedCables({ placed, selectedDeviceId, peerDeviceId }: { placed: PlacedRack<SceneRack>[]; selectedDeviceId: number | null; peerDeviceId: number | null }) {
+    const slides = useRef(new Map<number, number>());
+    const [positions, setPositions] = useState<ReadonlyMap<number, number>>(new Map());
+    useFrame((_, dt) => {
+        if (selectedDeviceId != null && !slides.current.has(selectedDeviceId)) slides.current.set(selectedDeviceId, 0);
+        let changed = false;
+        for (const [id, previous] of slides.current) {
+            const target = id === selectedDeviceId ? SLIDE : 0;
+            const damped = THREE.MathUtils.damp(previous, target, 10, dt);
+            const next = Math.abs(damped - target) < 0.0005 ? target : damped;
+            if (next !== previous) changed = true;
+            if (next === 0) slides.current.delete(id);
+            else slides.current.set(id, next);
+        }
+        if (changed) setPositions(new Map(slides.current));
+    });
+    const cables = useMemo(() => buildCables(placed, [selectedDeviceId, peerDeviceId], selectedDeviceId, 0, positions).cables, [placed, selectedDeviceId, peerDeviceId, positions]);
+    return <Cables cables={cables} />;
 }

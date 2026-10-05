@@ -1,7 +1,7 @@
 import React, { type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { FilteredDevice } from "@/lib/rack-filter";
-import { Html } from "@react-three/drei";
+import { ScreenHtml as Html } from "./screen-html";
 
 // Inspect the component's hover branch without mounting a WebGL renderer.
 vi.mock("react", async (original) => ({
@@ -14,6 +14,14 @@ vi.mock("@react-three/fiber", () => ({ useFrame: () => {}, useThree: () => () =>
 vi.mock("./materials", () => ({ sharedMaterials: {}, portMaterials: [], ledMaterial: () => null }));
 
 import { RackDevice } from "./rack-device";
+import { DeviceModel } from "./device-model";
+
+function model(element: ReactElement): ReactElement | undefined {
+    if (element.type === DeviceModel) return element;
+    for (const child of React.Children.toArray((element.props as { children?: React.ReactNode }).children)) {
+        if (React.isValidElement(child)) { const found = model(child); if (found) return found; }
+    }
+}
 
 function tooltip(element: ReactElement): ReactElement | undefined {
     if (element.type === Html) return element;
@@ -26,6 +34,18 @@ function tooltip(element: ReactElement): ReactElement | undefined {
 }
 
 describe("RackDevice hover", () => {
+    it("keeps detailed geometry only for focused or selected devices outside High", () => {
+        const device = { id: 1, name: "Server", rackPosition: 1, uHeight: 1, openIncidents: { count: 0 } } as FilteredDevice;
+        const props = { device, selected: false, faded: false, accent: "#5eead4", colorBy: "category" as const, onSelect: () => {}, detailed: false };
+        expect((model(RackDevice(props))!.props as { detailed: boolean }).detailed).toBe(false);
+        expect((model(RackDevice({ ...props, selected: true }))!.props as { detailed: boolean }).detailed).toBe(true);
+    });
+    it("renders a peer card without selecting or sliding the peer", () => {
+        const device = { id: 2, name: "Peer", rackPosition: 2, uHeight: 1, openIncidents: { count: 0 } } as FilteredDevice;
+        const tree = RackDevice({ device, selected: false, faded: false, accent: "#5eead4", colorBy: "category", onSelect: () => {}, floatCard: <span>Peer card</span> });
+        const html = tooltip(tree);
+        expect((html?.props as { children: ReactElement }).children.props).toEqual({ children: "Peer card" });
+    });
     it("makes the screen-space tooltip non-interactive so it cannot steal hover from its device", () => {
         const device = {
             id: 1, name: "Switch", rackPosition: 1, uHeight: 1,

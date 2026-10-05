@@ -9,9 +9,9 @@ vi.mock("next/link", () => ({
 // The hologram reads audit/SIEM summary through the shared drawer hook.
 // Drawer data is per test: the default has nothing to link, one test supplies
 // an open SIEM finding so the summary line has a real target.
-const drawerState: { data: unknown } = { data: null };
+const drawerState: { data: unknown; error?: boolean } = { data: null };
 vi.mock("@/components/admin/device-drawer-sections", () => ({
-    useDeviceDrawer: () => ({ loading: false, data: drawerState.data }),
+    useDeviceDrawer: () => ({ loading: false, data: drawerState.data, error: drawerState.error }),
 }));
 
 import { DeviceHologram } from "./device-hologram";
@@ -52,6 +52,15 @@ const baseProps = {
 };
 
 describe("DeviceHologram faceplate", () => {
+    it("distinguishes failed audit/SIEM loading from a pending response", () => {
+        drawerState.error = true;
+        try {
+            const html = renderToStaticMarkup(<DeviceHologram device={device} {...baseProps} />);
+            expect(html).toContain("Unable to load audit and SIEM details.");
+            expect(html).not.toContain("never audited");
+            expect(html).not.toContain("clear");
+        } finally { drawerState.error = false; }
+    });
     it("draws one slot per declared port and a linked count", () => {
         const html = renderToStaticMarkup(<DeviceHologram device={device} {...baseProps} />);
         expect(html).toContain("SW-1");

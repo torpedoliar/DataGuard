@@ -5,7 +5,7 @@ export const QUALITY_SETTINGS: QualitySetting[] = ["auto", "high", "medium", "lo
 
 export const QUALITY_LABELS: Record<QualitySetting, string> = {
     auto: "Auto",
-    high: "High: soft shadows, AO, depth of field",
+    high: "High: soft shadows, AO, bloom",
     medium: "Medium: shadows, bloom",
     low: "Low: no shadows or effects",
 };
@@ -13,8 +13,8 @@ export const QUALITY_LABELS: Record<QualitySetting, string> = {
 export const PRESETS: Record<Quality, {
     shadows: boolean; softShadows: boolean; ao: boolean; bloom: boolean; dof: boolean; reflections: boolean; dpr: [number, number];
 }> = {
-    high: { shadows: true, softShadows: true, ao: true, bloom: true, dof: true, reflections: true, dpr: [1, 2] },
-    medium: { shadows: true, softShadows: false, ao: false, bloom: true, dof: false, reflections: true, dpr: [1, 1.5] },
+    high: { shadows: true, softShadows: true, ao: true, bloom: true, dof: false, reflections: true, dpr: [1, 2] },
+    medium: { shadows: true, softShadows: false, ao: false, bloom: true, dof: false, reflections: false, dpr: [1, 1.5] },
     low: { shadows: false, softShadows: false, ao: false, bloom: false, dof: false, reflections: false, dpr: [1, 1] },
 };
 

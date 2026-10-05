@@ -8,6 +8,7 @@ import type { RackDevice, RoomSettings } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
 import { rackSummary, tourOrder, troubledCritical, type ColorBy } from "@/lib/rack-signals";
 import { DEFAULT_APPEARANCE, type RoomAppearance } from "@/lib/room-appearance";
+import { useDeviceDrawer } from "@/components/admin/device-drawer-sections";
 import DeviceDetailPanel from "@/components/admin/device-detail-panel";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
@@ -74,6 +75,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     // Ports for the in-scene hologram: fetched when the selection changes.
     const [cardPorts, setCardPorts] = useState<FloatPort[]>([]);
     const [cardLoading, setCardLoading] = useState(false);
+    const [cardError, setCardError] = useState(false);
+    const [cardLoadedId, setCardLoadedId] = useState<number | null>(null);
     // Full detail docked panel — opened only from the hologram's Panel button.
     // Site devices for the link dialog's target picker.
     const [deviceOptions, setDeviceOptions] = useState<HologramDeviceOption[]>([]);
@@ -138,16 +141,26 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
     const [peerPickedRoom, setPeerPickedRoom] = useState<string | null>(null);
     const [peerPorts, setPeerPorts] = useState<FloatPort[]>([]);
     const [peerLoading, setPeerLoading] = useState(false);
+    const [peerError, setPeerError] = useState(false);
+    const [peerLoadedId, setPeerLoadedId] = useState<number | null>(null);
 
     const peerDevice = peerDeviceId == null ? null : allDevices.find((d) => d.id === peerDeviceId) ?? null;
     const peerRack = peerDevice == null ? null : racks.find((r) => r.devices.some((d) => d.id === peerDevice.id)) ?? null;
     const peerInRoom = peerRack != null && (peerRack.locationName || UNASSIGNED) === room;
     const peerCardRack = peerRack != null && !peerInRoom ? peerRack : null;
+    const baseDrawer = useDeviceDrawer(cardDeviceId);
+    const peerDrawer = useDeviceDrawer(peerDevice?.id ?? null);
+    const panelDrawer = useDeviceDrawer(panelDevice && panelDevice.id !== cardDeviceId && panelDevice.id !== peerDevice?.id ? panelDevice.id : null);
     const peerPortName = peerDeviceId == null ? null : cardPorts.find((p) => p.connectedToDeviceId === peerDeviceId)?.connectedToPortName ?? null;
 
     // Render-time resets, the pattern this repo uses instead of an effect the
     // lint rule rejects: the peer must not outlive its room, its base device or
     // its own identity.
+    const [peerBaseId, setPeerBaseId] = useState<number | null>(selectedDeviceId);
+    if (peerBaseId !== selectedDeviceId) {
+        setPeerBaseId(selectedDeviceId);
+        setPeerDeviceId(null);
+    }
     if (peerDeviceId !== null && peerPickedRoom !== room) setPeerDeviceId(null);
     if (peerDeviceId !== null && selectedDeviceId === null) setPeerDeviceId(null);
     if (peerDeviceId !== null && peerDeviceId === selectedDeviceId) setPeerDeviceId(null);
@@ -166,8 +179,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch result for the selected device, guarded by alive + id match
         setCardLoading(true);
         getPortsByDevice(cardDeviceId)
-            .then((ports) => { if (alive) { setCardPorts(ports); setCardLoading(false); } })
-            .catch(() => { if (alive) { setCardPorts([]); setCardLoading(false); } });
+            .then((ports) => { if (alive) { setCardPorts(ports); setCardLoading(false); setCardError(false); setCardLoadedId(cardDeviceId); } })
+            .catch(() => { if (alive) { setCardPorts([]); setCardLoading(false); setCardError(true); setCardLoadedId(cardDeviceId); } });
         return () => { alive = false; };
     }, [cardDeviceId]);
     const peerFetchId = peerInRoom && peerDevice ? peerDevice.id : null;
@@ -177,8 +190,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
         // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch result for the peer device, guarded by alive + id match
         setPeerLoading(true);
         getPortsByDevice(peerFetchId)
-            .then((ports) => { if (alive) { setPeerPorts(ports); setPeerLoading(false); } })
-            .catch(() => { if (alive) { setPeerPorts([]); setPeerLoading(false); } });
+            .then((ports) => { if (alive) { setPeerPorts(ports); setPeerLoading(false); setPeerError(false); setPeerLoadedId(peerFetchId); } })
+            .catch(() => { if (alive) { setPeerPorts([]); setPeerLoading(false); setPeerError(true); setPeerLoadedId(peerFetchId); } });
         return () => { alive = false; };
     }, [peerFetchId]);
     useEffect(() => {
@@ -364,8 +377,8 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 )}
             </div>
 
-            <div className={`overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" onPointerDownCapture={stopTourOnInput} onWheelCapture={stopTourOnInput}>
-                <div className={`absolute top-3 z-30 flex gap-2 ${panelOpen ? "right-[calc(24rem+0.75rem)]" : "right-3"}`} data-keep-tour>
+            <div className={`@container overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" onPointerDownCapture={stopTourOnInput} onWheelCapture={stopTourOnInput}>
+                <div className={`absolute top-3 right-3 z-30 flex flex-wrap justify-end gap-2 max-w-[calc(100%-1.5rem)] ${panelOpen ? "@[640px]:right-[calc(24rem+0.75rem)]" : ""}`} data-keep-tour>
                     <button onClick={touring ? () => setTouring(false) : startTour} aria-pressed={touring} title="Fly through every rack" className={overlayButton}>
                         {touring ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />} {touring ? "Stop tour" : "Tour"}
                     </button>
@@ -408,8 +421,10 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                         return (
                             <DeviceHologram
                                 device={dev}
-                                ports={isBase ? cardPorts : isPeer ? peerPorts : []}
-                                loading={isBase ? cardLoading : isPeer ? peerLoading : false}
+                                drawerState={isBase ? baseDrawer : peerDrawer}
+                                ports={isBase && cardLoadedId === cardDeviceId ? cardPorts : isPeer && peerLoadedId === peerDevice?.id ? peerPorts : []}
+                                loading={isBase ? cardLoading || cardLoadedId !== cardDeviceId : isPeer ? peerLoading || peerLoadedId !== peerDevice?.id : false}
+                                error={isBase ? cardError && cardLoadedId === cardDeviceId : peerError && peerLoadedId === peerDevice?.id}
                                 deviceOptions={deviceOptions}
                                 offsetY={isPeer ? stagger.peer : stagger.base}
                                 onClose={() => { if (isPeer) setPeerDeviceId(null); else onSelectDevice(null); }}
@@ -454,8 +469,11 @@ export default function RackView3D({ racks, locationFilter = null, rooms: roomSe
                 </div>
                 {panelDevice && panelOpen && (
                     <DeviceDetailPanel
+                        key={panelDevice.id}
                         docked
                         device={panelDevice}
+                        networkState={panelDevice.id === cardDeviceId ? { ports: cardPorts, loading: cardLoading || cardLoadedId !== cardDeviceId, error: cardError && cardLoadedId === cardDeviceId } : panelDevice.id === peerDevice?.id ? { ports: peerPorts, loading: peerLoading || peerLoadedId !== peerDevice?.id, error: peerError && peerLoadedId === peerDevice?.id } : undefined}
+                        drawerState={panelDevice.id === cardDeviceId ? baseDrawer : panelDevice.id === peerDevice?.id ? peerDrawer : panelDrawer}
                         onClose={() => setPanelOpenState(false)}
                         onSelectPeer={onSelectPeer}
                     />

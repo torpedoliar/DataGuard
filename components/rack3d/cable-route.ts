@@ -1,6 +1,7 @@
 import type { SceneRack } from "@/lib/rack-filter";
 import { FRONT_Z, RACK_W, SLIDE, U, rackHeight, uToY } from "./constants";
 import { deviceKind } from "./device-kind";
+import { inRack } from "./free-slots";
 import type { PlacedRack } from "./layout";
 import { portFace, type PortFaceSlot } from "./port-face";
 
@@ -78,14 +79,18 @@ export interface CableInfo {
 // peers sit in (the scene keeps them visible and un-faded). More than one
 // device is watched at a time because a same-room peer gets its own hologram,
 // and a focused row must keep the peer's rack on screen.
-export function buildCables(placed: PlacedRack<SceneRack>[], watchedDeviceIds: (number | null)[]): { cables: CableInfo[]; peerRacks: Set<string> } {
+export function buildCables(placed: PlacedRack<SceneRack>[], watchedDeviceIds: (number | null)[], selectedDeviceId: number | null = watchedDeviceIds[0] ?? null, slide = SLIDE, slides?: ReadonlyMap<number, number>): { cables: CableInfo[]; peerRacks: Set<string> } {
     const peerRacks = new Set<string>();
     const ids = watchedDeviceIds.filter((id): id is number => id != null);
     if (ids.length === 0 || placed.length === 0) return { cables: [], peerRacks };
 
     type Where = { p: PlacedRack<SceneRack>; d: SceneRack["devices"][number] };
     const where = new Map<number, Where>();
-    for (const p of placed) for (const d of p.rack.devices) where.set(d.id, { p, d });
+    const invalid = new Set<number>();
+    for (const p of placed) for (const d of p.rack.devices) {
+        if (inRack(d, p.rack.totalU || 42)) where.set(d.id, { p, d });
+        else invalid.add(d.id);
+    }
     const selves = ids.map((id) => where.get(id)).filter((w): w is Where => w != null);
     if (selves.length === 0) return { cables: [], peerRacks };
 
@@ -99,16 +104,23 @@ export function buildCables(placed: PlacedRack<SceneRack>[], watchedDeviceIds: (
     // One lane per cable across all watched devices, so two devices never draw
     // their cables at the same height.
     let lane = -1;
+    const seen = new Set<string>();
     const cables = selves.flatMap((self) =>
         self.d.ports
-            .filter((port) => port.connectedToDeviceId != null)
+            .filter((port) => {
+                if (port.connectedToDeviceId == null || invalid.has(port.connectedToDeviceId)) return false;
+                const ends = [`${self.d.id}:${port.id}`, `${port.connectedToDeviceId}:${port.connectedToPortId ?? `from-${port.id}`}`].sort().join("|");
+                if (seen.has(ends)) return false;
+                seen.add(ends);
+                return true;
+            })
             .map((port): CableInfo => {
                 lane += 1;
                 const mySlot = slotOf(self, port.id);
                 const peer = where.get(port.connectedToDeviceId!);
                 if (peer) peerRacks.add(peer.p.rack.name);
-                const a = portAnchor(placement(self.p), self.d, mySlot, SLIDE);
-                const b = peer ? portAnchor(placement(peer.p), peer.d, slotOf(peer, port.connectedToPortId)) : null;
+                const a = portAnchor(placement(self.p), self.d, mySlot, slides?.get(self.d.id) ?? (self.d.id === selectedDeviceId ? slide : 0));
+                const b = peer ? portAnchor(placement(peer.p), peer.d, slotOf(peer, port.connectedToPortId), slides?.get(peer.d.id) ?? (peer.d.id === selectedDeviceId ? slide : 0)) : null;
                 const kind = cableKind(port.portMode, mySlot?.uplink ?? false, peer ? isNetwork(peer) : false, isNetwork(self));
                 return {
                     key: String(port.id),

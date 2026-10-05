@@ -23,6 +23,8 @@ interface DeviceHologramProps {
     device: HologramDevice;
     ports: FloatPort[];
     loading: boolean;
+    error?: boolean;
+    drawerState?: ReturnType<typeof useDeviceDrawer>;
     deviceOptions: HologramDeviceOption[];
     onClose: () => void;
     /**
@@ -66,13 +68,13 @@ const slotLabel = (slot: HologramSlot) => (slot.port ? describeSlot(slot) : empt
 // The body is the device's documented faceplate: hovering a slot shows its
 // wiring, clicking an occupied one opens its detail panel, and the peer action
 // is left to the caller through the optional `onPickPort`.
-export function DeviceHologram({ device, ports, loading, deviceOptions, onClose, onPickPort, onLinked, onOpenPanel, offsetY = 0, hoveredSlotKey, selectedSlotKey }: DeviceHologramProps) {
+export function DeviceHologram({ device, ports, loading, error = false, deviceOptions, onClose, onPickPort, onLinked, onOpenPanel, offsetY = 0, drawerState, hoveredSlotKey, selectedSlotKey }: DeviceHologramProps) {
     // The card floats in screen space over the scene, so a click on its padding
     // would otherwise fall through to the device mesh behind it and select a
     // different device. Holding the event here keeps it on the card.
     const holdClick = (e: ReactPointerEvent<HTMLDivElement>) => e.stopPropagation();
     const linked = ports.filter((p) => p.connectedToDeviceId != null).length;
-    const { data: drawer } = useDeviceDrawer(device.id);
+    const { data: drawer, error: drawerError } = useDeviceDrawer(device.id, drawerState);
     const [linkTarget, setLinkTarget] = useState<FloatPort | null>(null);
     const [hoveredKey, setHoveredKey] = useState<string | null>(null);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function DeviceHologram({ device, ports, loading, deviceOptions, onClose,
 
     return (
         <div
-            className="w-80 rounded-xl border border-ops-accent/40 bg-ops-surface/95 shadow-[0_0_24px_-4px_var(--ops-accent)] backdrop-blur"
+            className="w-72 rounded-xl border border-ops-accent/40 bg-ops-surface/95 shadow-[0_0_24px_-4px_var(--ops-accent)] backdrop-blur"
             style={offsetY ? { transform: `translateY(${offsetY}rem)` } : undefined}
             onPointerDown={holdClick}
         >
@@ -134,13 +136,14 @@ export function DeviceHologram({ device, ports, loading, deviceOptions, onClose,
                         </span>
                     )}
                 </p>
+                {drawerError && <p role="alert" className="text-ops-danger">Unable to load audit and SIEM details.</p>}
                 <p className="text-ops-muted">
                     Audit:{" "}
                     {drawer ? (
                         drawer.lastAudit
                             ? <span className="text-ops-text">{drawer.lastAudit.checkDate} · {drawer.lastAudit.status}</span>
                             : "never audited"
-                    ) : "…"}
+                    ) : drawerError ? "unavailable" : "…"}
                 </p>
                 <p className="text-ops-muted">
                     SIEM:{" "}
@@ -148,12 +151,12 @@ export function DeviceHologram({ device, ports, loading, deviceOptions, onClose,
                         drawer.siem.count > 0
                             ? <Link href="/admin/siem/findings" className="font-semibold text-ops-warning hover:underline">{drawer.siem.count} open</Link>
                             : "clear"
-                    ) : "…"}
+                    ) : drawerError ? "unavailable" : "…"}
                 </p>
             </div>
 
-            <div className="max-h-56 overflow-auto px-3 py-2">
-                {loading ? (
+            <div className="max-h-44 overflow-auto px-3 py-2">
+                {error ? <p role="alert" className="py-2 text-xs text-ops-danger">Unable to load ports.</p> : loading ? (
                     <p className="py-2 text-center text-xs text-ops-muted">Loading ports…</p>
                 ) : !plate ? (
                     <p className="space-y-1 py-2 text-center text-xs text-ops-muted">
@@ -289,7 +292,7 @@ export function DeviceHologram({ device, ports, loading, deviceOptions, onClose,
             )}
 
             <div className="flex items-center justify-between gap-2 border-t border-ops-border px-3 py-2">
-                <span className="font-mono text-[11px] text-ops-success">{linked}/{ports.length} Linked</span>
+                <span className="font-mono text-[11px] text-ops-success">{error ? "Ports unavailable" : loading ? "Loading…" : `${linked}/${ports.length} Linked`}</span>
                 <div className="flex items-center gap-1">
                     <button
                         type="button"

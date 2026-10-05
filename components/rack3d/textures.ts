@@ -53,8 +53,8 @@ export const floorTileTexture = (dark: boolean) => make(`tile-${dark}`, 256, 256
     ctx.fillStyle = dark ? "#2a2f36" : "#9aa1a9";
     ctx.fillRect(0, 0, 256, 256);
     for (let i = 0; i < 900; i++) {
-        ctx.fillStyle = `rgba(${dark ? "255,255,255" : "0,0,0"},${Math.random() * 0.05})`;
-        ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+        ctx.fillStyle = `rgba(${dark ? "255,255,255" : "0,0,0"},${((i * 37 % 101) / 101) * 0.05})`;
+        ctx.fillRect((i * 73 % 256), (i * 151 % 256), 2, 2);
     }
     ctx.strokeStyle = dark ? "#14171b" : "#6b7280";
     ctx.lineWidth = 6;
@@ -195,3 +195,14 @@ export const wallpaperTexture = (kind: "brick" | "acoustic" | "concrete") => mak
         }
     }
 }, true);
+
+export const floorBumpTexture = () => make("tile-bump", 256, 256, (ctx) => {
+    ctx.fillStyle = "#c4c4c4";
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = "#242424";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, 252, 252);
+    ctx.strokeStyle = "#929292";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(6, 6, 244, 244);
+});

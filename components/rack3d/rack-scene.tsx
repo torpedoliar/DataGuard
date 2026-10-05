@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } 
 import * as THREE from "three";
 import { Canvas, useFrame, useThree, type RootState } from "@react-three/fiber";
 import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
-import { Bloom, DepthOfField, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode, type EffectComposer as ComposerImpl } from "postprocessing";
 import type { RackDevice } from "@/actions/rack-layout";
 import type { SceneRack } from "@/lib/rack-filter";
@@ -13,6 +13,7 @@ import type { RoomAppearance } from "@/lib/room-appearance";
 import { useIsDark } from "@/components/ui/theme-toggle";
 import { FRONT_Z, RACK_D, U, rackHeight, uToY } from "./constants";
 import { inRack } from "./free-slots";
+import { AnimatedCables } from "./cables";
 import { buildCables } from "./cable-route";
 import { bounds, layoutRacks, type Bounds, type PlacedRack } from "./layout";
 import { tickLeds } from "./materials";
@@ -104,19 +105,17 @@ function Lighting({ dark, b, preset, appearance }: { dark: boolean; b: Bounds; p
     const tint = appearance.lightColor;
     return (
         <>
-            <ambientLight intensity={(dark ? 0.7 : 0.55) * k} />
-            <hemisphereLight args={[tint ?? (dark ? "#7d9bcc" : "#ffffff"), dark ? "#222b3a" : "#8f98a3", (dark ? 1.3 : 1.1) * k]} />
+            <ambientLight intensity={0.75 * k} />
+            <hemisphereLight args={[tint ?? ("#f4f6f8"), "#77818a", 1.4 * k]} />
             {/* Aisle fill: soft light down the rows so faceplates read */}
-            <directionalLight position={[b.maxX + 6, 2.5, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.9 : 0.9} color={dark ? "#c7d8f5" : "#ffffff"} />
-            <directionalLight position={[b.minX - 6, 2.2, (b.minZ + b.maxZ) / 2]} intensity={dark ? 0.45 : 0.35} color={dark ? "#c7d8f5" : "#ffffff"} />
+            <directionalLight position={[b.maxX + 6, 2.5, (b.minZ + b.maxZ) / 2]} intensity={0.9 * k} color={tint ?? "#ffffff"} />
+            <directionalLight position={[b.minX - 6, 2.2, (b.minZ + b.maxZ) / 2]} intensity={0.45 * k} color={tint ?? "#ffffff"} />
             {dark && spots.map(([x, z]) => (
                 <pointLight key={`${x},${z}`} position={[x, 2.9, z]} intensity={7 * k} distance={8} decay={1.2} color={tint ?? "#e6eefc"} />
             ))}
-            {/* Lights-out mode: faint blue wash rising from the cold-aisle tiles */}
-            {dark && <pointLight position={[(b.minX + b.maxX) / 2, 0.4, (b.minZ + b.maxZ) / 2]} color="#3b82f6" intensity={4} distance={6} decay={1.5} />}
             <directionalLight
                 position={[3, 7, 4]}
-                intensity={dark ? 0.5 : 1.3}
+                intensity={1.3 * k}
                 castShadow={preset.shadows}
                 shadow-mapSize={[2048, 2048]}
                 shadow-bias={-0.0004}
@@ -126,33 +125,32 @@ function Lighting({ dark, b, preset, appearance }: { dark: boolean; b: Bounds; p
                 shadow-camera-bottom={-span}
             />
             {preset.softShadows && <SoftShadows size={18} samples={10} focus={0.6} />}
-            <Environment key={dark ? "dark" : "light"} resolution={256} frames={1} environmentIntensity={dark ? 1.25 : 1.3}>
+            <Environment key={dark ? "dark" : "light"} resolution={256} frames={1} environmentIntensity={1.1 * k}>
                 {[-3, 0, 3].flatMap((x) => [-3, 0, 3].map((z) => (
                     <Lightformer key={`${x},${z}`} form="rect" intensity={dark ? 1.4 : 2.4} position={[x, 3, z]} rotation-x={Math.PI / 2} scale={[0.8, 1.6, 1]} />
                 )))}
-                <Lightformer form="rect" intensity={dark ? 0.8 : 0.3} color={dark ? "#3b82f6" : "#ffffff"} position={[0, 1, -8]} scale={[20, 2, 1]} />
+                <Lightformer form="rect" intensity={dark ? 0.8 : 0.3} color="#ffffff" position={[0, 1, -8]} scale={[20, 2, 1]} />
             </Environment>
         </>
     );
 }
 
-function Effects({ preset, dofTarget, composerRef }: { preset: (typeof PRESETS)[Quality]; dofTarget: [number, number, number] | null; composerRef: RefObject<ComposerImpl | null> }) {
+function Effects({ preset, composerRef }: { preset: (typeof PRESETS)[Quality]; composerRef: RefObject<ComposerImpl | null> }) {
     if (!preset.bloom) return null; // low: renderer tone mapping, no composer
     return preset.ao ? (
         <EffectComposer ref={composerRef} multisampling={4} frameBufferType={THREE.HalfFloatType}>
             <N8AO aoRadius={0.4} distanceFalloff={0.5} intensity={2} quality="medium" halfRes />
-            <Bloom mipmapBlur luminanceThreshold={1} intensity={0.9} />
-            <DepthOfField target={dofTarget ?? [0, 0, 0]} worldFocusRange={1.4} bokehScale={dofTarget ? 3 : 0} />
+            <Bloom mipmapBlur luminanceThreshold={1} intensity={0.25} />
             <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-            <Vignette offset={0.3} darkness={0.55} />
+            <Vignette offset={0.3} darkness={0.12} />
         </EffectComposer>
     ) : (
         // Medium: no MSAA render targets; SMAA is the cheap edge smoothing.
         <EffectComposer ref={composerRef} multisampling={0} frameBufferType={THREE.HalfFloatType}>
-            <Bloom mipmapBlur luminanceThreshold={1} intensity={0.7} />
+            <Bloom mipmapBlur luminanceThreshold={1} intensity={0.18} />
             <SMAA />
             <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-            <Vignette offset={0.3} darkness={0.5} />
+            <Vignette offset={0.3} darkness={0.1} />
         </EffectComposer>
     );
 }
@@ -181,12 +179,11 @@ function Capture({ captureRef, composerRef }: { captureRef: RefObject<(() => str
     return null;
 }
 
-function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
+function CameraRig({ placed, b, focusRack, focusDeviceId }: {
     placed: PlacedRack<SceneRack>[];
     b: Bounds;
     focusRack: string | null;
     focusDeviceId: number | null;
-    onTarget: (p: [number, number, number]) => void;
 }) {
     const ref = useRef<CameraControls>(null);
     const cx = (b.minX + b.maxX) / 2;
@@ -226,7 +223,7 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
             return [p.x + 0.25, y + 0.2, fz + dir * 1.2, p.x, y, fz].join(",");
         }
         const H = rackHeight(p.rack.totalU || 42);
-        return [p.x, H * 0.55, p.z + dir * (RACK_D / 2 + 2.4), p.x, H * 0.45, p.z + dir * (RACK_D / 2)].join(",");
+        return [p.x, H * 0.55, p.z + dir * (RACK_D / 2 + Math.max(2.4, H * 2)), p.x, H * 0.45, p.z + dir * (RACK_D / 2)].join(",");
     }, [placed, focusRack, focusDeviceId, home]);
 
     useEffect(() => {
@@ -235,8 +232,7 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, onTarget }: {
         c.smoothTime = 0.28; // fly-to <= 0.8 s
         const [px, py, pz, tx, ty, tz] = target.split(",").map(Number);
         void c.setLookAt(px, py, pz, tx, ty, tz, true);
-        onTarget([tx, ty, tz]);
-    }, [target, onTarget]);
+    }, [target]);
 
     return (
         <CameraControls
@@ -268,14 +264,14 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
     // same-room peer in another rack would otherwise be dropped while a rack is
     // focused, and the peer hologram would have no device to sit on.
     const { peerRacks } = useMemo(
-        () => buildCables(placed, [selectedDeviceId, peerDeviceId]),
+        () => buildCables(placed, [selectedDeviceId, peerDeviceId], selectedDeviceId),
         [placed, selectedDeviceId, peerDeviceId],
     );
     const bg = dark ? "#0b0f15" : "#dfe3e8";
-    const [focusPoint, setFocusPoint] = useState<[number, number, number]>([0, 1, 0]);
 
     return (
         <Canvas
+            style={{ zIndex: 0 }}
             key={quality}
             shadows={preset.shadows}
             dpr={preset.dpr}
@@ -298,6 +294,7 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
                     placed={p}
                     dark={dark}
                     focused={focusRack === p.rack.name}
+                    detailed={quality === "high"}
                     faded={p.rack.dimmed || (!!focusRack && focusRack !== p.rack.name && !peerRacks.has(p.rack.name))}
                     showFree={showFree}
                     accent={accent}
@@ -309,9 +306,10 @@ export default function RackScene({ racks, floorPlanUrl, qualitySetting, onAutoQ
                     floatCard={floatCard}
                 />
             ))}
-            <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} onTarget={setFocusPoint} />
+            <AnimatedCables placed={placed} selectedDeviceId={selectedDeviceId} peerDeviceId={peerDeviceId} />
+            <CameraRig placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} />
             <BlinkClock />
-            <Effects preset={preset} dofTarget={preset.dof && focusRack ? focusPoint : null} composerRef={composerRef} />
+            <Effects preset={preset} composerRef={composerRef} />
             {captureRef && <Capture captureRef={captureRef} composerRef={composerRef} />}
         </Canvas>
     );

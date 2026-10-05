@@ -11,18 +11,19 @@ type Port = Awaited<ReturnType<typeof getPortsByDevice>>[number];
 
 // Network docs at a glance in the device drawer: port counts, a read-only
 // faceplate and a link to the full network page (edit, VLANs, cabling).
-export default function DeviceNetworkSummary({ device }: { device: RackDevice }) {
-    const [loaded, setLoaded] = useState<{ id: number; ports: Port[] } | null>(null);
+export default function DeviceNetworkSummary({ device, supplied }: { device: RackDevice; supplied?: { ports: Port[]; loading: boolean; error?: boolean } }) {
+    const [loaded, setLoaded] = useState<{ id: number; ports: Port[]; error: boolean } | null>(null);
 
     useEffect(() => {
+        if (supplied !== undefined) return;
         let alive = true;
-        getPortsByDevice(device.id).then((ports) => { if (alive) setLoaded({ id: device.id, ports }); }).catch(() => {
-            if (alive) setLoaded({ id: device.id, ports: [] });
+        getPortsByDevice(device.id).then((ports) => { if (alive) setLoaded({ id: device.id, ports, error: false }); }).catch(() => {
+            if (alive) setLoaded({ id: device.id, ports: [], error: true });
         });
         return () => { alive = false; };
-    }, [device.id]);
+    }, [device.id, supplied]);
 
-    const ports = loaded?.id === device.id ? loaded.ports : null;
+    const ports = supplied ? (supplied.loading ? null : supplied.ports) : loaded?.id === device.id ? loaded.ports : null;
     const config = useMemo(() => ({
         portCount: device.faceplatePortCount,
         uplinkCount: device.faceplateUplinkCount,
@@ -53,7 +54,7 @@ export default function DeviceNetworkSummary({ device }: { device: RackDevice })
                 </Link>
             </div>
 
-            {ports === null ? (
+            {(supplied?.error || (loaded?.id === device.id && loaded.error)) ? <p role="alert" className="text-xs text-ops-danger">Unable to load network ports.</p> : ports === null ? (
                 <p className="flex items-center gap-2 text-xs text-ops-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading ports…</p>
             ) : ports.length === 0 && !plate ? (
                 <p className="text-xs text-ops-muted">No network ports documented for this device.</p>

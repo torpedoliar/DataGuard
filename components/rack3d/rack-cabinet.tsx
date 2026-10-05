@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
+import { ScreenHtml as Html } from "./screen-html";
 import type { FilteredDevice, SceneRack } from "@/lib/rack-filter";
 import { criticalProblem, OCCUPANCY_COLOR, occupancyBand, type ColorBy } from "@/lib/rack-signals";
 import { FACE_W, FRONT_Z, PLINTH, RACK_D, RACK_W, U, rackHeight, uToY } from "./constants";
@@ -21,6 +21,8 @@ function Door({ height, open }: { height: number; open: boolean }) {
     const invalidate = useThree((s) => s.invalidate);
     const alpha = useMemo(() => repeated(perforationTexture(), RACK_W / 0.096, height / 0.096), [height]);
 
+    useEffect(() => () => alpha.dispose(), [alpha]);
+
     useFrame((_, dt) => {
         const g = hinge.current;
         if (!g) return;
@@ -33,8 +35,12 @@ function Door({ height, open }: { height: number; open: boolean }) {
         <group ref={hinge} position={[-RACK_W / 2, PLINTH + 0.01 + height / 2, RACK_D / 2 + 0.006]}>
             <mesh position={[RACK_W / 2, 0, 0]}>
                 <planeGeometry args={[RACK_W - 0.01, height]} />
-                <meshStandardMaterial color="#2a2f37" metalness={0.6} roughness={0.4} alphaMap={alpha} transparent depthWrite={false} side={THREE.DoubleSide} />
+                <meshStandardMaterial color="#2a2f37" metalness={0.6} roughness={0.4} alphaMap={alpha} alphaTest={0.5} side={THREE.DoubleSide} />
             </mesh>
+            {[-1, 1].map((side) => <mesh key={`v${side}`} position={[RACK_W / 2 + side * (RACK_W / 2 - 0.016), 0, 0]}><boxGeometry args={[0.032, height, 0.018]} /><meshStandardMaterial color="#424b55" metalness={0.4} roughness={0.38} /></mesh>)}
+            {[-1, 1].map((side) => <mesh key={`h${side}`} position={[RACK_W / 2, side * (height / 2 - 0.016), 0]}><boxGeometry args={[RACK_W, 0.032, 0.018]} /><meshStandardMaterial color="#424b55" metalness={0.4} roughness={0.38} /></mesh>)}
+            {[-0.35, 0.35].map((y) => <mesh key={y} position={[0, y * height, 0]}><cylinderGeometry args={[0.008, 0.008, 0.065, 8]} /><meshStandardMaterial color="#848b93" metalness={0.85} roughness={0.3} /></mesh>)}
+            <mesh position={[RACK_W - 0.04, -0.11, 0.014]} rotation-x={Math.PI / 2}><cylinderGeometry args={[0.008, 0.008, 0.003, 12]} /><meshStandardMaterial color="#bcc1c6" metalness={0.9} roughness={0.25} /></mesh>
             <mesh position={[RACK_W - 0.04, 0, 0.012]}>
                 <boxGeometry args={[0.018, 0.16, 0.02]} />
                 <meshStandardMaterial color="#b8bec6" metalness={0.9} roughness={0.2} />
@@ -57,6 +63,7 @@ function UMark({ u, y }: { u: number; y: number }) {
 function Rails({ totalU, numbered }: { totalU: number; numbered: boolean }) {
     const h = totalU * U;
     const alpha = useMemo(() => repeated(railTexture(), 1, totalU), [totalU]);
+    useEffect(() => () => alpha.dispose(), [alpha]);
     // Rail U numbers: every 5U plus 1 and top, focused rack only. Number
     // textures are refcounted ("1".."42" shared across racks), so this costs
     // ~10 small planes, not 42 textures per rack.
@@ -115,7 +122,7 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
     );
 }
 
-export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, peerDeviceId, onFocus, onSelectDevice, floatCard }: {
+export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, peerDeviceId, onFocus, onSelectDevice, floatCard, detailed = true }: {
     placed: PlacedRack<SceneRack>;
     dark: boolean;
     focused: boolean;
@@ -128,6 +135,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
     onFocus: () => void;
     onSelectDevice: (d: FilteredDevice) => void;
     floatCard?: (d: FilteredDevice) => ReactNode;
+    detailed?: boolean;
 }) {
     const { rack } = placed;
     const totalU = rack.totalU || 42;
@@ -141,7 +149,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
     const hasFault = rack.devices.some((d) => d.status === "NOT OK");
     // Beacon only while a critical device in this rack has a problem.
     const alarm = rack.devices.some((d) => criticalProblem(d));
-    const steelColor = colorBy === "occupancy" ? OCCUPANCY_COLOR[occupancyBand(rack.occupiedU, totalU)] : dark ? "#2a3039" : "#16181c";
+    const steelColor = colorBy === "occupancy" ? OCCUPANCY_COLOR[occupancyBand(rack.occupiedU, totalU)] : dark ? "#434b54" : "#3d454d";
     const steel = <meshStandardMaterial color={steelColor} metalness={0.45} roughness={0.5} />;
 
     return (
@@ -174,6 +182,12 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
                 {steel}
             </mesh>
 
+            {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => <mesh key={`foot${x}${z}`} position={[x * 0.24, 0.015, z * 0.44]}><cylinderGeometry args={[0.03, 0.035, 0.03, 12]} /><meshStandardMaterial color="#8b9197" metalness={0.85} roughness={0.3} /></mesh>)}
+            {/* Generic rear power rail decoration, not documented PSU inventory. */}
+            <group position={[RACK_W / 2 - 0.07, PLINTH + body / 2, -RACK_D / 2 + 0.1]}>
+                <mesh><boxGeometry args={[0.035, body * 0.85, 0.045]} /><meshStandardMaterial color="#161a1e" roughness={0.6} /></mesh>
+                {Array.from({ length: 8 }, (_, i) => <mesh key={i} position={[0, (i - 3.5) * body / 10, 0.025]}><boxGeometry args={[0.018, 0.022, 0.003]} /><meshStandardMaterial color="#60666d" metalness={0.3} roughness={0.6} /></mesh>)}
+            </group>
             <Rails totalU={totalU} numbered={focused} />
             <Sign name={rack.name} collision={placed.collision} height={H} />
 
@@ -185,6 +199,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
                     // device slides out on its rails; the peer just gets a card.
                     selected={d.id === selectedDeviceId}
                     faded={faded}
+                    detailed={detailed || focused}
                     accent={accent}
                     colorBy={colorBy}
                     onSelect={onSelectDevice}

@@ -6,7 +6,7 @@ import type { SceneRack } from "@/lib/rack-filter";
 import type { RoomAppearance } from "@/lib/room-appearance";
 import { ROOM_HEIGHT, TILE, rackHeight } from "./constants";
 import { coldAisleTiles, floorPlanRect, roomRect, type Bounds, type PlacedRack } from "./layout";
-import { floorTileTexture, perforatedTileTexture, repeated, wallpaperTexture } from "./textures";
+import { floorBumpTexture, floorTileTexture, perforatedTileTexture, repeated, wallpaperTexture } from "./textures";
 import { useImageTexture } from "./use-image-texture";
 import { useLabelTexture } from "./use-label-texture";
 
@@ -50,7 +50,7 @@ function Walls({ r, dark, appearance }: { r: ReturnType<typeof roomRect>; dark: 
     );
     useEffect(() => () => maps?.forEach((t) => t.dispose()), [maps]);
 
-    const plain = dark ? "#1b222c" : "#c9ced4";
+    const plain = dark ? "#747d86" : "#d9dde0";
     const tint = dark ? "#8f99a8" : "#ffffff"; // darkens the finish in dark mode
     return (
         <>
@@ -96,12 +96,12 @@ function CableTrays({ placed }: { placed: PlacedRack<SceneRack>[] }) {
                         {[-0.15, 0.15].map((dz) => (
                             <mesh key={dz} position={[0, 0, dz]} castShadow>
                                 <boxGeometry args={[len, 0.05, 0.01]} />
-                                <meshStandardMaterial color="#eab308" metalness={0.3} roughness={0.5} />
+                                <meshStandardMaterial color="#9aa1a8" metalness={0.75} roughness={0.5} />
                             </mesh>
                         ))}
                         <Instances limit={rungs}>
                             <boxGeometry args={[0.012, 0.01, 0.3]} />
-                            <meshStandardMaterial color="#ca8a04" metalness={0.3} roughness={0.5} />
+                            <meshStandardMaterial color="#7c858d" metalness={0.75} roughness={0.5} />
                             {Array.from({ length: rungs }, (_, k) => (
                                 <Instance key={k} position={[-len / 2 + (k + 0.5) * (len / rungs), -0.02, 0]} />
                             ))}
@@ -133,7 +133,10 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
     const d = r.z1 - r.z0;
     const cx = (r.x0 + r.x1) / 2;
     const cz = (r.z0 + r.z1) / 2;
+    const bump = useMemo(() => repeated(floorBumpTexture(), w / TILE, d / TILE), [w, d]);
+    useEffect(() => () => bump.dispose(), [bump]);
     const floorTex = useMemo(() => repeated(floorTileTexture(dark), w / TILE, d / TILE), [dark, w, d]);
+    useEffect(() => () => floorTex.dispose(), [floorTex]);
     const plan = useImageTexture(floorPlanUrl);
     const planImg = plan?.image as { width: number; height: number } | undefined;
     const planRect = planImg ? floorPlanRect(b, planImg.width / planImg.height) : null;
@@ -151,10 +154,12 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
                 {reflections ? (
                     <MeshReflectorMaterial
                         map={floorTex}
+                        bumpMap={bump}
+                        bumpScale={0.002}
                         resolution={512}
                         blur={[300, 80]}
                         mixBlur={1}
-                        mixStrength={dark ? 1.4 : 0.6}
+                        mixStrength={0.35}
                         mirror={0}
                         depthScale={0.6}
                         minDepthThreshold={0.4}
@@ -163,7 +168,7 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
                         metalness={0.2}
                     />
                 ) : (
-                    <meshStandardMaterial map={floorTex} roughness={0.8} metalness={0.1} />
+                    <meshStandardMaterial map={floorTex} bumpMap={bump} bumpScale={0.002} roughness={0.8} metalness={0.1} />
                 )}
             </mesh>
 
@@ -179,7 +184,7 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
                         map={perforatedTileTexture(dark)}
                         roughness={0.7}
                         emissive="#1e3a8a"
-                        emissiveIntensity={dark ? 0.35 : 0}
+                        emissiveIntensity={0}
                     />
                     {cold.map(([ix, iz]) => (
                         <Instance key={`${ix},${iz}`} position={[ix * TILE, 0.002, iz * TILE]} rotation={[-Math.PI / 2, 0, 0]} />
@@ -190,10 +195,10 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
             <Walls r={r} dark={dark} appearance={appearance} />
 
             {panels.map(([x, z]) => (
-                <mesh key={`${x},${z}`} position={[x, ROOM_HEIGHT - 0.02, z]} rotation-x={Math.PI / 2}>
-                    <planeGeometry args={[0.6, 1.2]} />
-                    <meshBasicMaterial color={appearance.lightColor ?? (dark ? "#d9e3f2" : "#ffffff")} toneMapped={false} />
-                </mesh>
+                <group key={`${x},${z}`} position={[x, ROOM_HEIGHT - 0.03, z]}>
+                    <mesh><boxGeometry args={[0.66, 0.05, 1.26]} /><meshStandardMaterial color="#a2a9af" metalness={0.75} roughness={0.4} /></mesh>
+                    <mesh position={[0, -0.026, 0]} rotation-x={Math.PI / 2}><planeGeometry args={[0.6, 1.2]} /><meshStandardMaterial color={appearance.lightBrightness === 0 ? "#626970" : "#f1f2ed"} emissive={appearance.lightColor ?? "#ffffff"} emissiveIntensity={appearance.lightBrightness * 0.6} /></mesh>
+                </group>
             ))}
 
             {temp && <TempLabel temp={temp} x={cx} z={r.z0 + 0.02} />}

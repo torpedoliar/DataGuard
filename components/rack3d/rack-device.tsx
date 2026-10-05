@@ -1,202 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Html, Instance, Instances } from "@react-three/drei";
+import { ScreenHtml as Html } from "./screen-html";
 import type { FilteredDevice } from "@/lib/rack-filter";
 import { AUDIT_COLOR, SEVERITY_COLOR, type ColorBy, type OpenIncidents } from "@/lib/rack-signals";
 import { FACE_W, FRONT_Z, RACK_W, SLIDE, U, uToY } from "./constants";
-import { deviceKind, type DeviceKind } from "./device-kind";
-import { ledMaterial, portMaterials, sharedMaterials } from "./materials";
-import { portFace, type PortFaceSlot } from "./port-face";
-import { repeated, ventTexture } from "./textures";
+import { DeviceModel, CHASSIS_D } from "./device-model";
 import { useLabelTexture } from "./use-label-texture";
 import { FADE } from "./use-fade";
-import { useImageTexture } from "./use-image-texture";
-
-// Device opacity is React-driven (filter mute x rack fade); tells useFade to skip it.
-const OWN_FADE = { ownFade: true };
-const CHASSIS_D = 0.72;
-type Vec3 = [number, number, number];
-
-const FACE_COLOR: Record<DeviceKind, string> = {
-    server: "#4a515b", network: "#3b4149", storage: "#454b54", power: "#4d525a", cooling: "#484d55",
-};
-
-// cols x rows cell centres across [x0, x1], vertically centred.
-function grid(cols: number, rows: number, x0: number, x1: number, cellH: number, gap = 0.002): Vec3[] {
-    const pitch = (x1 - x0) / cols;
-    const startY = (-rows * (cellH + gap)) / 2;
-    const out: Vec3[] = [];
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-        out.push([x0 + pitch * (c + 0.5), startY + (cellH + gap) * (r + 0.5), 0]);
-    }
-    return out;
-}
-
-function Vent({ x, w, h }: { x: number; w: number; h: number }) {
-    const alpha = useMemo(() => repeated(ventTexture(), w / 0.05, h / 0.05), [w, h]);
-    return (
-        <mesh position={[x, 0, 0.0008]}>
-            <planeGeometry args={[w, h]} />
-            <meshStandardMaterial color="#07080a" alphaMap={alpha} transparent />
-        </mesh>
-    );
-}
-
-function ServerFace({ uh, h }: { uh: number; h: number }) {
-    const rows = uh >= 2 ? 2 : 1;
-    const cols = uh >= 2 ? 12 : 8;
-    const bh = (h * 0.78) / rows - 0.002;
-    const bw = 0.0165;
-    const bays = grid(cols, rows, -0.05, 0.2, bh);
-    return (
-        <>
-            <Vent x={-0.15} w={0.12} h={h * 0.6} />
-            <Instances frustumCulled={false} limit={bays.length}>
-                <boxGeometry args={[bw, bh, 0.003]} />
-                <meshStandardMaterial color="#111316" metalness={0.4} roughness={0.6} />
-                {bays.map((p, i) => <Instance key={i} position={p} />)}
-            </Instances>
-            <Instances frustumCulled={false} limit={bays.length} material={sharedMaterials.activity}>
-                <boxGeometry args={[0.003, 0.0015, 0.001]} />
-                {bays.map(([x, y], i) => <Instance key={i} position={[x + bw * 0.3, y + bh / 2 - 0.003, 0.0025]} />)}
-            </Instances>
-        </>
-    );
-}
-
-function NetworkFace({ h }: { h: number }) {
-    const ports = grid(24, 2, -0.2, 0.12, Math.min(0.0085, h * 0.3));
-    const sfp = grid(4, 1, 0.135, 0.205, 0.009);
-    return (
-        <>
-            <Instances frustumCulled={false} limit={ports.length}>
-                <boxGeometry args={[0.011, Math.min(0.0085, h * 0.3), 0.003]} />
-                <meshStandardMaterial color="#0a0b0c" roughness={0.8} />
-                {ports.map((p, i) => <Instance key={i} position={p} />)}
-            </Instances>
-            {[sharedMaterials.linkA, sharedMaterials.linkB].map((mat, k) => (
-                <Instances key={k} frustumCulled={false} limit={ports.length} material={mat}>
-                    <boxGeometry args={[0.0022, 0.0014, 0.001]} />
-                    {ports.filter((_, i) => i % 2 === k).map(([x, y], i) => <Instance key={i} position={[x - 0.003, y + 0.0055, 0.0022]} />)}
-                </Instances>
-            ))}
-            <Instances frustumCulled={false} limit={sfp.length}>
-                <boxGeometry args={[0.014, 0.0095, 0.004]} />
-                <meshStandardMaterial color="#9aa0a6" metalness={0.9} roughness={0.25} />
-                {sfp.map((p, i) => <Instance key={i} position={p} />)}
-            </Instances>
-        </>
-    );
-}
-
-// The device's documented ports (network docs): real count and layout, link
-// LED lit + flickering only on Active ports, red on Down, dark otherwise.
-// Clicking a jack selects its port (peer preview + topology edit in the HUD);
-// the selected port's jack paints green, the peer end cyan.
-function DocumentedPorts({ slots }: { slots: PortFaceSlot[] }) {
-    const groups = useMemo(() => ({
-        jacks: slots,
-        lit: [0, 1, 2].map((ph) => slots.filter((p) => p.state === "active" && p.phase === ph)),
-        down: slots.filter((p) => p.state === "down"),
-    }), [slots]);
-    const led = (p: PortFaceSlot): Vec3 => [p.x - p.w * 0.3, p.y + p.h * 0.36, 0.0022];
-    return (
-        <>
-            <Instances frustumCulled={false} limit={groups.jacks.length}>
-                <boxGeometry args={[1, 1, 0.003]} />
-                <meshStandardMaterial color="#0a0b0c" roughness={0.8} />
-                {groups.jacks.map((p, i) => (
-                    <Instance key={i} position={[p.x, p.y, 0]} scale={[p.w, p.h, 1]} color={p.uplink ? "#8f969d" : "#ffffff"} />
-                ))}
-            </Instances>
-            {groups.lit.map((list, ph) => list.length > 0 && (
-                <Instances key={ph} frustumCulled={false} limit={list.length} material={portMaterials[ph]}>
-                    <boxGeometry args={[0.0022, 0.0014, 0.001]} />
-                    {list.map((p, i) => <Instance key={i} position={led(p)} />)}
-                </Instances>
-            ))}
-            {groups.down.length > 0 && (
-                <Instances frustumCulled={false} limit={groups.down.length} material={sharedMaterials.portDown}>
-                    <boxGeometry args={[0.0022, 0.0014, 0.001]} />
-                    {groups.down.map((p, i) => <Instance key={i} position={led(p)} />)}
-                </Instances>
-            )}
-        </>
-    );
-}
-
-function StorageFace({ uh, h }: { uh: number; h: number }) {
-    const rows = uh >= 2 ? 3 : 1;
-    const th = (h * 0.85) / rows - 0.002;
-    const trays = grid(4, rows, -0.2, 0.2, th);
-    return (
-        <>
-            <Instances frustumCulled={false} limit={trays.length}>
-                <boxGeometry args={[0.095, th, 0.004]} />
-                <meshStandardMaterial color="#1a1d21" metalness={0.5} roughness={0.45} />
-                {trays.map((p, i) => <Instance key={i} position={p} />)}
-            </Instances>
-            <Instances frustumCulled={false} limit={trays.length} material={sharedMaterials.storage}>
-                <boxGeometry args={[0.003, 0.003, 0.001]} />
-                {trays.map(([x, y], i) => <Instance key={i} position={[x + 0.04, y, 0.0025]} />)}
-            </Instances>
-        </>
-    );
-}
-
-function PowerFace({ h }: { h: number }) {
-    return (
-        <>
-            <Vent x={0.06} w={0.3} h={h * 0.75} />
-            <mesh position={[-0.15, 0, 0.001]} material={sharedMaterials.lcd}>
-                <planeGeometry args={[0.07, Math.min(0.03, h * 0.5)]} />
-            </mesh>
-        </>
-    );
-}
-
-function Faceplate({ device, kind, uh, h, opacity, glow }: { device: FilteredDevice; kind: DeviceKind; uh: number; h: number; opacity: number; glow: string | null }) {
-    const ports = useMemo(() => portFace(device, h), [device, h]);
-    return (
-        <group position={[0, 0, FRONT_Z + 0.0015]}>
-            <mesh>
-                <planeGeometry args={[FACE_W, h]} />
-                <meshStandardMaterial userData={OWN_FADE} color={FACE_COLOR[kind]} metalness={0.6} roughness={0.35} transparent={opacity < 1} opacity={opacity} emissive={glow ?? "#000000"} emissiveIntensity={glow ? 0.35 : 0} />
-            </mesh>
-            {ports ? <DocumentedPorts slots={ports.slots} /> : (
-                <>
-                    {kind === "server" && <ServerFace uh={uh} h={h} />}
-                    {kind === "network" && <NetworkFace h={h} />}
-                </>
-            )}
-            {!ports && kind === "storage" && <StorageFace uh={uh} h={h} />}
-            {!ports && kind === "power" && <PowerFace h={h} />}
-            {!ports && kind === "cooling" && <Vent x={0} w={FACE_W * 0.9} h={h * 0.8} />}
-        </group>
-    );
-}
-
-// Thin amber frame on the faceplate of every critical device (quiet marker).
-function CriticalFrame({ h }: { h: number }) {
-    const t = 0.0015;
-    return (
-        <group position={[0, 0, FRONT_Z + 0.0025]}>
-            {[h / 2 - t / 2, -h / 2 + t / 2].map((y) => (
-                <mesh key={`h${y}`} position={[0, y, 0]} material={sharedMaterials.critical}>
-                    <planeGeometry args={[FACE_W, t]} />
-                </mesh>
-            ))}
-            {[FACE_W / 2 - t / 2, -FACE_W / 2 + t / 2].map((x) => (
-                <mesh key={`v${x}`} position={[x, 0, 0]} material={sharedMaterials.critical}>
-                    <planeGeometry args={[t, h]} />
-                </mesh>
-            ))}
-        </group>
-    );
-}
 
 // Open-incident count beside the rack at the device's height, coloured by
 // the worst open severity. A texture plane, not <Html>: no DOM per badge.
@@ -211,34 +24,7 @@ function IncidentBadge({ incidents, h }: { incidents: OpenIncidents; h: number }
     );
 }
 
-function NameTag({ device, h, opacity }: { device: FilteredDevice; h: number; opacity: number }) {
-    const labelH = Math.min(0.012, h * 0.3);
-    const label = useLabelTexture(
-        device.isCritical ? `⚠ ${device.name}` : device.name,
-        device.isCritical ? "rgba(146,64,14,0.92)" : "rgba(15,23,42,0.85)",
-    );
-    const logo = useImageTexture(device.brandLogo);
-    const logoImg = logo?.image as { width: number; height: number } | undefined;
-    const logoW = logoImg ? Math.min(0.05, labelH * 1.4 * (logoImg.width / logoImg.height)) : 0;
-    const x = -FACE_W / 2 + 0.08;
-    const y = h / 2 - labelH / 2 - 0.003;
-    return (
-        <group position={[0, 0, FRONT_Z + 0.0035]}>
-            <mesh position={[x, y, 0]}>
-                <planeGeometry args={[0.13, labelH]} />
-                <meshBasicMaterial userData={OWN_FADE} map={label} transparent opacity={opacity} toneMapped={false} />
-            </mesh>
-            {logo && (
-                <mesh position={[x + 0.065 + 0.006 + logoW / 2, y, 0]}>
-                    <planeGeometry args={[logoW, labelH * 1.4]} />
-                    <meshBasicMaterial userData={OWN_FADE} map={logo} transparent opacity={opacity} toneMapped={false} />
-                </mesh>
-            )}
-        </group>
-    );
-}
-
-export function RackDevice({ device, selected, faded, accent, colorBy, onSelect, floatCard }: {
+export function RackDevice({ device, selected, faded, accent, colorBy, onSelect, floatCard, detailed = true }: {
     device: FilteredDevice;
     selected: boolean;
     faded: boolean;
@@ -246,11 +32,11 @@ export function RackDevice({ device, selected, faded, accent, colorBy, onSelect,
     colorBy: ColorBy;
     onSelect: (d: FilteredDevice) => void;
     floatCard?: ReactNode;
+    detailed?: boolean;
 }) {
     const uh = device.uHeight || 1;
     const h = uh * U - 0.0015;
     const y = uToY(device.rackPosition ?? 1) + (uh * U) / 2;
-    const kind = deviceKind(device.categoryName, device.name);
     const opacity = (device.isMuted ? 0.12 : 1) * (faded ? FADE : 1);
     const earColor = colorBy === "audit" ? AUDIT_COLOR[device.status ?? "Pending"] : device.categoryColor || "#64748b";
     const slider = useRef<THREE.Group>(null);
@@ -281,33 +67,16 @@ export function RackDevice({ device, selected, faded, accent, colorBy, onSelect,
     return (
         <group position={[0, y, 0]}>
             <group ref={slider}>
-                <mesh
-                    position={[0, 0, FRONT_Z - CHASSIS_D / 2]}
-                    castShadow
-                    receiveShadow
-                    onPointerOver={over}
-                    onPointerOut={out}
-                    onClick={(e) => { e.stopPropagation(); onSelect(device); }}
-                >
-                    <boxGeometry args={[FACE_W, h, CHASSIS_D]} />
-                    <meshStandardMaterial userData={OWN_FADE} color="#1c1f24" metalness={0.55} roughness={0.45} transparent={opacity < 1} opacity={opacity} />
+                <mesh position={[0, 0, FRONT_Z - CHASSIS_D / 2 + 0.012]} onPointerOver={over} onPointerOut={out} onClick={(e) => { e.stopPropagation(); onSelect(device); }}>
+                    <boxGeometry args={[FACE_W + 0.046, h + 0.0005, CHASSIS_D + 0.025]} />
+                    <meshBasicMaterial transparent opacity={0} depthWrite={false} />
                 </mesh>
-                {/* 19" mounting ears carry the category colour */}
-                {[-1, 1].map((s) => (
-                    <mesh key={s} position={[s * (FACE_W / 2 + 0.011), 0, FRONT_Z + 0.001]}>
-                        <boxGeometry args={[0.022, h, 0.003]} />
-                        <meshStandardMaterial userData={OWN_FADE} color={earColor} metalness={0.3} roughness={0.4} transparent={opacity < 1} opacity={opacity} />
-                    </mesh>
-                ))}
-                <Faceplate device={device} kind={kind} uh={uh} h={h} opacity={opacity} glow={hovered || selected ? accent : null} />
-                <NameTag device={device} h={h} opacity={opacity} />
-                {device.isCritical && <CriticalFrame h={h} />}
-                <mesh position={[FACE_W / 2 - 0.012, h / 2 - Math.min(0.008, h / 4), FRONT_Z + 0.003]} material={ledMaterial(device.status)}>
-                    <sphereGeometry args={[0.0022, 12, 8]} />
-                </mesh>
+                <group position={[0, 0, FRONT_Z - CHASSIS_D / 2]} raycast={() => null}>
+                    <DeviceModel device={device} opacity={opacity} marker={earColor} glow={hovered || selected ? accent : null} detailed={detailed || selected || floatCard != null} />
+                </group>
             </group>
             {device.openIncidents.count > 0 && <IncidentBadge incidents={device.openIncidents} h={h} />}
-            {selected && floatCard != null && (
+            {floatCard != null && (
                 <Html position={[0, h + 0.06, FRONT_Z]} center zIndexRange={[40, 0]}>
                     {floatCard}
                 </Html>
