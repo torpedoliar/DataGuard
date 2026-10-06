@@ -4,6 +4,20 @@ import { facilityAssetSchema, facilityDimensions } from "./facility-asset";
 const ups = { assetType: "ups", facilitySpecs: { subtype: "floor-standing", capacityKva: 20 }, locationId: 1, floorX: null, floorZ: null, floorRotation: null };
 
 describe("facility asset validation", () => {
+    it.each([
+        ["leonardo-tuar0611", "top-blow", 0.83, 0.44, 2],
+        ["inrow-300", "in-row", 0.3, 1.095, 1.991],
+    ])("resolves %s reference envelope in metres", (visualProfile, subtype, width, depth, height) => {
+        const asset = facilityAssetSchema.parse({ ...ups, assetType: "pac", facilitySpecs: { subtype, visualProfile } });
+        expect(facilityDimensions(asset)).toMatchObject({ width, depth, height, estimated: false });
+    });
+    it("rejects a profile paired with the wrong PAC subtype", () => {
+        expect(facilityAssetSchema.safeParse({ ...ups, assetType: "pac", facilitySpecs: { subtype: "in-row", visualProfile: "leonardo-tuar0611" } }).success).toBe(false);
+    });
+    it("retains explicit measurements over profile dimensions", () => {
+        const asset = facilityAssetSchema.parse({ ...ups, assetType: "pac", facilitySpecs: { subtype: "top-blow", visualProfile: "leonardo-tuar0611", widthMm: 850 } });
+        expect(facilityDimensions(asset).width).toBe(0.85);
+    });
     it("keeps unknown UPS kW distinct from its known kVA", () => {
         const result = facilityAssetSchema.parse(ups);
         expect(result.facilitySpecs).toMatchObject({ capacityKva: 20, ratedKw: null });

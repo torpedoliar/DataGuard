@@ -324,7 +324,7 @@ export default function RackScene({ racks, facilities = [], roomSettings, floorP
                 />
             ))}
             {floorAssets.map(({ device, x, z, dimensions }) => <group key={device.id} position={[x, dimensions.height / 2, z]} rotation-y={(device.floorRotation ?? 0) * Math.PI / 180} onClick={(event) => { event.stopPropagation(); onFocusRack(null); onSelectDevice(device); }}>
-                <FacilityModel device={device} opacity={(device as RackDevice & { isMuted?: boolean }).isMuted ? 0.18 : 1} detailed={quality === "high" || selectedDeviceId === device.id} />
+                <FacilityModel device={device} animateFans opacity={(device as RackDevice & { isMuted?: boolean }).isMuted ? 0.18 : 1} detailed={quality === "high" || selectedDeviceId === device.id} />
                 <mesh position={[0, -dimensions.height / 2 + 0.045, dimensions.depth / 2 + 0.004]}><boxGeometry args={[dimensions.width * 0.65, 0.025, 0.006]} /><meshBasicMaterial color={colorBy === "audit" ? device.status === "NOT OK" ? "#dc2626" : device.status === "OK" ? "#16a34a" : "#64748b" : device.categoryColor ?? "#64748b"} /></mesh>
                 {selectedDeviceId === device.id && <mesh><boxGeometry args={[dimensions.width + 0.025, dimensions.height + 0.025, dimensions.depth + 0.025]} /><meshBasicMaterial color={accent} wireframe /></mesh>}
             </group>)}

@@ -2,9 +2,13 @@
 
 import type { RackDevice } from "@/actions/rack-layout";
 import { facilityDimensions } from "@/lib/facility-asset";
+import { LeonardoModel, InRowModel } from "./pac-model";
 
-export function FacilityModel({ device, detailed = false, opacity = 1 }: { device: RackDevice; detailed?: boolean; opacity?: number }) {
+export function FacilityModel({ device, detailed = false, opacity = 1, animateFans = false }: { device: RackDevice; detailed?: boolean; opacity?: number; animateFans?: boolean }) {
     const { width, depth, height } = facilityDimensions({ assetType: device.assetType ?? "ups", facilitySpecs: device.facilitySpecs ?? null });
+    const profile = device.assetType === "pac" && device.facilitySpecs && "visualProfile" in device.facilitySpecs ? device.facilitySpecs.visualProfile : null;
+    if (profile === "leonardo-tuar0611") return <LeonardoModel width={width} depth={depth} height={height} opacity={opacity} detailed={detailed} />;
+    if (profile === "inrow-300") return <InRowModel width={width} depth={depth} height={height} opacity={opacity} detailed={detailed} animateFans={animateFans} />;
     const topBlow = device.assetType === "pac" && device.facilitySpecs?.subtype === "top-blow";
     const color = device.assetType === "ups" ? "#646c74" : "#858d95";
     const material = { color, metalness: 0.35, roughness: 0.6, transparent: opacity < 1, opacity, userData: { ownFade: true } };

@@ -56,7 +56,7 @@ function Preview({ device }: { device: RackDevice }) {
     const [image, setImage] = useState<string | null | undefined>(undefined);
     const facility = device.assetType === "pac" || device.assetType === "ups";
     const dimensions = facilityDimensions({ assetType: device.assetType ?? "standard", facilitySpecs: device.facilitySpecs ?? null });
-    const cameraDistance = facility ? Math.max(dimensions.width, dimensions.depth, dimensions.height) * 2 : Math.max(0.8, (device.uHeight || 1) * 0.06);
+    const cameraDistance = facility ? Math.max(dimensions.width, dimensions.depth, dimensions.height) * 1.35 : Math.max(0.8, (device.uHeight || 1) * 0.06);
     return (
         <section aria-label="Device model" className="mb-4 overflow-hidden rounded-lg border border-ops-border bg-ops-bg">
             <div className="h-44">
@@ -66,7 +66,7 @@ function Preview({ device }: { device: RackDevice }) {
                             <color attach="background" args={["#dfe3e7"]} />
                             <ambientLight intensity={1.2} /><hemisphereLight args={["#ffffff", "#7b838a", 1.4]} /><directionalLight position={[2, 3, 4]} intensity={2} />
                             <Environment resolution={128} frames={1}><Lightformer position={[0, 2, 1]} rotation-x={Math.PI / 2} scale={[3, 3, 1]} intensity={2} /><Lightformer position={[0, 1, 3]} scale={[3, 2, 1]} intensity={2} /></Environment>
-                            <DeviceModel device={{ ...device, isMuted: false }} />
+                            <DeviceModel device={{ ...device, isMuted: false }} animateFans={inspect} />
                             {inspect ? <Suspense fallback={null}><InspectControls /></Suspense> : <Snapshot logo={device.brandLogo} onCapture={setImage} />}
                         </Canvas>
                     </PreviewBoundary>
@@ -76,7 +76,7 @@ function Preview({ device }: { device: RackDevice }) {
                 ) : <p className="p-6 text-sm text-ops-muted">3D preview unavailable.</p>}
             </div>
             <div className="flex items-center justify-between gap-2 border-t border-ops-border px-3 py-2">
-                <span className="text-[10px] text-ops-muted">Generic model · not a device photograph</span>
+                <span className="text-[10px] text-ops-muted">{device.assetType === "pac" && device.facilitySpecs && "visualProfile" in device.facilitySpecs && device.facilitySpecs.visualProfile ? "Profile model · fan motion decorative, not live status" : "Generic model · not a device photograph"}</span>
                 <button type="button" onClick={() => setInspect(!inspect)} aria-pressed={inspect} className="shrink-0 text-xs font-semibold text-ops-accent">{inspect ? "Close 3D" : "Inspect 3D"}</button>
             </div>
         </section>

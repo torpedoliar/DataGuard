@@ -19,7 +19,7 @@ const racks: SceneRack[] = [
     { name: "Peer rack", zone: null, totalU: 42, devices: [peer], occupiedU: [], locationName: "Synthetic room", locationId: 1, floorRow: "B", floorSlot: 1, facing: "front", hasMatchingDevices: true, dimmed: false },
 ];
 const facilities: RackDevice[] = (["in-row", "top-blow", "floor-standing"] as const).map((subtype, i) => ({ ...devices[0], id: 500 + i, name: `Synthetic ${subtype}`, rackName: null, rackPosition: null, uHeight: null,
-    ...facilityAssetSchema.parse({ assetType: subtype === "floor-standing" ? "ups" : "pac", facilitySpecs: { subtype, ...(subtype === "in-row" ? { widthMm: 300 } : subtype === "floor-standing" ? { capacityKva: 20 } : {}) }, locationId: 1, floorX: 3 + i * 2, floorZ: 4, floorRotation: 0 }),
+    ...facilityAssetSchema.parse({ assetType: subtype === "floor-standing" ? "ups" : "pac", facilitySpecs: { subtype, ...(subtype === "in-row" ? { visualProfile: "inrow-300" } : subtype === "floor-standing" ? { capacityKva: 20 } : { visualProfile: "leonardo-tuar0611" }) }, locationId: 1, floorX: 3 + i * 2, floorZ: 4, floorRotation: 0 }),
 }));
 const drawer = { loading: false, error: false, data: { picGroups: [], lastAudit: null, incidents: [], siem: { count: 0, latest: [] }, connections: [] } };
 export default function RealismFixture() {

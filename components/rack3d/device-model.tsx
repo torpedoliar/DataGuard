@@ -231,10 +231,10 @@ function NameTag({ device, h, opacity }: { device: FilteredDevice; h: number; op
     );
 }
 
-export function DeviceModel({ device, opacity = 1, glow = null, marker = "#64748b", detailed = true }: {
-    device: FilteredDevice; opacity?: number; glow?: string | null; marker?: string; detailed?: boolean;
+export function DeviceModel({ device, opacity = 1, glow = null, marker = "#64748b", detailed = true, animateFans = false }: {
+    device: FilteredDevice; opacity?: number; glow?: string | null; marker?: string; detailed?: boolean; animateFans?: boolean;
 }) {
-    if (device.assetType === "pac" || device.assetType === "ups") return <FacilityModel device={device} opacity={opacity} detailed={detailed} />;
+    if (device.assetType === "pac" || device.assetType === "ups") return <FacilityModel device={device} opacity={opacity} detailed={detailed} animateFans={animateFans} />;
     const uh = device.uHeight || 1;
     const h = uh * U - 0.0015;
     const kind = deviceKind(device.categoryName, device.name);

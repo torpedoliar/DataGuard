@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Loader2, TriangleAlert, XCircle } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
-import { facilityLabel } from "@/lib/facility-asset";
+import { facilityLabel, facilityDimensions, PAC_PROFILES } from "@/lib/facility-asset";
 import PhotoModal from "@/components/report/photo-modal";
 import DeviceNetworkSummary from "./device-network-summary";
 import { AuditSection, ConnectionsSection, IncidentsSection, SiemSection, useDeviceDrawer } from "./device-drawer-sections";
@@ -30,10 +30,14 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
     const pic = drawer.data?.picGroups.map((g) => g.name).join(", ");
     const facility = device.assetType === "pac" || device.assetType === "ups";
     const specs = device.facilitySpecs;
+    const profile = specs && "visualProfile" in specs && specs.visualProfile ? PAC_PROFILES[specs.visualProfile] : null;
+    const dimensions = facilityDimensions({ assetType: device.assetType ?? "standard", facilitySpecs: specs ?? null });
     const facilityRows: [string, string | null][] = facility ? [
         ["Jenis aset", facilityLabel(device.assetType!, specs)],
         ["Penempatan", device.floorX != null && device.floorZ != null ? `X ${device.floorX} m / Z ${device.floorZ} m / ${device.floorRotation ?? 0}°` : "Unplaced"],
         ["Model", specs?.model ?? "Belum diketahui"],
+        ["Profil 3D", profile?.label ?? "Generic"],
+        ["Ukuran render (m)", `${dimensions.width} × ${dimensions.depth} × ${dimensions.height}${dimensions.estimated ? " · perkiraan" : profile ? " · input / referensi profil" : " · input inventaris"}`],
         ["Serial number", specs?.serialNumber ?? "Belum diketahui"],
         ["Dimensi W/D/H (mm)", `${specs?.widthMm ?? "?"} / ${specs?.depthMm ?? "?"} / ${specs?.heightMm ?? "?"}`],
         ["Instalasi", specs?.installedOn ?? "Belum diketahui"],

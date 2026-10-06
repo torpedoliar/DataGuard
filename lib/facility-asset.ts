@@ -14,7 +14,13 @@ const common = {
     maintainedOn: date,
     coverageNotes: z.string().trim().max(2000).nullable().default(null),
 };
+export const PAC_PROFILES = {
+    "leonardo-tuar0611": { label: "Leonardo TUAR0611", subtype: "top-blow", widthMm: 830, depthMm: 440, heightMm: 2000 },
+    "inrow-300": { label: "InRow 300 mm", subtype: "in-row", widthMm: 300, depthMm: 1095, heightMm: 1991 },
+} as const;
+
 const pacSpecs = z.strictObject({
+    visualProfile: z.enum(["leonardo-tuar0611", "inrow-300"]).nullable().optional(),
     ...common,
     subtype: z.enum(["in-row", "top-blow"]),
     supplyAirflow: z.enum(["front", "rear", "top", "bottom"]).nullable().default(null),
@@ -40,6 +46,9 @@ export const facilityAssetSchema = z.discriminatedUnion("assetType", [
     z.object({ ...placement, assetType: z.literal("pac"), facilitySpecs: pacSpecs }),
     z.object({ ...placement, assetType: z.literal("ups"), facilitySpecs: upsSpecs }),
 ]).superRefine((asset, context) => {
+    if (asset.assetType === "pac" && asset.facilitySpecs.visualProfile && PAC_PROFILES[asset.facilitySpecs.visualProfile].subtype !== asset.facilitySpecs.subtype) {
+        context.addIssue({ code: "custom", path: ["facilitySpecs", "visualProfile"], message: "Profil visual tidak sesuai jenis PAC." });
+    }
     const positions = [asset.floorX, asset.floorZ, asset.floorRotation];
     if (positions.some((n) => n !== null) && positions.some((n) => n === null)) {
         context.addIssue({ code: "custom", path: ["floorX"], message: "Posisi lantai harus lengkap atau Unplaced." });
@@ -55,15 +64,19 @@ export type FacilitySpecs = FacilityAsset["facilitySpecs"];
 
 export function facilityDimensions(asset: { assetType: string; facilitySpecs: FacilitySpecs | null }) {
     const specs = asset.facilitySpecs;
+    const profile = asset.assetType === "pac" && specs && "visualProfile" in specs && specs.visualProfile ? PAC_PROFILES[specs.visualProfile] : null;
+    const widthMm = specs?.widthMm ?? profile?.widthMm;
+    const depthMm = specs?.depthMm ?? profile?.depthMm;
+    const heightMm = specs?.heightMm ?? profile?.heightMm;
     // Generic display proportions, never persisted as measured specifications.
     const fallback = asset.assetType === "ups" ? [0.6, 0.8, 1.5] : specs?.subtype === "in-row" ? [0.3, 1.07, 2] : [1.2, 0.9, 2];
     return {
-        width: specs?.widthMm != null ? specs.widthMm / 1000 : fallback[0],
-        depth: specs?.depthMm != null ? specs.depthMm / 1000 : fallback[1],
-        height: specs?.heightMm != null ? specs.heightMm / 1000 : fallback[2],
-        estimated: specs?.widthMm == null || specs.depthMm == null || specs.heightMm == null,
-        footprintEstimated: specs?.widthMm == null || specs.depthMm == null,
-        heightEstimated: specs?.heightMm == null,
+        width: widthMm != null ? widthMm / 1000 : fallback[0],
+        depth: depthMm != null ? depthMm / 1000 : fallback[1],
+        height: heightMm != null ? heightMm / 1000 : fallback[2],
+        estimated: widthMm == null || depthMm == null || heightMm == null,
+        footprintEstimated: widthMm == null || depthMm == null,
+        heightEstimated: heightMm == null,
     };
 }
 
