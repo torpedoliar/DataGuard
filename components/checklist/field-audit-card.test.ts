@@ -25,6 +25,11 @@ function renderCard(props: {
 }
 
 describe("FieldAuditCard", () => {
+  it.each([["pac", "PAC / Cooling"], ["ups", "UPS / Power"]])("retains %s identity after conversion removes rack placement", (assetType, label) => {
+    const html = renderToStaticMarkup(React.createElement(FieldAuditCard, { device: { id: 42, name: "Facility", locationName: "Room", assetType } }));
+    expect(html).toContain(label);
+    expect(html).not.toContain('name="deviceId"');
+  });
   it("keeps checklist form field names compatible with submitChecklist", () => {
     const html = renderCard();
 

@@ -26,6 +26,7 @@ type ActionButtonProps = ActionButtonBaseProps & {
   onClick?: MouseEventHandler<HTMLButtonElement | HTMLAnchorElement>;
   formAction?: ComponentProps<"button">["formAction"];
   "aria-label"?: string;
+  "aria-pressed"?: boolean;
 };
 
 const variantClasses: Record<ActionButtonVariant, string> = {
@@ -99,6 +100,7 @@ export default function ActionButton(props: ActionButtonProps) {
       type={type}
       title={title}
       aria-label={ariaLabel}
+      aria-pressed={props["aria-pressed"]}
       onClick={onClick as MouseEventHandler<HTMLButtonElement> | undefined}
       formAction={formAction}
       disabled={disabled}

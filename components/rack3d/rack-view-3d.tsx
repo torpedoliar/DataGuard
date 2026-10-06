@@ -63,6 +63,7 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
     const [roomPick, setRoomPick] = useState<string | null>(null);
     const [focusPick, setFocusPick] = useState<string | null>(null);
     const [showFree, setShowFree] = useState(false);
+    const [keyboardHelp, setKeyboardHelp] = useState(false);
     const [colorBy, setColorBy] = useState<ColorBy>("category");
     const [quality, setQuality] = useState<QualitySetting>("auto");
     // What Auto resolved to on this GPU, reported back by the scene.
@@ -267,14 +268,18 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") return;
+            if (e.key !== "Escape" || e.defaultPrevented || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+            if (!(e.target instanceof HTMLElement) || !e.target.closest('[data-rack-keyboard]')) return;
             setTouring(false);
-            setFocusPick(null);
-            onSelectDevice(null);
+            if (selectedDeviceId !== null || panelFor !== null) {
+                setPanelFor(null); setPeerDeviceId(null); setOpenFacilityId(null); onSelectDevice(null);
+            } else setFocusPick(null);
         };
         window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [onSelectDevice]);
+        const stop = () => setTouring(false);
+        window.addEventListener("rack-keyboard-input", stop);
+        return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("rack-keyboard-input", stop); };
+    }, [onSelectDevice, selectedDeviceId, panelFor]);
 
     const pickRoom = (name: string) => {
         setTouring(false);
@@ -393,8 +398,9 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
                 )}
             </div>
 
-            <div className={`@container overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" onPointerDownCapture={stopTourOnInput} onWheelCapture={stopTourOnInput}>
+            <div className={`@container overflow-hidden border-ops-border bg-ops-bg ${isFullscreen ? "fixed inset-0 z-40" : "relative h-[70vh] min-h-[480px] rounded-xl border"}`} aria-label="3D rack scene" data-rack-keyboard tabIndex={0} onPointerDownCapture={(event) => { if (event.target instanceof HTMLCanvasElement) event.currentTarget.focus({ preventScroll: true }); stopTourOnInput(event); }} onWheelCapture={stopTourOnInput}>
                 <div className={`absolute top-3 right-3 z-30 flex flex-wrap justify-end gap-2 max-w-[calc(100%-1.5rem)] ${panelOpen ? "@[640px]:right-[calc(24rem+0.75rem)]" : ""}`} data-keep-tour>
+                    <button type="button" aria-pressed={keyboardHelp} onClick={() => setKeyboardHelp(!keyboardHelp)} className={overlayButton}>Keyboard</button>
                     <button onClick={touring ? () => setTouring(false) : startTour} aria-pressed={touring} title="Fly through every rack" className={overlayButton}>
                         {touring ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />} {touring ? "Stop tour" : "Tour"}
                     </button>
@@ -523,8 +529,9 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
                         <RotateCcw className="h-4 w-4" /> Back to room
                     </button>
                 )}
+                {keyboardHelp && <div className="absolute left-3 top-16 z-30 max-w-[calc(100%-1.5rem)] rounded border border-ops-border bg-ops-surface p-3 text-xs text-ops-text">Klik area 3D atau Tab untuk fokus. WASD gerak, Q/E turun/naik, Shift cepat, Arrow orbit, +/− zoom, Home kamera awal. Esc menutup detail, lalu kembali ruangan. Keyboard tidak aktif pada form/modal.</div>}
                 <p className="pointer-events-none absolute bottom-3 left-3 text-[11px] text-ops-muted">
-                    Drag to orbit · Scroll to zoom · Click a rack or device · Esc to go back
+                    Klik scene untuk keyboard · WASD gerak · Q/E naik/turun · Shift cepat · Arrow orbit · +/− zoom · Home reset · Esc tutup detail/kembali
                 </p>
                 {touring && focusRack && (() => {
                     const rack = roomRacks.find((r) => r.name === focusRack);

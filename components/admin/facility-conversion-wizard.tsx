@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import ActionButton from "@/components/ui/action-button";
 import { useRouter } from "next/navigation";
 import { convertFacilityDevice } from "@/actions/facility-assets";
 import { getRoomLayout } from "@/actions/room-layout";
@@ -48,12 +49,12 @@ export default function FacilityConversionWizard({ devices, locations, initialDe
         </>}
         {step === 3 && <><p>{device?.name} · ID {deviceId} tetap</p><p>{device?.rackName ?? "Tanpa rack"} / U{device?.rackPosition ?? "-"} dilepas. {facilityLabel(asset.assetType, asset.facilitySpecs)} · {asset.assetType === "pac" ? "Cooling" : "Power"}.</p><p>{room?.room.name} · {asset.floorX === null ? "Unplaced" : `X ${asset.floorX} m / Z ${asset.floorZ} m / ${asset.floorRotation}°`}</p><p className="text-sm">Foto, IP, port, PIC, audit dan incident tidak dihapus. Rack asal tetap ada.</p><label className="block text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} /> Konfirmasi konversi; ukuran model generik/parsial dan clearance fisik belum terverifikasi.</label></>}
         {message && <p role="alert" className="text-sm text-ops-danger">{message}</p>}
-        <div className="flex justify-end gap-4"><button type="button" disabled={pending} onClick={onClose}>Batal</button>{step > 0 && <button type="button" disabled={pending} onClick={() => setStep((s) => s - 1)}>Kembali</button>}{step < 3 ? <button type="button" disabled={pending} onClick={next}>Lanjut</button> : <button type="button" disabled={pending || !acknowledged} onClick={async () => {
+        <div className="flex justify-end gap-4"><ActionButton variant="secondary" type="button" disabled={pending} onClick={onClose}>Batal</ActionButton>{step > 0 && <ActionButton variant="secondary" type="button" disabled={pending} onClick={() => setStep((s) => s - 1)}>Kembali</ActionButton>}{step < 3 ? <ActionButton variant="secondary" type="button" disabled={pending} onClick={next}>Lanjut</ActionButton> : <ActionButton variant="primary" type="button" disabled={pending || !acknowledged} onClick={async () => {
             if (!device || !room) return; setPending(true);
             try { const { assetType, categoryId, locationId, rackName, rackPosition, uHeight } = device;
                 const result = await convertFacilityDevice({ siteId: room.siteId, deviceId, original: { assetType, categoryId, locationId, rackName, rackPosition, uHeight }, asset, roomRevision: room.room.layoutRevision, acknowledgeEstimated: acknowledged });
                 if (result.success) { router.refresh(); onClose(); } else setMessage(result.message);
             } catch { setMessage("Gagal menyimpan konversi. Muat ulang sebelum mencoba kembali."); } finally { setPending(false); }
-        }}>{pending ? "Menyimpan…" : "Konfirmasi Konversi"}</button>}</div>
+        }}>{pending ? "Menyimpan…" : "Konfirmasi Konversi"}</ActionButton>}</div>
     </Modal>;
 }

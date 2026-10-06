@@ -17,7 +17,7 @@ function nodes(tree: React.ReactNode): React.ReactElement<Record<string, unknown
 }
 function render() { hooks.cursor = 0; return RoomLayoutEditor({ roomId: 1, onClose: mocks.close }); }
 function footer() { return nodes(render().props.footer); }
-const saveButton = () => footer().find((node) => node.type === "button" && node.props.children === "Simpan Layout")!;
+const saveButton = () => footer().find((node) => node.props.children === "Simpan Layout")!;
 beforeEach(() => {
     vi.clearAllMocks();
     hooks.values = [null, [], { width: 10, depth: 8, height: 3 }, null, false, false, true, false, false, ""];

@@ -16,6 +16,7 @@ import { applyRackFilters, applyRackFiltersForScene, EMPTY_FILTERS, hasActiveFil
 const VIEW_KEY = "rack-layout-view";
 
 interface RackLayoutShellProps {
+    initialDeviceId?: number | null;
     facilities?: RackDevice[];
     racks: RackData[];
     categories: { id: number; name: string; color: string | null }[];
@@ -24,12 +25,12 @@ interface RackLayoutShellProps {
     siteName: string;
 }
 
-export default function RackLayoutShell({ racks, facilities = [], categories, rooms, canEditAppearance, siteName }: RackLayoutShellProps) {
+export default function RackLayoutShell({ racks, facilities = [], initialDeviceId = null, categories, rooms, canEditAppearance, siteName }: RackLayoutShellProps) {
     const [layoutRoom, setLayoutRoom] = useState<number | null>(null);
     const [layoutPick, setLayoutPick] = useState<string>("");
     const layoutRoomId = rooms[Number(layoutPick)] ? Number(layoutPick) : Number(Object.keys(rooms)[0]) || null;
     const [filters, setFilters] = useState<RackFilters>(EMPTY_FILTERS);
-    const [selected, setSelected] = useState<RackDevice | null>(null);
+    const [selected, setSelected] = useState<RackDevice | null>(() => [...racks.flatMap((r) => r.devices), ...facilities].find((d) => d.id === initialDeviceId) ?? null);
     const [view, setView] = useState<RackView>("2d");
     const [noWebgl, setNoWebgl] = useState(false);
     const filtered = useMemo(() => applyRackFilters(racks, filters), [racks, filters]);

@@ -1,6 +1,5 @@
 import { getCategories, getDevices } from "@/actions/master-data";
-import AddDeviceForm from "@/components/admin/add-device-form";
-import DeviceTable from "@/components/admin/device-table";
+import DeviceManagement from "@/components/admin/device-management";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
 import { hasAdminAccess } from "@/lib/site-access";
@@ -75,7 +74,9 @@ function ShortcutGroup({ title, items }: { title: string; items: Shortcut[] }) {
   );
 }
 
-export default async function AdminPage() {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ deviceId?: string }> }) {
+  const { parseDeviceProfileId } = await import("@/lib/device-profile-url");
+  const initialDeviceId = parseDeviceProfileId((await searchParams).deviceId);
   const session = await verifySession();
   if (!session || !["admin", "superadmin"].includes(session.role)) redirect("/checklist");
 
@@ -141,22 +142,14 @@ export default async function AdminPage() {
         }
       />
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <details className="rounded-lg border border-ops-border bg-ops-surface p-3"><summary className="cursor-pointer text-sm font-semibold">Admin shortcuts</summary><div className="mt-3 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <ShortcutGroup title="Inventory" items={inventoryShortcuts} />
         <ShortcutGroup title="Infrastructure" items={infrastructureShortcuts} />
         <ShortcutGroup title="SIEM" items={siemShortcuts} />
         <ShortcutGroup title="Governance" items={governanceShortcuts} />
-      </div>
-
-      <AddDeviceForm categories={categories} brands={brands} locations={locations} />
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-bold text-ops-text">Device List ({devices.length})</h2>
-          <p className="text-sm text-ops-muted">Search, filter, sort, remote-manage, and maintain device inventory.</p>
-        </div>
-        <DeviceTable devices={devices} brands={brands} locations={locations} canConvert={await hasAdminAccess()} />
-      </section>
+      </div></details>
+      {(await searchParams).deviceId && initialDeviceId === null && <p role="alert" className="text-sm text-ops-warning">Device ID pada URL tidak valid.</p>}
+      <DeviceManagement devices={devices} categories={categories} brands={brands} locations={locations} canEdit={await hasAdminAccess()} />
     </main>
   );
 }

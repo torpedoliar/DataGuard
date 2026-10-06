@@ -7,6 +7,7 @@ import type { RackDevice } from "@/actions/rack-layout";
 import { waitForImageTexture } from "./use-image-texture";
 import { DeviceModel } from "./device-model";
 import { facilityDimensions } from "@/lib/facility-asset";
+import ActionButton from "@/components/ui/action-button";
 
 const InspectControls = lazy(() => import("./device-inspect-controls"));
 
@@ -79,9 +80,9 @@ function Preview({ device }: { device: RackDevice }) {
             </div>
             <div className="flex items-center justify-between gap-2 border-t border-ops-border px-3 py-2">
                 <span className="text-[10px] text-ops-muted">{device.assetType === "pac" && device.facilitySpecs && "visualProfile" in device.facilitySpecs && device.facilitySpecs.visualProfile ? "Profile model · fan motion decorative, not live status" : "Generic model · not a device photograph"}</span>
-                <button type="button" onClick={() => { setInspect(!inspect); setCabinetOpen(false); }} aria-pressed={inspect} className="shrink-0 text-xs font-semibold text-ops-accent">{inspect ? "Close 3D" : "Inspect 3D"}</button>
+                <ActionButton variant="secondary" size="sm" type="button" onClick={() => { setInspect(!inspect); setCabinetOpen(false); }} aria-pressed={inspect} className="shrink-0 text-xs font-semibold text-ops-accent">{inspect ? "Close 3D" : "Inspect 3D"}</ActionButton>
             </div>
-            {inspect && leonardo && <div className="border-t border-ops-border p-3"><button type="button" aria-pressed={cabinetOpen} onClick={() => setCabinetOpen(!cabinetOpen)} className="text-xs font-semibold text-ops-accent">{cabinetOpen ? "Tutup PAC" : "Buka PAC"}</button><p className="mt-1 text-[10px] text-ops-muted">Interior referensi visual, bukan dokumentasi engineering atau status live.</p></div>}
+            {inspect && leonardo && <div className="border-t border-ops-border p-3"><ActionButton variant="secondary" size="sm" type="button" aria-pressed={cabinetOpen} onClick={() => setCabinetOpen(!cabinetOpen)} className="text-xs font-semibold text-ops-accent">{cabinetOpen ? "Tutup PAC" : "Buka PAC"}</ActionButton><p className="mt-1 text-[10px] text-ops-muted">Interior referensi visual, bukan dokumentasi engineering atau status live.</p></div>}
         </section>
     );
 }

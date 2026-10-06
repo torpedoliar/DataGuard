@@ -8,7 +8,9 @@ import { Server, PieChart, MapPin } from "lucide-react";
 import { OfflineBanner } from "@/components/mobile/offline-banner";
 import { BottomNav } from "@/components/mobile/bottom-nav";
 
-export default async function RackPage() {
+export default async function RackPage({ searchParams }: { searchParams: Promise<{ deviceId?: string }> }) {
+    const query = await searchParams;
+    const initialDeviceId = query.deviceId && /^[1-9]\d*$/.test(query.deviceId) && Number.isSafeInteger(Number(query.deviceId)) ? Number(query.deviceId) : null;
     const session = await verifySession();
     if (!session || !["admin", "superadmin"].includes(session.role)) redirect("/checklist");
 
@@ -90,7 +92,7 @@ export default async function RackPage() {
             )}
 
             {/* Rack Layout Visualization */}
-            <RackLayoutShell facilities={facilities} racks={racks} categories={categories} rooms={rooms} canEditAppearance={canEditAppearance} siteName={session.activeSiteName ?? ""} />
+            <RackLayoutShell initialDeviceId={initialDeviceId} facilities={facilities} racks={racks} categories={categories} rooms={rooms} canEditAppearance={canEditAppearance} siteName={session.activeSiteName ?? ""} />
         </main>
         <BottomNav />
         </>

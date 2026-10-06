@@ -23,6 +23,7 @@ import { PRESETS, initialQuality, resolveQuality, type Quality, type QualitySett
 import { RackCabinet } from "./rack-cabinet";
 import { Room } from "./room";
 import { ScreenHtml } from "./screen-html";
+import { navigationKey, navigationStep } from "./keyboard-navigation";
 import { pointerNdc } from "./pointer-ndc";
 
 export interface RackSceneProps {
@@ -193,6 +194,8 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, facilities = [] }: {
     focusDeviceId: number | null;
 }) {
     const ref = useRef<CameraControls>(null);
+    const keys = useRef(new Set<string>());
+    const { gl, invalidate } = useThree();
     const cx = (b.minX + b.maxX) / 2;
     const cz = (b.minZ + b.maxZ) / 2;
     const span = Math.max(b.maxX - b.minX, b.maxZ - b.minZ, 2);
@@ -247,6 +250,40 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, facilities = [] }: {
         void c.setLookAt(px, py, pz, tx, ty, tz, true);
     }, [target]);
 
+    useEffect(() => {
+        const container = gl.domElement.closest<HTMLElement>("[data-rack-keyboard]");
+        if (!container) return;
+        const clear = () => keys.current.clear();
+        const down = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || document.activeElement !== container || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+            const key = event.key.toLowerCase();
+            if (key === "shift") { keys.current.add(key); return; }
+            if (!navigationKey(key)) return;
+            event.preventDefault();
+            if (key === "home") { void ref.current?.setLookAt(...home, true); invalidate(); return; }
+            keys.current.add(key); invalidate();
+            container.dispatchEvent(new CustomEvent("rack-keyboard-input", { bubbles: true }));
+        };
+        const up = (event: KeyboardEvent) => keys.current.delete(event.key.toLowerCase());
+        container.addEventListener("keydown", down);
+        window.addEventListener("keyup", up);
+        window.addEventListener("blur", clear);
+        container.addEventListener("blur", clear, true);
+        document.addEventListener("visibilitychange", clear);
+        return () => { clear(); container.removeEventListener("keydown", down); window.removeEventListener("keyup", up); window.removeEventListener("blur", clear); container.removeEventListener("blur", clear, true); document.removeEventListener("visibilitychange", clear); };
+    }, [gl, home, invalidate]);
+    useFrame((_, delta) => {
+        const controls = ref.current;
+        const container = gl.domElement.closest<HTMLElement>("[data-rack-keyboard]");
+        if (document.hidden || document.activeElement !== container) { keys.current.clear(); return; }
+        if (!controls || keys.current.size === 0) return;
+        const step = navigationStep(keys.current, delta);
+        if (step.x || step.y) void controls.truck(step.x, step.y, false);
+        if (step.z) void controls.forward(step.z, false);
+        if (step.yaw || step.pitch) void controls.rotate(step.yaw, step.pitch, false);
+        if (step.zoom) void controls.dolly(step.zoom, false);
+        invalidate();
+    });
     return (
         <CameraControls
             ref={ref}
@@ -278,7 +315,6 @@ export default function RackScene({ racks, facilities = [], openFacilityId = nul
     const preset = PRESETS[quality];
     const accent = dark ? ACCENT.dark : ACCENT.light;
     // Other rows stand between the fly-to camera and the focused rack.
-    const focusedRow = placed.find((p) => p.rack.name === focusRack)?.row;
     // Both watched devices keep their rows and their peer racks in the scene: a
     // same-room peer in another rack would otherwise be dropped while a rack is
     // focused, and the peer hologram would have no device to sit on.
@@ -305,9 +341,8 @@ export default function RackScene({ racks, facilities = [], openFacilityId = nul
             <fog attach="fog" args={[bg, 14, 45]} />
             <Lighting dark={dark} b={b} preset={preset} appearance={appearance} />
             <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} temp={temp} appearance={appearance} exactBounds={manual} roomHeight={roomSettings?.roomHeightM ?? undefined} />
-            {/* Raycasting and <Html> ignore visible=false, so other rows are not
-                rendered at all while a rack is focused. */}
-            {placed.filter((p) => focusedRow === undefined || p.row === focusedRow || peerRacks.has(p.rack.name)).map((p) => (
+            {/* Focus changes camera and fade, never room inventory/placement. */}
+            {placed.map((p) => (
                 <RackCabinet
                     key={p.rack.name}
                     placed={p}

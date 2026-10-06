@@ -11,7 +11,7 @@ type Port = Awaited<ReturnType<typeof getPortsByDevice>>[number];
 
 // Network docs at a glance in the device drawer: port counts, a read-only
 // faceplate and a link to the full network page (edit, VLANs, cabling).
-export default function DeviceNetworkSummary({ device, supplied }: { device: RackDevice; supplied?: { ports: Port[]; loading: boolean; error?: boolean } }) {
+export default function DeviceNetworkSummary({ device, supplied, expanded = false }: { device: RackDevice; expanded?: boolean; supplied?: { ports: Port[]; loading: boolean; error?: boolean } }) {
     const [loaded, setLoaded] = useState<{ id: number; ports: Port[]; error: boolean } | null>(null);
 
     useEffect(() => {
@@ -68,6 +68,7 @@ export default function DeviceNetworkSummary({ device, supplied }: { device: Rac
                             </div>
                         ))}
                     </dl>
+                    {expanded && <div className="mt-3 flex flex-wrap gap-1">{Array.from(new Set(ports.flatMap((port) => [port.vlanNumber != null ? `VLAN ${port.vlanNumber}${port.vlanName ? ` · ${port.vlanName}` : ""}` : null, port.trunkVlans ? `Trunk ${port.trunkVlans}` : null]).filter((value): value is string => !!value))).map((label) => <span key={label} className="rounded border border-ops-border bg-ops-bg px-2 py-1 text-[10px]">{label}</span>)}</div>}
                     {plate && (
                         <svg
                             viewBox={`0 0 ${plate.width} ${plate.height}`}
@@ -97,6 +98,7 @@ export default function DeviceNetworkSummary({ device, supplied }: { device: Rac
                             })}
                         </svg>
                     )}
+                    {expanded && <ul className="mt-3 max-h-64 overflow-y-auto space-y-1 text-xs">{ports.map((port) => <li key={port.id} className="flex flex-wrap gap-2 rounded border border-ops-border p-2"><strong className="font-mono">{port.portName}</strong><span>{port.status ?? "Unknown"}</span><span>{port.portMode}</span><span className="text-ops-muted">{port.connectedToDeviceName ?? "No documented peer"}{port.connectedToPortName ? ` · ${port.connectedToPortName}` : ""}</span></li>)}</ul>}
                 </>
             )}
         </section>

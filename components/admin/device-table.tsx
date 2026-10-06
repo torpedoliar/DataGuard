@@ -222,7 +222,11 @@ export default function DeviceTable({
   brands,
   locations,
   canConvert = false,
+  selectedId = null,
+  onSelectDevice,
 }: {
+  selectedId?: number | null;
+  onSelectDevice?: (id: number) => void;
   canConvert?: boolean;
   devices: Device[];
   brands: Brand[];
@@ -352,6 +356,7 @@ export default function DeviceTable({
   const startIndex = (currentPage - 1) * racksPerPage;
   const paginatedGroupEntries = groupEntries.slice(startIndex, startIndex + racksPerPage);
 
+  if (selectedId !== null && onSelectDevice) return <section className="space-y-3"><input aria-label="Search device list" className="ops-input w-full p-2" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} placeholder="Search devices…" /><select aria-label="Filter profile list category" value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setCurrentPage(1); }} className="ops-input w-full p-2"><option value="">All Categories</option>{uniqueCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select><select aria-label="Sort profile list" className="ops-input w-full p-2" value={sortConfig ? `${String(sortConfig.key)}:${sortConfig.direction}` : ""} onChange={(event) => { const [key, direction] = event.target.value.split(":"); setSortConfig(key ? { key: key as keyof Device, direction: direction as "asc" | "desc" } : null); setCurrentPage(1); }}><option value="">Inventory order</option><option value="name:asc">Name A–Z</option><option value="name:desc">Name Z–A</option><option value="rackName:asc">Rack A–Z</option><option value="locationName:asc">Room A–Z</option></select><details><summary className="cursor-pointer text-xs text-ops-muted">More filters</summary><div className="mt-2 space-y-2"><select aria-label="Filter profile list brand" className="ops-input w-full p-2" value={selectedBrand} onChange={(e) => { setSelectedBrand(e.target.value); setCurrentPage(1); }}><option value="">All Brands</option>{uniqueBrands.map((brand) => <option key={brand}>{brand}</option>)}</select><select aria-label="Filter profile list rack" className="ops-input w-full p-2" value={selectedRack} onChange={(e) => { setSelectedRack(e.target.value); setCurrentPage(1); }}><option value="">All Racks</option>{uniqueRacks.map((rack) => <option key={rack}>{rack}</option>)}</select><select aria-label="Filter profile list status" className="ops-input w-full p-2" value={selectedStatus} onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}><option value="">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select><select aria-label="Filter profile list asset type" className="ops-input w-full p-2" value={selectedAssetType} onChange={(e) => { setSelectedAssetType(e.target.value); setCurrentPage(1); }}><option value="">All asset types</option><option value="standard">Standard</option><option value="pac">PAC</option><option value="ups">UPS</option></select></div></details>{hasFilters && <ActionButton variant="secondary" size="sm" onClick={resetFilters}>Reset filters</ActionButton>}<div className="max-h-[75vh] overflow-y-auto rounded border border-ops-border">{paginatedGroupEntries.flatMap(([, group]) => group).map((device) => <button type="button" key={device.id} aria-pressed={device.id === selectedId} onClick={() => onSelectDevice(device.id)} className={`block w-full border-b border-ops-border p-3 text-left ${device.id === selectedId ? "bg-ops-accent/10 border-l-2 border-l-ops-accent" : "bg-ops-surface hover:bg-ops-surface-raised"}`}><span className="block font-semibold text-sm text-ops-text">{device.name}</span><span className="block text-xs text-ops-muted">{device.categoryName} · {device.rackName ?? device.locationName ?? "Unplaced"}{device.isCritical ? " · Critical" : ""}{device.excludeChecklist ? " · Excluded" : ""}</span></button>)}</div>{totalPages > 1 && <div className="flex items-center justify-between gap-2"><ActionButton size="sm" variant="secondary" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)}>Previous</ActionButton><span className="text-xs">{currentPage}/{totalPages}</span><ActionButton size="sm" variant="secondary" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)}>Next</ActionButton></div>}</section>;
   return (
     <div className="space-y-4">
       {devices.length > 0 && (
@@ -505,7 +510,7 @@ export default function DeviceTable({
                           )}>
                             <div className="flex items-center gap-2">
                               {!isActive && <span className="size-2 rounded-full bg-ops-danger shrink-0" title="Inactive" />}
-                              <span className={clsx(!isActive && "line-through text-ops-muted")}>{device.name}</span>
+                              <button type="button" data-device-profile-id={device.id} onClick={() => onSelectDevice?.(device.id)} className={clsx("text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ops-accent", !isActive && "line-through text-ops-muted")}>{device.name}</button>
                               {device.assetType && device.assetType !== "standard" && <span className="text-[10px] text-ops-muted">{facilityLabel(device.assetType, device.facilitySpecs)}</span>}
                               {device.excludeChecklist && (
                                 <span className="rounded-full border border-ops-warning/30 bg-ops-warning/10 px-2 py-0.5 text-[10px] font-semibold text-ops-warning shrink-0" title="Excluded from checklist audit — stays in rack layout">

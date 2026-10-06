@@ -91,7 +91,15 @@ export async function getFacilityLayout() {
     return (await loadSiteLayout(auth.activeSiteId)).facilities;
 }
 
-async function loadSiteLayout(siteId: number) {
+export async function getProfileLayout(deviceId: number) {
+    const auth = await requireActiveSiteAction();
+    if (!auth.ok) return null;
+    const device = await db.query.devices.findFirst({ where: and(eq(devices.id, deviceId), eq(devices.siteId, auth.activeSiteId)) });
+    if (!device) return null;
+    return loadSiteLayout(auth.activeSiteId, { rackName: device.assetType === "standard" ? device.rackName : null, locationId: device.locationId });
+}
+
+async function loadSiteLayout(siteId: number, scope?: { rackName: string | null; locationId: number | null }) {
 
     // Get all devices with rack info
     const allDevices = await db
@@ -127,7 +135,7 @@ async function loadSiteLayout(siteId: number) {
         .leftJoin(categories, eq(devices.categoryId, categories.id))
         .leftJoin(brands, eq(devices.brandId, brands.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
-        .where(eq(devices.siteId, siteId))
+        .where(and(eq(devices.siteId, siteId), scope ? scope.rackName ? sql`lower(${devices.rackName}) = lower(${scope.rackName})` : scope.locationId != null ? eq(devices.locationId, scope.locationId) : eq(devices.id, -1) : undefined))
         .orderBy(asc(devices.rackName), asc(devices.rackPosition));
 
     // Get latest checklist status for these devices
@@ -218,7 +226,7 @@ async function loadSiteLayout(siteId: number) {
         })
         .from(racksTable)
         .leftJoin(locations, eq(racksTable.locationId, locations.id))
-        .where(eq(racksTable.siteId, siteId));
+        .where(and(eq(racksTable.siteId, siteId), scope ? scope.rackName ? sql`lower(${racksTable.name}) = lower(${scope.rackName})` : scope.locationId != null ? eq(racksTable.locationId, scope.locationId) : eq(racksTable.id, -1) : undefined));
 
     // Group devices by rack
     const racks = new Map<string, RackData>();

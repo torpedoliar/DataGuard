@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Nested checkouts and browser/compiler scratch are not application sources. */
+@source not "../.claude";
+@source not "../.kilo";
+@source not "../.playwright-cli";
+@source not "../.next-profile-check";
+
 /* class-based dark variant: .dark on <html> flips tokens + dark: utilities */
 @custom-variant dark (&:where(.dark, .dark *));
 

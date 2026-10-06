@@ -11,6 +11,7 @@ type FieldAuditCardProps = {
     id: number;
     name: string;
     locationName: string | null;
+    assetType?: string;
   };
   isHighlighted?: boolean;
   onStatusChange?: (status: string, remarks?: string) => void;
@@ -99,6 +100,7 @@ const FieldAuditCard = forwardRef<HTMLDivElement, FieldAuditCardProps>(
               </div>
               <div className="min-w-0">
                 <h3 className="truncate text-base font-bold text-ops-text">{device.name}</h3>
+                {(device.assetType === "pac" || device.assetType === "ups") && <span className="mt-1 inline-flex rounded border border-ops-accent/40 bg-ops-accent/10 px-2 py-0.5 text-xs font-semibold text-ops-accent">{device.assetType === "pac" ? "PAC / Cooling" : "UPS / Power"}</span>}
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-ops-muted">
                   <MapPin className="size-3.5" />
                   <span className="truncate">{device.locationName || "No location"}</span>

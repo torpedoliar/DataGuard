@@ -65,6 +65,7 @@ type PicGroup = {
 interface EditDeviceFormProps {
   device: Device;
   onClose: () => void;
+  onSaved?: () => void;
   brands: Brand[];
   locations: Location[];
 }
@@ -81,7 +82,7 @@ type Rack = {
 const fieldClass = "ops-input w-full px-3 py-2 text-sm";
 const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
 
-export default function EditDeviceForm({ device, onClose, brands, locations }: EditDeviceFormProps) {
+export default function EditDeviceForm({ device, onClose, onSaved, brands, locations }: EditDeviceFormProps) {
   const [facility, setFacility] = useState<FacilityAsset | null>(() => device.assetType === "pac" || device.assetType === "ups" ? facilityAssetSchema.parse({ ...device, floorX: device.floorX ?? null, floorZ: device.floorZ ?? null, floorRotation: device.floorRotation ?? null }) : null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [racks, setRacks] = useState<Rack[]>([]);
@@ -89,6 +90,7 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
   const [selectedCategory, setSelectedCategory] = useState<string>(device.categoryId?.toString() || "");
   const [selectedRack, setSelectedRack] = useState<string>(device.rackName || "");
   const [selectedPosition, setSelectedPosition] = useState<string>(device.rackPosition?.toString() || "");
+  const [selectedLocation, setSelectedLocation] = useState(device.locationId?.toString() || "");
   const [picGroups, setPicGroups] = useState<PicGroup[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<number>>(new Set());
   const [state, action, isPending] = useActionState(updateDevice, undefined);
@@ -117,9 +119,9 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
   useEffect(() => {
     if (state?.success) {
       router.refresh();
-      onClose();
+      if (onSaved) onSaved(); else onClose();
     }
-  }, [state?.success, onClose, router]);
+  }, [state?.success, onClose, onSaved, router]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
@@ -219,7 +221,7 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
 
               <label className="md:col-span-2">
                 <span className={labelClass}>Location *</span>
-                <select name="locationId" defaultValue={device.locationId?.toString() || ""} required className={fieldClass} onChange={(event) => { if (facility) setFacility({ ...facility, locationId: Number(event.target.value) || null, floorX: null, floorZ: null, floorRotation: null }); }}>
+                <select name="locationId" value={selectedLocation} required className={fieldClass} onChange={(event) => { setSelectedLocation(event.target.value); if (facility) setFacility({ ...facility, locationId: Number(event.target.value) || null, floorX: null, floorZ: null, floorRotation: null }); }}>
                   <option value="">Select location</option>
                   {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
                 </select>
@@ -239,6 +241,8 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                       onChange={(event) => {
                         setSelectedRack(event.target.value);
                         setSelectedPosition("");
+                        const target = racks.find((rack) => rack.name === event.target.value);
+                        if (target?.locationId) setSelectedLocation(String(target.locationId));
                       }}
                       className={fieldClass}
                     >
@@ -332,7 +336,7 @@ export default function EditDeviceForm({ device, onClose, brands, locations }: E
                 {device.photoPath && (
                   <div className="mb-3 flex items-start gap-4 rounded-md border border-ops-border bg-ops-surface p-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={device.photoPath} alt="Current device photo" className="h-20 w-auto rounded object-cover" />
+                    <img src={device.photoPath} alt="Current device photo" className="h-24 w-full min-w-0 max-w-full rounded object-contain sm:w-48" />
                     <div className="flex flex-col gap-1">
                       <p className="text-sm font-semibold text-ops-text">Current Photo</p>
                       <label className="mt-1 flex cursor-pointer items-center gap-2 text-sm text-red-300">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import ActionButton from "@/components/ui/action-button";
 import dynamic from "next/dynamic";
 import type { SceneRack } from "@/lib/rack-filter";
 import type { RackDevice } from "@/actions/rack-layout";
@@ -22,7 +23,7 @@ export function FloorPlacementPreview({ assets, width, depth, selectedKey, onMov
     const validWidth = Math.max(width, 1), validDepth = Math.max(depth, 1);
     const step = snap ? 0.1 : 0.001;
     return <div className="space-y-2">
-        <div className="flex gap-2 text-xs"><button type="button" onClick={() => setZoom((v) => Math.min(4, v + 0.25))}>Zoom +</button><button type="button" onClick={() => setZoom((v) => Math.max(0.5, v - 0.25))}>Zoom −</button><button type="button" onClick={() => setZoom(1)}>Fit room</button><span>Grid 1 m · depan ditandai garis putih</span></div>
+        <div className="flex gap-2 text-xs"><ActionButton variant="secondary" size="sm" type="button" onClick={() => setZoom((v) => Math.min(4, v + 0.25))}>Zoom +</ActionButton><ActionButton variant="secondary" size="sm" type="button" onClick={() => setZoom((v) => Math.max(0.5, v - 0.25))}>Zoom −</ActionButton><ActionButton variant="secondary" size="sm" type="button" onClick={() => setZoom(1)}>Fit room</ActionButton><span>Grid 1 m · depan ditandai garis putih</span></div>
         <div className="max-h-[60vh] overflow-auto rounded border border-ops-border bg-ops-bg">
             <svg role="img" aria-label="Denah ruangan dalam meter" viewBox={`0 0 ${validWidth} ${validDepth}`} style={{ width: `${zoom * 100}%`, minWidth: 280, touchAction: "none" }}
                 onPointerMove={(event) => {
@@ -92,20 +93,20 @@ export default function RoomLayoutEditor({ roomId, onClose }: { roomId: number; 
     return <Modal open title="Atur layout ruangan" onClose={close} hideCloseButton={pending} backdropClassName="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4" panelClassName="max-h-[90vh] w-full max-w-5xl flex flex-col overflow-hidden rounded-lg border border-ops-border bg-ops-surface" bodyClassName="min-h-0 overflow-y-auto p-5 space-y-4" footer={<div className="space-y-2">
         {loaded && validation.warnings.length > 0 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1 shrink-0" /> Saya memahami ukuran generik/parsial; clearance fisik belum terverifikasi.</label>}
         <p role="status" className="text-xs text-ops-muted">{message || saveReason}</p>
-        <div className="flex justify-end gap-3"><button type="button" disabled={pending} onClick={close}>Batal</button><button type="button" className="rounded bg-ops-accent px-4 py-2 font-semibold text-ops-bg disabled:opacity-40" disabled={!loaded || pending || validation.errors.length > 0 || (validation.warnings.length > 0 && !acknowledged)} onClick={save}>{pending ? "Menyimpan…" : "Simpan Layout"}</button></div>
+        <div className="flex justify-end gap-3"><ActionButton variant="secondary" size="sm" type="button" disabled={pending} onClick={close}>Batal</ActionButton><ActionButton variant="primary" size="sm" type="button" disabled={!loaded || pending || validation.errors.length > 0 || (validation.warnings.length > 0 && !acknowledged)} onClick={save}>{pending ? "Menyimpan…" : "Simpan Layout"}</ActionButton></div>
     </div>}>
-        <div className="flex justify-between"><h2 className="font-bold">Atur Layout Ruangan {loaded?.room.name}</h2><button type="button" onClick={close} disabled={pending}>Tutup</button></div>
+        <div className="flex justify-between"><h2 className="font-bold">Atur Layout Ruangan {loaded?.room.name}</h2><ActionButton variant="secondary" size="sm" type="button" onClick={close} disabled={pending}>Tutup</ActionButton></div>
         {!loaded ? <p role="status">{message || "Memuat layout…"}</p> : <>
             {loaded.room.layoutMode === "legacy" && <p className="text-sm">Ukuran awal merupakan saran. Periksa ukuran nyata sebelum Simpan; layout lama tidak berubah sampai disimpan.</p>}
             <div className="flex flex-wrap gap-3">{(["width", "depth", "height"] as const).map((field) => <label key={field} className="text-xs">{field === "width" ? "Lebar" : field === "depth" ? "Panjang" : "Tinggi"} (m)<input type="number" min="0.1" step="0.1" value={size[field]} onChange={(e) => { setSize((s) => ({ ...s, [field]: Number(e.target.value) })); setDirty(true); }} className="ops-input block w-28 p-2" /></label>)}<label className="text-sm self-end"><input type="checkbox" checked={snap} onChange={(e) => setSnap(e.target.checked)} /> Snap 0,1 m</label></div>
             <p className="text-xs text-ops-muted">Origin kiri atas (0,0). X lebar, Z panjang. Gambar denah referensi, bukan kalibrasi ukuran.</p>
             <div className="grid gap-4 md:grid-cols-[1fr_16rem]"><FloorPlacementPreview assets={assets} {...size} floorPlanPath={loaded.room.floorPlanPath} selectedKey={selected} snap={snap} onMove={(key, x, z) => { setSelected(key); change(key, { x, z }); }} />
                 <div className="space-y-3"><label className="block text-sm">Aset<select className="ops-input block w-full p-2" value={selected ?? ""} onChange={(e) => setSelected(e.target.value || null)}><option value="">Pilih aset</option>{assets.map((a) => <option key={a.key} value={a.key}>{a.name}{a.x === null ? " · Belum ditempatkan" : ""}</option>)}</select></label>
-                    {current && <><p className="text-xs">{current.estimated ? "Ukuran model generik/parsial; clearance belum terverifikasi." : "Ukuran terdokumentasi."}</p>{current.x === null ? <button type="button" onClick={() => change(current.key, { x: size.width / 2, z: size.depth / 2, rotation: 0 })}>Tempatkan</button> : <>
+                    {current && <><p className="text-xs">{current.estimated ? "Ukuran model generik/parsial; clearance belum terverifikasi." : "Ukuran terdokumentasi."}</p>{current.x === null ? <ActionButton variant="secondary" size="sm" type="button" onClick={() => change(current.key, { x: size.width / 2, z: size.depth / 2, rotation: 0 })}>Tempatkan</ActionButton> : <>
                         {(["x", "z", "rotation"] as const).map((field) => <label key={field} className="block text-xs">{field === "rotation" ? "Rotasi (°)" : `${field.toUpperCase()} (m)`}<input className="ops-input block w-full p-2" type="number" step={field === "rotation" ? 1 : 0.1} value={current[field] ?? 0} onChange={(e) => change(current.key, { [field]: Number(e.target.value) })} /></label>)}
-                        <div className="flex gap-3 text-sm"><button type="button" onClick={() => change(current.key, { rotation: ((current.rotation ?? 0) + 90) % 360 })}>Putar 90°</button><button type="button" onClick={() => change(current.key, { x: null, z: null, rotation: null })}>Lepas penempatan</button></div></> }</>}
+                        <div className="flex gap-3 text-sm"><ActionButton variant="secondary" size="sm" type="button" onClick={() => change(current.key, { rotation: ((current.rotation ?? 0) + 90) % 360 })}>Putar 90°</ActionButton><ActionButton variant="secondary" size="sm" type="button" onClick={() => change(current.key, { x: null, z: null, rotation: null })}>Lepas penempatan</ActionButton></div></> }</>}
                 </div></div>
-            <button type="button" className="rounded border border-ops-border px-3 py-2 text-sm" onClick={() => setPreview3d(!preview3d)}>{preview3d ? "Tutup preview 3D" : "Preview 3D draft"}</button>
+            <ActionButton variant="secondary" size="sm" type="button" className="rounded border border-ops-border px-3 py-2 text-sm" onClick={() => setPreview3d(!preview3d)}>{preview3d ? "Tutup preview 3D" : "Preview 3D draft"}</ActionButton>
             {preview3d && <div className="relative h-80"><RackScene racks={loaded.sourceRacks.map((r): SceneRack => {
                 const placement = assets.find((a) => a.key === `rack:${r.id}`)!;
                 return { ...r, totalU: r.totalU ?? 42, locationName: loaded.room.name, devices: [], occupiedU: [], hasMatchingDevices: true, dimmed: false, layoutMode: "manual", floorX: placement.x, floorZ: placement.z, floorRotation: placement.rotation };

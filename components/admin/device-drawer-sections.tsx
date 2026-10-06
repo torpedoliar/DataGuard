@@ -112,10 +112,12 @@ export function SiemSection({ drawer }: { drawer: DeviceDrawer }) {
 
 // Clicking a connection selects the peer (3D flies to it); when the caller
 // does not know the peer (other room / unracked) its network docs open.
-export function ConnectionsSection({ drawer, onSelectPeer }: { drawer: DeviceDrawer; onSelectPeer?: (deviceId: number) => boolean }) {
+export function ConnectionsSection({ drawer, onSelectPeer, unavailablePeer }: { drawer: DeviceDrawer; onSelectPeer?: (deviceId: number) => boolean; unavailablePeer?: () => void }) {
     const router = useRouter();
     const open = (id: number) => {
-        if (!onSelectPeer?.(id)) router.push(`/admin/devices/${id}/network`);
+        if (!onSelectPeer?.(id)) {
+            if (unavailablePeer) unavailablePeer(); else router.push(`/admin/devices/${id}/network`);
+        }
     };
     return (
         <Section icon={<Network className="h-4 w-4 text-ops-accent" />} title="Connections">

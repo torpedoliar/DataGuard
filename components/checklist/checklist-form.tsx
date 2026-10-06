@@ -369,7 +369,7 @@ export default function ChecklistForm({
                   {devices.length}
                 </span>
               </button>
-              {categories.map((category) => {
+              {categories.filter((category) => devices.some((d) => d.categoryId === category.id)).map((category) => {
                 const count = devices.filter((d) => d.categoryId === category.id).length;
                 const active = activeTab === category.id;
                 return (
@@ -384,7 +384,7 @@ export default function ChecklistForm({
                         : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
                     )}
                   >
-                    {category.name}
+                    {category.name.toLowerCase() === "cooling" ? "Cooling (PAC)" : category.name.toLowerCase() === "power" ? "Power (UPS)" : category.name}
                     <span
                       className={clsx(
                         "rounded-full px-2 py-0.5 text-[11px]",

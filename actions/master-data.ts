@@ -36,7 +36,7 @@ import { lockLayoutRooms, bumpLayoutRevision } from "@/lib/room-layout-data";
 const deviceSchema = z.object({
     name: z.string().min(1, "Name is required"),
     assetCode: z.string().nullable().optional(),
-    brandId: z.coerce.number().nullable().optional(),
+    brandId: z.preprocess((value) => value === "" ? null : value, z.coerce.number().int().positive().nullable().optional()),
     categoryId: z.coerce.number().min(1, "Category is required"),
     locationId: z.coerce.number().min(1, "Location is required"),
     zone: z.string().nullable().optional(),
@@ -160,7 +160,7 @@ export async function deleteCategory(id: number) {
 }
 
 // Device Actions
-export async function getDevices() {
+export async function getDevices(deviceId?: number) {
     const auth = await requireActiveSiteAction();
     if (!auth.ok) return [];
 
@@ -170,6 +170,10 @@ export async function getDevices() {
             name: devices.name,
             assetCode: devices.assetCode,
             assetType: devices.assetType,
+            faceplatePortCount: devices.faceplatePortCount,
+            faceplateUplinkCount: devices.faceplateUplinkCount,
+            faceplateRows: devices.faceplateRows,
+            faceplateNumbering: devices.faceplateNumbering,
             facilitySpecs: devices.facilitySpecs,
             floorX: devices.floorX,
             floorZ: devices.floorZ,
@@ -198,7 +202,7 @@ export async function getDevices() {
         .leftJoin(brands, eq(devices.brandId, brands.id))
         .leftJoin(locations, eq(devices.locationId, locations.id))
         .leftJoin(racks, and(eq(racks.siteId, devices.siteId), sql`lower(${racks.name}) = lower(${devices.rackName})`))
-        .where(eq(devices.siteId, auth.activeSiteId));
+        .where(and(eq(devices.siteId, auth.activeSiteId), deviceId === undefined ? undefined : eq(devices.id, deviceId)));
 }
 
 export async function addDevice(prevState: unknown, formData: FormData) {
@@ -326,9 +330,13 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
             const targetRack = await db.query.racks.findFirst({
                 // Case-insensitive name match (finding #33): see addDevice.
                 where: and(sql`lower(${racks.name}) = lower(${parsed.data.rackName})`, eq(racks.siteId, auth.activeSiteId)),
-                columns: { totalU: true },
+                columns: { totalU: true, name: true, locationId: true, zone: true },
             });
             rackTotalU = targetRack?.totalU ?? null;
+            if (!targetRack) return { message: "Rack tujuan tidak ditemukan di site aktif." };
+            parsed.data.rackName = targetRack.name ?? parsed.data.rackName;
+            if (targetRack.locationId != null) parsed.data.locationId = targetRack.locationId;
+            parsed.data.zone = targetRack.zone;
         }
 
         if (parsed.data.rackName && parsed.data.rackPosition) {
@@ -340,7 +348,7 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
                 auth.activeSiteId,
                 parsed.data.rackName,
                 parsed.data.rackPosition,
-                parsed.data.uHeight || 1,
+                parsed.data.uHeight ?? existingDevice.uHeight ?? 1,
                 id
             );
             if (collisions.length > 0) {
@@ -393,7 +401,7 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
         const groupIds = (formData.getAll("groupIds") as string[]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
         const boundGroupIds = await db.transaction(async (tx) => {
             if (!facility && existingDevice.assetType === "standard") {
-                await lockLayoutRooms(tx, auth.activeSiteId, [existingDevice.locationId]);
+                await lockLayoutRooms(tx, auth.activeSiteId, [existingDevice.locationId, parsed.data.locationId]);
                 const [locked] = await tx.select().from(devices).where(and(eq(devices.id, id), eq(devices.siteId, auth.activeSiteId))).for("update");
                 if (!locked || locked.assetType !== "standard" || locked.locationId !== existingDevice.locationId) throw new Error("Perangkat berubah atau sudah dikonversi. Muat ulang form.");
             }
@@ -441,6 +449,7 @@ export async function updateDevice(prevState: unknown, formData: FormData) {
         return { success: true, message: "Device updated successfully" };
     } catch (error) {
         console.error("Update device error:", error);
+        if (error instanceof Error && /Perangkat berubah|Data fasilitas berubah|Ruangan tidak ditemukan|footprint|bertumpuk|tinggi melebihi/.test(error.message)) return { message: error.message };
         return { message: "Gagal menyimpan perubahan. Silakan coba lagi." };
     }
 }

@@ -44,6 +44,7 @@ vi.mock("../db", () => ({
       checklistItems: { findMany: vi.fn() },
     },
     $count: vi.fn(),
+    select: vi.fn(),
     delete: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
@@ -72,6 +73,7 @@ const mockedDb = db as unknown as {
     checklistItems: { findMany: ReturnType<typeof vi.fn> };
   };
   $count: ReturnType<typeof vi.fn>;
+  select: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
   insert: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
@@ -436,6 +438,29 @@ describe("deleteDevice (history-preserving real delete)", () => {
 });
 
 describe("addDevice / updateDevice rack capacity (finding #10)", () => {
+  it("executes the standard-device row lock before saving a vacant slot", async () => {
+    mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
+    const row = { id: DEVICE_ID, assetType: "standard", name: "Device", siteId: SITE_ID, locationId: null, uHeight: 4, photoPath: null };
+    mockedDb.query.devices.findFirst.mockResolvedValue(row);
+    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42, name: "Rack A", locationId: null, zone: null });
+    mockedDb.select.mockReturnValue({ from: () => ({ where: () => ({ for: () => Promise.resolve([row]) }) }) });
+    const form = new FormData();
+    for (const [key, value] of Object.entries({ id: String(DEVICE_ID), name: "Device", categoryId: "1", rackName: "Rack A", rackPosition: "5", uHeight: "4", brandId: "" })) form.set(key, value);
+    expect(await updateDevice(null, form)).toMatchObject({ success: true });
+    expect(mockedDb.select).toHaveBeenCalled();
+    expect(mocks.checkRackCollision).toHaveBeenCalledWith(SITE_ID, "Rack A", 5, 4, DEVICE_ID);
+  });
+  it("saves a rack move for an unbranded device without writing brand id zero", async () => {
+    mocks.requireActiveSiteAdminAction.mockResolvedValue(adminAuth);
+    mockedDb.query.devices.findFirst.mockResolvedValue({ id: DEVICE_ID, name: "Device", uHeight: 1, photoPath: null });
+    mockedDb.query.racks.findFirst.mockResolvedValue({ totalU: 42, name: "Rack A", locationId: 1, zone: null });
+    const form = new FormData();
+    for (const [key, value] of Object.entries({ id: String(DEVICE_ID), name: "Device", categoryId: "1", locationId: "1", rackName: "Rack A", rackPosition: "5", uHeight: "1", brandId: "" })) form.set(key, value);
+    const result = await updateDevice(null, form);
+    expect(result).toMatchObject({ success: true });
+    const set = mockedDb.update.mock.results[0].value.set;
+    expect(set.mock.calls[0][0].brandId).toBeNull();
+  });
   function rackFormData(overrides: { name?: string; rackPosition?: string; uHeight?: string } = {}) {
     const fd = new FormData();
     fd.set("name", overrides.name ?? "FW-01");
