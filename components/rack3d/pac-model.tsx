@@ -5,30 +5,41 @@ import { useFrame, useThree } from "@react-three/fiber";
 import type { Group } from "three";
 import { fanRotation } from "./fan-motion";
 import { repeated, perforationTexture } from "./textures";
+import LeonardoInterior from "./leonardo-interior";
 
-export interface PacModelProps { width: number; depth: number; height: number; opacity: number; detailed: boolean; animateFans?: boolean }
+export interface PacModelProps { width: number; depth: number; height: number; opacity: number; detailed: boolean; animateFans?: boolean; cabinetOpen?: boolean }
 
 function Panel({ position, size, color, opacity }: { position: [number, number, number]; size: [number, number, number]; color: string; opacity: number }) {
     return <mesh position={position} castShadow receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} roughness={0.55} metalness={0.25} transparent={opacity < 1} opacity={opacity} userData={{ ownFade: true }} /></mesh>;
 }
 
-export function LeonardoModel({ width: w, depth: d, height: h, opacity, detailed }: PacModelProps) {
+export function LeonardoModel({ width: w, depth: d, height: h, opacity, detailed, cabinetOpen = false }: PacModelProps) {
     const face = d / 2;
     return <group>
-        <Panel position={[0, 0, -0.01]} size={[w, h, d - 0.02]} color="#d6d7d3" opacity={opacity} />
-        <Panel position={[0, -h / 2 + h * 0.017, 0]} size={[w, h * 0.034, d]} color="#424a4b" opacity={opacity} />
+        <Panel position={[0, 0, -d / 2 + 0.006]} size={[w, h, 0.012]} color="#d6d7d3" opacity={opacity} />
+        {[-1, 1].map((side) => <Panel key={side} position={[side * (w / 2 - 0.006), 0, 0]} size={[0.012, h, d]} color="#d6d7d3" opacity={opacity} />)}
+        <Panel position={[0, h / 2 - 0.006, 0]} size={[w, 0.012, d]} color="#d6d7d3" opacity={opacity} />
+        {cabinetOpen && <LeonardoInterior width={w} height={h} depth={d} />}
+        <group position={[-w / 2, 0, face - 0.01]} rotation-y={cabinetOpen ? -1.9 : 0}>
+            <Panel position={[w * 0.24, 0, 0]} size={[w * 0.475, h * 0.965, 0.012]} color="#d6d7d3" opacity={opacity} />
+            <Panel position={[w * 0.19, h * 0.445, 0.007]} size={[w * 0.2, h * 0.024, 0.002]} color="#498351" opacity={opacity} />
+        </group>
+        <group position={[w / 2, 0, face - 0.01]} rotation-y={cabinetOpen ? 1.9 : 0}>
+            <Panel position={[-w * 0.25, 0, 0]} size={[w * 0.49, h * 0.965, 0.012]} color="#d6d7d3" opacity={opacity} />
+            <group position={[-w / 2, 0, -face + 0.01]}>
         <Panel position={[-w * 0.018, h * 0.013, face - 0.004]} size={[0.004, h * 0.96, 0.006]} color="#707572" opacity={opacity} />
         <Panel position={[w * 0.032, h * 0.013, face - 0.004]} size={[0.003, h * 0.96, 0.006]} color="#929792" opacity={opacity} />
         <Panel position={[w * 0.275, h * 0.335, face - 0.006]} size={[w * 0.31, h * 0.3, 0.01]} color="#a6aaa4" opacity={opacity} />
-        <Panel position={[w * 0.255, h * 0.265, face - 0.002]} size={[w * 0.23, h * 0.059, 0.004]} color="#39734b" opacity={opacity} />
-        <Panel position={[w * 0.255, h * 0.265, face - 0.0005]} size={[w * 0.205, h * 0.047, 0.001]} color="#cad5cb" opacity={opacity} />
+        <Panel position={[w * 0.255, h * 0.265, face - 0.004]} size={[w * 0.23, h * 0.059, 0.004]} color="#39734b" opacity={opacity} />
+        <Panel position={[w * 0.255, h * 0.265, face - 0.001]} size={[w * 0.205, h * 0.047, 0.001]} color="#cad5cb" opacity={opacity} />
         <Panel position={[w * 0.09, h * 0.1, face - 0.001]} size={[w * 0.068, h * 0.014, 0.002]} color="#208842" opacity={opacity} />
-        <Panel position={[-w * 0.31, h * 0.445, face - 0.001]} size={[w * 0.2, h * 0.024, 0.002]} color="#498351" opacity={opacity} />
         {detailed && <>
             <Panel position={[w * 0.1, h * 0.4, face - 0.008]} size={[w * 0.095, h * 0.026, 0.016]} color="#242b29" opacity={opacity} />
             <Panel position={[w * 0.105, h * 0.4, face - 0.001]} size={[w * 0.06, h * 0.008, 0.002]} color="#923d36" opacity={opacity} />
-            {[0, 1, 2, 3].map((i) => <Panel key={i} position={[w * 0.255, h * (0.25 + i * 0.008), face - 0.0001]} size={[w * 0.15, 0.001, 0.0002]} color="#7b8880" opacity={opacity} />)}
         </>}
+            </group>
+        </group>
+        <Panel position={[0, -h / 2 + h * 0.017, 0]} size={[w, h * 0.034, d]} color="#424a4b" opacity={opacity} />
     </group>;
 }
 

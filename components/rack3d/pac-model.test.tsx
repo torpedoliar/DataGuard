@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("./textures", () => ({ perforationTexture: () => null, repeated: () => ({ dispose() {} }) }));
 vi.mock("react", async (original) => ({ ...await original<typeof import("react")>(), useMemo: (run: () => unknown) => run(), useEffect: () => {} }));
 import { FacilityModel } from "./facility-model";
+import LeonardoInterior from "./leonardo-interior";
 import { LeonardoModel, InRowModel } from "./pac-model";
 import type { RackDevice } from "@/actions/rack-layout";
 import { facilityAssetSchema } from "@/lib/facility-asset";
@@ -22,6 +23,14 @@ function checkBoxes(node: React.ReactNode, limits: number[], offset = [0, 0, 0])
 }
 
 describe("PAC profile model integration", () => {
+    it("opens only inspection doors while keeping reference interior stationary", () => {
+        const props = { width: 0.83, depth: 0.44, height: 2, opacity: 1, detailed: true };
+        const closed = React.Children.toArray(LeonardoModel(props).props.children).filter(React.isValidElement) as React.ReactElement<Record<string, unknown>>[];
+        const opened = React.Children.toArray(LeonardoModel({ ...props, cabinetOpen: true }).props.children).filter(React.isValidElement) as React.ReactElement<Record<string, unknown>>[];
+        expect(closed.some((node) => node.type === LeonardoInterior)).toBe(false);
+        expect(opened.some((node) => node.type === LeonardoInterior)).toBe(true);
+        expect(opened.filter((node) => node.type === "group").map((node) => node.props["rotation-y"])).toEqual([-1.9, 1.9]);
+    });
     it("keeps cabinet panels and details within reference outer dimensions", () => {
         checkBoxes(LeonardoModel({ width: 0.83, depth: 0.44, height: 2, opacity: 1, detailed: true }), [0.83, 2, 0.44]);
         checkBoxes(InRowModel({ width: 0.3, depth: 1.095, height: 1.991, opacity: 1, detailed: true }), [0.3, 1.991, 1.095]);

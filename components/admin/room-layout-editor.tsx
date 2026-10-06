@@ -80,7 +80,20 @@ export default function RoomLayoutEditor({ roomId, onClose }: { roomId: number; 
     const current = assets.find((a) => a.key === selected);
     const validation = validateRoomLayout(size, assets.flatMap((a): Footprint[] => a.x === null || a.z === null ? [] : [{ ...a, x: a.x, z: a.z, rotation: a.rotation ?? 0 }]));
     const close = () => { if (!pending && (!dirty || window.confirm("Batal dan buang perubahan layout yang belum disimpan?"))) onClose(); };
-    return <Modal open title="Atur layout ruangan" onClose={close} hideCloseButton={pending} backdropClassName="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4" panelClassName="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-lg border border-ops-border bg-ops-surface" bodyClassName="p-5 space-y-4">
+    const save = async () => {
+        if (!loaded || pending || validation.errors.length || (validation.warnings.length && !acknowledged)) return;
+        setPending(true); setMessage("");
+        try {
+            const result = await saveRoomLayout({ siteId: loaded.siteId, roomId, revision: loaded.room.layoutRevision, ...size, acknowledgeEstimated: acknowledged, assets: assets.map(({ key, x, z, rotation }) => ({ key, x, z, rotation })) });
+            if (result.success) { router.refresh(); onClose(); } else setMessage(result.message);
+        } catch { setMessage("Gagal menyimpan. Periksa koneksi sebelum mencoba kembali."); } finally { setPending(false); }
+    };
+    const saveReason = !loaded ? "Menunggu data ruangan." : pending ? "Sedang menyimpan…" : validation.errors.length ? "Perbaiki error layout sebelum menyimpan." : validation.warnings.length && !acknowledged ? "Centang konfirmasi ukuran generik di bawah agar Simpan aktif." : "Layout siap disimpan.";
+    return <Modal open title="Atur layout ruangan" onClose={close} hideCloseButton={pending} backdropClassName="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4" panelClassName="max-h-[90vh] w-full max-w-5xl flex flex-col overflow-hidden rounded-lg border border-ops-border bg-ops-surface" bodyClassName="min-h-0 overflow-y-auto p-5 space-y-4" footer={<div className="space-y-2">
+        {loaded && validation.warnings.length > 0 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1 shrink-0" /> Saya memahami ukuran generik/parsial; clearance fisik belum terverifikasi.</label>}
+        <p role="status" className="text-xs text-ops-muted">{message || saveReason}</p>
+        <div className="flex justify-end gap-3"><button type="button" disabled={pending} onClick={close}>Batal</button><button type="button" className="rounded bg-ops-accent px-4 py-2 font-semibold text-ops-bg disabled:opacity-40" disabled={!loaded || pending || validation.errors.length > 0 || (validation.warnings.length > 0 && !acknowledged)} onClick={save}>{pending ? "Menyimpan…" : "Simpan Layout"}</button></div>
+    </div>}>
         <div className="flex justify-between"><h2 className="font-bold">Atur Layout Ruangan {loaded?.room.name}</h2><button type="button" onClick={close} disabled={pending}>Tutup</button></div>
         {!loaded ? <p role="status">{message || "Memuat layout…"}</p> : <>
             {loaded.room.layoutMode === "legacy" && <p className="text-sm">Ukuran awal merupakan saran. Periksa ukuran nyata sebelum Simpan; layout lama tidak berubah sampai disimpan.</p>}
@@ -101,14 +114,7 @@ export default function RoomLayoutEditor({ roomId, onClose }: { roomId: number; 
                 return { ...d, floorX: placement.x, floorZ: placement.z, floorRotation: placement.rotation, brandName: null, brandLogo: null, categoryName: d.assetType === "pac" ? "Cooling" : "Power", categoryColor: null, locationName: loaded.room.name, ports: [], openIncidents: { count: 0, maxSeverity: null } };
             })} roomSettings={{ layoutMode: "manual", roomWidthM: size.width, roomDepthM: size.depth, roomHeightM: size.height, floorPlanPath: loaded.room.floorPlanPath, tempC: null, tempThresholdC: null, appearance: loaded.appearance }} floorPlanUrl={loaded.room.floorPlanPath} qualitySetting="medium" focusRack={null} onFocusRack={() => {}} showFree={false} selectedDeviceId={null} focusDeviceId={null} onSelectDevice={() => {}} temp={null} colorBy="category" appearance={loaded.appearance} /></div>}
             {validation.errors.map((error) => <p role="alert" key={error} className="text-sm text-ops-danger">{error}</p>)}
-            {validation.warnings.length > 0 && <label className="block text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} /> Ukuran generik/parsial. Clearance fisik belum terverifikasi. {validation.warnings.join(" ")}</label>}
-            {message && <p role="status" className="text-sm">{message}</p>}
-            <div className="flex justify-end gap-4"><button type="button" disabled={pending} onClick={close}>Batal</button><button type="button" className="ops-button-primary px-4 py-2" disabled={pending || validation.errors.length > 0 || (validation.warnings.length > 0 && !acknowledged)} onClick={async () => {
-                setPending(true); setMessage("");
-                try { const result = await saveRoomLayout({ siteId: loaded.siteId, roomId, revision: loaded.room.layoutRevision, ...size, acknowledgeEstimated: acknowledged, assets: assets.map(({ key, x, z, rotation }) => ({ key, x, z, rotation })) });
-                    if (result.success) { router.refresh(); onClose(); } else setMessage(result.message);
-                } catch { setMessage("Gagal menyimpan. Periksa koneksi sebelum mencoba kembali."); } finally { setPending(false); }
-            }}>{pending ? "Menyimpan…" : "Simpan Layout"}</button></div>
+            {validation.warnings.map((warning) => <p key={warning} className="text-xs text-ops-warning">{warning}</p>)}
         </>}
     </Modal>;
 }

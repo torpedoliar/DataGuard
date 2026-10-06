@@ -53,6 +53,8 @@ export default function DevicePreview({ device }: { device: RackDevice }) {
 
 function Preview({ device }: { device: RackDevice }) {
     const [inspect, setInspect] = useState(false);
+    const [cabinetOpen, setCabinetOpen] = useState(false);
+    const leonardo = device.assetType === "pac" && device.facilitySpecs && "visualProfile" in device.facilitySpecs && device.facilitySpecs.visualProfile === "leonardo-tuar0611";
     const [image, setImage] = useState<string | null | undefined>(undefined);
     const facility = device.assetType === "pac" || device.assetType === "ups";
     const dimensions = facilityDimensions({ assetType: device.assetType ?? "standard", facilitySpecs: device.facilitySpecs ?? null });
@@ -66,7 +68,7 @@ function Preview({ device }: { device: RackDevice }) {
                             <color attach="background" args={["#dfe3e7"]} />
                             <ambientLight intensity={1.2} /><hemisphereLight args={["#ffffff", "#7b838a", 1.4]} /><directionalLight position={[2, 3, 4]} intensity={2} />
                             <Environment resolution={128} frames={1}><Lightformer position={[0, 2, 1]} rotation-x={Math.PI / 2} scale={[3, 3, 1]} intensity={2} /><Lightformer position={[0, 1, 3]} scale={[3, 2, 1]} intensity={2} /></Environment>
-                            <DeviceModel device={{ ...device, isMuted: false }} animateFans={inspect} />
+                            <DeviceModel device={{ ...device, isMuted: false }} animateFans={inspect} cabinetOpen={inspect && cabinetOpen} />
                             {inspect ? <Suspense fallback={null}><InspectControls /></Suspense> : <Snapshot logo={device.brandLogo} onCapture={setImage} />}
                         </Canvas>
                     </PreviewBoundary>
@@ -77,8 +79,9 @@ function Preview({ device }: { device: RackDevice }) {
             </div>
             <div className="flex items-center justify-between gap-2 border-t border-ops-border px-3 py-2">
                 <span className="text-[10px] text-ops-muted">{device.assetType === "pac" && device.facilitySpecs && "visualProfile" in device.facilitySpecs && device.facilitySpecs.visualProfile ? "Profile model · fan motion decorative, not live status" : "Generic model · not a device photograph"}</span>
-                <button type="button" onClick={() => setInspect(!inspect)} aria-pressed={inspect} className="shrink-0 text-xs font-semibold text-ops-accent">{inspect ? "Close 3D" : "Inspect 3D"}</button>
+                <button type="button" onClick={() => { setInspect(!inspect); setCabinetOpen(false); }} aria-pressed={inspect} className="shrink-0 text-xs font-semibold text-ops-accent">{inspect ? "Close 3D" : "Inspect 3D"}</button>
             </div>
+            {inspect && leonardo && <div className="border-t border-ops-border p-3"><button type="button" aria-pressed={cabinetOpen} onClick={() => setCabinetOpen(!cabinetOpen)} className="text-xs font-semibold text-ops-accent">{cabinetOpen ? "Tutup PAC" : "Buka PAC"}</button><p className="mt-1 text-[10px] text-ops-muted">Interior referensi visual, bukan dokumentasi engineering atau status live.</p></div>}
         </section>
     );
 }
