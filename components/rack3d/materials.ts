@@ -53,10 +53,13 @@ export function tickLeds(t: number) {
     sharedMaterials.activity.emissiveIntensity = Math.random() > 0.35 ? 2 : 0.2;
     sharedMaterials.linkA.emissiveIntensity = Math.random() > 0.15 ? 2 : 0.1;
     sharedMaterials.linkB.emissiveIntensity = Math.random() > 0.5 ? 2 : 0.1;
-    // Link LED: mostly lit, short traffic flickers at different rates.
-    sharedMaterials.port0.emissiveIntensity = Math.random() > 0.25 ? 2.2 : 0.15;
-    sharedMaterials.port1.emissiveIntensity = Math.random() > 0.4 ? 2.2 : 0.15;
-    sharedMaterials.port2.emissiveIntensity = Math.random() > 0.1 ? 2.2 : 0.15;
+    // Status-aware decorative blink, not measured packet activity. Darken
+    // base color too: emissive-only dimming stays green under room lighting.
+    portMaterials.forEach((material, phase) => {
+        const on = ((t + phase * 0.23) % 1) < 0.45;
+        material.emissiveIntensity = on ? 3 : 0;
+        material.color.set(on ? "#22c55e" : "#000000");
+    });
 }
 
 export const portMaterials = [sharedMaterials.port0, sharedMaterials.port1, sharedMaterials.port2];

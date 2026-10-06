@@ -93,13 +93,13 @@ function NetworkFace({ h, opacity }: { h: number; opacity: number }) {
 // The device's documented ports (network docs): real count and layout, link
 // LED lit + flickering only on Active ports, red on Down, dark otherwise.
 // Interaction belongs to RackDevice and the hologram, not this shared model.
-function DocumentedPorts({ slots, opacity }: { slots: PortFaceSlot[]; opacity: number }) {
+export function DocumentedPorts({ slots, opacity }: { slots: PortFaceSlot[]; opacity: number }) {
     const groups = useMemo(() => ({
         jacks: slots,
         lit: [0, 1, 2].map((ph) => slots.filter((p) => p.state === "active" && p.phase === ph)),
         down: slots.filter((p) => p.state === "down"),
     }), [slots]);
-    const led = (p: PortFaceSlot): Vec3 => [p.x - p.w * 0.3, p.y + p.h * 0.36, 0.0022];
+    const led = (p: PortFaceSlot): Vec3 => [p.x - p.w * 0.3, p.y + p.h * 0.36, 0.005];
     return (
         <>
             <Instances frustumCulled={false} limit={groups.jacks.length}>

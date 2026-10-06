@@ -26,6 +26,8 @@ interface RackLayoutShellProps {
 
 export default function RackLayoutShell({ racks, facilities = [], categories, rooms, canEditAppearance, siteName }: RackLayoutShellProps) {
     const [layoutRoom, setLayoutRoom] = useState<number | null>(null);
+    const [layoutPick, setLayoutPick] = useState<string>("");
+    const layoutRoomId = rooms[Number(layoutPick)] ? Number(layoutPick) : Number(Object.keys(rooms)[0]) || null;
     const [filters, setFilters] = useState<RackFilters>(EMPTY_FILTERS);
     const [selected, setSelected] = useState<RackDevice | null>(null);
     const [view, setView] = useState<RackView>("2d");
@@ -69,7 +71,10 @@ export default function RackLayoutShell({ racks, facilities = [], categories, ro
 
     return (
         <div className="space-y-6">
-            {canEditAppearance && <div className="flex flex-wrap gap-2">{Object.entries(rooms).map(([id, room]) => <button type="button" key={id} className="rounded border border-ops-border px-3 py-2 text-sm" onClick={() => setLayoutRoom(Number(id))}>Atur Layout · {room.name ?? `Room ${id}`}</button>)}</div>}
+            {canEditAppearance && Object.keys(rooms).length > 0 && <div className="flex flex-col gap-2 rounded-lg border border-ops-border bg-ops-surface p-3 sm:flex-row sm:items-end">
+                <label className="min-w-0 flex-1 text-xs text-ops-muted">Ruangan untuk pengaturan layout<select aria-label="Ruangan untuk pengaturan layout" value={layoutRoomId ?? ""} onChange={(event) => setLayoutPick(event.target.value)} className="mt-1 block h-10 w-full rounded border border-ops-border bg-ops-bg px-3 text-sm text-ops-text">{Object.entries(rooms).sort(([, a], [, b]) => (a.name ?? "").localeCompare(b.name ?? "")).map(([id, room]) => <option key={id} value={id}>{room.name ?? `Room ${id}`}</option>)}</select></label>
+                <button type="button" className="h-10 shrink-0 rounded border border-ops-border px-4 text-sm font-semibold text-ops-text hover:bg-ops-surface-raised" disabled={layoutRoomId === null} onClick={() => setLayoutRoom(layoutRoomId)}>Atur Layout</button>
+            </div>}
             {layoutRoom !== null && <RoomLayoutEditor roomId={layoutRoom} onClose={() => setLayoutRoom(null)} />}
             <RackFilterBar
                 facilities={facilities}
