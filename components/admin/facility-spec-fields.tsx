@@ -1,6 +1,6 @@
 "use client";
 
-import { facilityAssetSchema, facilityDimensions, PAC_PROFILES, type FacilityAsset, type FacilitySpecs } from "@/lib/facility-asset";
+import { facilityAssetSchema, facilityDimensions, PAC_PROFILES, UPS_PROFILES, type FacilityAsset, type FacilitySpecs } from "@/lib/facility-asset";
 
 export const emptyFacility = (kind: "in-row" | "top-blow" | "floor-standing"): FacilityAsset => facilityAssetSchema.parse({
     assetType: kind === "floor-standing" ? "ups" : "pac", facilitySpecs: { subtype: kind }, locationId: null, floorX: null, floorZ: null, floorRotation: null,
@@ -21,6 +21,11 @@ export default function FacilitySpecFields({ asset, onChange, fixedType = false 
             const profile = PAC_PROFILES[key];
             onChange({ ...asset, facilitySpecs: { ...asset.facilitySpecs, visualProfile: key, subtype: profile.subtype, model: profile.label, widthMm: profile.widthMm, depthMm: profile.depthMm, heightMm: profile.heightMm } });
         }}><option value="">Generic / model lain</option>{Object.entries(PAC_PROFILES).map(([key, profile]) => <option key={key} value={key}>{profile.label}</option>)}</select><span className="mt-1 block text-ops-muted">Memilih profil mengisi ukuran referensi dalam mm. Device existing tidak perlu dikonversi ulang.</span></label>}
+        {asset.assetType === "ups" && <label className="text-xs">Profil UPS 3D<select className="ops-input block w-full p-2" value={asset.facilitySpecs.visualProfile ?? ""} onChange={(event) => {
+            if (!event.target.value) { set("visualProfile", null); return; }
+            const profile = UPS_PROFILES["apc-20kva"];
+            onChange({ ...asset, facilitySpecs: { ...asset.facilitySpecs, visualProfile: "apc-20kva", model: "APC 20 kVA", widthMm: profile.widthMm, depthMm: profile.depthMm, heightMm: profile.heightMm, capacityKva: 20 } });
+        }}><option value="">Generic / model lain</option><option value="apc-20kva">APC 20 kVA</option></select><span className="block mt-1 text-ops-muted">Referensi sekitar W520 × D840 × H1490 mm. Konfirmasi ukuran unit; kW/battery tidak diasumsikan.</span></label>}
         {(["model", "serialNumber", "widthMm", "depthMm", "heightMm", "installedOn", "maintainedOn"] as const).map((key) => <label key={key} className="text-xs">{{ model: "Model", serialNumber: "Serial number", widthMm: "Lebar (mm)", depthMm: "Kedalaman (mm)", heightMm: "Tinggi (mm)", installedOn: "Tanggal instalasi", maintainedOn: "Tanggal maintenance" }[key]}<input className="ops-input block w-full p-2" type={key.endsWith("Mm") ? "number" : key.endsWith("On") ? "date" : "text"} min="1" value={specs[key] ?? ""} onChange={(e) => set(key, e.target.value === "" ? null : key.endsWith("Mm") ? Number(e.target.value) : e.target.value)} /></label>)}
         {specs.subtype === "floor-standing" ? <>
             {(["capacityKva", "ratedKw"] as const).map((key) => <label key={key} className="text-xs">{key === "capacityKva" ? "Kapasitas (kVA)" : "Rated power (kW), bukan otomatis dari kVA"}<input className="ops-input block w-full p-2" type="number" min="0.01" step="0.01" value={specs[key] ?? ""} onChange={(e) => set(key, e.target.value ? Number(e.target.value) : null)} /></label>)}

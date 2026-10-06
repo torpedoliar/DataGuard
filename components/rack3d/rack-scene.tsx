@@ -22,10 +22,12 @@ import { tickLeds } from "./materials";
 import { PRESETS, initialQuality, resolveQuality, type Quality, type QualitySetting } from "./quality";
 import { RackCabinet } from "./rack-cabinet";
 import { Room } from "./room";
+import { ScreenHtml } from "./screen-html";
 import { pointerNdc } from "./pointer-ndc";
 
 export interface RackSceneProps {
     facilities?: RackDevice[];
+    openFacilityId?: number | null;
     roomSettings?: RoomSettings;
     racks: SceneRack[];
     floorPlanUrl: string | null;
@@ -257,7 +259,7 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, facilities = [] }: {
     );
 }
 
-export default function RackScene({ racks, facilities = [], roomSettings, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, peerDeviceId = null, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, floatCard }: RackSceneProps & { floatCard?: (d: RackDevice) => ReactNode }) {
+export default function RackScene({ racks, facilities = [], openFacilityId = null, roomSettings, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, peerDeviceId = null, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, floatCard }: RackSceneProps & { floatCard?: (d: RackDevice) => ReactNode }) {
     const composerRef = useRef<ComposerImpl>(null);
     const dark = useIsDark();
     const manual = roomSettings?.layoutMode === "manual";
@@ -323,11 +325,12 @@ export default function RackScene({ racks, facilities = [], roomSettings, floorP
                     floatCard={floatCard}
                 />
             ))}
-            {floorAssets.map(({ device, x, z, dimensions }) => <group key={device.id} position={[x, dimensions.height / 2, z]} rotation-y={(device.floorRotation ?? 0) * Math.PI / 180} onClick={(event) => { event.stopPropagation(); onFocusRack(null); onSelectDevice(device); }}>
-                <FacilityModel device={device} animateFans opacity={(device as RackDevice & { isMuted?: boolean }).isMuted ? 0.18 : 1} detailed={quality === "high" || selectedDeviceId === device.id} />
+            {floorAssets.map(({ device, x, z, dimensions }) => <group key={device.id} position={[x, dimensions.height / 2 + 0.004, z]} rotation-y={(device.floorRotation ?? 0) * Math.PI / 180} onClick={(event) => { event.stopPropagation(); onFocusRack(null); onSelectDevice(device); }}>
+                <FacilityModel device={device} cabinetOpen={openFacilityId === device.id} animateFans opacity={(device as RackDevice & { isMuted?: boolean }).isMuted ? 0.18 : 1} detailed={quality === "high" || selectedDeviceId === device.id} />
                 <mesh position={[0, -dimensions.height / 2 + 0.045, dimensions.depth / 2 + 0.004]}><boxGeometry args={[dimensions.width * 0.65, 0.025, 0.006]} /><meshBasicMaterial color={colorBy === "audit" ? device.status === "NOT OK" ? "#dc2626" : device.status === "OK" ? "#16a34a" : "#64748b" : device.categoryColor ?? "#64748b"} /></mesh>
                 {selectedDeviceId === device.id && <mesh><boxGeometry args={[dimensions.width + 0.025, dimensions.height + 0.025, dimensions.depth + 0.025]} /><meshBasicMaterial color={accent} wireframe /></mesh>}
             </group>)}
+            {floatCard && floorAssets.filter(({ device }) => device.id === selectedDeviceId || device.id === peerDeviceId).map(({ device, x, z, dimensions }) => <ScreenHtml key={`facility-card-${device.id}`} position={[x + dimensions.width / 2 + 0.9, dimensions.height * 0.8, z + dimensions.depth / 2]} center zIndexRange={[40, 0]}>{floatCard(device)}</ScreenHtml>)}
             <AnimatedCables placed={placed} selectedDeviceId={selectedDeviceId} peerDeviceId={peerDeviceId} />
             <CameraRig facilities={floorAssets} placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} />
             <BlinkClock />

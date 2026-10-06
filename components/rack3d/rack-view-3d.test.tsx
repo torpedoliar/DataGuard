@@ -55,7 +55,9 @@ describe("RackView3D integration", () => {
             tree = RackView3D({ racks: [], facilities: [facility], rooms: {}, selectedDeviceId: 500, autoFocusDeviceId: null, onSelectDevice: () => {}, onSelectPeer: () => true, onWebglUnavailable: () => {}, canEditAppearance: false, siteName: "Site" });
         } while (hooks.changed);
         expect((find(tree!, "rack-scene").props as { facilities: unknown[] }).facilities).toEqual([facility]);
-        expect((find(tree!, "detail-panel").props as { device: unknown }).device).toBe(facility);
+        const card = (find(tree!, "rack-scene").props as { floatCard: (d: unknown) => ReactElement }).floatCard(facility);
+        expect((card.props as { device: unknown }).device).toBe(facility);
+        expect(() => find(tree!, "detail-panel")).toThrow();
     });
     it("opens the panel without moving selection and shares the selected device's loading state", () => {
         const card = (find(render(), "rack-scene").props as { floatCard: (device: unknown) => ReactElement }).floatCard(devices[0]);

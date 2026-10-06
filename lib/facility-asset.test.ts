@@ -18,6 +18,11 @@ describe("facility asset validation", () => {
         const asset = facilityAssetSchema.parse({ ...ups, assetType: "pac", facilitySpecs: { subtype: "top-blow", visualProfile: "leonardo-tuar0611", widthMm: 850 } });
         expect(facilityDimensions(asset).width).toBe(0.85);
     });
+    it("resolves APC UPS reference dimensions without inventing rated kW", () => {
+        const asset = facilityAssetSchema.parse({ ...ups, facilitySpecs: { subtype: "floor-standing", visualProfile: "apc-20kva", capacityKva: 20 } });
+        expect(facilityDimensions(asset)).toMatchObject({ width: 0.52, depth: 0.84, height: 1.49 });
+        expect(asset.facilitySpecs).toMatchObject({ ratedKw: null });
+    });
     it("keeps unknown UPS kW distinct from its known kVA", () => {
         const result = facilityAssetSchema.parse(ups);
         expect(result.facilitySpecs).toMatchObject({ capacityKva: 20, ratedKw: null });

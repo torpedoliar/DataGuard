@@ -15,6 +15,7 @@ import { CriticalAlert } from "./critical-alert";
 import { DeviceHologram, type FloatPort, type HologramDeviceOption } from "./device-hologram";
 import { hologramStagger } from "./hologram-offset";
 import { PeerRackCard } from "./peer-rack-card";
+import { FacilityHologram } from "./facility-hologram";
 import { getPortsByDevice } from "@/actions/network";
 import { getDevices } from "@/actions/master-data";
 import { layoutRacks } from "./layout";
@@ -136,7 +137,10 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
     }
     const setPanelOpenState = (open: boolean) => setPanelFor(open ? selectedDeviceId : null);
     const selectedFacility = facilities.find((d) => d.id === selectedDeviceId);
-    const panelOpen = panelFor !== null || !!selectedFacility;
+    const unplacedFacility = selectedFacility && (selectedFacility.floorX == null || selectedFacility.floorZ == null) ? selectedFacility : null;
+    const panelOpen = panelFor !== null || !!unplacedFacility;
+    const [openFacilityId, setOpenFacilityId] = useState<number | null>(null);
+    if (openFacilityId !== null && (openFacilityId !== selectedDeviceId || !selectedFacility || selectedFacility.facilitySpecs?.visualProfile !== "leonardo-tuar0611")) setOpenFacilityId(null);
     const room = roomPick && rooms.has(roomPick) ? roomPick : rooms.keys().next().value ?? null;
     const roomRacks = useMemo(() => (room ? rooms.get(room) ?? [] : []), [room, rooms]);
     const focusRack = roomRacks.some((r) => r.name === focusPick) ? focusPick : null;
@@ -144,7 +148,7 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
     const allDevices = useMemo(() => [...racks.flatMap((r) => r.devices), ...facilities], [racks, facilities]);
     const cardDevice = selectedDeviceId == null ? null : allDevices.find((d) => d.id === selectedDeviceId) ?? null;
     const cardDeviceId = cardDevice?.id ?? null;
-    const panelDevice = panelFor == null ? selectedFacility ?? null : allDevices.find((d) => d.id === panelFor) ?? null;
+    const panelDevice = panelFor == null ? unplacedFacility || null : allDevices.find((d) => d.id === panelFor) ?? null;
 
     // The peer currently shown: a second hologram when it sits in this room, a
     // 3D rack card when it does not. `peerPickedRoom` is what lets the card
@@ -415,6 +419,7 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
                     racks={roomRacks}
                     facilities={facilities.filter((d) => roomKey(d) === room)}
                     roomSettings={settings}
+                    openFacilityId={openFacilityId}
                     floorPlanUrl={floorPlanUrl}
                     qualitySetting={quality}
                     onAutoQuality={setAutoResolved}
@@ -432,6 +437,7 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
                     floatCard={(dev) => {
                         const isPeer = dev.id === peerDeviceId;
                         const isBase = dev.id === cardDeviceId;
+                        if (dev.assetType === "pac" || dev.assetType === "ups") return <FacilityHologram device={dev} drawerState={isBase ? baseDrawer : peerDrawer} onClose={() => { setOpenFacilityId(null); onSelectDevice(null); }} onOpenPanel={() => setPanelFor(dev.id)} cabinetOpen={openFacilityId === dev.id} onToggleCabinet={dev.facilitySpecs?.visualProfile === "leonardo-tuar0611" ? () => setOpenFacilityId(openFacilityId === dev.id ? null : dev.id) : undefined} />;
                         return (
                             <DeviceHologram
                                 device={dev}

@@ -3,10 +3,12 @@
 import type { RackDevice } from "@/actions/rack-layout";
 import { facilityDimensions } from "@/lib/facility-asset";
 import { LeonardoModel, InRowModel } from "./pac-model";
+import { ApcUpsModel } from "./ups-model";
 
 export function FacilityModel({ device, detailed = false, opacity = 1, animateFans = false, cabinetOpen = false }: { device: RackDevice; detailed?: boolean; opacity?: number; animateFans?: boolean; cabinetOpen?: boolean }) {
     const { width, depth, height } = facilityDimensions({ assetType: device.assetType ?? "ups", facilitySpecs: device.facilitySpecs ?? null });
-    const profile = device.assetType === "pac" && device.facilitySpecs && "visualProfile" in device.facilitySpecs ? device.facilitySpecs.visualProfile : null;
+    const profile = device.facilitySpecs?.visualProfile;
+    if (device.assetType === "ups" && profile === "apc-20kva") return <ApcUpsModel width={width} depth={depth} height={height} opacity={opacity} detailed={detailed} />;
     if (profile === "leonardo-tuar0611") return <LeonardoModel width={width} depth={depth} height={height} opacity={opacity} detailed={detailed} cabinetOpen={cabinetOpen} />;
     if (profile === "inrow-300") return <InRowModel width={width} depth={depth} height={height} opacity={opacity} detailed={detailed} animateFans={animateFans} />;
     const topBlow = device.assetType === "pac" && device.facilitySpecs?.subtype === "top-blow";

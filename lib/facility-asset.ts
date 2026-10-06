@@ -26,7 +26,11 @@ const pacSpecs = z.strictObject({
     supplyAirflow: z.enum(["front", "rear", "top", "bottom"]).nullable().default(null),
     coolingKw: capacity,
 });
+export const UPS_PROFILES = {
+    "apc-20kva": { label: "APC 20 kVA · ukuran referensi perkiraan", widthMm: 520, depthMm: 840, heightMm: 1490 },
+} as const;
 const upsSpecs = z.strictObject({
+    visualProfile: z.literal("apc-20kva").nullable().optional(),
     ...common,
     subtype: z.literal("floor-standing"),
     capacityKva: capacity,
@@ -64,7 +68,7 @@ export type FacilitySpecs = FacilityAsset["facilitySpecs"];
 
 export function facilityDimensions(asset: { assetType: string; facilitySpecs: FacilitySpecs | null }) {
     const specs = asset.facilitySpecs;
-    const profile = asset.assetType === "pac" && specs && "visualProfile" in specs && specs.visualProfile ? PAC_PROFILES[specs.visualProfile] : null;
+    const profile = specs?.visualProfile === "apc-20kva" ? UPS_PROFILES[specs.visualProfile] : specs?.visualProfile ? PAC_PROFILES[specs.visualProfile] : null;
     const widthMm = specs?.widthMm ?? profile?.widthMm;
     const depthMm = specs?.depthMm ?? profile?.depthMm;
     const heightMm = specs?.heightMm ?? profile?.heightMm;

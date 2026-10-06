@@ -23,6 +23,21 @@ function checkBoxes(node: React.ReactNode, limits: number[], offset = [0, 0, 0])
 }
 
 describe("PAC profile model integration", () => {
+    it("places LCD screen ahead of the closed door instead of inside its panel", () => {
+        const tree = LeonardoModel({ width: 0.83, depth: 0.44, height: 2, opacity: 1, detailed: true });
+        const screens: number[] = [];
+        const visit = (node: React.ReactNode, z = 0) => React.Children.forEach(node, (child) => {
+            if (!React.isValidElement(child)) return;
+            const props = child.props as { position?: number[]; color?: string; children?: React.ReactNode };
+            const worldZ = z + (props.position?.[2] ?? 0);
+            if (props.color === "#727d72") screens.push(worldZ);
+            visit(props.children, worldZ);
+        });
+        visit(tree);
+        expect(screens).toHaveLength(1);
+        expect(screens[0]).toBeGreaterThan(0.208);
+        expect(screens[0]).toBeLessThan(0.22);
+    });
     it("opens only inspection doors while keeping reference interior stationary", () => {
         const props = { width: 0.83, depth: 0.44, height: 2, opacity: 1, detailed: true };
         const closed = React.Children.toArray(LeonardoModel(props).props.children).filter(React.isValidElement) as React.ReactElement<Record<string, unknown>>[];

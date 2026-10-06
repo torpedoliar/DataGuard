@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Loader2, TriangleAlert, XCircle } from "lucide-react";
 import type { RackDevice } from "@/actions/rack-layout";
-import { facilityLabel, facilityDimensions, PAC_PROFILES } from "@/lib/facility-asset";
+import { facilityLabel, facilityDimensions, PAC_PROFILES, UPS_PROFILES } from "@/lib/facility-asset";
 import PhotoModal from "@/components/report/photo-modal";
 import DeviceNetworkSummary from "./device-network-summary";
 import { AuditSection, ConnectionsSection, IncidentsSection, SiemSection, useDeviceDrawer } from "./device-drawer-sections";
@@ -30,7 +30,7 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
     const pic = drawer.data?.picGroups.map((g) => g.name).join(", ");
     const facility = device.assetType === "pac" || device.assetType === "ups";
     const specs = device.facilitySpecs;
-    const profile = specs && "visualProfile" in specs && specs.visualProfile ? PAC_PROFILES[specs.visualProfile] : null;
+    const profile = specs?.visualProfile === "apc-20kva" ? UPS_PROFILES[specs.visualProfile] : specs?.visualProfile ? PAC_PROFILES[specs.visualProfile] : null;
     const dimensions = facilityDimensions({ assetType: device.assetType ?? "standard", facilitySpecs: specs ?? null });
     const facilityRows: [string, string | null][] = facility ? [
         ["Jenis aset", facilityLabel(device.assetType!, specs)],
