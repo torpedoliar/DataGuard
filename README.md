@@ -1,276 +1,271 @@
 <div align="center">
 
-# 🛡️ DataGuard (DC-Check)
+# DataGuard (DC-Check)
 
-**Next-Generation Multi-Site Data Center Audit, Infrastructure Management & ISO 27001 Compliance Platform**
+**English** · [Bahasa Indonesia](README.id.md)
 
-[![Next.js 16](https://img.shields.io/badge/Next.js-16.1_(App_Router)-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
-[![React 19](https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react)](https://react.dev/)
-[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind-v4-38bdf8?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169e1?style=for-the-badge&logo=postgresql)](https://www.postgresql.org/)
-[![ISO 27001 Ready](https://img.shields.io/badge/ISO%2FIEC_27001%3A2022-Compliant-emerald?style=for-the-badge&logo=shield)](https://www.iso.org/standard/27001)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+**Multi-site data center audit, infrastructure documentation, SIEM, and ISO/IEC 27001 evidence in one web application.**
 
-<br />
+[![Next.js](https://img.shields.io/badge/Next.js-16.1-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Three.js](https://img.shields.io/badge/Three.js-3D%20racks-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-<p align="center">
-  <img src="Screenshoot/mockup-dashboard-dark.png" alt="DataGuard Dashboard Mockup" width="880" />
-</p>
+<img src="Screenshoot/mockup-dashboard-dark.png" alt="DataGuard dashboard" width="880" />
 
 </div>
 
----
+## Contents
 
-## 📌 Why DataGuard?
+- [Why DataGuard](#why-dataguard)
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [Docker deployment](#docker-deployment)
+- [Configuration](#configuration)
+- [Database migrations](#database-migrations)
+- [Testing](#testing)
+- [Security](#security)
+- [Project layout](#project-layout)
+- [License](#license)
 
-Modern data center operations teams often juggle critical assets, equipment audits, incident follow-ups, and compliance requirements across fragmented spreadsheets, chat groups, paper logs, and disparate monitoring tools. This creates audit blind spots, handover vulnerabilities, and compliance audit stress.
+## Why DataGuard
 
-**DataGuard** consolidates the entire physical and technical data center lifecycle into a unified, multi-tenant web platform designed for mission-critical operations:
+Data center teams often track assets, shift inspections, incidents, and compliance evidence in separate spreadsheets, chat groups, and paper logs. That leaves gaps at handover and a lot of manual work before every audit. DataGuard keeps the physical and technical record of each site in one place: what is installed where, how it was cabled, what the last inspection found, which incidents are open, and which threats and vulnerabilities have been assessed.
 
-* **Shift Audits & Health Matrix**: Daily equipment inspections with QR scanning, tamper-evident photo proof, and a 7-day visual audit grid.
-* **ISO/IEC 27001:2022 Compliance Suite**: Turnkey tracking for **Threat Intelligence (A.5.7)** & **Technical Vulnerabilities (A.8.8)** with CVSS v3.1 scoring, multi-evidence timelines, and 1-click executive audit PDF/Excel exports.
-* **Interactive Rack & Layout Builder**: Drag-and-drop equipment placement, collision prevention, U-height verification, and ambient room temperature telemetry.
-* **Network & Port Documentation**: Port speeds, media types, VLAN assignments, port-to-port cross-connects, and interactive visual switch faceplates.
-* **Incident Center & SLA Follow-Up**: Automated incident generation from audit errors, triage workflows, overdue reminders, and verification sign-offs.
-* **Standalone SIEM Engine**: High-throughput UDP 514 syslog ingestion, RFC5424/RFC3164 parsing, rule engines (anomaly, threshold, sequence), and Telegram/Email alerting.
-* **Zero-Downtime Backup & Disaster Recovery**: In-app encrypted full-stack ZIP backup and atomic PostgreSQL dump restoration.
-* **Bilingual & Multi-Site RBAC**: Native English and Indonesian (Bahasa Indonesia) internationalization with strict multi-site tenant isolation (`Superadmin`, `Admin`, `Staff`).
+Each site is isolated, users can only see the sites they are assigned to, and the interface is available in English and Indonesian.
 
----
+## Features
 
-## ⚡ Feature Matrix
+### Daily operations
 
-| Domain | Key Capabilities |
-| --- | --- |
-| **🛡️ ISO 27001 Compliance** | **Control A.5.7 (Threat Intel)** & **Control A.8.8 (Vulnerabilities)** register. Automated CVSS severity calculation, hybrid asset linkage (hardware & software/VMs), multi-photo proof attachments, and formal audit sign-off blocks. |
-| **📊 Executive Reporting** | 1-Click **ISO 27001 Audit PDF** (Landscape A4, executive summary, KPI matrix, mitigation ledger, 3-role auditor signatures) and **Audit Excel (.xlsx)** aligned with auditor requirements. |
-| **📋 Daily Operations Audit** | Shift-based checklist inspections (`Pagi`, `Siang`, `Malam`) with `OK`, `Warning`, and `Error` health states, photo attachments, and full audit logs. |
-| **📅 7-Day Audit Grid** | Color-coded matrix timeline showcasing daily operational health per rack and device across the facility. |
-| **🚨 Incident Center & SLA** | Automatic incident creation from checklist warnings/errors. Due-date SLA tracking, resolution categorization, photo verification timeline, and overdue alert notifications. |
-| **📦 Interactive Rack Layout** | Drag-and-drop rack visualizer with `@dnd-kit`, real-time U-height collision prevention, zone categorization, and room temperature tracking. |
-| **🌐 Network Port Faceplates** | Visual interactive switch & patch panel faceplates, media type (`Copper`, `Fiber`, `DAC`), port modes (`Access`, `Trunk`, `Routed`, `LACP`), and VLAN mapping. |
-| **🔍 SIEM & Syslog Receiver** | Standalone UDP 514 ingestion worker, RFC5424/RFC3164 vendor normalizers (MikroTik, Cisco, Fortigate, Linux), detection rule engine, findings dashboard, and automated log pruning. |
-| **📱 QR Scanner & Remote Links** | In-browser QR camera scanner for instantaneous equipment identification, plus 1-click HTTP, HTTPS, SSH, and Telnet quick-connect buttons. |
-| **⏰ Automated Report Scheduler** | Background worker delivering scheduled daily/weekly/monthly PDF & summary email digests to stakeholders. |
-| **💾 Disaster Recovery** | Superadmin ZIP backup bundling PostgreSQL custom dump and upload assets with atomic wipe-and-restore or append modes. |
-| **🌍 i18n & Multi-Site RBAC** | `next-intl` dual-language support (English & Indonesian) and strict multi-site tenant switching. |
+- Shift checklists (`Pagi`, `Siang`, `Malam`) with `OK`, `Warning`, and `Error` states, photo evidence, and in-browser QR scanning to identify equipment.
+- A 7-day audit grid that shows the health of every rack and device per day.
+- Incidents are created automatically from checklist warnings and errors, with due dates, triage, resolution categories, photo verification, and overdue notifications.
+- Quick-connect links (HTTP, HTTPS, SSH, Telnet) on device pages.
 
----
+### Infrastructure documentation
 
-## 🖼️ Visual Tour
+- Rack layout builder with drag and drop (`@dnd-kit`), U-height collision checks, zones, and room temperature readings.
+- 3D rack and room view (Three.js with React Three Fiber): device faceplates, blinking ports, cable paths, holograms for peer devices in the same room, and rack cards for peers in other rooms.
+- Room layout editor that also places PAC (precision air conditioning) units and UPS models in the room.
+- Device profiles with 2D and 3D location previews.
+- Network documentation: port speed, media type (`Copper`, `Fiber`, `DAC`), port mode (`Access`, `Trunk`, `Routed`, `LACP`), VLAN assignments, port-to-port cross-connects, and interactive switch and patch panel faceplates.
+- Integration with NCM v4 (network configuration manager): device sync, heartbeat checks, and an ingest API.
 
-<div align="center">
+### SIEM
 
-| Operational Dashboard | Interactive Rack Layout |
+- Syslog receiver on UDP 514, TCP 1515, and TLS 6514.
+- Parser worker that normalizes RFC 5424 and RFC 3164 messages, with vendor parsers for MikroTik, Cisco, Fortigate, and Linux.
+- Rule engine with anomaly, threshold, and sequence rules, a findings dashboard, and IOC lists.
+- Alerts by Telegram and email.
+- Optional AI triage of findings through an OpenAI-compatible endpoint.
+- Response actions that are executed as webhooks only after approval (two-person rule).
+- Hourly snapshots for trend history and automatic retention of old events.
+
+### ISO/IEC 27001:2022 evidence
+
+- Threat intelligence register for control A.5.7 and technical vulnerability register for control A.8.8.
+- CVSS v3.1 scoring, links to hardware and software assets (including VMs), multiple evidence attachments, and a lifecycle from Open through In Progress to Mitigated.
+- Audit PDF (landscape A4 with executive summary, KPI matrix, mitigation ledger, and three signature blocks: prepared, reviewed, approved) and an audit Excel workbook.
+
+### Administration
+
+- Sites, locations, brands, categories, device groups, users, and roles (`Superadmin`, `Admin`, `Staff`).
+- Scheduled daily, weekly, and monthly report emails.
+- Superadmin backup and restore: a ZIP with a PostgreSQL custom dump and uploaded files, restored in wipe-and-restore or append mode. A backup scheduler keeps daily, weekly, and monthly copies.
+- Audit log of every critical change, plus an email log.
+
+## Screenshots
+
+| Operational dashboard | Rack layout |
 |:---:|:---:|
-| ![Dashboard](Screenshoot/1.jpg) | ![Rack Layout](Screenshoot/2.jpg) |
+| ![Dashboard](Screenshoot/1.jpg) | ![Rack layout](Screenshoot/2.jpg) |
 
-| SIEM Findings & Signals | 7-Day Audit Grid Matrix |
+| SIEM findings | 7-day audit grid |
 |:---:|:---:|
-| ![SIEM Findings](Screenshoot/3.jpg) | ![Audit Grid](Screenshoot/4.jpg) |
+| ![SIEM findings](Screenshoot/3.jpg) | ![Audit grid](Screenshoot/4.jpg) |
 
-</div>
-
----
-
-## 🏛️ System Architecture
+## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Clients["Presentation & Edge"]
-        Browser["🖥️ Web Browser / PWA (Next.js 16 + React 19)"]
-        Scanner["📱 Mobile / Camera QR Scanner"]
-        SyslogSources["📡 Network Devices / Servers (Syslog UDP:514)"]
+    subgraph Clients
+        Browser["Web browser (Next.js 16 + React 19)"]
+        Scanner["Mobile camera QR scanner"]
+        Sources["Network devices and servers (syslog)"]
+        NCM["NCM v4"]
     end
 
-    subgraph AppServer["Core Application Server (Node.js / Turbopack)"]
-        AppRouter["App Router & Server Actions"]
-        Auth["Session & RBAC Guard (JWT + jose)"]
-        ExportEngines["Audit Export Engine (jsPDF + xlsx)"]
-        UploadHandler["Safe Upload Pipeline (Magic-Byte Guard)"]
+    subgraph App["Application container (dccheck_app, port 3001)"]
+        Router["App Router and server actions"]
+        Auth["Session and RBAC (jose JWT)"]
+        Export["PDF and Excel export"]
+        Upload["Upload pipeline with magic-byte checks"]
     end
 
-    subgraph SIEMWorkers["Asynchronous Background Workers"]
-        SyslogReceiver["UDP 514 Syslog Ingest Engine"]
-        ParserWorker["RFC Normalization & Parser Worker"]
-        RuleWorker["Rule & Correlation Engine"]
-        AlertWorker["Alert Dispatcher (Telegram / SMTP)"]
-        RetentionWorker["Data Lifecycle & Pruning Worker"]
-        ReportWorker["Automated Report Scheduler Worker"]
+    subgraph Workers["Background workers"]
+        Syslog["Syslog receiver"]
+        Parser["Parser"]
+        Rules["Rule engine"]
+        Alerts["Alerts (Telegram, SMTP)"]
+        AI["AI triage"]
+        Response["Response actions"]
+        Retention["Retention and snapshots"]
+        Ops["Overdue incidents, backups, network-doc sync"]
     end
 
-    subgraph Persistence["Storage & Database Layer"]
-        Postgres[("🗄️ PostgreSQL 15+ (Drizzle ORM)")]
-        Volume[("📁 Storage Volume (/uploads & /backups)")]
-    end
+    DB[("PostgreSQL 15 (Drizzle ORM)")]
+    Files[("Uploads and backups volumes")]
 
-    Browser --> Auth
+    Browser --> Auth --> Router
     Scanner --> Auth
-    Auth --> AppRouter
-    AppRouter --> ExportEngines
-    AppRouter --> UploadHandler
-    AppRouter --> Postgres
-    UploadHandler --> Volume
-
-    SyslogSources --> SyslogReceiver
-    SyslogReceiver --> Postgres
-    ParserWorker <--> Postgres
-    RuleWorker <--> Postgres
-    RuleWorker --> AlertWorker
-    AlertWorker --> Browser
-    RetentionWorker <--> Postgres
-    ReportWorker <--> Postgres
-    ReportWorker --> AlertWorker
+    Router --> Export
+    Router --> Upload --> Files
+    Router --> DB
+    NCM <--> Router
+    Sources --> Syslog --> DB
+    Parser <--> DB
+    Rules <--> DB
+    Rules --> Alerts
+    AI <--> DB
+    Response <--> DB
+    Retention <--> DB
+    Ops <--> DB
 ```
 
----
+## Tech stack
 
-## 🛠️ Technology Stack
+| Area | Technology |
+|---|---|
+| Frontend | Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS 4, Lucide icons, next-intl |
+| 3D | three, @react-three/fiber |
+| Backend and data | Server actions, Drizzle ORM, PostgreSQL via `pg` |
+| Auth | Stateless JWT sessions with `jose`, `bcryptjs` |
+| Interaction | `@dnd-kit/core`, `@dnd-kit/sortable` |
+| Reports | `jspdf`, `jspdf-autotable`, `xlsx` |
+| QR | `qrcode`, `html5-qrcode` |
+| Quality | Vitest, TypeScript strict mode, ESLint 9 |
 
-* **Frontend**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack), [React 19](https://react.dev/), [Tailwind CSS v4](https://tailwindcss.com/), [Lucide Icons](https://lucide.dev/)
-* **Backend & ORM**: Node.js Server Actions, [Drizzle ORM](https://orm.drizzle.team/), PostgreSQL via `pg`
-* **Security & Auth**: Stateless JWT via [`jose`](https://github.com/panva/jose), [`bcryptjs`](https://github.com/dcodeIO/bcrypt.js)
-* **Drag-and-Drop & Interactions**: [`@dnd-kit/core`](https://dndkit.com/), [`@dnd-kit/sortable`](https://dndkit.com/)
-* **Document & Report Generation**: [`jspdf`](https://github.com/parallax/jsPDF), [`jspdf-autotable`](https://github.com/simonbengtsson/jsPDF-AutoTable), [`xlsx`](https://sheetjs.com/)
-* **QR Codes & Scanning**: [`qrcode`](https://github.com/soldair/node-qrcode), [`html5-qrcode`](https://github.com/mebjas/html5-qrcode)
-* **Testing & Quality**: [Vitest](https://vitest.dev/), TypeScript Strict Mode (`tsc --noEmit`), ESLint 9
+## Getting started
 
----
-
-## 🚀 Quick Start
-
-### 1. Prerequisites
-* **Node.js**: v20.x or higher
-* **PostgreSQL**: v15.x or higher
-* **npm** or **pnpm**
-
-### 2. Local Setup
+Requirements: Node.js 20 or newer and PostgreSQL 15 or newer.
 
 ```bash
-# Clone the repository
 git clone https://github.com/torpedoliar/DataGuard.git
 cd DataGuard
-
-# Install dependencies
 npm install
-
-# Setup environment variables
-cp .env.example .env
 ```
 
-Edit `.env` and set your database connection and session secret:
+Create a `.env` file:
+
 ```env
 DATABASE_URL="postgresql://username:password@localhost:5432/dccheck"
-SESSION_SECRET="generate-a-secure-secret-with-openssl-rand-base64-32"
+SESSION_SECRET="at-least-32-characters, for example from: openssl rand -base64 32"
+AI_KEY_ENCRYPTION_SECRET="another long random secret"
 ```
 
+Then prepare the database and start the dev server:
+
 ```bash
-# Apply database migrations
-npm run db:migrate
-
-# Seed initial system structure and default admin
-npm run seed
-
-# Start the local development server (Turbopack)
-npm run dev
+npm run db:migrate     # apply migrations from drizzle/
+npm run seed           # base data and the default admin
+npm run dev            # http://localhost:3000
 ```
 
-Open `http://localhost:3000` in your browser.
+The seed creates the user `admin` with the password `password`. Change it right after the first login.
 
-**Default Seeded Credentials:**
-* **Username**: `admin`
-* **Password**: `password`
-*(⚠️ Please change the default password immediately upon first login)*
-
----
-
-## 🐳 Docker Deployment
-
-DataGuard ships with production-ready `Dockerfile` and `docker-compose.yml` configurations orchestrating the core web application, PostgreSQL database, and standalone SIEM background workers.
+## Docker deployment
 
 ```bash
-# Start all services in the background
+cp .env.example.production .env    # fill in DB_*, SESSION_SECRET, AI_KEY_ENCRYPTION_SECRET
 docker compose up -d --build
-
-# Inspect active services
 docker compose ps
-
-# Follow real-time application logs
 docker compose logs -f app
 ```
 
-### Deployed Services
+On a fresh Linux server, `./deploy.sh` brings the stack up in order (database, then the app with schema sync and seed, then the workers) and is safe to run again. On Windows, use `start.bat` or `start-podman.bat` to start and `update.ps1` or `update.bat` to update. The update script never runs `down -v`, never rebuilds or stops the database container, and stops if the database backup fails. [DEPLOYMENT_CONTAINER.md](DEPLOYMENT_CONTAINER.md) explains how to start Docker automatically after a Windows Server reboot.
 
-| Service | Container Name | Host Port | Role |
-| --- | --- | :---: | --- |
-| `app` | `dc-check-app` | `3001` | Next.js 16 Web Server |
-| `db` | `dc-check-db` | `3002` | PostgreSQL Database Service |
-| `syslog-receiver` | `dc-check-syslog` | `514/udp` | High-Throughput Syslog Receiver |
-| `siem-parser` | `dc-check-siem-parser` | - | Syslog Normalization & Parser Worker |
-| `siem-rules` | `dc-check-siem-rules` | - | Detection & Correlation Rule Engine |
-| `siem-alerts` | `dc-check-siem-alerts` | - | Telegram & Email Alert Worker |
-| `siem-retention` | `dc-check-siem-retention` | - | Automatic Event Retention Worker |
+| Service | Container | Host port | Role |
+|---|---|:---:|---|
+| `app` | `dccheck_app` | 3001 | Next.js web server |
+| `db` | `dccheck_postgres` | 3002 | PostgreSQL |
+| `syslog-receiver` | `dccheck_syslog_receiver` | 514/udp, 1515/tcp, 6514/tcp | Syslog intake (plain and TLS) |
+| `siem-parser` | `dccheck_siem_parser` | | Normalization and parsing |
+| `siem-rules` | `dccheck_siem_rules` | | Detection and correlation rules |
+| `siem-alerts` | `dccheck_siem_alerts` | | Telegram and email alerts |
+| `siem-ai` | `dccheck_siem_ai` | | AI triage of findings |
+| `siem-retention` | `dccheck_siem_retention` | | Event retention |
+| `siem-snapshot` | `dccheck_siem_snapshot` | | Hourly trend snapshots |
+| `siem-response` | `dccheck_siem_response` | | Approved response actions |
+| `incidents-overdue-notify` | `dccheck_incidents_overdue_notify` | | Overdue incident reminders |
+| `backup-scheduler` | `dccheck_backup_scheduler` | | Scheduled backups |
+| `network-doc-sync` | `dccheck_network_doc_sync` | | Hourly network documentation sync per site |
 
----
+The TCP and TLS syslog ports can be changed with `SYSLOG_TCP_PORT` and `SYSLOG_TLS_PORT`.
 
-## 📜 ISO/IEC 27001:2022 Compliance Module
+## Configuration
 
-DataGuard provides out-of-the-box audit documentation conforming to international security standards:
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL`, or `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | yes | PostgreSQL connection |
+| `SESSION_SECRET` | yes | Session signing secret, at least 32 characters |
+| `AI_KEY_ENCRYPTION_SECRET` | yes | Encrypts stored AI provider keys. Compose refuses to start without it |
+| `SECURE_COOKIES` | no | Force secure cookies behind HTTPS |
+| `NEXT_PUBLIC_APP_URL`, `DG_PUBLIC_URL` | no | Public URL used in links and emails |
+| `SMTP_URL`, `SMTP_FROM` | no | Outgoing email |
+| `NCM_URL`, `NCM_KEY` | no | NCM v4 connection |
+| `SIEM_AI_ENDPOINT_URL`, `SIEM_AI_API_KEY`, `SIEM_AI_DEFAULT_MODEL` | no | AI triage provider |
+| `BACKUP_DIR`, `BACKUP_SCHEDULE_HOURS`, `BACKUP_RETENTION_DAILY`, `_WEEKLY`, `_MONTHLY` | no | Backup schedule and retention |
+| `PURGE_RETENTION_DAYS` | no | SIEM event retention |
 
-```text
-ISO/IEC 27001:2022 ISMS Controls:
-├── Control A.5.7: Threat Intelligence
-│   ├── Collection, recording, and impact evaluation of threat advisories
-│   └── Source bulletin verification and cross-referencing
-└── Control A.8.8: Management of Technical Vulnerabilities
-    ├── Tracking vulnerability lifecycle (Open → In Progress → Mitigated)
-    ├── Standard CVSS v3.1 calculation (Critical, High, Medium, Low)
-    ├── Multi-evidence repository (Email bulletins, software version dialogs, logs)
-    └── 3-Role Audit Sign-Off Ledger (Prepared, Reviewed, and Approved by Lead Auditor)
-```
+Each worker also accepts a poll interval variable, such as `SIEM_PARSER_POLL_INTERVAL_MS`.
 
-### Executive Audit Report Previews
-* **Audit Excel (.xlsx)**: Directly formatted with standard threat advisory ledgers for external auditor submission.
-* **Audit PDF Report**: Elegant landscape A4 document featuring executive KPI metrics, severity distribution matrices, full mitigation evidence tables, and formal signature authorization boxes.
+## Database migrations
 
----
+Schema changes are hand-written SQL files in `drizzle/` with an entry in `drizzle/meta/_journal.json`, applied with `npm run db:migrate`. Do not run `drizzle-kit generate` or `push`: the snapshot chain in `drizzle/meta/` stops at migration 0023, so a generated migration would try to recreate tables and columns that already exist. [AGENTS.md](AGENTS.md) has the details.
 
-## 🧪 Testing & Quality Assurance
-
-DataGuard maintains rigorous test-driven standards across data pipelines, backup routines, security validations, and UI components:
+## Testing
 
 ```bash
-# Run the complete Vitest test suite
-npm run test
-
-# Run TypeScript compilation check
-npm run typecheck
-
-# Run ESLint analysis
-npm run lint
-
-# Execute full validation pipeline (lint, test, build)
-npm run check
+npm run test         # Vitest suite
+npm run typecheck    # tsc --noEmit
+npm run lint         # ESLint
+npm run check        # lint + test + build
 ```
 
----
+Tests sit next to the code they cover as `*.test.ts` and `*.test.tsx`.
 
-## 🔒 Security Best Practices
+## Security
 
-1. **Session Protection**: Ensure `SESSION_SECRET` is at least 32 characters (`openssl rand -base64 32`).
-2. **Secret Rotation**: Never commit `.env` or production secrets. Use production secret managers or encrypted environment files.
-3. **Upload Sanitization**: Uploaded files undergo extension, MIME type, and magic-byte inspection via `lib/upload.ts` to prevent arbitrary file upload vulnerabilities.
-4. **Audit Trail**: Every critical mutation (user management, rack changes, threat intel updates, backups) is immutably written to the `audit_logs` table.
+- Keep `SESSION_SECRET` at least 32 characters long and never commit `.env` or production secrets.
+- Uploads are checked by extension, MIME type, and magic bytes in `lib/upload.ts`.
+- Critical changes (users, racks, threat intel, backups) are written to the `audit_logs` table.
+- Response actions run only after a second person approves them, and their secrets are kept out of logs.
+- Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
----
+## Project layout
 
-## 📄 License
+```
+app/[locale]/        localized pages: login, site selection, dashboard, checklist, grid, compliance, report, admin
+app/api/             health, metrics, cron, uploads, NCM endpoints
+actions/             server actions (mutations and queries)
+components/          UI grouped by feature, shared UI in components/ui
+db/                  Drizzle schema and connection
+drizzle/             hand-written SQL migrations
+lib/                 domain logic, uploads, sessions, SIEM, reports
+scripts/             migrate, seed, and worker entry points
+messages/            en.json and id.json translations
+```
 
-DataGuard is open-source software released under the **[MIT License](LICENSE)**.
+Contribution guidelines are in [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
----
+## License
 
-<div align="center">
-  <sub>Built with ❤️ for Data Center Engineers, DevOps, and Information Security Teams.</sub>
-</div>
+Released under the [MIT License](LICENSE).
+
+Developed by Yohanes Octavian Rizky ([@torpedoliar](https://github.com/torpedoliar)).
