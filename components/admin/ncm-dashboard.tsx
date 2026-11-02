@@ -1484,7 +1484,7 @@ export default function NcmDashboard({
   isSuperadmin: boolean;
 }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"fleet" | "review" | "credentials">("fleet");
+  const [activeTab, setActiveTab] = useState<"overview" | "switches" | "backups" | "review" | "credentials">("overview");
   const [reviewIdToOpen, setReviewIdToOpen] = useState<number | null>(null);
 
   if (overview.status === "unconfigured") {
@@ -1535,13 +1535,35 @@ export default function NcmDashboard({
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
         <button
           type="button"
-          onClick={() => setActiveTab("fleet")}
+          onClick={() => setActiveTab("overview")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "fleet" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+            activeTab === "overview" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+          }`}
+        >
+          <Activity className="size-4" />
+          <span>Ringkasan</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("switches")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            activeTab === "switches" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
           }`}
         >
           <Server className="size-4" />
-          <span>Fleet Management</span>
+          <span>Switches ({switches.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("backups")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            activeTab === "backups" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+          }`}
+        >
+          <DatabaseBackup className="size-4" />
+          <span>Backup &amp; Baseline</span>
         </button>
 
         <button
@@ -1572,16 +1594,53 @@ export default function NcmDashboard({
           <KeyRound className="size-4" />
           <span>Credentials ({credentials.length})</span>
         </button>
+
+        <Link
+          href="/admin/ncm/history"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg text-slate-400 transition-colors hover:text-white hover:bg-slate-800/60"
+        >
+          <GitCompareArrows className="size-4" />
+          <span>Riwayat Perubahan</span>
+        </Link>
       </div>
 
-      {/* TAB 1: FLEET MANAGEMENT */}
-      {activeTab === "fleet" && (
+      {/* TAB 1: RINGKASAN */}
+      {activeTab === "overview" && (
         <div className="space-y-4">
-          <SwitchArea
-            switches={switches}
-            credentials={credentials}
-            inventoryDevices={inventoryDevices}
-          />
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
+              <div className="font-mono text-2xl font-bold text-ops-accent">{switches.length}</div>
+              <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Switch</div>
+            </div>
+            <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
+              <div className="font-mono text-2xl font-bold text-ops-text">{backups.length}</div>
+              <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Backup</div>
+            </div>
+            <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
+              <div className="font-mono text-2xl font-bold text-ops-text">{baselines.length}</div>
+              <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Golden Baseline</div>
+            </div>
+            <div className="rounded-lg border border-ops-warning/30 bg-ops-warning/5 p-3">
+              <div className="font-mono text-2xl font-bold text-ops-warning">{pendingReviewsCount}</div>
+              <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Review Menunggu</div>
+            </div>
+          </section>
+          <ConnectionArea overview={overview} isSuperadmin={isSuperadmin} />
+        </div>
+      )}
+
+      {/* TAB 2: SWITCHES */}
+      {activeTab === "switches" && (
+        <SwitchArea
+          switches={switches}
+          credentials={credentials}
+          inventoryDevices={inventoryDevices}
+        />
+      )}
+
+      {/* TAB 3: BACKUP & BASELINE */}
+      {activeTab === "backups" && (
+        <div className="space-y-4">
           <BackupArea
             switches={switches}
             jobs={jobs}
@@ -1595,7 +1654,6 @@ export default function NcmDashboard({
             switches={switches}
             onOpenReview={handleOpenReviewFromBaseline}
           />
-          <ConnectionArea overview={overview} isSuperadmin={isSuperadmin} />
         </div>
       )}
 

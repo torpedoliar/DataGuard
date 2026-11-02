@@ -375,17 +375,17 @@ export async function getNcmOverview(): Promise<NcmOverview> {
   }
 }
 
-export type NcmChangeHistoryResult =
+export type NcmChangeOverviewResult =
   | { status: "unconfigured"; message: string }
-  | { status: "online"; reviews: unknown }
+  | { status: "online"; switches: unknown; backups: unknown; baselines: unknown }
   | { status: "offline"; error: string };
 
 /**
- * Riwayat Perubahan — the read-only record of every config change NCM detected
- * on a backup (origin "drift"). These are evidence rows, not attestation
- * tickets, so they never appear in Config Review.
+ * Riwayat Perubahan — source data for the per-switch comparison of the latest
+ * backup against the golden baseline. Only the three collections the comparison
+ * needs are fetched (the full overview also pulls jobs, reviews and credentials).
  */
-export async function getNcmChangeHistoryAction(limit = 200): Promise<NcmChangeHistoryResult> {
+export async function getNcmChangeOverviewAction(): Promise<NcmChangeOverviewResult> {
   const auth = await requireActiveSiteAdminAction();
   if (!auth.ok) return { status: "unconfigured", message: auth.message };
 
@@ -394,12 +394,14 @@ export async function getNcmChangeHistoryAction(limit = 200): Promise<NcmChangeH
     return { status: "unconfigured", message: "NCM belum dikonfigurasi untuk site ini. Hubungi superadmin." };
   }
 
+  const connection = { url: config.url, adminApiKey: config.adminApiKey };
   try {
-    const reviews = await ncmLib.fetchNcmReviews(
-      { url: config.url, adminApiKey: config.adminApiKey },
-      { origin: "drift", limit },
-    );
-    return { status: "online", reviews };
+    const [switches, backups, baselines] = await Promise.all([
+      ncmLib.fetchNcmSwitches(connection),
+      ncmLib.fetchNcmBackups(connection),
+      ncmLib.fetchNcmBaselines(connection),
+    ]);
+    return { status: "online", switches, backups, baselines };
   } catch (error) {
     return { status: "offline", error: error instanceof Error ? error.message : String(error) };
   }

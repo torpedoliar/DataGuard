@@ -731,6 +731,7 @@ export function NcmConfigReview({
 
   // Filters & selection
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [showHistory, setShowHistory] = useState(false);
   const [selected, setSelected] = useState<number | null>(initialSelectedId ?? null);
   const [diff, setDiff] = useState<string | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);
@@ -854,6 +855,18 @@ export function NcmConfigReview({
     if (activeCategory === "all") return parsedDiffRows;
     return parsedDiffRows.filter((r) => r.type !== "equal" && r.category === activeCategory);
   }, [parsedDiffRows, activeCategory]);
+
+  // Completed decisions form the audit trail: when, which switch, by whom.
+  const completedReviews = useMemo(() => {
+    const done = new Set(["approved", "flagged", "dismissed"]);
+    return reviews
+      .filter((r) => done.has(pick(r, "status") || "pending"))
+      .sort((a, b) => {
+        const ta = Date.parse(pick(a, "reviewed_at") || pick(a, "created_at")) || 0;
+        const tb = Date.parse(pick(b, "reviewed_at") || pick(b, "created_at")) || 0;
+        return tb - ta;
+      });
+  }, [reviews]);
 
   const filteredReviews = useMemo(() => {
     if (!statusFilter) return reviews;
@@ -1183,6 +1196,77 @@ export function NcmConfigReview({
           Menampilkan {filteredReviews.length} dari {reviews.length} tiket review
         </span>
       </div>
+
+      {/* 3. RIWAYAT REVIEW - kapan, switch apa, oleh operator siapa */}
+      <section className="ops-panel p-4 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-bold text-ops-text">Riwayat Review</h4>
+            <p className="mt-0.5 text-xs text-ops-muted">
+              Jejak attestation yang sudah diputuskan: tanggal review, switch, keputusan, dan operator.
+            </p>
+          </div>
+          <ActionButton size="sm" variant="secondary" onClick={() => setShowHistory(!showHistory)}>
+            <Clock className="size-3.5" />
+            {showHistory ? "Sembunyikan" : "Tampilkan"} ({completedReviews.length})
+          </ActionButton>
+        </div>
+
+        {showHistory && (
+          <div className="overflow-x-auto rounded-lg border border-ops-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-ops-border text-left text-xs uppercase tracking-wide text-ops-muted">
+                  <th className="px-3 py-2">Tanggal Review</th>
+                  <th className="px-3 py-2">Switch</th>
+                  <th className="px-3 py-2">Keputusan</th>
+                  <th className="px-3 py-2">Operator</th>
+                  <th className="px-3 py-2">Backup</th>
+                  <th className="px-3 py-2">Catatan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {completedReviews.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-6 text-center text-xs text-ops-muted">
+                      Belum ada review yang diputuskan.
+                    </td>
+                  </tr>
+                )}
+                {completedReviews.map((r) => {
+                  const rowId = Number(pick(r, "id"));
+                  const status = pick(r, "status");
+                  const switchName = pick(r, "switch_name") || "#" + pick(r, "switch_id");
+                  const badgeClass =
+                    status === "approved"
+                      ? "border-ops-success/30 bg-ops-success/10 text-ops-success"
+                      : status === "flagged"
+                        ? "border-ops-danger/30 bg-ops-danger/10 text-ops-danger"
+                        : "border-ops-border bg-ops-surface-raised text-ops-muted";
+                  return (
+                    <tr key={rowId} className="border-t border-ops-border">
+                      <td className="px-3 py-2 text-xs text-ops-text">
+                        {formatDate(pick(r, "reviewed_at") || pick(r, "created_at"))}
+                      </td>
+                      <td className="px-3 py-2 text-xs font-semibold text-ops-text">{switchName}</td>
+                      <td className="px-3 py-2">
+                        <span className={"inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold " + badgeClass}>
+                          {STATUS_LABEL[status] ?? status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-ops-text">{pick(r, "reviewed_by_name") || "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-ops-muted">#{pick(r, "backup_id")}</td>
+                      <td className="max-w-xs truncate px-3 py-2 text-xs text-ops-muted" title={pick(r, "comment")}>
+                        {pick(r, "comment") || "-"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {/* 3. REVIEWS TABLE */}
       <div className="overflow-x-auto rounded-lg border border-ops-border bg-ops-surface">
