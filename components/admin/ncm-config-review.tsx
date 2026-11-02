@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -1062,8 +1063,9 @@ export function NcmConfigReview({
               <h3 className="text-base font-bold text-ops-text">Compliance Overview (ISO 27001 A.8.9)</h3>
             </div>
             <p className="mt-1 text-xs text-ops-muted max-w-3xl">
-              Setiap switch memiliki golden baseline; setiap perbedaan (drift) membuka tiket review di sini.
-              Menyediakan bukti kepatuhan manajemen konfigurasi dan audit jejak operasional.
+              Attestation berkala membandingkan backup terakhir setiap switch dengan golden baseline
+              dan membuka tiket review di sini — bukti kepatuhan manajemen konfigurasi (ISO 27001 A.8.9).
+              Catatan otomatis tiap perubahan konfigurasi ada di menu <strong>Riwayat Perubahan</strong>.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1123,6 +1125,13 @@ export function NcmConfigReview({
               <Mail className="size-4 text-ops-info" />
               Kirim Reminder Email
             </ActionButton>
+            <Link
+              href="/admin/ncm/history"
+              className="ops-btn inline-flex h-9 items-center gap-2 rounded-md border border-ops-border px-3 text-xs font-semibold text-ops-text hover:bg-ops-surface-raised"
+            >
+              <GitCompareArrows className="size-4 text-ops-muted" />
+              Riwayat Perubahan
+            </Link>
           </div>
           <ActionButton
             type="button"

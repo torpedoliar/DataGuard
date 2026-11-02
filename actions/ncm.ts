@@ -355,7 +355,9 @@ export async function getNcmOverview(): Promise<NcmOverview> {
       ncmLib.fetchNcmJobs(connection),
       ncmLib.fetchNcmBackups(connection),
       ncmLib.fetchNcmBaselines(connection),
-      ncmLib.fetchNcmReviews(connection, true),
+      // Config Review lists attestation tickets only; per-backup drift records
+      // live in "Riwayat Perubahan" (see getNcmChangeHistoryAction).
+      ncmLib.fetchNcmReviews(connection, { includeNotes: true, excludeOrigin: "drift" }),
       typeof ncmLib.fetchNcmCredentials === "function"
         ? ncmLib.fetchNcmCredentials(connection).catch(() => [])
         : Promise.resolve([]),
@@ -370,6 +372,36 @@ export async function getNcmOverview(): Promise<NcmOverview> {
       lastSeenAt: lastSeen ? lastSeen.toISOString() : null,
       error: error instanceof Error ? error.message : String(error),
     };
+  }
+}
+
+export type NcmChangeHistoryResult =
+  | { status: "unconfigured"; message: string }
+  | { status: "online"; reviews: unknown }
+  | { status: "offline"; error: string };
+
+/**
+ * Riwayat Perubahan — the read-only record of every config change NCM detected
+ * on a backup (origin "drift"). These are evidence rows, not attestation
+ * tickets, so they never appear in Config Review.
+ */
+export async function getNcmChangeHistoryAction(limit = 200): Promise<NcmChangeHistoryResult> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { status: "unconfigured", message: auth.message };
+
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) {
+    return { status: "unconfigured", message: "NCM belum dikonfigurasi untuk site ini. Hubungi superadmin." };
+  }
+
+  try {
+    const reviews = await ncmLib.fetchNcmReviews(
+      { url: config.url, adminApiKey: config.adminApiKey },
+      { origin: "drift", limit },
+    );
+    return { status: "online", reviews };
+  } catch (error) {
+    return { status: "offline", error: error instanceof Error ? error.message : String(error) };
   }
 }
 

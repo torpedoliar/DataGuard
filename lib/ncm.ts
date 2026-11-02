@@ -102,8 +102,42 @@ export async function fetchNcmBackups(config: NcmConnection): Promise<unknown> {
     return ncmGet(config, "backups");
 }
 
-export async function fetchNcmReviews(config: NcmConnection, includeNotes: boolean = false): Promise<unknown> {
-    return ncmGet(config, includeNotes ? "reviews?include_notes=true" : "reviews");
+export type NcmReviewOrigin = "drift" | "cycle" | "manual";
+
+export type NcmReviewQuery = {
+    includeNotes?: boolean;
+    /** Only rows from this origin. */
+    origin?: NcmReviewOrigin;
+    /** Every origin except this one (Config Review uses "drift"). */
+    excludeOrigin?: NcmReviewOrigin;
+    status?: string;
+    switchId?: number;
+    limit?: number;
+    offset?: number;
+};
+
+/**
+ * Reviews. `origin` splits the two ISO/IEC 27001 concerns:
+ *   - "drift"  per-backup change record  -> Riwayat Perubahan (read-only log)
+ *   - "cycle"  periodic attestation run  -> Config Review
+ *   - "manual" on-demand baseline review -> Config Review
+ */
+export async function fetchNcmReviews(
+    config: NcmConnection,
+    query: NcmReviewQuery | boolean = {},
+): Promise<unknown> {
+    // Older call sites pass the bare includeNotes flag.
+    const q: NcmReviewQuery = typeof query === "boolean" ? { includeNotes: query } : query;
+    const params = new URLSearchParams();
+    if (q.includeNotes) params.set("include_notes", "true");
+    if (q.origin) params.set("origin", q.origin);
+    if (q.excludeOrigin) params.set("exclude_origin", q.excludeOrigin);
+    if (q.status) params.set("status", q.status);
+    if (q.switchId !== undefined) params.set("switch_id", String(q.switchId));
+    if (q.limit !== undefined) params.set("limit", String(q.limit));
+    if (q.offset !== undefined) params.set("offset", String(q.offset));
+    const qs = params.toString();
+    return ncmGet(config, qs ? `reviews?${qs}` : "reviews");
 }
 
 export async function fetchNcmJobs(config: NcmConnection): Promise<unknown> {

@@ -214,7 +214,9 @@ export const ncmFleetDeps: NcmFleetDeps = {
 
     async fetchReviews(config) {
         const { fetchNcmReviews } = await import("./ncm");
-        return fetchNcmReviews(config);
+        // The fleet drift list is the per-backup change log (origin "drift"),
+        // never the periodic attestation tickets shown in Config Review.
+        return fetchNcmReviews(config, { origin: "drift" });
     },
 
     async countOpenDriftIncidents(siteId) {

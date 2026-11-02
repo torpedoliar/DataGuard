@@ -46,6 +46,7 @@ const adminItems: NavItem[] = [
   { href: "/admin/network-docs", label: "Network Docs", ns: "AdminMenu", icon: "cable" },
   { href: "/admin/ncm", label: "NCM", ns: "AdminMenu", icon: "router" },
   { href: "/admin/ncm/fleet", label: "NCM Fleet", ns: "AdminMenu", icon: "waypoints" },
+  { href: "/admin/ncm/history", label: "Riwayat Perubahan", ns: "AdminMenu", icon: "history" },
   { href: "/admin/brands", label: "Brands", labelKey: "brands", ns: "AdminMenu", icon: "tag" },
   { href: "/admin/categories", label: "Categories", labelKey: "categories", ns: "AdminMenu", icon: "folder-tree" },
   { href: "/admin/locations", label: "Locations", labelKey: "locations", ns: "AdminMenu", icon: "map-pin" },
