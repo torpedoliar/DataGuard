@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -784,12 +784,16 @@ export function NcmConfigReview({
     };
   }, []);
 
-  // Update selected if initialSelectedId changes
+  // Deep-link selection: applied once per incoming id. Depending on
+  // `selected` here re-opened the panel the moment "Tutup Diff" set it to
+  // null, so the button looked broken.
+  const appliedInitialRef = useRef<number | null>(initialSelectedId ?? null);
   useEffect(() => {
-    if (initialSelectedId && initialSelectedId !== selected) {
+    if (initialSelectedId && initialSelectedId !== appliedInitialRef.current) {
+      appliedInitialRef.current = initialSelectedId;
       setSelected(initialSelectedId);
     }
-  }, [initialSelectedId, selected]);
+  }, [initialSelectedId]);
 
   // Fetch diff when a review is selected
   useEffect(() => {

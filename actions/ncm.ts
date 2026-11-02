@@ -407,6 +407,58 @@ export async function getNcmChangeOverviewAction(): Promise<NcmChangeOverviewRes
   }
 }
 
+export type NcmBackupDiffResult =
+  | { success: true; diff: string }
+  | { success: false; message: string };
+
+/** Unified text diff between two backups (golden baseline vs latest). */
+export async function getNcmBackupDiffAction(leftId: number, rightId: number): Promise<NcmBackupDiffResult> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { success: false, message: auth.message };
+
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) {
+    return { success: false, message: "NCM belum dikonfigurasi untuk site ini. Hubungi superadmin." };
+  }
+
+  try {
+    const diff = await ncmLib.fetchNcmBackupDiff(
+      { url: config.url, adminApiKey: config.adminApiKey },
+      leftId,
+      rightId,
+    );
+    return { success: true, diff };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export type NcmSideBySideDiffResult =
+  | { success: true; data: unknown }
+  | { success: false; message: string };
+
+/** Structured side-by-side rows between two backups. */
+export async function getNcmBackupSideBySideAction(leftId: number, rightId: number): Promise<NcmSideBySideDiffResult> {
+  const auth = await requireActiveSiteAdminAction();
+  if (!auth.ok) return { success: false, message: auth.message };
+
+  const config = await ncmLib.resolveNcmConfig(auth.activeSiteId);
+  if (!config.url || !config.adminApiKey) {
+    return { success: false, message: "NCM belum dikonfigurasi untuk site ini. Hubungi superadmin." };
+  }
+
+  try {
+    const data = await ncmLib.fetchNcmBackupSideBySide(
+      { url: config.url, adminApiKey: config.adminApiKey },
+      leftId,
+      rightId,
+    );
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 /** Detail satu review (diff) untuk tampilan UI. */
 export async function getNcmReviewDetail(reviewId: number): Promise<{ id?: number; diff?: string; message?: string }> {
   const auth = await requireActiveSiteAdminAction();

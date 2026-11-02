@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock, GitCompareArrows, Search, X } from "lucide-react";
 import ActionButton from "@/components/ui/action-button";
-import { getNcmBackupDecodeAction } from "@/actions/ncm";
+import { getNcmBackupDecodeAction, getNcmBackupDiffAction, getNcmBackupSideBySideAction } from "@/actions/ncm";
 
 export type NcmChangeRow = {
   switchId: number;
@@ -69,7 +69,7 @@ function portKey(port: DecodePort): string {
   ].join("|");
 }
 
-function ComparePanel({ baselineId, latestId }: { baselineId: number | null; latestId: number }) {
+function DecodeView({ baselineId, latestId }: { baselineId: number | null; latestId: number }) {
   const [baseline, setBaseline] = useState<DecodedBackup | null>(null);
   const [latest, setLatest] = useState<DecodedBackup | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -254,6 +254,203 @@ function ComparePanel({ baselineId, latestId }: { baselineId: number | null; lat
             <span className="text-ops-danger">Port hilang: {portsRemoved.join(", ")}</span>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+type ViewMode = "side-by-side" | "decode" | "unified";
+
+const VIEW_MODES: { id: ViewMode; label: string }[] = [
+  { id: "side-by-side", label: "Side-by-Side" },
+  { id: "decode", label: "Decode" },
+  { id: "unified", label: "Unified" },
+];
+
+type SideRow = { line_a: number; line_b: number; text_a: string; text_b: string; op: string };
+type SideStats = { added_lines: number; removed_lines: number; changed_lines: number; total_changes: number };
+
+function LoadingRow({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 py-4 text-xs text-ops-muted">
+      <Clock className="size-4 animate-spin text-ops-accent" />
+      {label}
+    </div>
+  );
+}
+
+function ErrorRow({ message }: { message: string }) {
+  return (
+    <div className="rounded border border-ops-danger/30 bg-ops-danger/10 p-3 text-xs text-ops-danger">
+      {message}
+    </div>
+  );
+}
+
+/** Unified text diff of baseline vs latest backup (NCM /backups/diff). */
+function UnifiedView({ leftId, rightId }: { leftId: number; rightId: number }) {
+  const [lines, setLines] = useState<string[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getNcmBackupDiffAction(leftId, rightId)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success) setLines(res.diff.split("\n"));
+        else setError(res.message);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leftId, rightId]);
+
+  if (error) return <ErrorRow message={error} />;
+  if (!lines) return <LoadingRow label="Memuat diff terpadu…" />;
+
+  return (
+    <pre className="max-h-[28rem] overflow-auto rounded border border-ops-border bg-ops-bg p-3 text-[11px] leading-5">
+      {lines.map((line, index) => {
+        const tone =
+          line.startsWith("+") && !line.startsWith("+++")
+            ? "text-ops-success"
+            : line.startsWith("-") && !line.startsWith("---")
+              ? "text-ops-danger"
+              : line.startsWith("@@")
+                ? "text-ops-info"
+                : "text-ops-muted";
+        return (
+          <div key={index} className={tone}>
+            <span className="mr-3 inline-block w-10 select-none text-right opacity-40">{index + 1}</span>
+            {line || " "}
+          </div>
+        );
+      })}
+    </pre>
+  );
+}
+
+/** Structured side-by-side rows (NCM /backups/diff/side-by-side). */
+function SideBySideView({ leftId, rightId }: { leftId: number; rightId: number }) {
+  const [rows, setRows] = useState<SideRow[] | null>(null);
+  const [stats, setStats] = useState<SideStats | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getNcmBackupSideBySideAction(leftId, rightId)
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.success) {
+          setError(res.message);
+          return;
+        }
+        const payload = res.data as { rows?: SideRow[]; stats?: SideStats };
+        setRows(payload.rows ?? []);
+        setStats(payload.stats ?? null);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leftId, rightId]);
+
+  if (error) return <ErrorRow message={error} />;
+  if (!rows) return <LoadingRow label="Memuat perbandingan side-by-side…" />;
+
+  return (
+    <div className="space-y-2">
+      {stats && (
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="rounded border border-ops-success/30 bg-ops-success/10 px-2 py-0.5 font-semibold text-ops-success">
+            +{stats.added_lines} baris
+          </span>
+          <span className="rounded border border-ops-danger/30 bg-ops-danger/10 px-2 py-0.5 font-semibold text-ops-danger">
+            -{stats.removed_lines} baris
+          </span>
+          <span className="rounded border border-ops-warning/30 bg-ops-warning/10 px-2 py-0.5 font-semibold text-ops-warning">
+            ~{stats.changed_lines} diubah
+          </span>
+        </div>
+      )}
+      <div className="max-h-[28rem] overflow-auto rounded border border-ops-border">
+        <table className="w-full table-fixed text-[11px]">
+          <thead>
+            <tr className="border-b border-ops-border bg-ops-surface-raised text-left text-ops-muted">
+              <th className="w-10 px-2 py-1.5">A</th>
+              <th className="px-2 py-1.5">Baseline</th>
+              <th className="w-10 px-2 py-1.5">B</th>
+              <th className="px-2 py-1.5">Backup terakhir</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => {
+              const leftTone = row.op === "delete" || row.op === "replace" ? "bg-ops-danger/10 text-ops-danger" : "text-ops-text";
+              const rightTone = row.op === "insert" || row.op === "replace" ? "bg-ops-success/10 text-ops-success" : "text-ops-text";
+              return (
+                <tr key={index} className="border-t border-ops-border/60 align-top">
+                  <td className="px-2 py-0.5 font-mono text-ops-muted">{row.line_a || ""}</td>
+                  <td className={"px-2 py-0.5 font-mono whitespace-pre-wrap break-all " + leftTone}>
+                    {row.text_a || " "}
+                  </td>
+                  <td className="px-2 py-0.5 font-mono text-ops-muted">{row.line_b || ""}</td>
+                  <td className={"px-2 py-0.5 font-mono whitespace-pre-wrap break-all " + rightTone}>
+                    {row.text_b || " "}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ComparePanel({ baselineId, latestId }: { baselineId: number | null; latestId: number }) {
+  const [mode, setMode] = useState<ViewMode>(baselineId ? "side-by-side" : "decode");
+  const effective: ViewMode = baselineId ? mode : "decode";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center rounded border border-ops-border bg-ops-bg p-0.5 text-[11px]">
+          {VIEW_MODES.map((view) => {
+            const disabled = !baselineId && view.id !== "decode";
+            const active = effective === view.id;
+            return (
+              <button
+                key={view.id}
+                type="button"
+                disabled={disabled}
+                onClick={() => setMode(view.id)}
+                className={
+                  "rounded px-2.5 py-0.5 font-mono transition-colors " +
+                  (active ? "bg-ops-accent text-ops-text font-bold" : "text-ops-muted hover:text-ops-text") +
+                  (disabled ? " cursor-not-allowed opacity-40" : "")
+                }
+              >
+                {view.label}
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[11px] text-ops-muted">
+          baseline #{baselineId ?? "-"} &rarr; backup #{latestId}
+        </span>
+      </div>
+
+      {effective === "decode" && <DecodeView baselineId={baselineId} latestId={latestId} />}
+      {effective === "unified" && baselineId !== null && (
+        <UnifiedView leftId={baselineId} rightId={latestId} />
+      )}
+      {effective === "side-by-side" && baselineId !== null && (
+        <SideBySideView leftId={baselineId} rightId={latestId} />
       )}
     </div>
   );

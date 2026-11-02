@@ -102,6 +102,17 @@ export async function fetchNcmBackups(config: NcmConnection): Promise<unknown> {
     return ncmGet(config, "backups");
 }
 
+/** Unified text diff between two backups (baseline vs latest). */
+export async function fetchNcmBackupDiff(config: NcmConnection, leftId: number, rightId: number): Promise<string> {
+    const text = await ncmRequest(config, "GET", "backups/diff?a=" + leftId + "&b=" + rightId);
+    return typeof text === "string" ? text : "";
+}
+
+/** Structured side-by-side rows + stats between two backups. */
+export async function fetchNcmBackupSideBySide(config: NcmConnection, leftId: number, rightId: number): Promise<unknown> {
+    return ncmGet(config, "backups/diff/side-by-side?a=" + leftId + "&b=" + rightId);
+}
+
 export type NcmReviewOrigin = "drift" | "cycle" | "manual";
 
 export type NcmReviewQuery = {
