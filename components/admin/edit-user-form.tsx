@@ -2,6 +2,7 @@
 
 import { updateUser } from "@/actions/users";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
@@ -30,6 +31,7 @@ export default function EditUserForm({ user, sites, onClose }: EditUserFormProps
     const router = useRouter();
     const [state, action, isPending] = useActionState(updateUser, undefined);
     const [role, setRole] = useState(user.role);
+    useModalDismiss(onClose, true, !isPending);
 
     // Create a set of assigned site IDs for easy checking
     const assignedSiteIds = new Set(user.sites?.map(s => s.id) || []);

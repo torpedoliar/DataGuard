@@ -97,6 +97,10 @@ export function Modal({
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
       event.stopPropagation();
+      // If this shared Modal is nested inside a custom overlay using
+      // useModalDismiss, prevent that document-level stack from also closing
+      // the parent on the same Escape keypress.
+      event.nativeEvent.stopImmediatePropagation();
       onClose();
       return;
     }

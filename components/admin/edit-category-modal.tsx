@@ -1,6 +1,7 @@
 "use client";
 
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Save, X } from "lucide-react";
@@ -23,6 +24,7 @@ export default function EditCategoryModal({ category, onClose, editAction }: Edi
     const editCategoryWithId = editAction.bind(null, category.id);
     const [state, action, isPending] = useActionState(editCategoryWithId, undefined);
     const router = useRouter();
+    useModalDismiss(onClose, true, !isPending);
 
     useEffect(() => {
         if (state?.success) {

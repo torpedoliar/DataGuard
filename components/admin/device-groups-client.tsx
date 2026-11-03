@@ -8,6 +8,7 @@ import StatusBadge from "@/components/ui/status-badge";
 import { DataTable, DataTableBody, DataTableEmpty, DataTableFrame, DataTableHead } from "@/components/ui/data-table";
 import { Edit, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { useTranslations } from "next-intl";
 import clsx from "clsx";
 
@@ -182,6 +183,7 @@ function GroupModal({
   onClose: () => void;
 }) {
   const t = useTranslations("DeviceGroups");
+  useModalDismiss(onClose);
   const [selectedDevices, setSelectedDevices] = useState<Set<number>>(new Set(group?.deviceIds ?? []));
   const [selectedOwners, setSelectedOwners] = useState<Set<number>>(new Set(group?.ownerIds ?? []));
   const [deviceFilter, setDeviceFilter] = useState("");

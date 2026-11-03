@@ -2,6 +2,7 @@
 
 import { updateLocation } from "@/actions/locations";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
@@ -25,6 +26,7 @@ const hintClass = "mt-1 text-xs text-ops-muted";
 export default function EditLocationModal({ location, onClose }: EditLocationModalProps) {
     const [state, action, isPending] = useActionState(updateLocation, undefined);
     const router = useRouter();
+    useModalDismiss(onClose, true, !isPending);
 
     useEffect(() => {
         if (state?.success) {

@@ -11,6 +11,7 @@ import {
   DataTableHead,
 } from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { ArrowDown, ArrowUp, ArrowUpDown, Edit, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
@@ -67,6 +68,7 @@ function formatDate(date: Date | null) {
 function EditSourceModal({ source, devices, onClose }: { source: SiemSourceRow; devices: SiemSourceDeviceOption[]; onClose: () => void }) {
   const router = useRouter();
   const [state, action, isPending] = useActionState(updateSiemSource, undefined);
+  useModalDismiss(onClose, true, !isPending);
 
   useEffect(() => {
     if (state?.success) {

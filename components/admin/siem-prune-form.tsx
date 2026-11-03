@@ -2,6 +2,7 @@
 
 import { pruneEventsBefore, type PruneEventsResult } from "@/actions/siem-events";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Scissors, ShieldCheck, X } from "lucide-react";
 
@@ -30,6 +31,12 @@ export default function SiemPruneForm() {
     },
     initialState,
   );
+  const closeModal = () => {
+    if (isPending) return;
+    setShowModal(false);
+    setConfirmText("");
+  };
+  useModalDismiss(closeModal, showModal, !isPending);
 
   // Open the modal; do not submit yet.
   const handleOpenConfirm = (event: React.FormEvent<HTMLFormElement>) => {
@@ -192,10 +199,7 @@ export default function SiemPruneForm() {
               <ActionButton
                 type="button"
                 variant="secondary"
-                onClick={() => {
-                  setShowModal(false);
-                  setConfirmText("");
-                }}
+                onClick={closeModal}
                 icon={<X className="size-4" />}
               >
                 Cancel

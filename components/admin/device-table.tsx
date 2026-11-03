@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { Fragment, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import clsx from "clsx";
 import DeleteDeviceModal from "./delete-device-modal";
 import EditDeviceForm from "./edit-device-form";
@@ -241,6 +242,8 @@ export default function DeviceTable({
   const [customPort, setCustomPort] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const closeManageDevice = () => { setManageDevice(null); setCustomPort(""); };
+  useModalDismiss(closeManageDevice, manageDevice !== null);
 
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -712,14 +715,14 @@ export default function DeviceTable({
         <PrintQRModal deviceId={printingDevice.id} deviceName={printingDevice.name} onClose={() => setPrintingDevice(null)} />
       )}
       {manageDevice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setManageDevice(null); setCustomPort(""); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={closeManageDevice}>
           <div className="w-full max-w-sm overflow-hidden rounded-lg border border-ops-border bg-ops-surface shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-ops-border bg-ops-surface px-5 py-4">
               <div>
                 <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Manage device</h3>
                 <p className="mt-0.5 text-xs text-ops-muted">{manageDevice.name} ({manageDevice.ipAddress})</p>
               </div>
-              <ActionButton type="button" variant="ghost" size="icon" onClick={() => { setManageDevice(null); setCustomPort(""); }} aria-label="Close" title="Close">
+              <ActionButton type="button" variant="ghost" size="icon" onClick={closeManageDevice} aria-label="Close" title="Close">
                 <X aria-hidden="true" className="size-4" />
               </ActionButton>
             </div>

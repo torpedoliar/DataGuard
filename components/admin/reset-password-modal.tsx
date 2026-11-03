@@ -2,6 +2,7 @@
 
 import { adminResetPassword } from "@/actions/users";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { useActionState, useEffect } from "react";
 import { Loader2, X, Key } from "lucide-react";
 
@@ -21,6 +22,7 @@ const fieldClass = "ops-input h-9 w-full px-3 text-sm";
 
 export default function ResetPasswordModal({ user, onClose }: ResetPasswordModalProps) {
     const [state, action, isPending] = useActionState(adminResetPassword, undefined);
+    useModalDismiss(onClose, true, !isPending);
 
     useEffect(() => {
         if (state?.success) {

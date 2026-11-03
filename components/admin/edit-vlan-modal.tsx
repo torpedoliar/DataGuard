@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateVlan } from "@/actions/network";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { X } from "lucide-react";
 
 const fieldClass = "ops-input h-9 w-full px-3 text-sm";
@@ -23,6 +24,7 @@ export default function EditVlanModal({ vlan, onClose }: { vlan: Vlan; onClose: 
     const [subnet, setSubnet] = useState(vlan.subnet || "");
     const [description, setDescription] = useState(vlan.description || "");
     const [error, setError] = useState<string | null>(null);
+    useModalDismiss(onClose, true, !isPending);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -56,7 +58,7 @@ export default function EditVlanModal({ vlan, onClose }: { vlan: Vlan; onClose: 
                     <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
                         Edit VLAN {vlan.vlanId}
                     </h2>
-                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
                         <X aria-hidden="true" className="size-4" />
                     </ActionButton>
                 </div>

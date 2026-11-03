@@ -4,6 +4,7 @@ import { updateRack } from "@/actions/rack-management";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { X, Server } from "lucide-react";
 
 const fieldClass = "ops-input h-9 w-full px-3 text-sm";
@@ -35,6 +36,7 @@ interface EditRackFormProps {
 export default function EditRackForm({ rack, onClose, locations }: EditRackFormProps) {
     const [state, action, isPending] = useActionState(updateRack, undefined);
     const router = useRouter();
+    useModalDismiss(onClose, true, !isPending);
     const isPresetU = [42, 45, 47, 48, 30, 24, 12, 9, 4].includes(rack.totalU ?? 42);
     const [customU, setCustomU] = useState(!isPresetU);
     // Same stale-boolean hazard as add-rack-form: guard on the result object
@@ -57,7 +59,7 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
                         <Server className="size-4 text-ops-accent" />
                         <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Edit rack</h2>
                     </div>
-                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
                         <X aria-hidden="true" className="size-4" />
                     </ActionButton>
                 </div>

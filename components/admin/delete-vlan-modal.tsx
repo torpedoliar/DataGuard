@@ -4,11 +4,13 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteVlan } from "@/actions/network";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { AlertTriangle, X } from "lucide-react";
 
 export default function DeleteVlanModal({ vlan, onClose }: { vlan: { id: number; vlanId: number; name: string }; onClose: () => void }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
+    useModalDismiss(onClose);
 
     const handleDelete = () => {
         startTransition(async () => {
@@ -26,7 +28,7 @@ export default function DeleteVlanModal({ vlan, onClose }: { vlan: { id: number;
                         <AlertTriangle className="size-4 text-ops-danger" />
                         Delete VLAN
                     </h2>
-                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
                         <X aria-hidden="true" className="size-4" />
                     </ActionButton>
                 </div>

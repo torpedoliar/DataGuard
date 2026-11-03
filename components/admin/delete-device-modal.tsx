@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { deleteDevice, getDeviceDeletionUsage, type DeviceDeletionUsageInfo } from "@/actions/master-data";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { X, AlertTriangle, Info } from "lucide-react";
 
 interface DeleteDeviceModalProps {
@@ -23,6 +24,7 @@ export default function DeleteDeviceModal({
     const [isChecking, setIsChecking] = useState(false);
     const [error, setError] = useState("");
     const [usageInfo, setUsageInfo] = useState<DeviceDeletionUsageInfo | null>(null);
+    useModalDismiss(onClose, true, !isDeleting);
 
     // "Check Device Usage" is a strictly read-only preflight: it reports
     // dependency counts and a checklist history preview and never mutates
@@ -81,7 +83,7 @@ export default function DeleteDeviceModal({
                         </div>
                         <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Delete device</h3>
                     </div>
-                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
                         <X aria-hidden="true" className="size-4" />
                     </ActionButton>
                 </div>

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getPortsByDevice, updatePort } from "@/actions/network";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { X, Settings2 } from "lucide-react";
 
 type Vlan = { id: number; vlanId: number; name: string };
@@ -60,6 +61,7 @@ export default function EditPortModal({
     const [description, setDescription] = useState(port.description || "");
 
     const [error, setError] = useState<string | null>(null);
+    useModalDismiss(onClose, true, !isPending);
 
     // Load the target device's ports so the pair can be filled from this side.
     useEffect(() => {
@@ -117,7 +119,7 @@ export default function EditPortModal({
                         <Settings2 className="size-4 text-ops-accent" />
                         Modify port {port.portName}
                     </h2>
-                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
                         <X aria-hidden="true" className="size-4" />
                     </ActionButton>
                 </div>

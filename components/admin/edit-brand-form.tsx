@@ -2,6 +2,7 @@
 
 import { updateBrand } from "@/actions/brands";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, X } from "lucide-react";
@@ -26,6 +27,7 @@ export default function EditBrandForm({ brand, onClose }: EditBrandFormProps) {
     const [removeLogo, setRemoveLogo] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
+    useModalDismiss(onClose, true, !isPending);
 
     useEffect(() => {
         if (state?.success) {

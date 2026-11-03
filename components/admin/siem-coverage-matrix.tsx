@@ -3,6 +3,7 @@
 import { toggleSiemRule } from "@/actions/siem-settings";
 import { ATTACK_TACTIC_INFO, ATTACK_TECHNIQUE_INFO, ISO_CONTROL_INFO } from "@/lib/siem/coverage-reference";
 import { X } from "lucide-react";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
@@ -145,6 +146,7 @@ type Selection = { kind: "tactic"; tactic: string } | { kind: "control"; control
 export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCoverageMatrix }) {
   const { stats } = matrix;
   const [selected, setSelected] = useState<Selection>(null);
+  useModalDismiss(() => setSelected(null), selected !== null);
   // Local toggle overrides so the modal reflects a switch immediately; the
   // router.refresh() behind it re-renders the server-computed matrix.
   const [overrides, setOverrides] = useState<Map<number, boolean>>(new Map());

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deletePort } from "@/actions/network";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { AlertTriangle, X } from "lucide-react";
 
 type Port = { id: number; portName: string };
@@ -12,6 +13,7 @@ export default function DeletePortModal({ port, onClose }: { port: Port; onClose
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
+    useModalDismiss(onClose, true, !isPending);
 
     const handleDelete = () => {
         setError(null);
@@ -34,7 +36,7 @@ export default function DeletePortModal({ port, onClose }: { port: Port; onClose
                         <AlertTriangle className="size-4 text-ops-danger" />
                         Delete port
                     </h2>
-                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} disabled={isPending} aria-label="Close" title="Close">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} disabled={isPending} aria-label="Close dialog" title="Close">
                         <X aria-hidden="true" className="size-4" />
                     </ActionButton>
                 </div>

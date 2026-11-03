@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addPort } from "@/actions/network";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { Plus, X } from "lucide-react";
 
 type Vlan = { id: number; vlanId: number; name: string };
@@ -38,6 +39,7 @@ export default function QuickAddPortModal({
     const [vlanId, setVlanId] = useState("");
     const [description, setDescription] = useState("");
     const [error, setError] = useState<string | null>(null);
+    useModalDismiss(onClose, true, !isPending);
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
@@ -82,7 +84,7 @@ export default function QuickAddPortModal({
                             Port ini akan dipasang ke slot fisik {slotNumber} pada faceplate.
                         </p>
                     </div>
-                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Tutup" title="Tutup">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
                         <X aria-hidden="true" className="size-4" />
                     </ActionButton>
                 </div>

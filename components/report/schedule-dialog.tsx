@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { createReportSchedule, updateReportSchedule } from "@/actions/report-schedules";
 import type { ReportScheduleItem } from "@/lib/report-schedules";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { CalendarClock, Check, X } from "lucide-react";
 
 interface ScheduleDialogProps {
@@ -28,6 +29,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
     const actionToUse = isEdit && updateActionWithId ? updateActionWithId : createReportSchedule;
 
     const [state, action, isPending] = useActionState(actionToUse, undefined);
+    useModalDismiss(onClose, isOpen);
 
     const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">(
         (schedule?.frequency as "daily" | "weekly" | "monthly") || "weekly"
@@ -42,8 +44,8 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="relative w-full max-w-xl rounded-xl border border-ops-border bg-ops-surface shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-150 sm:items-center">
+            <div className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-ops-border bg-ops-surface shadow-2xl">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-ops-border bg-ops-panel px-6 py-4">
                     <div className="flex items-center gap-2.5">
@@ -69,7 +71,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                 </div>
 
                 {/* Form */}
-                <form action={action} className="flex flex-col gap-4 p-6 text-sm">
+                <form action={action} className="flex min-h-0 flex-col gap-4 overflow-y-auto p-6 text-sm">
                     {state?.message && !state.success && (
                         <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-3 text-xs text-ops-danger">
                             {state.message}

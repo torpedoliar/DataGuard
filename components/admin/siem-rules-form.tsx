@@ -3,6 +3,7 @@
 import { updateSiemRuleDetail, updateSiemRules } from "@/actions/siem-settings";
 import ActionButton from "@/components/ui/action-button";
 import StatusBadge from "@/components/ui/status-badge";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { getIncidentSeverityTone } from "@/lib/ui/status";
 import { KNOWN_GROUP_BY_FIELDS, KNOWN_NORMALIZED_TYPES, KNOWN_TAGS } from "@/lib/siem/rule-form-reference";
 import { siemSeverities, type SiemSeverity } from "@/lib/siem/types";
@@ -38,6 +39,7 @@ function arrayOf(value: unknown): string[] {
 function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => void }) {
   const router = useRouter();
   const [state, action, isPending] = useActionState(updateSiemRuleDetail, undefined);
+  useModalDismiss(onClose, true, !isPending);
   const initialTypes = arrayOf(rule.conditions?.normalizedTypes);
   const initialTags = arrayOf(rule.conditions?.tags);
 

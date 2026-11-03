@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { generateDeviceQR } from "@/actions/qr";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import { X, Printer, Loader2, QrCode } from "lucide-react";
 
 interface PrintQRModalProps {
@@ -15,6 +16,7 @@ export default function PrintQRModal({ deviceId, deviceName, onClose }: PrintQRM
     const [qrData, setQrData] = useState<{ url: string; scanLink: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    useModalDismiss(onClose, true, true);
 
     useEffect(() => {
         async function fetchQR() {
@@ -104,7 +106,7 @@ export default function PrintQRModal({ deviceId, deviceName, onClose }: PrintQRM
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
             <div className="relative w-full max-w-sm rounded-lg border border-ops-border bg-ops-surface shadow-xl">
                 <div className="absolute right-3 top-3">
-                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
                         <X aria-hidden="true" className="size-4" />
                     </ActionButton>
                 </div>

@@ -5,6 +5,7 @@ import { getCategories, updateDevice } from "@/actions/master-data";
 import { getOccupiedSlots, getRacks } from "@/actions/rack-management";
 import { getDeviceGroupOptions } from "@/actions/device-groups";
 import ActionButton from "@/components/ui/action-button";
+import { useModalDismiss } from "@/components/ui/use-modal-dismiss";
 import FormSection from "@/components/ui/form-section";
 import { Server, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -95,6 +96,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<number>>(new Set());
   const [state, action, isPending] = useActionState(updateDevice, undefined);
   const router = useRouter();
+  useModalDismiss(onClose, true, !isPending);
 
   useEffect(() => {
     getCategories().then(setCategories);
@@ -136,7 +138,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
               <p className="mt-0.5 text-[13px] text-ops-muted">{device.name}</p>
             </div>
           </div>
-          <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} title="Close">
+          <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
             <X className="size-4" />
           </ActionButton>
         </div>
