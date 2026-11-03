@@ -513,10 +513,6 @@ export default function AppShell({
 
               <div className="mx-1 hidden h-5 w-px bg-ops-border sm:block" aria-hidden />
 
-              <ActionButton href="/audit/new" size="sm" icon={<ClipboardCheck />} className="hidden sm:inline-flex">
-                {tNav("newAudit")}
-              </ActionButton>
-
               <div className="relative ml-1">
                 <button
                   type="button"

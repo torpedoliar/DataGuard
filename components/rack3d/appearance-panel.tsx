@@ -119,7 +119,7 @@ export function AppearancePanel({ locationId, value, onPreview, onSaved, onClose
 
             <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={onClose} className="rounded-md border border-ops-border px-3 py-1.5 text-ops-text hover:bg-ops-bg">Cancel</button>
-                <button type="button" onClick={save} disabled={saving} className="flex items-center gap-1.5 rounded-md bg-ops-accent px-3 py-1.5 font-medium text-white disabled:opacity-60">
+                <button type="button" onClick={save} disabled={saving} className="flex items-center gap-1.5 rounded-md bg-ops-accent px-3 py-1.5 font-medium text-ops-accent-fg disabled:opacity-60">
                     {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Save
                 </button>
             </div>

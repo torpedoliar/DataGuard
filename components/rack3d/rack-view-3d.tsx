@@ -549,7 +549,7 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
                 {troubled.length > 0 && !alertOpen && (
                     <button
                         onClick={() => setAlertOpen(true)}
-                        className={`absolute bottom-3 z-10 flex items-center gap-1.5 rounded-lg bg-ops-danger px-3 py-1.5 text-sm font-semibold text-white shadow hover:opacity-90 ${panelOpen ? "right-[calc(24rem+0.75rem)]" : "right-3"}`}
+                        className={`absolute bottom-3 z-10 flex items-center gap-1.5 rounded-lg bg-ops-danger px-3 py-1.5 text-sm font-semibold text-ops-status-fg shadow hover:opacity-90 ${panelOpen ? "right-[calc(24rem+0.75rem)]" : "right-3"}`}
                     >
                         <TriangleAlert className="h-4 w-4" /> {troubled.length} critical
                     </button>

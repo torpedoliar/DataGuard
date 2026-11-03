@@ -65,7 +65,6 @@ export default async function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('theme');var c=document.cookie.match(/(?:^|; )theme=([^;]*)/);var v=t||(c?c[1]:null);if(v){var d=v==='dark';document.documentElement.classList.toggle('dark',d);if(!c||c[1]!==v){document.cookie='theme='+v+';path=/;max-age=31536000;SameSite=Lax';}}else{var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;var d=m!==false;document.documentElement.classList.toggle('dark',d);localStorage.setItem('theme',d?'dark':'light');document.cookie='theme='+(d?'dark':'light')+';path=/;max-age=31536000;SameSite=Lax';}}catch(e){}})();`,
           }}
         />
-        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>
       <body className="font-sans antialiased bg-ops-bg text-ops-text min-h-dvh flex flex-col">
         <a href="#main-content" className="sr-only focus:absolute focus:z-50 focus:rounded-bl-lg focus:border-2 focus:border-ops-accent focus:bg-ops-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ops-accent">Skip to content</a>

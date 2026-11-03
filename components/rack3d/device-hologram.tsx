@@ -283,7 +283,7 @@ export function DeviceHologram({ device, ports, loading, error = false, deviceOp
                         <button
                             type="button"
                             onClick={() => setLinkTarget(selectedSlot.port)}
-                            className="flex items-center gap-1 rounded-md bg-ops-accent px-2 py-1 font-semibold text-white hover:opacity-90"
+                            className="flex items-center gap-1 rounded-md bg-ops-accent px-2 py-1 font-semibold text-ops-accent-fg hover:opacity-90"
                         >
                             <Link2 className="size-3" /> Edit link
                         </button>
@@ -389,7 +389,7 @@ function PortLinkDialog({ port, deviceOptions, onClose, onSaved }: {
             {error && <p role="alert" className="text-[11px] text-ops-danger">{error}</p>}
             <div className="flex justify-end gap-2">
                 <button type="button" onClick={onClose} className="rounded-md border border-ops-border px-2 py-1 text-ops-text hover:bg-ops-surface-raised">Cancel</button>
-                <button type="button" onClick={save} disabled={saving || !targetDeviceId || !targetPortId} className="rounded-md bg-ops-accent px-2 py-1 font-semibold text-white disabled:opacity-60">
+                <button type="button" onClick={save} disabled={saving || !targetDeviceId || !targetPortId} className="rounded-md bg-ops-accent px-2 py-1 font-semibold text-ops-accent-fg disabled:opacity-60">
                     {saving ? "Saving…" : "Save link"}
                 </button>
             </div>

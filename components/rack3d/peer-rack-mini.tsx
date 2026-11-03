@@ -38,7 +38,7 @@ export default function PeerRackMini({ rack, peerId }: { rack: SceneRack; peerId
                     focused
                     faded={false}
                     showFree={false}
-                    accent="#5eead4"
+                    accent="#0e7f6e"
                     colorBy="category"
                     selectedDeviceId={peerId}
                     peerDeviceId={null}

@@ -48,7 +48,7 @@ export interface RackSceneProps {
 }
 
 // Mirrors --color-ops-accent in app/globals.css (light / dark).
-const ACCENT = { light: "#0d9488", dark: "#5eead4" };
+const ACCENT = { light: "#0e7f6e", dark: "#3cc4a8" };
 
 // R3F's default pointer math reads `offsetX`, which is relative to whatever DOM
 // node the event targeted. The hologram card and the tooltip wrappers sit inside

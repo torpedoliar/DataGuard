@@ -115,7 +115,7 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
             </mesh>
             {labelled && (
                 <Html center position={[0, 0, 0.21]} style={{ pointerEvents: "none" }} zIndexRange={[30, 0]}>
-                    <div className="whitespace-nowrap rounded bg-emerald-600/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">{range.size}U free</div>
+                    <div className="whitespace-nowrap rounded-sm bg-ops-success px-1.5 py-0.5 text-[10px] font-medium text-ops-status-fg">{range.size}U free</div>
                 </Html>
             )}
         </group>

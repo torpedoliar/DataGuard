@@ -42,6 +42,10 @@ export default function CommandPalette({
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        if (open) {
+          setQuery("");
+          setActive(0);
+        }
         onOpenChange(!open);
       }
     };
@@ -51,8 +55,6 @@ export default function CommandPalette({
 
   useEffect(() => {
     if (!open) return;
-    setQuery("");
-    setActive(0);
     const frame = requestAnimationFrame(() => inputRef.current?.focus());
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -74,9 +76,15 @@ export default function CommandPalette({
 
   if (!open || typeof document === "undefined") return null;
 
+  const close = () => {
+    setQuery("");
+    setActive(0);
+    onOpenChange(false);
+  };
+
   const run = (item: CommandItem | undefined) => {
     if (!item) return;
-    onOpenChange(false);
+    close();
     item.run();
   };
 
@@ -91,7 +99,7 @@ export default function CommandPalette({
     <div
       className="fixed inset-0 z-[60] flex animate-fade-in items-start justify-center bg-black/40 px-4 pt-[12vh] backdrop-blur-[2px]"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onOpenChange(false);
+        if (event.target === event.currentTarget) close();
       }}
     >
       <div
@@ -102,7 +110,11 @@ export default function CommandPalette({
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault();
-            onOpenChange(false);
+            close();
+          } else if (event.key === "Tab") {
+            // The search field is the only focusable control in this dialog.
+            event.preventDefault();
+            inputRef.current?.focus();
           } else if (event.key === "ArrowDown") {
             event.preventDefault();
             setActive((value) => (filtered.length ? (value + 1) % filtered.length : 0));

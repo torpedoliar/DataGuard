@@ -48,7 +48,7 @@ export function PeerRackCard({ rack, peer, portName, onMove, onClose }: {
                 <button
                     type="button"
                     onClick={onMove}
-                    className="flex w-full items-center justify-center gap-1 rounded-md bg-ops-accent px-2 py-1 text-xs font-semibold text-white hover:opacity-90"
+                    className="flex w-full items-center justify-center gap-1 rounded-md bg-ops-accent px-2 py-1 text-xs font-semibold text-ops-accent-fg hover:opacity-90"
                 >
                     <ExternalLink className="size-3" /> Move to location
                 </button>
