@@ -111,14 +111,14 @@ export default async function NcmChangeHistoryPage() {
       : [];
 
   return (
-    <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
+    <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
       <PageHeader
-        eyebrow="Admin / Network"
-        title="Riwayat Perubahan"
+        eyebrow="Admin / NCM"
+        title="Change history"
         description="Perbandingan backup terakhir setiap switch dengan golden baseline-nya. Switch yang berbeda ditandai, dan tiap baris bisa dibuka sebagai perbandingan decode VLAN & port."
       />
       {result.status !== "online" && (
-        <div className="rounded-lg border border-ops-warning/30 bg-ops-warning/10 p-3 text-sm text-ops-warning">
+        <div className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">
           {"message" in result ? result.message : "NCM tidak dapat dihubungi: " + result.error}
         </div>
       )}

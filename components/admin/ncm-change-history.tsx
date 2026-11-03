@@ -3,6 +3,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock, GitCompareArrows, Search, X } from "lucide-react";
 import ActionButton from "@/components/ui/action-button";
+import StatsCard from "@/components/ui/stats-card";
+import { DataTableEmpty } from "@/components/ui/data-table";
 import { getNcmBackupDecodeAction, getNcmBackupDiffAction, getNcmBackupSideBySideAction } from "@/actions/ncm";
 
 export type NcmChangeRow = {
@@ -53,10 +55,10 @@ function formatDateShort(value: string | null): string {
 }
 
 const STATE_META: Record<NcmChangeRow["state"], { label: string; className: string }> = {
-  changed: { label: "BERUBAH", className: "border-ops-warning/40 bg-ops-warning/15 text-ops-warning" },
-  clean: { label: "SAMA", className: "border-ops-success/40 bg-ops-success/15 text-ops-success" },
-  "no-baseline": { label: "TANPA BASELINE", className: "border-ops-muted/40 bg-ops-surface-raised text-ops-muted" },
-  "no-backup": { label: "BELUM ADA BACKUP", className: "border-ops-danger/40 bg-ops-danger/10 text-ops-danger" },
+  changed: { label: "BERUBAH", className: "border-ops-warning/25 bg-ops-warning-soft text-ops-warning" },
+  clean: { label: "SAMA", className: "border-ops-success/25 bg-ops-success-soft text-ops-success" },
+  "no-baseline": { label: "TANPA BASELINE", className: "border-ops-border-strong bg-ops-surface-raised text-ops-muted" },
+  "no-backup": { label: "BELUM ADA BACKUP", className: "border-ops-danger/25 bg-ops-danger-soft text-ops-danger" },
 };
 
 function portKey(port: DecodePort): string {
@@ -114,7 +116,7 @@ function DecodeView({ baselineId, latestId }: { baselineId: number | null; lates
 
   if (error || !latest) {
     return (
-      <div className="rounded border border-ops-danger/30 bg-ops-danger/10 p-3 text-xs text-ops-danger">
+      <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
         {error || "Data decode tidak tersedia."}
       </div>
     );
@@ -123,7 +125,7 @@ function DecodeView({ baselineId, latestId }: { baselineId: number | null; lates
   if (!baseline) {
     return (
       <div className="space-y-2 text-xs">
-        <div className="rounded border border-ops-warning/30 bg-ops-warning/10 p-3 text-ops-warning">
+        <div className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">
           Switch ini belum punya golden baseline. Yang ditampilkan hanya hasil decode backup terakhir.
         </div>
         <div className="text-ops-muted">
@@ -162,13 +164,13 @@ function DecodeView({ baselineId, latestId }: { baselineId: number | null; lates
   return (
     <div className="space-y-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded border border-ops-success/30 bg-ops-success/10 px-2 py-0.5 font-semibold text-ops-success">
+        <span className="rounded-sm border border-ops-success/25 bg-ops-success-soft px-2 py-0.5 font-semibold text-ops-success">
           +{vlansAdded.length + portsAdded.length} ditambah
         </span>
-        <span className="rounded border border-ops-danger/30 bg-ops-danger/10 px-2 py-0.5 font-semibold text-ops-danger">
+        <span className="rounded-sm border border-ops-danger/25 bg-ops-danger-soft px-2 py-0.5 font-semibold text-ops-danger">
           −{vlansRemoved.length + portsRemoved.length} dihapus
         </span>
-        <span className="rounded border border-ops-warning/30 bg-ops-warning/10 px-2 py-0.5 font-semibold text-ops-warning">
+        <span className="rounded-sm border border-ops-warning/25 bg-ops-warning-soft px-2 py-0.5 font-semibold text-ops-warning">
           ~{portsChanged.length} port berubah
         </span>
         <span className="text-ops-muted">
@@ -177,14 +179,14 @@ function DecodeView({ baselineId, latestId }: { baselineId: number | null; lates
       </div>
 
       {identical && (
-        <div className="flex items-center gap-2 rounded border border-ops-success/30 bg-ops-success/10 p-3 text-ops-success">
+        <div className="flex items-center gap-2 rounded-md border border-ops-success/25 bg-ops-success-soft px-3 py-2.5 text-[13px] text-ops-success">
           <CheckCircle2 className="size-4" />
           <span>Konfigurasi (VLAN, port, hostname) identik dengan baseline.</span>
         </div>
       )}
 
       {hostnameChanged && (
-        <div className="rounded border border-ops-warning/30 bg-ops-warning/10 p-2.5">
+        <div className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px]">
           Hostname: <span className="text-ops-danger line-through">{baseline.hostname || "—"}</span>
           {" → "}
           <span className="font-semibold text-ops-success">{latest.hostname || "—"}</span>
@@ -192,7 +194,7 @@ function DecodeView({ baselineId, latestId }: { baselineId: number | null; lates
       )}
 
       {vlansAdded.length > 0 && (
-        <div className="rounded border border-ops-success/30 bg-ops-success/10 p-2.5">
+        <div className="rounded-md border border-ops-success/25 bg-ops-success-soft px-3 py-2.5 text-[13px]">
           <span className="font-semibold text-ops-success">VLAN ditambahkan: </span>
           <span className="text-ops-text">
             {vlansAdded.map((v) => "VLAN " + v.id + (v.name ? " (" + v.name + ")" : "")).join(", ")}
@@ -201,7 +203,7 @@ function DecodeView({ baselineId, latestId }: { baselineId: number | null; lates
       )}
 
       {vlansRemoved.length > 0 && (
-        <div className="rounded border border-ops-danger/30 bg-ops-danger/10 p-2.5">
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px]">
           <span className="font-semibold text-ops-danger">VLAN dihapus: </span>
           <span className="text-ops-text">
             {vlansRemoved.map((v) => "VLAN " + v.id + (v.name ? " (" + v.name + ")" : "")).join(", ")}
@@ -211,7 +213,7 @@ function DecodeView({ baselineId, latestId }: { baselineId: number | null; lates
 
       {portsChanged.length > 0 && (
         <div className="space-y-1.5">
-          <span className="font-semibold text-ops-text">Port berubah ({portsChanged.length})</span>
+          <span className="text-[13px] font-semibold text-ops-text">Port berubah ({portsChanged.length})</span>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {portsChanged.map((entry) => {
               const fields: [string, string, string][] = [
@@ -228,14 +230,14 @@ function DecodeView({ baselineId, latestId }: { baselineId: number | null; lates
               ];
               const diffs = fields.filter(([, from, to]) => from !== to);
               return (
-                <div key={entry.name} className="rounded border border-ops-border bg-ops-surface-raised p-2.5">
+                <div key={entry.name} className="ops-panel-subtle p-2.5">
                   <div className="mb-1 font-semibold text-ops-accent">{entry.name}</div>
                   {diffs.map(([label, from, to]) => (
                     <div key={label} className="flex items-center gap-1.5 text-[11px]">
                       <span className="w-24 shrink-0 text-ops-muted">{label}</span>
-                      <span className="rounded bg-ops-danger/15 px-1.5 text-ops-danger">{from}</span>
+                      <span className="rounded-sm bg-ops-danger/15 px-1.5 text-ops-danger">{from}</span>
                       <span className="text-ops-muted">→</span>
-                      <span className="rounded bg-ops-success/15 px-1.5 font-semibold text-ops-success">{to}</span>
+                      <span className="rounded-sm bg-ops-success/15 px-1.5 font-semibold text-ops-success">{to}</span>
                     </div>
                   ))}
                 </div>
@@ -281,7 +283,7 @@ function LoadingRow({ label }: { label: string }) {
 
 function ErrorRow({ message }: { message: string }) {
   return (
-    <div className="rounded border border-ops-danger/30 bg-ops-danger/10 p-3 text-xs text-ops-danger">
+    <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
       {message}
     </div>
   );
@@ -312,7 +314,7 @@ function UnifiedView({ leftId, rightId }: { leftId: number; rightId: number }) {
   if (!lines) return <LoadingRow label="Memuat diff terpadu…" />;
 
   return (
-    <pre className="max-h-[28rem] overflow-auto rounded border border-ops-border bg-ops-bg p-3 text-[11px] leading-5">
+    <pre className="max-h-[28rem] overflow-auto rounded-md border border-ops-border bg-ops-surface-sunken p-3 font-mono text-[11px] leading-5 tabular-nums">
       {lines.map((line, index) => {
         const tone =
           line.startsWith("+") && !line.startsWith("+++")
@@ -367,38 +369,38 @@ function SideBySideView({ leftId, rightId }: { leftId: number; rightId: number }
     <div className="space-y-2">
       {stats && (
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
-          <span className="rounded border border-ops-success/30 bg-ops-success/10 px-2 py-0.5 font-semibold text-ops-success">
+          <span className="rounded-sm border border-ops-success/25 bg-ops-success-soft px-2 py-0.5 font-semibold text-ops-success">
             +{stats.added_lines} baris
           </span>
-          <span className="rounded border border-ops-danger/30 bg-ops-danger/10 px-2 py-0.5 font-semibold text-ops-danger">
+          <span className="rounded-sm border border-ops-danger/25 bg-ops-danger-soft px-2 py-0.5 font-semibold text-ops-danger">
             -{stats.removed_lines} baris
           </span>
-          <span className="rounded border border-ops-warning/30 bg-ops-warning/10 px-2 py-0.5 font-semibold text-ops-warning">
+          <span className="rounded-sm border border-ops-warning/25 bg-ops-warning-soft px-2 py-0.5 font-semibold text-ops-warning">
             ~{stats.changed_lines} diubah
           </span>
         </div>
       )}
-      <div className="max-h-[28rem] overflow-auto rounded border border-ops-border">
+      <div className="max-h-[28rem] overflow-auto rounded-md border border-ops-border">
         <table className="w-full table-fixed text-[11px]">
-          <thead>
-            <tr className="border-b border-ops-border bg-ops-surface-raised text-left text-ops-muted">
+          <thead className="sticky top-0 z-[1] border-b border-ops-border bg-ops-surface-raised text-xs font-medium text-ops-muted">
+            <tr className="text-left">
               <th className="w-10 px-2 py-1.5">A</th>
               <th className="px-2 py-1.5">Baseline</th>
               <th className="w-10 px-2 py-1.5">B</th>
               <th className="px-2 py-1.5">Backup terakhir</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-ops-border [&>tr:hover]:bg-ops-surface-raised/60">
             {rows.map((row, index) => {
               const leftTone = row.op === "delete" || row.op === "replace" ? "bg-ops-danger/10 text-ops-danger" : "text-ops-text";
               const rightTone = row.op === "insert" || row.op === "replace" ? "bg-ops-success/10 text-ops-success" : "text-ops-text";
               return (
-                <tr key={index} className="border-t border-ops-border/60 align-top">
-                  <td className="px-2 py-0.5 font-mono text-ops-muted">{row.line_a || ""}</td>
+                <tr key={index} className="align-top">
+                  <td className="px-2 py-0.5 font-mono tabular-nums text-ops-muted">{row.line_a || ""}</td>
                   <td className={"px-2 py-0.5 font-mono whitespace-pre-wrap break-all " + leftTone}>
                     {row.text_a || " "}
                   </td>
-                  <td className="px-2 py-0.5 font-mono text-ops-muted">{row.line_b || ""}</td>
+                  <td className="px-2 py-0.5 font-mono tabular-nums text-ops-muted">{row.line_b || ""}</td>
                   <td className={"px-2 py-0.5 font-mono whitespace-pre-wrap break-all " + rightTone}>
                     {row.text_b || " "}
                   </td>
@@ -419,7 +421,7 @@ function ComparePanel({ baselineId, latestId }: { baselineId: number | null; lat
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center rounded border border-ops-border bg-ops-bg p-0.5 text-[11px]">
+        <div className="flex items-center rounded-md border border-ops-border bg-ops-surface-sunken p-0.5 text-[11px]">
           {VIEW_MODES.map((view) => {
             const disabled = !baselineId && view.id !== "decode";
             const active = effective === view.id;
@@ -430,8 +432,8 @@ function ComparePanel({ baselineId, latestId }: { baselineId: number | null; lat
                 disabled={disabled}
                 onClick={() => setMode(view.id)}
                 className={
-                  "rounded px-2.5 py-0.5 font-mono transition-colors " +
-                  (active ? "bg-ops-accent text-ops-accent-fg font-bold" : "text-ops-muted hover:text-ops-text") +
+                  "rounded-sm px-2.5 py-0.5 font-mono transition-colors " +
+                  (active ? "bg-ops-accent font-medium text-ops-accent-fg" : "text-ops-muted hover:text-ops-text") +
                   (disabled ? " cursor-not-allowed opacity-40" : "")
                 }
               >
@@ -440,7 +442,7 @@ function ComparePanel({ baselineId, latestId }: { baselineId: number | null; lat
             );
           })}
         </div>
-        <span className="text-[11px] text-ops-muted">
+        <span className="text-[11px] tabular-nums text-ops-muted">
           baseline #{baselineId ?? "-"} &rarr; backup #{latestId}
         </span>
       </div>
@@ -481,28 +483,16 @@ export function NcmChangeHistory({ rows }: { rows: NcmChangeRow[] }) {
   }, [rows, query, filter]);
 
   return (
-    <div className="space-y-4">
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-lg border border-ops-warning/30 bg-ops-warning/5 p-3">
-          <div className="font-mono text-2xl font-bold text-ops-warning">{stats.changed}</div>
-          <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Switch berubah</div>
-        </div>
-        <div className="rounded-lg border border-ops-success/30 bg-ops-success/5 p-3">
-          <div className="font-mono text-2xl font-bold text-ops-success">{stats.clean}</div>
-          <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Sama dengan baseline</div>
-        </div>
-        <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-          <div className="font-mono text-2xl font-bold text-ops-text">{stats.noBaseline}</div>
-          <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Tanpa baseline</div>
-        </div>
-        <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-          <div className="font-mono text-2xl font-bold text-ops-text">{stats.total}</div>
-          <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Total switch dipantau</div>
-        </div>
+    <div className="flex flex-col gap-4">
+      <section className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatsCard label="Switch berubah" value={stats.changed} tone="warning" icon={<AlertTriangle />} />
+        <StatsCard label="Sama dengan baseline" value={stats.clean} tone="success" icon={<CheckCircle2 />} />
+        <StatsCard label="Tanpa baseline" value={stats.noBaseline} tone="neutral" icon={<Clock />} />
+        <StatsCard label="Total switch dipantau" value={stats.total} tone="accent" icon={<GitCompareArrows />} />
       </section>
 
       {stats.changed > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-ops-warning/30 bg-ops-warning/10 p-3 text-xs text-ops-warning">
+        <div className="flex items-start gap-2 rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <span>
             <strong>{stats.changed} switch</strong> konfigurasinya berbeda dari golden baseline — lihat baris
@@ -511,7 +501,7 @@ export function NcmChangeHistory({ rows }: { rows: NcmChangeRow[] }) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ops-border bg-ops-surface-raised p-3">
+      <div className="ops-panel-subtle flex flex-wrap items-center justify-between gap-3 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2">
             <Search className="size-4 text-ops-muted" />
@@ -539,10 +529,10 @@ export function NcmChangeHistory({ rows }: { rows: NcmChangeRow[] }) {
         </span>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-ops-border bg-ops-surface">
+      <div className="ops-panel overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-ops-border text-left text-xs uppercase tracking-wide text-ops-muted">
+          <thead className="sticky top-0 z-[1] border-b border-ops-border bg-ops-surface-raised text-xs font-medium text-ops-muted">
+            <tr className="text-left">
               <th className="px-3 py-2.5">Switch</th>
               <th className="px-3 py-2.5">Model</th>
               <th className="px-3 py-2.5">Baseline</th>
@@ -551,13 +541,9 @@ export function NcmChangeHistory({ rows }: { rows: NcmChangeRow[] }) {
               <th className="px-3 py-2.5 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-ops-border bg-ops-surface [&>tr:hover]:bg-ops-surface-raised/60">
             {visible.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-sm text-ops-muted">
-                  Tidak ada switch yang cocok dengan filter.
-                </td>
-              </tr>
+              <DataTableEmpty colSpan={6} title="Tidak ada switch yang cocok dengan filter." />
             )}
             {visible.map((row) => {
               const isOpen = openId === row.switchId;
@@ -566,9 +552,9 @@ export function NcmChangeHistory({ rows }: { rows: NcmChangeRow[] }) {
                 <Fragment key={row.switchId}>
                   <tr
                     className={
-                      "border-t border-ops-border transition-colors " +
-                      (row.state === "changed" ? "bg-ops-warning/5 " : "") +
-                      (isOpen ? "bg-ops-surface-raised" : "hover:bg-ops-surface-raised")
+                      "transition-colors " +
+                      (row.state === "changed" ? "bg-ops-warning-soft/40 " : "") +
+                      (isOpen ? "bg-ops-surface-raised" : "")
                     }
                   >
                     <td className="px-3 py-2.5">
@@ -578,7 +564,7 @@ export function NcmChangeHistory({ rows }: { rows: NcmChangeRow[] }) {
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-ops-muted">{row.model || "—"}</td>
-                    <td className="px-3 py-2.5 text-xs text-ops-text">
+                    <td className="px-3 py-2.5 text-xs tabular-nums text-ops-text">
                       {row.baselineBackupId ? (
                         <span>
                           #{row.baselineBackupId}
@@ -588,7 +574,7 @@ export function NcmChangeHistory({ rows }: { rows: NcmChangeRow[] }) {
                         <span className="text-ops-muted">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-ops-text">
+                    <td className="px-3 py-2.5 text-xs tabular-nums text-ops-text">
                       {row.latestBackupId ? (
                         <span>
                           #{row.latestBackupId}
@@ -599,7 +585,7 @@ export function NcmChangeHistory({ rows }: { rows: NcmChangeRow[] }) {
                       )}
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className={"inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold " + meta.className}>
+                      <span className={"inline-flex items-center rounded-sm border px-2 py-0.5 text-[11px] font-semibold " + meta.className}>
                         {meta.label}
                       </span>
                     </td>
@@ -620,9 +606,9 @@ export function NcmChangeHistory({ rows }: { rows: NcmChangeRow[] }) {
                   </tr>
                   {isOpen && row.latestBackupId && (
                     <tr>
-                      <td colSpan={6} className="border-t border-ops-border bg-ops-surface-raised p-4">
+                      <td colSpan={6} className="bg-ops-surface-raised p-4">
                         <div className="mb-2 flex items-center justify-between">
-                          <span className="text-xs font-semibold text-ops-text">
+                          <span className="text-[13px] font-semibold text-ops-text">
                             Perbandingan decode — {row.switchName}
                           </span>
                           <button type="button" onClick={() => setOpenId(null)} className="text-ops-muted hover:text-ops-text">

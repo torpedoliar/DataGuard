@@ -24,10 +24,10 @@ export default async function NcmFleetPage() {
   }));
 
   return (
-    <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
+    <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
       <PageHeader
-        eyebrow="Admin / Network"
-        title="NCM Fleet"
+        eyebrow="Admin / NCM"
+        title="NCM fleet"
         description="Status heartbeat dan review drift terbuka untuk semua site NCM dalam satu layar. Data diambil langsung dari tiap site saat halaman dibuka."
       />
       <NcmFleetDashboard snapshot={snapshot} />

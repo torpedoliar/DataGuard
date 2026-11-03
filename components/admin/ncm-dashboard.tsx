@@ -24,6 +24,8 @@ import {
   WifiOff,
 } from "lucide-react";
 import ActionButton from "@/components/ui/action-button";
+import StatsCard from "@/components/ui/stats-card";
+import { DataTableEmpty } from "@/components/ui/data-table";
 import {
   addNcmCredential,
   addNcmSwitch,
@@ -95,9 +97,11 @@ function formatBytes(bytes: unknown): string {
   return `${(num / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const cardClass = "rounded-lg border border-ops-border/50 bg-ops-surface/40 p-4";
-const inputClass = "h-9 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white";
-const labelClass = "space-y-1 text-sm font-medium text-ops-muted";
+const cardClass = "ops-panel p-4";
+const inputClass = "ops-input h-9 w-full px-3 text-sm";
+const labelClass = "space-y-1 text-[13px] font-medium text-ops-muted";
+const tableHeadClass = "sticky top-0 z-[1] border-b border-ops-border bg-ops-surface-raised text-xs font-medium text-ops-muted";
+const tableBodyClass = "divide-y divide-ops-border bg-ops-surface [&>tr:hover]:bg-ops-surface-raised/60";
 
 const PROTOCOLS = [
   { value: "ssh", label: "SSH (CLI: Cisco / ATI / Ruijie / Generic)", defaultPort: 22 },
@@ -115,8 +119,8 @@ function ResultBanner({ state }: { state: NcmWriteResult | null | undefined }) {
   const ok = "success" in state && state.success;
   return (
     <div
-      className={`rounded-lg border p-3 text-sm ${
-        ok ? "border-ops-success/20 bg-ops-success-soft text-ops-success" : "border-ops-danger/20 bg-ops-danger-soft text-ops-danger"
+      className={`rounded-md border px-3 py-2.5 text-[13px] ${
+        ok ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : "border-ops-danger/25 bg-ops-danger-soft text-ops-danger"
       }`}
     >
       {state.message}
@@ -140,14 +144,14 @@ function SectionHeader({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2">
-        <span className="flex size-8 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">{icon}</span>
+        <span className="flex size-8 items-center justify-center rounded-md bg-ops-accent-soft text-ops-accent">{icon}</span>
         <div>
-          <h2 className="text-sm font-semibold text-white">{title}</h2>
-          <p className="text-xs text-ops-muted">{subtitle}</p>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">{title}</h2>
+          <p className="text-[13px] text-ops-muted">{subtitle}</p>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {meta && <span className="text-xs text-ops-muted">{meta}</span>}
+        {meta && <span className="text-xs tabular-nums text-ops-muted">{meta}</span>}
         {actions}
       </div>
     </div>
@@ -312,10 +316,10 @@ function SwitchArea({
       <ResultBanner state={credState} />
       {syncBanner && (
         <div
-          className={`rounded-lg border p-3 text-sm flex items-center justify-between ${
+          className={`flex items-center justify-between rounded-md border px-3 py-2.5 text-[13px] ${
             syncBanner.success
-              ? "border-ops-success/20 bg-ops-success-soft text-ops-success"
-              : "border-ops-danger/20 bg-ops-danger-soft text-ops-danger"
+              ? "border-ops-success/25 bg-ops-success-soft text-ops-success"
+              : "border-ops-danger/25 bg-ops-danger-soft text-ops-danger"
           }`}
         >
           <span>{syncBanner.message}</span>
@@ -325,11 +329,11 @@ function SwitchArea({
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-ops-border">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-ops-muted">
-              <th className="py-2 pr-3">Nama &amp; Seri</th>
+          <thead className={tableHeadClass}>
+            <tr className="text-left">
+              <th className="py-2 pl-3 pr-3">Nama &amp; Seri</th>
               <th className="py-2 pr-3">IP Address</th>
               <th className="py-2 pr-3">Protokol</th>
               <th className="py-2 pr-3">Port</th>
@@ -337,9 +341,9 @@ function SwitchArea({
               <th className="py-2 pr-3 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className={tableBodyClass}>
             {switches.length === 0 && (
-              <tr><td colSpan={6} className="py-3 text-sm text-ops-muted">Belum ada switch terdaftar.</td></tr>
+              <DataTableEmpty colSpan={6} title="Belum ada switch terdaftar." />
             )}
             {switches.map((sw) => {
               const id = pick(sw, "id", "switch_id", "switchId");
@@ -348,17 +352,17 @@ function SwitchArea({
               const isEditingRow = editingId === id;
               return (
                 <Fragment key={id}>
-                <tr className={`border-t border-ops-border ${isEditingRow ? "bg-ops-accent/5" : ""}`}>
-                  <td className="py-2 pr-3">
-                    <div className="font-semibold text-white">{pick(sw, "name", "hostname") || "-"}</div>
+                <tr className={isEditingRow ? "bg-ops-accent-soft" : undefined}>
+                  <td className="py-2 pl-3 pr-3">
+                    <div className="font-semibold text-ops-text">{pick(sw, "name", "hostname") || "-"}</div>
                     {model && <div className="text-xs text-ops-muted">{model}</div>}
                   </td>
-                  <td className="py-2 pr-3 font-mono text-xs text-ops-muted">{pick(sw, "ip_address", "ip", "host") || "-"}</td>
-                  <td className="py-2 pr-3 text-ops-muted font-mono text-xs">{pick(sw, "protocol") || "-"}</td>
-                  <td className="py-2 pr-3 text-ops-muted font-mono text-xs">{pick(sw, "port") || "-"}</td>
+                  <td className="py-2 pr-3 font-mono text-xs tabular-nums text-ops-muted">{pick(sw, "ip_address", "ip", "host") || "-"}</td>
+                  <td className="py-2 pr-3 font-mono text-xs text-ops-muted">{pick(sw, "protocol") || "-"}</td>
+                  <td className="py-2 pr-3 font-mono text-xs tabular-nums text-ops-muted">{pick(sw, "port") || "-"}</td>
                   <td className="py-2 pr-3 text-ops-muted">
                     {credName ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-ops-surface-raised px-2 py-0.5 text-xs text-ops-muted border border-ops-border">
+                      <span className="inline-flex items-center gap-1 rounded-sm border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-xs text-ops-muted">
                         <KeyRound className="size-3 text-ops-accent" />
                         {credName}
                       </span>
@@ -390,10 +394,10 @@ function SwitchArea({
                 </tr>
                 {isEditingRow && (
                 <tr>
-                  <td colSpan={6} className="border-t border-ops-accent/30 bg-ops-accent/5 px-3 py-3">
+                  <td colSpan={6} className="border-t border-ops-accent/25 bg-ops-accent-soft px-3 py-3">
                     <form key={id} action={editAction} className="grid gap-3 md:grid-cols-4">
                       <input type="hidden" name="id" value={id} />
-                      <div className="md:col-span-4 text-xs font-semibold uppercase tracking-wider text-ops-accent">
+                      <div className="text-[13px] font-semibold text-ops-accent md:col-span-4">
                         Edit Switch #{id} — {pick(sw, "name", "hostname")}
                       </div>
                       <label className={labelClass}>Nama<input name="name" defaultValue={pick(sw, "name", "hostname")} required className={inputClass} /></label>
@@ -442,16 +446,16 @@ function SwitchArea({
       </div>
 
       {/* FORM TAMBAH SWITCH LENGKAP */}
-      <form action={addAction} className="space-y-3 rounded-lg border border-ops-border bg-ops-surface/60 p-4 pt-3">
-        <div className="flex items-center gap-2 border-b border-ops-border pb-2 text-xs font-semibold uppercase tracking-wider text-ops-text">
+      <form action={addAction} className="ops-panel-subtle space-y-3 p-4">
+        <div className="flex items-center gap-2 border-b border-ops-border pb-2">
           <Plus className="size-4 text-ops-accent" />
-          <span>Tambah Switch Baru</span>
+          <span className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Tambah Switch Baru</span>
         </div>
 
         {/* 1. Ambil dari Inventory DC-Check */}
-        <div className="rounded-lg border border-ops-border/60 bg-ops-surface/40 p-3 space-y-2">
+        <div className="space-y-2 rounded-md border border-ops-border bg-ops-surface p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-ops-text">
+            <span className="text-[13px] font-medium text-ops-text">
               Ambil Data dari Inventory DC-Check (Opsional)
             </span>
             {inventoryDevices.length > 0 && (
@@ -469,13 +473,13 @@ function SwitchArea({
                 placeholder="Ketik untuk mencari perangkat inventory (nama, IP, brand, model)..."
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}
-                className="h-9 w-full rounded-lg border border-ops-border bg-ops-surface pl-9 pr-8 text-xs text-white placeholder:text-ops-subtle focus:border-ops-accent focus:outline-none"
+                className="ops-input h-9 w-full pl-9 pr-8 text-xs placeholder:text-ops-subtle"
               />
               {inventorySearch && (
                 <button
                   type="button"
                   onClick={() => setInventorySearch("")}
-                  className="absolute right-2.5 top-2 text-xs text-ops-subtle hover:text-white"
+                  className="absolute right-2.5 top-2 text-xs text-ops-subtle hover:text-ops-text"
                   title="Bersihkan pencarian"
                 >
                   ✕
@@ -509,14 +513,14 @@ function SwitchArea({
             </select>
 
             {selectedInventoryId && (
-              <div className="flex items-center justify-between rounded border border-ops-success/25 bg-ops-success-soft px-2.5 py-1 text-xs text-ops-success">
+              <div className="flex items-center justify-between rounded-md border border-ops-success/25 bg-ops-success-soft px-2.5 py-1 text-[13px] text-ops-success">
                 <span>
                   ✓ Terpilih: <b>{switchName}</b> {switchIp ? `(${switchIp})` : ""}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleSelectInventory("")}
-                  className="ml-2 text-[11px] text-ops-muted underline hover:text-white"
+                  className="ml-2 text-[11px] text-ops-muted underline hover:text-ops-text"
                 >
                   Batal pilih
                 </button>
@@ -586,9 +590,9 @@ function SwitchArea({
         </div>
 
         {/* 3. Pengaturan Kredensial Backup */}
-        <div className="rounded-lg border border-ops-border/60 bg-ops-surface/40 p-3 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-            <span className="font-semibold text-ops-text">Pengaturan Credential Backup:</span>
+        <div className="space-y-3 rounded-md border border-ops-border bg-ops-surface p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-[13px]">
+            <span className="font-medium text-ops-text">Pengaturan Credential Backup:</span>
             <div className="flex items-center gap-4">
               {credentials.length > 0 && (
                 <label className="flex items-center gap-1.5 cursor-pointer text-ops-muted">
@@ -681,10 +685,10 @@ function SwitchArea({
 
       {/* ROTATE CREDENTIALS MODAL */}
       {credFor && (
-        <form action={credAction} className="grid gap-3 rounded-lg border border-ops-accent/30 bg-ops-accent/5 p-4 md:grid-cols-3">
+        <form action={credAction} className="grid gap-3 rounded-md border border-ops-accent/25 bg-ops-accent-soft p-4 md:grid-cols-3">
           <input type="hidden" name="switchId" value={pick(credFor, "id", "switch_id", "switchId")} />
           <p className="text-sm text-ops-muted md:col-span-3">
-            Rotasi kredensial untuk <span className="font-semibold text-white">{pick(credFor, "name", "hostname") || `#${pick(credFor, "id")}`}</span>. Password diteruskan ke NCM dan tidak pernah disimpan di database DG.
+            Rotasi kredensial untuk <span className="font-semibold text-ops-text">{pick(credFor, "name", "hostname") || `#${pick(credFor, "id")}`}</span>. Password diteruskan ke NCM dan tidak pernah disimpan di database DG.
           </p>
           <label className={labelClass}>Username<input name="username" required autoComplete="off" className={inputClass} /></label>
           <label className={labelClass}>Password<input name="password" type="password" required autoComplete="new-password" className={inputClass} /></label>
@@ -757,11 +761,11 @@ function CredentialArea({
       <ResultBanner state={editState} />
       <ResultBanner state={delState} />
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-ops-border">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-ops-muted">
-              <th className="py-2 pr-3">ID</th>
+          <thead className={tableHeadClass}>
+            <tr className="text-left">
+              <th className="py-2 pl-3 pr-3">ID</th>
               <th className="py-2 pr-3">Nama Profil</th>
               <th className="py-2 pr-3">Username Login</th>
               <th className="py-2 pr-3">Digunakan Oleh Switch</th>
@@ -769,9 +773,9 @@ function CredentialArea({
               <th className="py-2 pr-3 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className={tableBodyClass}>
             {credentials.length === 0 && (
-              <tr><td colSpan={6} className="py-3 text-sm text-ops-muted">Belum ada profil kredensial tersimpan di NCM.</td></tr>
+              <DataTableEmpty colSpan={6} title="Belum ada profil kredensial tersimpan di NCM." />
             )}
             {credentials.map((c) => {
               const id = pick(c, "id");
@@ -782,9 +786,9 @@ function CredentialArea({
               const dateStr = formatDate(pick(c, "updated_at", "created_at"));
 
               return (
-                <tr key={id} className="border-t border-ops-border">
-                  <td className="py-2 pr-3 font-mono font-medium text-white">#{id}</td>
-                  <td className="py-2 pr-3 font-semibold text-white">{name}</td>
+                <tr key={id}>
+                  <td className="py-2 pl-3 pr-3 font-mono font-medium tabular-nums text-ops-text">#{id}</td>
+                  <td className="py-2 pr-3 font-semibold text-ops-text">{name}</td>
                   <td className="py-2 pr-3 font-mono text-xs text-ops-muted">{username}</td>
                   <td className="py-2 pr-3">
                     {inUse ? (
@@ -792,7 +796,7 @@ function CredentialArea({
                         {usingSwitches.map((sw) => (
                           <span
                             key={pick(sw, "id")}
-                            className="inline-flex items-center rounded bg-ops-surface-raised border border-ops-border px-1.5 py-0.5 text-xs text-ops-text"
+                            className="inline-flex items-center rounded-sm border border-ops-border bg-ops-surface-raised px-1.5 py-0.5 text-xs text-ops-text"
                           >
                             {pick(sw, "name", "hostname")}
                           </span>
@@ -802,7 +806,7 @@ function CredentialArea({
                       <span className="text-xs text-ops-muted italic">Belum digunakan</span>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-ops-muted text-xs">{dateStr}</td>
+                  <td className="py-2 pr-3 text-xs tabular-nums text-ops-muted">{dateStr}</td>
                   <td className="py-2 pr-3">
                     <div className="flex justify-end gap-1">
                       <ActionButton
@@ -862,9 +866,9 @@ function CredentialArea({
 
       {/* MODAL EDIT KREDENSIAL */}
       {editingCred && (
-        <form action={editAction} className="grid gap-3 rounded-lg border border-ops-accent/30 bg-ops-accent/5 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <form action={editAction} className="grid gap-3 rounded-md border border-ops-accent/25 bg-ops-accent-soft p-4 sm:grid-cols-2 lg:grid-cols-4">
           <input type="hidden" name="credId" value={pick(editingCred, "id")} />
-          <div className="sm:col-span-2 lg:col-span-4 text-xs font-semibold uppercase tracking-wider text-ops-accent">
+          <div className="text-[13px] font-semibold text-ops-accent sm:col-span-2 lg:col-span-4">
             Edit Profil Kredensial #{pick(editingCred, "id")}
           </div>
           <label className={labelClass}>
@@ -991,7 +995,7 @@ function BackupArea({
 
       {/* LIVE ANIMATED BACKUP PROGRESS WIDGET */}
       {isBackup && (
-        <div className="rounded-xl border border-ops-warning/50 bg-ops-warning-soft p-5 space-y-3 ncm-backup-glow shadow-lg shadow-ops-warning/10">
+        <div className="ncm-backup-glow space-y-3 rounded-lg border border-ops-warning/25 bg-ops-warning-soft p-5 shadow-[var(--shadow-raised)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <span className="relative flex size-4">
@@ -999,21 +1003,21 @@ function BackupArea({
                 <span className="relative inline-flex rounded-full size-4 bg-ops-warning"></span>
               </span>
               <div>
-                <h4 className="text-sm font-bold text-ops-warning">
+                <h4 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-warning">
                   Sedang Menjalankan Backup Switch: {triggeredSwitch ? pick(triggeredSwitch, "name", "hostname") : "Perangkat Terpilih"}
                 </h4>
-                <p className="text-xs text-ops-warning/80">
+                <p className="text-[13px] text-ops-warning/80">
                   NCM sedang menghubungi switch via protocol jaringan, mengunduh running-config, dan menghitung hash delta...
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 rounded bg-ops-warning-soft px-3 py-1 font-mono text-xs font-bold text-ops-warning border border-ops-warning/30">
+            <div className="flex items-center gap-2 rounded-sm border border-ops-warning/25 bg-ops-warning-soft px-3 py-1 font-mono text-xs font-semibold tabular-nums text-ops-warning">
               <Clock className="size-3.5 animate-spin text-ops-warning" />
               <span>00:{String(backupElapsed).padStart(2, "0")}</span>
             </div>
           </div>
 
-          <div className="h-2.5 w-full rounded-full bg-ops-surface overflow-hidden border border-ops-warning/30">
+          <div className="h-2.5 w-full overflow-hidden rounded-full border border-ops-warning/30 bg-ops-surface">
             <div className="h-full w-full ncm-backup-stripes bg-ops-warning rounded-full" />
           </div>
 
@@ -1027,10 +1031,10 @@ function BackupArea({
       {/* BACKUP RESULT BANNER */}
       {backupState && !isBackup && (
         <div
-          className={`rounded-lg border p-3.5 text-sm flex items-center justify-between ${
+          className={`flex items-center justify-between rounded-md border px-3 py-2.5 text-[13px] ${
             backupState.success
-              ? "border-ops-success/30 bg-ops-success-soft text-ops-success"
-              : "border-ops-danger/30 bg-ops-danger-soft text-ops-danger"
+              ? "border-ops-success/25 bg-ops-success-soft text-ops-success"
+              : "border-ops-danger/25 bg-ops-danger-soft text-ops-danger"
           }`}
         >
           <div className="flex items-center gap-2.5">
@@ -1044,20 +1048,20 @@ function BackupArea({
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-ops-border">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-ops-muted">
-              <th className="py-2 pr-3">Backup</th>
+          <thead className={tableHeadClass}>
+            <tr className="text-left">
+              <th className="py-2 pl-3 pr-3">Backup</th>
               <th className="py-2 pr-3">Switch &amp; Seri</th>
               <th className="py-2 pr-3">Dibuat</th>
               <th className="py-2 pr-3">Ukuran</th>
               <th className="py-2 pr-3 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className={tableBodyClass}>
             {backups.length === 0 && (
-              <tr><td colSpan={5} className="py-3 text-sm text-ops-muted">Belum ada backup.</td></tr>
+              <DataTableEmpty colSpan={5} title="Belum ada backup." />
             )}
             {backups.map((bk) => {
               const id = pick(bk, "id", "backup_id", "backupId");
@@ -1070,32 +1074,32 @@ function BackupArea({
               const review = reviewByBackupId.get(Number(id));
 
               return (
-                <tr key={id} className="border-t border-ops-border">
-                  <td className="py-2 pr-3">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono font-medium text-white">#{id}</span>
+                <tr key={id}>
+                  <td className="py-2 pl-3 pr-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-mono font-medium tabular-nums text-ops-text">#{id}</span>
                       {isGolden && (
-                        <span className="inline-flex items-center gap-1 rounded bg-ops-warning-soft border border-ops-warning/40 px-1.5 py-0.5 text-[10px] font-bold text-ops-warning">
+                        <span className="inline-flex items-center gap-1 rounded-sm border border-ops-warning/25 bg-ops-warning-soft px-1.5 py-0.5 text-[10px] font-medium text-ops-warning">
                           ★ GOLDEN
                         </span>
                       )}
                       {review?.status === "approved" && (
-                        <span className="inline-flex items-center gap-1 rounded bg-ops-success-soft border border-ops-success/30 px-1.5 py-0.5 text-[10px] font-semibold text-ops-success">
+                        <span className="inline-flex items-center gap-1 rounded-sm border border-ops-success/25 bg-ops-success-soft px-1.5 py-0.5 text-[10px] font-medium text-ops-success">
                           ✓ Approved
                         </span>
                       )}
                     </div>
                   </td>
                   <td className="py-2 pr-3">
-                    <div className="font-semibold text-white">{switchName}</div>
+                    <div className="font-semibold text-ops-text">{switchName}</div>
                     {switchModel ? (
                       <div className="text-xs text-ops-muted">{switchModel}</div>
                     ) : (
                       <div className="text-[11px] text-ops-subtle font-mono">ID: #{swId}</div>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-ops-muted">{formatDate(pick(bk, "created_at", "createdAt", "taken_at"))}</td>
-                  <td className="py-2 pr-3 text-ops-muted font-mono text-xs">{sizeFormatted}</td>
+                  <td className="py-2 pr-3 tabular-nums text-ops-muted">{formatDate(pick(bk, "created_at", "createdAt", "taken_at"))}</td>
+                  <td className="py-2 pr-3 font-mono text-xs tabular-nums text-ops-muted">{sizeFormatted}</td>
                   <td className="py-2 pr-3 text-right">
                     <div className="inline-flex items-center justify-end gap-1.5">
                       <ActionButton
@@ -1130,20 +1134,20 @@ function BackupArea({
         </table>
       </div>
 
-      <div className="overflow-x-auto border-t border-ops-border pt-2">
+      <div className="overflow-x-auto rounded-lg border border-ops-border">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-ops-muted">
-              <th className="py-2 pr-3">Job ID</th>
+          <thead className={tableHeadClass}>
+            <tr className="text-left">
+              <th className="py-2 pl-3 pr-3">Job ID</th>
               <th className="py-2 pr-3">Target Switch &amp; Kredensial</th>
               <th className="py-2 pr-3">Jadwal (cron)</th>
               <th className="py-2 pr-3">Status</th>
               <th className="py-2 pr-3 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className={tableBodyClass}>
             {jobs.length === 0 && (
-              <tr><td colSpan={5} className="py-3 text-sm text-ops-muted">Belum ada job terjadwal.</td></tr>
+              <DataTableEmpty colSpan={5} title="Belum ada job terjadwal." />
             )}
             {jobs.map((job) => {
               const id = pick(job, "id", "job_id", "jobId");
@@ -1153,10 +1157,10 @@ function BackupArea({
               const credName = sw ? ((sw.credential as { name?: string } | undefined)?.name || pick(sw, "credential_name")) : "";
               const enabled = pick(job, "enabled", "is_enabled") === "true";
               return (
-                <tr key={id} className="border-t border-ops-border">
-                  <td className="py-2 pr-3 font-mono font-medium text-white">#{id}</td>
+                <tr key={id}>
+                  <td className="py-2 pl-3 pr-3 font-mono font-medium tabular-nums text-ops-text">#{id}</td>
                   <td className="py-2 pr-3">
-                    <div className="font-semibold text-white">{swName}</div>
+                    <div className="font-semibold text-ops-text">{swName}</div>
                     {credName && (
                       <div className="text-[11px] text-ops-muted flex items-center gap-1">
                         <KeyRound className="size-3 text-ops-accent" />
@@ -1164,9 +1168,9 @@ function BackupArea({
                       </div>
                     )}
                   </td>
-                  <td className="py-2 pr-3 font-mono text-xs text-ops-muted">{pick(job, "schedule", "cron") || "-"}</td>
+                  <td className="py-2 pr-3 font-mono text-xs tabular-nums text-ops-muted">{pick(job, "schedule", "cron") || "-"}</td>
                   <td className="py-2 pr-3">
-                    <span className={`inline-flex h-6 items-center rounded-full border px-2 text-[11px] font-medium ${enabled ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : "border-ops-border-strong bg-ops-surface-raised text-ops-muted"}`}>
+                    <span className={`inline-flex h-6 items-center rounded-sm border px-2 text-[11px] font-medium ${enabled ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : "border-ops-border-strong bg-ops-surface-raised text-ops-muted"}`}>
                       {enabled ? "aktif" : "nonaktif"}
                     </span>
                   </td>
@@ -1181,7 +1185,7 @@ function BackupArea({
       </div>
 
       {editingJob && (
-        <form action={schedAction} className="grid gap-3 rounded-lg border border-ops-accent/30 bg-ops-accent/5 p-3 md:grid-cols-3">
+        <form action={schedAction} className="grid gap-3 rounded-md border border-ops-accent/25 bg-ops-accent-soft p-3 md:grid-cols-3">
           <input type="hidden" name="jobId" value={pick(editingJob, "id", "job_id", "jobId")} />
           <label className={labelClass}>Jadwal (cron)<input name="schedule" defaultValue={pick(editingJob, "schedule", "cron")} required className={inputClass} /></label>
           <label className="flex items-end gap-2 pb-2 text-sm text-ops-muted">
@@ -1329,11 +1333,11 @@ function ReviewArea({
       <ResultBanner state={decideState} />
       {prepareError && <p className="text-sm text-ops-danger">{prepareError}</p>}
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-ops-border">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-ops-muted">
-              <th className="py-2 pr-3">Baseline</th>
+          <thead className={tableHeadClass}>
+            <tr className="text-left">
+              <th className="py-2 pl-3 pr-3">Baseline</th>
               <th className="py-2 pr-3">Switch / Target</th>
               <th className="py-2 pr-3">Seri / Model</th>
               <th className="py-2 pr-3">Dari Backup</th>
@@ -1342,9 +1346,9 @@ function ReviewArea({
               <th className="py-2 pr-3 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className={tableBodyClass}>
             {baselines.length === 0 && (
-              <tr><td colSpan={7} className="py-3 text-sm text-ops-muted">Belum ada baseline golden.</td></tr>
+              <DataTableEmpty colSpan={7} title="Belum ada baseline golden." />
             )}
             {baselines.map((bl) => {
               const id = Number(pick(bl, "id", "baseline_id", "baselineId"));
@@ -1360,30 +1364,30 @@ function ReviewArea({
               const lastReviewedAt = pick(bl, "last_reviewed_at", "lastReviewedAt");
 
               return (
-                <tr key={id} className="border-t border-ops-border">
-                  <td className="py-2 pr-3 font-mono font-medium text-white">#{id}</td>
+                <tr key={id}>
+                  <td className="py-2 pl-3 pr-3 font-mono font-medium tabular-nums text-ops-text">#{id}</td>
                   <td className="py-2 pr-3">
-                    <div className="font-semibold text-white">{targetName}</div>
+                    <div className="font-semibold text-ops-text">{targetName}</div>
                     <div className="text-[11px] text-ops-muted">{kind === "model" ? "Template Model" : "Per switch"}</div>
                   </td>
                   <td className="py-2 pr-3 font-mono text-xs text-ops-muted">{model}</td>
-                  <td className="py-2 pr-3 font-mono text-ops-muted">#{backupId}</td>
-                  <td className="py-2 pr-3 text-ops-muted">{createdAt}</td>
+                  <td className="py-2 pr-3 font-mono tabular-nums text-ops-muted">#{backupId}</td>
+                  <td className="py-2 pr-3 tabular-nums text-ops-muted">{createdAt}</td>
                   <td className="py-2 pr-3">
                     {reviewStatus ? (
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${reviewStatus === "approved" ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : reviewStatus === "flagged" ? "border-ops-danger/25 bg-ops-danger-soft text-ops-danger" : "border-ops-warning/25 bg-ops-warning-soft text-ops-warning"}`}>
+                      <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[11px] font-medium ${reviewStatus === "approved" ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : reviewStatus === "flagged" ? "border-ops-danger/25 bg-ops-danger-soft text-ops-danger" : "border-ops-warning/25 bg-ops-warning-soft text-ops-warning"}`}>
                         {reviewStatus.toUpperCase()}
                       </span>
                     ) : (
                       <span className="text-xs text-ops-muted">Aktif</span>
                     )}
                     {reviewer && (
-                      <div className="text-[11px] text-ops-muted mt-0.5">
-                        Oleh: <span className="text-ops-warning font-semibold">{reviewer}</span>
+                      <div className="mt-0.5 text-[11px] text-ops-muted">
+                        Oleh: <span className="font-semibold text-ops-warning">{reviewer}</span>
                       </div>
                     )}
                     {lastReviewedAt && (
-                      <div className="text-[10px] text-ops-muted mt-0.5 font-mono">
+                      <div className="mt-0.5 font-mono text-[10px] tabular-nums text-ops-muted">
                         {formatDate(lastReviewedAt)}
                       </div>
                     )}
@@ -1395,7 +1399,7 @@ function ReviewArea({
                         variant="secondary"
                         onClick={() => handleReviewBaseline(id)}
                         isPending={preparingId === id}
-                        className="border-ops-warning/50 bg-ops-warning-soft text-ops-warning font-bold hover:bg-ops-warning-soft hover:text-ops-warning"
+                        className="border-ops-warning/40 bg-ops-warning-soft text-ops-warning hover:border-ops-warning/60 hover:bg-ops-warning-soft hover:text-ops-warning"
                         title="Bandingkan Golden Baseline vs Backup Terakhir di layar Config Review"
                       >
                         <GitCompareArrows className="size-3.5" />
@@ -1436,10 +1440,10 @@ function ReviewArea({
 
       {/* INSPEKSI ISI CONFIG BASELINE */}
       {viewingConfigId && configContent && (
-        <div className="rounded-lg border border-ops-border bg-ops-surface p-3 mt-3">
-          <div className="flex items-center justify-between pb-2 border-b border-ops-border text-xs text-ops-muted">
-            <span className="font-semibold text-white">Isi Konfigurasi Golden Baseline (dari Backup #{viewingConfigId}):</span>
-            <button type="button" onClick={() => setViewingConfigId(null)} className="text-ops-muted hover:text-white">Tutup</button>
+        <div className="ops-panel-subtle mt-3 p-3">
+          <div className="flex items-center justify-between border-b border-ops-border pb-2 text-xs text-ops-muted">
+            <span className="font-semibold text-ops-text">Isi Konfigurasi Golden Baseline (dari Backup #{viewingConfigId}):</span>
+            <button type="button" onClick={() => setViewingConfigId(null)} className="text-ops-muted hover:text-ops-text">Tutup</button>
           </div>
           <pre className="mt-2 max-h-80 overflow-auto font-mono text-xs text-ops-muted whitespace-pre-wrap">
             {configContent}
@@ -1460,8 +1464,8 @@ function ConnectionArea({ overview, isSuperadmin }: { overview: NcmOverview & { 
     <section className={`${cardClass} space-y-2`}>
       <SectionHeader icon={<Router className="size-4" />} title="Connection" subtitle="Koneksi per site ke aplikasi NCM" />
       <dl className="grid gap-2 text-sm md:grid-cols-2">
-        <div><dt className="text-xs uppercase text-ops-muted">URL</dt><dd className="font-mono text-xs text-ops-muted">{url || "—"}</dd></div>
-        <div><dt className="text-xs uppercase text-ops-muted">Terakhir terlihat</dt><dd className="text-ops-muted">{formatLastSeen(lastSeen)}</dd></div>
+        <div><dt className="text-xs font-medium text-ops-muted">URL</dt><dd className="font-mono text-xs text-ops-muted">{url || "—"}</dd></div>
+        <div><dt className="text-xs font-medium text-ops-muted">Terakhir terlihat</dt><dd className="tabular-nums text-ops-muted">{formatLastSeen(lastSeen)}</dd></div>
       </dl>
       <p className="text-xs text-ops-muted">
         {isSuperadmin
@@ -1489,7 +1493,7 @@ export default function NcmDashboard({
 
   if (overview.status === "unconfigured") {
     return (
-      <div className="rounded-lg border border-ops-warning/25 bg-ops-warning-soft p-4 text-sm text-ops-warning">
+      <div className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">
         <p className="font-semibold">NCM belum dikonfigurasi untuk site ini.</p>
         <p className="mt-1">{overview.message}</p>
         {isSuperadmin && (
@@ -1502,7 +1506,7 @@ export default function NcmDashboard({
   if (overview.status === "offline") {
     return (
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-ops-danger/25 bg-ops-danger-soft p-4 text-sm text-ops-danger">
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
           <WifiOff className="size-5 shrink-0" />
           <div>
             <p className="font-semibold">NCM offline — terakhir terlihat {formatLastSeen(overview.lastSeenAt)}</p>
@@ -1529,101 +1533,73 @@ export default function NcmDashboard({
     setActiveTab("review");
   }
 
+  const tabClass = (tab: typeof activeTab) =>
+    `relative flex h-10 items-center gap-2 rounded-t-md px-3 text-[13px] font-medium transition-colors [&_svg]:size-4 ${
+      activeTab === tab ? "bg-ops-surface-raised text-ops-text" : "text-ops-muted hover:text-ops-text"
+    }`;
+  const tabUnderline = (tab: typeof activeTab) =>
+    `absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ops-accent transition-opacity duration-200 ${
+      activeTab === tab ? "opacity-100" : "opacity-0"
+    }`;
+
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       {/* TOP NAVIGATION TABS */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-ops-border pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "overview" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
-          }`}
-        >
-          <Activity className="size-4" />
-          <span>Ringkasan</span>
-        </button>
+      <div className="-mx-1 overflow-x-auto border-b border-ops-border">
+        <div className="flex min-w-max items-center gap-1 px-1">
+          <button type="button" onClick={() => setActiveTab("overview")} className={tabClass("overview")}>
+            <Activity className="size-4" />
+            <span>Ringkasan</span>
+            <span aria-hidden className={tabUnderline("overview")} />
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("switches")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "switches" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
-          }`}
-        >
-          <Server className="size-4" />
-          <span>Switches ({switches.length})</span>
-        </button>
+          <button type="button" onClick={() => setActiveTab("switches")} className={tabClass("switches")}>
+            <Server className="size-4" />
+            <span>Switches ({switches.length})</span>
+            <span aria-hidden className={tabUnderline("switches")} />
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("backups")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "backups" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
-          }`}
-        >
-          <DatabaseBackup className="size-4" />
-          <span>Backup &amp; Baseline</span>
-        </button>
+          <button type="button" onClick={() => setActiveTab("backups")} className={tabClass("backups")}>
+            <DatabaseBackup className="size-4" />
+            <span>Backup &amp; Baseline</span>
+            <span aria-hidden className={tabUnderline("backups")} />
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("review")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors relative ${
-            activeTab === "review" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
-          }`}
-        >
-          <ShieldCheck className="size-4" />
-          <span>Config Review (ISO 27001)</span>
-          {pendingReviewsCount > 0 && (
-            <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-              activeTab === "review" ? "bg-ops-surface text-ops-warning" : "bg-ops-warning text-ops-text"
-            }`}>
-              {pendingReviewsCount}
-            </span>
-          )}
-        </button>
+          <button type="button" onClick={() => setActiveTab("review")} className={tabClass("review")}>
+            <ShieldCheck className="size-4" />
+            <span>Config Review (ISO 27001)</span>
+            {pendingReviewsCount > 0 && (
+              <span className="inline-flex items-center justify-center rounded-sm bg-ops-warning-soft px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-ops-warning">
+                {pendingReviewsCount}
+              </span>
+            )}
+            <span aria-hidden className={tabUnderline("review")} />
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("credentials")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "credentials" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
-          }`}
-        >
-          <KeyRound className="size-4" />
-          <span>Credentials ({credentials.length})</span>
-        </button>
+          <button type="button" onClick={() => setActiveTab("credentials")} className={tabClass("credentials")}>
+            <KeyRound className="size-4" />
+            <span>Credentials ({credentials.length})</span>
+            <span aria-hidden className={tabUnderline("credentials")} />
+          </button>
 
-        <Link
-          href="/admin/ncm/history"
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg text-ops-muted transition-colors hover:text-ops-text hover:bg-ops-surface-raised/60"
-        >
-          <GitCompareArrows className="size-4" />
-          <span>Riwayat Perubahan</span>
-        </Link>
+          <Link
+            href="/admin/ncm/history"
+            className="relative flex h-10 items-center gap-2 rounded-t-md px-3 text-[13px] font-medium text-ops-muted transition-colors hover:text-ops-text [&_svg]:size-4"
+          >
+            <GitCompareArrows className="size-4" />
+            <span>Riwayat Perubahan</span>
+          </Link>
+        </div>
       </div>
 
       {/* TAB 1: RINGKASAN */}
       {activeTab === "overview" && (
-        <div className="space-y-4">
-          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-              <div className="font-mono text-2xl font-bold text-ops-accent">{switches.length}</div>
-              <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Switch</div>
-            </div>
-            <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-              <div className="font-mono text-2xl font-bold text-ops-text">{backups.length}</div>
-              <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Backup</div>
-            </div>
-            <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-              <div className="font-mono text-2xl font-bold text-ops-text">{baselines.length}</div>
-              <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Golden Baseline</div>
-            </div>
-            <div className="rounded-lg border border-ops-warning/30 bg-ops-warning/5 p-3">
-              <div className="font-mono text-2xl font-bold text-ops-warning">{pendingReviewsCount}</div>
-              <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Review Menunggu</div>
-            </div>
+        <div className="flex flex-col gap-4">
+          <section className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatsCard label="Switch" value={switches.length} tone="accent" icon={<Server />} />
+            <StatsCard label="Backup" value={backups.length} tone="neutral" icon={<DatabaseBackup />} />
+            <StatsCard label="Golden Baseline" value={baselines.length} tone="neutral" icon={<Layers />} />
+            <StatsCard label="Review Menunggu" value={pendingReviewsCount} tone="warning" icon={<ShieldCheck />} />
           </section>
           <ConnectionArea overview={overview} isSuperadmin={isSuperadmin} />
         </div>

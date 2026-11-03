@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -19,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import ActionButton from "@/components/ui/action-button";
+import { DataTableEmpty } from "@/components/ui/data-table";
 import {
   addNcmReviewNoteAction,
   deleteNcmReviewAction,
@@ -285,16 +285,16 @@ function DecodeDiffView({
 
   if (loading) {
     return (
-      <div className="py-8 text-center text-ops-muted flex items-center justify-center gap-2">
+      <div className="flex items-center justify-center gap-2 py-8 text-center text-ops-muted">
         <Clock className="size-4 animate-spin text-ops-accent" />
-        <span className="text-xs">Mendecode konfigurasi switch (VLAN &amp; Port) dari NCM…</span>
+        <span className="text-[13px]">Mendecode konfigurasi switch (VLAN &amp; Port) dari NCM…</span>
       </div>
     );
   }
 
   if (error || !detected) {
     return (
-      <div className="p-4 m-3 text-xs text-ops-danger bg-ops-danger/10 border border-ops-danger/30 rounded">
+      <div className="m-3 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
         {error || "Tidak ada data decode yang tersedia."}
       </div>
     );
@@ -302,8 +302,8 @@ function DecodeDiffView({
 
   if (!baseline) {
     return (
-      <div className="p-4 space-y-4 text-xs font-mono">
-        <div className="rounded border border-ops-warning/30 bg-ops-warning/10 p-3 text-ops-warning">
+      <div className="space-y-4 p-4 font-mono text-xs">
+        <div className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">
           Golden Baseline belum dikonfigurasi untuk switch ini. Menampilkan konfigurasi hasil decode Backup #{detectedBackupId}:
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -317,23 +317,23 @@ function DecodeDiffView({
           )}
         </div>
         <div className="space-y-1">
-          <span className="font-bold text-ops-text text-[11px] uppercase">VLANs ({detected.vlans.length}):</span>
+          <span className="text-[13px] font-medium text-ops-muted">VLANs ({detected.vlans.length}):</span>
           <div className="flex flex-wrap gap-1.5 pt-1">
             {detected.vlans.map((v) => (
-              <span key={v.id} className="rounded border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[11px] text-ops-text">
+              <span key={v.id} className="rounded-sm border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[11px] tabular-nums text-ops-text">
                 VLAN {v.id} {v.name ? `(${v.name})` : ""}
               </span>
             ))}
           </div>
         </div>
         <div className="space-y-1">
-          <span className="font-bold text-ops-text text-[11px] uppercase">Ports ({detected.ports.length}):</span>
+          <span className="text-[13px] font-medium text-ops-muted">Ports ({detected.ports.length}):</span>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 pt-1">
             {detected.ports.map((p) => (
-              <div key={p.name} className="rounded border border-ops-border bg-ops-surface-raised p-2.5 space-y-1 text-[11px]">
+              <div key={p.name} className="ops-panel-subtle space-y-1 p-2.5 text-[11px]">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-ops-accent">{p.name}</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] ${p.enabled ? "bg-ops-success/15 text-ops-success" : "bg-ops-danger/15 text-ops-danger"}`}>
+                  <span className="font-semibold text-ops-accent">{p.name}</span>
+                  <span className={`rounded-sm px-1.5 py-0.5 text-[10px] ${p.enabled ? "bg-ops-success-soft text-ops-success" : "bg-ops-danger-soft text-ops-danger"}`}>
                     {p.enabled ? "UP" : "DOWN"}
                   </span>
                 </div>
@@ -363,7 +363,7 @@ function DecodeDiffView({
     baseline.hostname === detected.hostname;
 
   return (
-    <div className="p-4 space-y-4 text-xs font-mono">
+    <div className="space-y-4 p-4 font-mono text-xs">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ops-border pb-3">
         <div className="flex items-center gap-3">
           <span className="text-ops-muted text-[11px]">
@@ -376,37 +376,37 @@ function DecodeDiffView({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-ops-success/15 text-ops-success border border-ops-success/30">
+          <span className="inline-flex items-center rounded-sm border border-ops-success/25 bg-ops-success-soft px-2 py-0.5 font-medium tabular-nums text-ops-success">
             +{delta.vlans_added.length + delta.ports_added.length} ditambahkan
           </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-ops-danger/15 text-ops-danger border border-ops-danger/30">
+          <span className="inline-flex items-center rounded-sm border border-ops-danger/25 bg-ops-danger-soft px-2 py-0.5 font-medium tabular-nums text-ops-danger">
             −{delta.vlans_removed.length + delta.ports_removed.length} dihapus
           </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded font-bold bg-ops-warning/15 text-ops-warning border border-ops-warning/30">
+          <span className="inline-flex items-center rounded-sm border border-ops-warning/25 bg-ops-warning-soft px-2 py-0.5 font-medium tabular-nums text-ops-warning">
             ~{delta.ports_changed.length + delta.description_changed.length} berubah
           </span>
         </div>
       </div>
 
       {baseline.hostname !== detected.hostname && (
-        <div className="rounded border border-ops-warning/30 bg-ops-warning/10 p-3 space-y-1">
-          <span className="font-bold text-ops-warning uppercase tracking-wider text-[10px]">Perubahan Hostname:</span>
+        <div className="space-y-1 rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5">
+          <span className="text-[13px] font-medium text-ops-warning">Perubahan Hostname:</span>
           <div className="flex items-center gap-2">
             <span className="text-ops-danger line-through">{baseline.hostname || "—"}</span>
             <span className="text-ops-muted">→</span>
-            <span className="text-ops-success font-bold">{detected.hostname || "—"}</span>
+            <span className="font-semibold text-ops-success">{detected.hostname || "—"}</span>
           </div>
         </div>
       )}
 
       {delta.vlans_added.length > 0 && (
-        <div className="rounded border border-ops-success/30 bg-ops-success/10 p-3 space-y-1.5">
-          <span className="font-bold text-ops-success uppercase tracking-wider text-[10px]">
+        <div className="space-y-1.5 rounded-md border border-ops-success/25 bg-ops-success-soft px-3 py-2.5">
+          <span className="text-[13px] font-medium text-ops-success">
             + VLAN Ditambahkan ({delta.vlans_added.length}):
           </span>
           <div className="flex flex-wrap gap-1.5">
             {delta.vlans_added.map((v) => (
-              <span key={v.id} className="rounded border border-ops-success/30 bg-ops-success/15 px-2 py-0.5 text-[11px] text-ops-success">
+              <span key={v.id} className="rounded-sm border border-ops-success/25 bg-ops-success-soft px-2 py-0.5 text-[11px] tabular-nums text-ops-success">
                 VLAN {v.id} {v.name ? `(${v.name})` : ""}
               </span>
             ))}
@@ -415,13 +415,13 @@ function DecodeDiffView({
       )}
 
       {delta.vlans_removed.length > 0 && (
-        <div className="rounded border border-ops-danger/30 bg-ops-danger/10 p-3 space-y-1.5">
-          <span className="font-bold text-ops-danger uppercase tracking-wider text-[10px]">
+        <div className="space-y-1.5 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5">
+          <span className="text-[13px] font-medium text-ops-danger">
             − VLAN Dihapus ({delta.vlans_removed.length}):
           </span>
           <div className="flex flex-wrap gap-1.5">
             {delta.vlans_removed.map((v) => (
-              <span key={v.id} className="rounded border border-ops-danger/30 bg-ops-danger/15 px-2 py-0.5 text-[11px] text-ops-danger">
+              <span key={v.id} className="rounded-sm border border-ops-danger/25 bg-ops-danger-soft px-2 py-0.5 text-[11px] tabular-nums text-ops-danger">
                 VLAN {v.id} {v.name ? `(${v.name})` : ""}
               </span>
             ))}
@@ -431,7 +431,7 @@ function DecodeDiffView({
 
       {delta.ports_changed.length > 0 && (
         <div className="space-y-2">
-          <span className="font-bold text-ops-text uppercase tracking-wider text-[11px]">
+          <span className="text-[13px] font-medium text-ops-text">
             Port Berubah ({delta.ports_changed.length}):
           </span>
           <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -447,23 +447,23 @@ function DecodeDiffView({
               const diffs = fields.filter(([, f, t]) => String(f) !== String(t));
 
               return (
-                <div key={name} className="rounded-lg border border-ops-border bg-ops-surface-raised p-3 space-y-2">
+                <div key={name} className="ops-panel-subtle space-y-2 p-3">
                   <div className="flex items-center justify-between border-b border-ops-border pb-1.5">
-                    <span className="font-bold text-ops-accent text-xs">{name}</span>
-                    <span className="text-[10px] text-ops-warning font-semibold px-1.5 py-0.5 rounded bg-ops-warning/10 border border-ops-warning/30">
+                    <span className="text-xs font-semibold text-ops-accent">{name}</span>
+                    <span className="rounded-sm border border-ops-warning/25 bg-ops-warning-soft px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-ops-warning">
                       {diffs.length} atribut berubah
                     </span>
                   </div>
                   <div className="space-y-1.5 text-[11px]">
                     {diffs.map(([label, f, t]) => (
                       <div key={label} className="flex flex-col gap-0.5">
-                        <span className="text-ops-muted font-medium text-[10px] uppercase">{label}:</span>
+                        <span className="text-[11px] font-medium text-ops-muted">{label}:</span>
                         <div className="flex items-center gap-1.5 pl-1">
-                          <span className="rounded bg-ops-danger/15 border border-ops-danger/30 px-1.5 py-0.5 text-ops-danger">
+                          <span className="rounded-sm border border-ops-danger/25 bg-ops-danger-soft px-1.5 py-0.5 tabular-nums text-ops-danger">
                             {String(f)}
                           </span>
                           <span className="text-ops-muted">→</span>
-                          <span className="rounded bg-ops-success/15 border border-ops-success/30 px-1.5 py-0.5 text-ops-success font-bold">
+                          <span className="rounded-sm border border-ops-success/25 bg-ops-success-soft px-1.5 py-0.5 font-semibold tabular-nums text-ops-success">
                             {String(t)}
                           </span>
                         </div>
@@ -478,11 +478,11 @@ function DecodeDiffView({
       )}
 
       {delta.ports_added.length > 0 && (
-        <div className="rounded border border-ops-success/30 bg-ops-success/10 p-3 space-y-1">
-          <span className="font-bold text-ops-success uppercase tracking-wider text-[10px]">Port Baru ({delta.ports_added.length}):</span>
+        <div className="space-y-1 rounded-md border border-ops-success/25 bg-ops-success-soft px-3 py-2.5">
+          <span className="text-[13px] font-medium text-ops-success">Port Baru ({delta.ports_added.length}):</span>
           <div className="flex flex-wrap gap-1.5 pt-1">
             {delta.ports_added.map((p) => (
-              <span key={p} className="rounded bg-ops-success/15 border border-ops-success/30 px-2 py-0.5 text-[11px] text-ops-success">
+              <span key={p} className="rounded-sm border border-ops-success/25 bg-ops-success-soft px-2 py-0.5 text-[11px] text-ops-success">
                 {p}
               </span>
             ))}
@@ -491,11 +491,11 @@ function DecodeDiffView({
       )}
 
       {delta.ports_removed.length > 0 && (
-        <div className="rounded border border-ops-danger/30 bg-ops-danger/10 p-3 space-y-1">
-          <span className="font-bold text-ops-danger uppercase tracking-wider text-[10px]">Port Dihapus ({delta.ports_removed.length}):</span>
+        <div className="space-y-1 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5">
+          <span className="text-[13px] font-medium text-ops-danger">Port Dihapus ({delta.ports_removed.length}):</span>
           <div className="flex flex-wrap gap-1.5 pt-1">
             {delta.ports_removed.map((p) => (
-              <span key={p} className="rounded bg-ops-danger/15 border border-ops-danger/30 px-2 py-0.5 text-[11px] text-ops-danger">
+              <span key={p} className="rounded-sm border border-ops-danger/25 bg-ops-danger-soft px-2 py-0.5 text-[11px] text-ops-danger">
                 {p}
               </span>
             ))}
@@ -504,7 +504,7 @@ function DecodeDiffView({
       )}
 
       {isClean && (
-        <div className="py-6 px-4 text-center text-ops-success flex flex-col items-center gap-2 rounded border border-ops-success/30 bg-ops-success/10">
+        <div className="flex flex-col items-center gap-2 rounded-md border border-ops-success/25 bg-ops-success-soft px-4 py-6 text-center text-ops-success">
           <CheckCircle2 className="size-6 text-ops-success" />
           <span className="font-semibold text-sm">Konfigurasi Struktural (VLAN &amp; Port) 100% Identik</span>
           <span className="text-xs text-ops-muted max-w-lg">
@@ -514,7 +514,7 @@ function DecodeDiffView({
       )}
 
       {((detected.parse_warnings?.length ?? 0) > 0 || (baseline.parse_warnings?.length ?? 0) > 0) && (
-        <div className="text-[11px] text-ops-warning bg-ops-warning/10 border border-ops-warning/30 rounded p-2">
+        <div className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2 text-[11px] text-ops-warning">
           <span>Catatan parser: {[...(baseline.parse_warnings ?? []), ...(detected.parse_warnings ?? [])].join("; ")}</span>
         </div>
       )}
@@ -1070,23 +1070,23 @@ export function NcmConfigReview({
   const staleBaselines = (complianceData?.baselines_stale as string[]) || [];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {/* 1. COMPLIANCE PANEL (ISO 27001 A.8.9) */}
-      <section className="ops-panel p-5 space-y-4 shadow-sm">
+      <section className="ops-panel space-y-4 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ops-border pb-3">
           <div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="size-5 text-ops-accent" />
-              <h3 className="text-base font-bold text-ops-text">Compliance Overview (ISO 27001 A.8.9)</h3>
+              <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Compliance Overview (ISO 27001 A.8.9)</h3>
             </div>
-            <p className="mt-1 text-xs text-ops-muted max-w-3xl">
+            <p className="mt-1 max-w-3xl text-[13px] text-ops-muted">
               Attestation berkala membandingkan backup terakhir setiap switch dengan golden baseline
               dan membuka tiket review di sini — bukti kepatuhan manajemen konfigurasi (ISO 27001 A.8.9).
               Catatan otomatis tiap perubahan konfigurasi ada di menu <strong>Riwayat Perubahan</strong>.
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-ops-success/30 bg-ops-success/10 px-2.5 py-1 text-xs font-semibold text-ops-success">
+            <span className="inline-flex items-center gap-1.5 rounded-sm border border-ops-success/25 bg-ops-success-soft px-2.5 py-1 text-xs font-medium text-ops-success">
               <span className="size-2 rounded-full bg-ops-success animate-pulse" />
               ISO 27001 Active
             </span>
@@ -1095,36 +1095,36 @@ export function NcmConfigReview({
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-            <div className="text-2xl font-bold font-mono text-ops-accent">{coverage}%</div>
-            <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Baseline Coverage</div>
+          <div className="ops-panel-subtle p-4">
+            <div className="text-2xl font-semibold leading-none tracking-[-0.02em] text-ops-accent tabular-nums">{coverage}%</div>
+            <div className="mt-2 text-xs font-medium text-ops-muted">Baseline Coverage</div>
           </div>
-          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-            <div className="text-2xl font-bold font-mono text-ops-warning">{pendingCount}</div>
-            <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Reviews Pending</div>
+          <div className="ops-panel-subtle p-4">
+            <div className="text-2xl font-semibold leading-none tracking-[-0.02em] text-ops-warning tabular-nums">{pendingCount}</div>
+            <div className="mt-2 text-xs font-medium text-ops-muted">Reviews Pending</div>
           </div>
-          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-            <div className="text-2xl font-bold font-mono text-ops-danger">{flaggedCount}</div>
-            <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Flagged Drift</div>
+          <div className="ops-panel-subtle p-4">
+            <div className="text-2xl font-semibold leading-none tracking-[-0.02em] text-ops-danger tabular-nums">{flaggedCount}</div>
+            <div className="mt-2 text-xs font-medium text-ops-muted">Flagged Drift</div>
           </div>
-          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-            <div className="text-2xl font-bold font-mono text-ops-text">{missingSwitches.length}</div>
-            <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Without Baseline</div>
+          <div className="ops-panel-subtle p-4">
+            <div className="text-2xl font-semibold leading-none tracking-[-0.02em] text-ops-text tabular-nums">{missingSwitches.length}</div>
+            <div className="mt-2 text-xs font-medium text-ops-muted">Without Baseline</div>
           </div>
-          <div className="rounded-lg border border-ops-border bg-ops-surface-raised p-3">
-            <div className="text-2xl font-bold font-mono text-ops-info">{staleBaselines.length}</div>
-            <div className="mt-1 text-xs uppercase tracking-wider text-ops-muted">Reminder Due</div>
+          <div className="ops-panel-subtle p-4">
+            <div className="text-2xl font-semibold leading-none tracking-[-0.02em] text-ops-info tabular-nums">{staleBaselines.length}</div>
+            <div className="mt-2 text-xs font-medium text-ops-muted">Reminder Due</div>
           </div>
         </div>
 
         {missingSwitches.length > 0 && (
-          <p className="text-xs text-ops-warning bg-ops-warning/10 border border-ops-warning/30 rounded p-2.5">
+          <p className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">
             Switch belum memiliki baseline: <strong>{missingSwitches.join(", ")}</strong>. Deteksi drift tidak aktif pada switch tersebut sampai baseline dibuat.
           </p>
         )}
 
         {staleBaselines.length > 0 && (
-          <p className="text-xs text-ops-info bg-ops-info/10 border border-ops-info/30 rounded p-2.5">
+          <p className="rounded-md border border-ops-info/25 bg-ops-info-soft px-3 py-2.5 text-[13px] text-ops-info">
             Review berkala jatuh tempo: <strong>{staleBaselines.join(", ")}</strong>. Buka sesi review untuk switch tersebut untuk re-attestasi dan reset siklus.
           </p>
         )}
@@ -1142,20 +1142,17 @@ export function NcmConfigReview({
               <Mail className="size-4 text-ops-info" />
               Kirim Reminder Email
             </ActionButton>
-            <Link
-              href="/admin/ncm/history"
-              className="ops-btn inline-flex h-9 items-center gap-2 rounded-md border border-ops-border px-3 text-xs font-semibold text-ops-text hover:bg-ops-surface-raised"
-            >
+            <ActionButton href="/admin/ncm/history" variant="secondary">
               <GitCompareArrows className="size-4 text-ops-muted" />
               Riwayat Perubahan
-            </Link>
+            </ActionButton>
           </div>
           <ActionButton
             type="button"
             variant="secondary"
             isPending={isTriggeringCycle}
             onClick={handleTriggerCycle}
-            className="border-ops-warning/50 bg-ops-warning-soft text-ops-warning font-bold hover:bg-ops-warning-soft hover:text-ops-warning hover:border-ops-warning shadow-sm"
+            className="border-ops-warning/40 bg-ops-warning-soft text-ops-warning hover:border-ops-warning/60 hover:bg-ops-warning-soft hover:text-ops-warning"
             title="Bandingkan seluruh switch ke baseline sekarang, reset siklus periode, dan kirim email hasil review"
           >
             <Sparkles className="size-4 text-ops-warning" />
@@ -1166,23 +1163,23 @@ export function NcmConfigReview({
 
       {/* BANNER NOTIFIKASI ERROR / SUCCESS */}
       {actionSuccess && (
-        <div className="rounded-lg border border-ops-success/30 bg-ops-success/10 p-3 text-sm text-ops-success flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-md border border-ops-success/25 bg-ops-success-soft px-3 py-2.5 text-[13px] text-ops-success">
           <span>{actionSuccess}</span>
           <button type="button" onClick={() => setActionSuccess(null)}><X className="size-4" /></button>
         </div>
       )}
       {actionError && (
-        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger/10 p-3 text-sm text-ops-danger flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
           <span>{actionError}</span>
           <button type="button" onClick={() => setActionError(null)}><X className="size-4" /></button>
         </div>
       )}
 
       {/* 2. FILTER BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ops-border bg-ops-surface-raised p-3">
+      <div className="ops-panel-subtle flex flex-wrap items-center justify-between gap-3 p-3">
         <div className="flex items-center gap-2">
           <Filter className="size-4 text-ops-muted" />
-          <span className="text-xs font-semibold text-ops-text">Filter Status Review:</span>
+          <span className="text-[13px] font-medium text-ops-text">Filter Status Review:</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -1196,7 +1193,7 @@ export function NcmConfigReview({
             <option value="dismissed">Dismissed</option>
           </select>
         </div>
-        <span className="text-xs text-ops-muted">
+        <span className="text-xs tabular-nums text-ops-muted">
           Menampilkan {filteredReviews.length} dari {reviews.length} tiket review
         </span>
       </div>
@@ -1205,8 +1202,8 @@ export function NcmConfigReview({
       <section className="ops-panel p-4 space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h4 className="text-sm font-bold text-ops-text">Riwayat Review</h4>
-            <p className="mt-0.5 text-xs text-ops-muted">
+            <h4 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Riwayat Review</h4>
+            <p className="mt-0.5 text-[13px] text-ops-muted">
               Jejak attestation yang sudah diputuskan: tanggal review, switch, keputusan, dan operator.
             </p>
           </div>
@@ -1217,10 +1214,10 @@ export function NcmConfigReview({
         </div>
 
         {showHistory && (
-          <div className="overflow-x-auto rounded-lg border border-ops-border">
+          <div className="overflow-x-auto rounded-md border border-ops-border">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-ops-border text-left text-xs uppercase tracking-wide text-ops-muted">
+              <thead className="sticky top-0 z-[1] border-b border-ops-border bg-ops-surface-raised text-xs font-medium text-ops-muted">
+                <tr className="text-left">
                   <th className="px-3 py-2">Tanggal Review</th>
                   <th className="px-3 py-2">Switch</th>
                   <th className="px-3 py-2">Keputusan</th>
@@ -1229,13 +1226,9 @@ export function NcmConfigReview({
                   <th className="px-3 py-2">Catatan</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-ops-border [&>tr:hover]:bg-ops-surface-raised/60">
                 {completedReviews.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-xs text-ops-muted">
-                      Belum ada review yang diputuskan.
-                    </td>
-                  </tr>
+                  <DataTableEmpty colSpan={6} title="Belum ada review yang diputuskan." />
                 )}
                 {completedReviews.map((r) => {
                   const rowId = Number(pick(r, "id"));
@@ -1243,23 +1236,23 @@ export function NcmConfigReview({
                   const switchName = pick(r, "switch_name") || "#" + pick(r, "switch_id");
                   const badgeClass =
                     status === "approved"
-                      ? "border-ops-success/30 bg-ops-success/10 text-ops-success"
+                      ? "border-ops-success/25 bg-ops-success-soft text-ops-success"
                       : status === "flagged"
-                        ? "border-ops-danger/30 bg-ops-danger/10 text-ops-danger"
-                        : "border-ops-border bg-ops-surface-raised text-ops-muted";
+                        ? "border-ops-danger/25 bg-ops-danger-soft text-ops-danger"
+                        : "border-ops-border-strong bg-ops-surface-raised text-ops-muted";
                   return (
-                    <tr key={rowId} className="border-t border-ops-border">
-                      <td className="px-3 py-2 text-xs text-ops-text">
+                    <tr key={rowId}>
+                      <td className="px-3 py-2 text-xs tabular-nums text-ops-text">
                         {formatDate(pick(r, "reviewed_at") || pick(r, "created_at"))}
                       </td>
                       <td className="px-3 py-2 text-xs font-semibold text-ops-text">{switchName}</td>
                       <td className="px-3 py-2">
-                        <span className={"inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold " + badgeClass}>
+                        <span className={"inline-flex rounded-sm border px-2 py-0.5 text-[11px] font-semibold " + badgeClass}>
                           {STATUS_LABEL[status] ?? status.toUpperCase()}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-xs text-ops-text">{pick(r, "reviewed_by_name") || "-"}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-ops-muted">#{pick(r, "backup_id")}</td>
+                      <td className="px-3 py-2 font-mono text-xs tabular-nums text-ops-muted">#{pick(r, "backup_id")}</td>
                       <td className="max-w-xs truncate px-3 py-2 text-xs text-ops-muted" title={pick(r, "comment")}>
                         {pick(r, "comment") || "-"}
                       </td>
@@ -1273,10 +1266,10 @@ export function NcmConfigReview({
       </section>
 
       {/* 3. REVIEWS TABLE */}
-      <div className="overflow-x-auto rounded-lg border border-ops-border bg-ops-surface">
+      <div className="ops-panel overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-ops-border text-left text-xs uppercase tracking-wide text-ops-muted">
+          <thead className="sticky top-0 z-[1] border-b border-ops-border bg-ops-surface-raised text-xs font-medium text-ops-muted">
+            <tr className="text-left">
               <th className="py-2.5 px-3">ID</th>
               <th className="py-2.5 px-3">Switch</th>
               <th className="py-2.5 px-3">Dibuat</th>
@@ -1286,13 +1279,9 @@ export function NcmConfigReview({
               <th className="py-2.5 px-3 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-ops-border bg-ops-surface [&>tr:hover]:bg-ops-surface-raised/60">
             {filteredReviews.length === 0 && (
-              <tr>
-                <td colSpan={7} className="py-6 text-center text-sm text-ops-muted">
-                  Tidak ada review yang cocok dengan filter.
-                </td>
-              </tr>
+              <DataTableEmpty colSpan={7} title="Tidak ada review yang cocok dengan filter." />
             )}
             {filteredReviews.map((r) => {
               const id = Number(pick(r, "id", "review_id", "reviewId"));
@@ -1316,25 +1305,25 @@ export function NcmConfigReview({
               return (
                 <Fragment key={id}>
                   <tr
-                    className={`border-t border-ops-border transition-colors ${
+                    className={`transition-colors ${
                       isCurrentSelected
                         ? "bg-ops-surface-raised"
-                        : "hover:bg-ops-surface-raised"
+                        : ""
                     }`}
                   >
-                    <td className="py-2.5 px-3 font-mono font-medium text-ops-text">#{id}</td>
+                    <td className="py-2.5 px-3 font-mono font-medium tabular-nums text-ops-text">#{id}</td>
                     <td className="py-2.5 px-3 font-semibold text-ops-text">{switchName}</td>
-                    <td className="py-2.5 px-3 text-ops-text text-xs">{formatDate(pick(r, "created_at", "createdAt"))}</td>
+                    <td className="py-2.5 px-3 text-xs tabular-nums text-ops-text">{formatDate(pick(r, "created_at", "createdAt"))}</td>
                     <td className="py-2.5 px-3">
                       <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                        className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[11px] font-semibold ${
                           status === "flagged"
-                            ? "border-ops-danger/30 bg-ops-danger/10 text-ops-danger"
+                            ? "border-ops-danger/25 bg-ops-danger-soft text-ops-danger"
                             : status === "approved"
-                            ? "border-ops-success/30 bg-ops-success/10 text-ops-success"
+                            ? "border-ops-success/25 bg-ops-success-soft text-ops-success"
                             : status === "in_review"
-                            ? "border-ops-info/30 bg-ops-info/10 text-ops-info"
-                            : "border-ops-warning/30 bg-ops-warning/10 text-ops-warning"
+                            ? "border-ops-info/25 bg-ops-info-soft text-ops-info"
+                            : "border-ops-warning/25 bg-ops-warning-soft text-ops-warning"
                         }`}
                       >
                         {STATUS_LABEL[status] ?? status.toUpperCase()}
@@ -1407,7 +1396,7 @@ export function NcmConfigReview({
                               size="sm"
                               variant="secondary"
                               onClick={() => openPromoteModal(id)}
-                              className="border-ops-warning/50 bg-ops-warning-soft text-ops-warning font-bold hover:bg-ops-warning-soft hover:text-ops-warning hover:border-ops-warning"
+                              className="border-ops-warning/40 bg-ops-warning-soft text-ops-warning hover:border-ops-warning/60 hover:bg-ops-warning-soft hover:text-ops-warning"
                               title="Setujui dan jadikan backup ini sebagai Golden Baseline baru"
                             >
                               ★ Promote
@@ -1449,7 +1438,7 @@ export function NcmConfigReview({
 
                   {/* INLINE EXPANDED DIFF VIEWER UNDER ROW (MATCHING IMAGE 2) */}
                   {isCurrentSelected && (
-                    <tr key={`${id}-diff`} className="border-t border-b border-ops-border bg-ops-bg">
+                    <tr key={`${id}-diff`} className="border-y border-ops-border bg-ops-surface-sunken">
                       <td colSpan={7} className="p-0">
                         <div>
                           {/* Header Bar matching Image 2 */}
@@ -1465,13 +1454,13 @@ export function NcmConfigReview({
 
                             <div className="flex items-center gap-3">
                               {/* View Mode Toggle */}
-                              <div className="flex items-center rounded border border-ops-border bg-ops-bg p-0.5 text-[11px]">
+                              <div className="flex items-center rounded-md border border-ops-border bg-ops-surface-sunken p-0.5 text-[11px]">
                                 <button
                                   type="button"
                                   onClick={() => setViewStyle("side-by-side")}
-                                  className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
+                                  className={`rounded-sm px-2.5 py-0.5 font-mono transition-colors ${
                                     viewStyle === "side-by-side"
-                                      ? "bg-ops-accent text-ops-accent-fg font-bold"
+                                      ? "bg-ops-accent font-medium text-ops-accent-fg"
                                       : "text-ops-muted hover:text-ops-text"
                                   }`}
                                 >
@@ -1480,9 +1469,9 @@ export function NcmConfigReview({
                                 <button
                                   type="button"
                                   onClick={() => setViewStyle("unified")}
-                                  className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
+                                  className={`rounded-sm px-2.5 py-0.5 font-mono transition-colors ${
                                     viewStyle === "unified"
-                                      ? "bg-ops-accent text-ops-accent-fg font-bold"
+                                      ? "bg-ops-accent font-medium text-ops-accent-fg"
                                       : "text-ops-muted hover:text-ops-text"
                                   }`}
                                 >
@@ -1491,9 +1480,9 @@ export function NcmConfigReview({
                                 <button
                                   type="button"
                                   onClick={() => setViewStyle("decode")}
-                                  className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
+                                  className={`rounded-sm px-2.5 py-0.5 font-mono transition-colors ${
                                     viewStyle === "decode"
-                                      ? "bg-ops-accent text-ops-accent-fg font-bold"
+                                      ? "bg-ops-accent font-medium text-ops-accent-fg"
                                       : "text-ops-muted hover:text-ops-text"
                                   }`}
                                 >
@@ -1517,12 +1506,12 @@ export function NcmConfigReview({
                               {viewStyle !== "decode" && (
                                 <div className="flex items-center gap-1.5 font-mono text-xs">
                                   {unifiedDisplay.addedCount > 0 && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold bg-ops-success/15 border border-ops-success/30 text-ops-success">
+                                    <span className="inline-flex items-center rounded-sm border border-ops-success/25 bg-ops-success-soft px-2 py-0.5 font-medium tabular-nums text-ops-success">
                                       +{unifiedDisplay.addedCount}
                                     </span>
                                   )}
                                   {unifiedDisplay.deletedCount > 0 && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold bg-ops-danger/15 border border-ops-danger/30 text-ops-danger">
+                                    <span className="inline-flex items-center rounded-sm border border-ops-danger/25 bg-ops-danger-soft px-2 py-0.5 font-medium tabular-nums text-ops-danger">
                                       -{unifiedDisplay.deletedCount}
                                     </span>
                                   )}
@@ -1544,7 +1533,7 @@ export function NcmConfigReview({
                           ) : (
                             <>
                               {diffError && (
-                                <div className="p-4 m-3 text-sm text-ops-danger bg-ops-danger/10 border border-ops-danger/30 rounded">
+                                <div className="m-3 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
                                   {diffError}
                                 </div>
                               )}
@@ -1568,7 +1557,7 @@ export function NcmConfigReview({
                                       type="button"
                                       size="sm"
                                       onClick={() => handleDecideStatus(id, "approved", "Konfirmasi sesuai: konfigurasi identik dengan baseline (tanpa drift)")}
-                                      className="bg-ops-success/15 text-ops-success border border-ops-success/30 hover:bg-ops-success/25 mt-2 font-bold"
+                                      className="mt-2 border-ops-success/25 bg-ops-success-soft font-medium text-ops-success hover:bg-ops-success/20"
                                     >
                                       ✓ Konfirmasi Sesuai (Attest Clean &amp; Reset Siklus)
                                     </ActionButton>
@@ -1577,7 +1566,7 @@ export function NcmConfigReview({
                               )}
 
                               {diff !== null && !loadingDiff && !isCleanMatch && viewStyle === "unified" && (
-                                <div className="py-3 px-2 font-mono text-xs overflow-x-auto max-h-[500px] bg-ops-bg">
+                                <div className="max-h-[500px] overflow-x-auto bg-ops-surface-sunken px-2 py-3 font-mono text-xs">
                                   <div className="divide-y divide-transparent">
                                     {unifiedDisplay.lines.map((line, idx) => (
                                       <div
@@ -1590,11 +1579,11 @@ export function NcmConfigReview({
                                             : "text-ops-text hover:bg-ops-surface-raised"
                                         }`}
                                       >
-                                        <span className="w-10 shrink-0 text-right pr-3 text-ops-muted select-none">
+                                        <span className="w-10 shrink-0 select-none pr-3 text-right tabular-nums text-ops-muted">
                                           {line.lineNum}
                                         </span>
                                         <span
-                                          className={`w-4 shrink-0 text-center font-bold select-none ${
+                                          className={`w-4 shrink-0 select-none text-center font-semibold ${
                                             line.type === "insert"
                                               ? "text-ops-success"
                                               : line.type === "delete"
@@ -1612,9 +1601,9 @@ export function NcmConfigReview({
                               )}
 
                               {diff !== null && !loadingDiff && !isCleanMatch && viewStyle === "side-by-side" && (
-                                <div className="overflow-x-auto max-h-[500px] bg-ops-bg">
+                                <div className="max-h-[500px] overflow-x-auto bg-ops-surface-sunken">
                                   <div className="flex flex-wrap items-center gap-1.5 p-3 border-b border-ops-border bg-ops-surface-raised text-xs">
-                                    <span className="font-semibold text-ops-muted uppercase tracking-wider text-[10px]">Filter Kategori:</span>
+                                    <span className="text-[13px] font-medium text-ops-muted">Filter Kategori:</span>
                                     {(
                                       [
                                         ["all", "All Changes"],
@@ -1628,14 +1617,14 @@ export function NcmConfigReview({
                                         key={cat}
                                         type="button"
                                         onClick={() => setActiveCategory(cat)}
-                                        className={`rounded px-2 py-0.5 font-mono text-[11px] transition-colors ${activeCategory === cat ? "bg-ops-warning/15 text-ops-warning border border-ops-warning/30 font-bold" : "bg-ops-bg text-ops-muted hover:text-ops-text border border-ops-border"}`}
+                                        className={`rounded-sm px-2 py-0.5 font-mono text-[11px] transition-colors ${activeCategory === cat ? "border border-ops-warning/25 bg-ops-warning-soft font-medium text-ops-warning" : "border border-ops-border bg-ops-surface-sunken text-ops-muted hover:text-ops-text"}`}
                                       >
                                         {label}
                                       </button>
                                     ))}
                                   </div>
 
-                                  <div className="grid grid-cols-2 border-b border-ops-border bg-ops-surface-raised text-[11px] font-mono font-bold uppercase tracking-wider text-ops-muted">
+                                  <div className="grid grid-cols-2 border-b border-ops-border bg-ops-surface-raised text-[11px] font-mono font-medium text-ops-muted">
                                     <div className="py-2 px-3 border-r border-ops-border text-ops-text flex items-center justify-between">
                                       <span>Golden Baseline (Target State)</span>
                                       <span className="text-[10px] text-ops-muted">Kiri</span>
@@ -1663,13 +1652,13 @@ export function NcmConfigReview({
 
                                       return (
                                         <div key={idx} className="grid grid-cols-[48px_minmax(0,1fr)_48px_minmax(0,1fr)] border-b border-ops-border hover:bg-ops-surface-raised">
-                                          <span className="py-1 px-2 text-right text-ops-muted select-none bg-ops-surface-raised border-r border-ops-border">
+                                          <span className="select-none border-r border-ops-border bg-ops-surface-raised py-1 px-2 text-right tabular-nums text-ops-muted">
                                             {row.lineA ?? ""}
                                           </span>
                                           <pre className={`py-1 px-2.5 whitespace-pre-wrap break-words border-r border-ops-border m-0 ${bgClassA}`}>
                                             {row.textA}
                                           </pre>
-                                          <span className="py-1 px-2 text-right text-ops-muted select-none bg-ops-surface-raised border-r border-ops-border">
+                                          <span className="select-none border-r border-ops-border bg-ops-surface-raised py-1 px-2 text-right tabular-nums text-ops-muted">
                                             {row.lineB ?? ""}
                                           </span>
                                           <pre className={`py-1 px-2.5 whitespace-pre-wrap break-words m-0 ${bgClassB}`}>
@@ -1685,8 +1674,8 @@ export function NcmConfigReview({
                           )}
 
                           {/* Audit Notes Thread */}
-                          <div className="border-t border-ops-border bg-ops-surface-raised p-4 space-y-3">
-                            <div className="flex items-center gap-2 text-xs font-bold text-ops-text uppercase tracking-wider">
+                          <div className="space-y-3 border-t border-ops-border bg-ops-surface-raised p-4">
+                            <div className="flex items-center gap-2 text-[13px] font-semibold text-ops-text">
                               <MessageSquare className="size-4 text-ops-accent" />
                               <span>Audit Notes &amp; Evidence Trail ({notes.length})</span>
                             </div>
@@ -1696,8 +1685,8 @@ export function NcmConfigReview({
                                 <p className="text-xs text-ops-muted italic">Belum ada catatan audit pada tiket review ini.</p>
                               )}
                               {notes.map((n, i) => (
-                                <div key={i} className="rounded border border-ops-border bg-ops-bg p-2.5 text-xs">
-                                  <div className="flex items-center justify-between text-ops-muted text-[11px] pb-1">
+                                <div key={i} className="ops-panel-subtle p-2.5 text-xs">
+                                  <div className="flex items-center justify-between pb-1 text-[11px] text-ops-muted">
                                     <span className="font-semibold text-ops-text">{pick(n, "author_name", "authorName") || `User #${pick(n, "author_id", "authorId") || "?"}`}</span>
                                     <span>{formatDate(pick(n, "created_at", "createdAt"))}</span>
                                   </div>
@@ -1739,10 +1728,10 @@ export function NcmConfigReview({
 
       {/* MODAL 1: APPROVE & PROMOTE TO BASELINE */}
       {promoteModalOpen && promoteReviewId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={() => setPromoteModalOpen(false)}>
-          <div className="w-full max-w-lg rounded-xl border border-ops-border bg-ops-surface p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" onClick={() => setPromoteModalOpen(false)}>
+          <div className="ops-panel w-full max-w-lg animate-scale-in space-y-4 p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-ops-border pb-3">
-              <h3 className="text-base font-bold text-ops-text flex items-center gap-2">
+              <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
                 <Sparkles className="size-5 text-ops-warning" />
                 Approve &amp; Promote to Golden Baseline
               </h3>
@@ -1751,7 +1740,7 @@ export function NcmConfigReview({
               </button>
             </div>
 
-            <p className="text-xs text-ops-text">
+            <p className="text-[13px] text-ops-text">
               Aksi ini akan menyetujui drift (status <strong>APPROVED</strong>) dan memperbarui golden baseline switch dengan konfigurasi ini secara atomik. Siklus review berkala akan di-reset (diperpanjang 6 bulan).
             </p>
 
@@ -1789,7 +1778,7 @@ export function NcmConfigReview({
                   variant="primary"
                   isPending={isPromoting}
                   disabled={!promoteReason.trim()}
-                  className="bg-ops-warning text-ops-warning font-bold hover:bg-ops-warning"
+                  className="bg-ops-warning text-ops-status-fg hover:bg-ops-warning/90"
                 >
                   Konfirmasi &amp; Jadikan Baseline Baru
                 </ActionButton>
@@ -1801,10 +1790,10 @@ export function NcmConfigReview({
 
       {/* MODAL 2: FLAG & ROLLBACK REMEDIATION GUIDANCE */}
       {rollbackModalOpen && promoteReviewId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={() => setRollbackModalOpen(false)}>
-          <div className="w-full max-w-2xl rounded-xl border border-ops-border bg-ops-surface p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" onClick={() => setRollbackModalOpen(false)}>
+          <div className="ops-panel w-full max-w-2xl animate-scale-in space-y-4 p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-ops-border pb-3">
-              <h3 className="text-base font-bold text-ops-danger flex items-center gap-2">
+              <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-danger">
                 <AlertTriangle className="size-5 text-ops-danger" />
                 Flag Unapproved Drift &amp; Rollback Guidance
               </h3>
@@ -1813,7 +1802,7 @@ export function NcmConfigReview({
               </button>
             </div>
 
-            <p className="text-xs text-ops-text">
+            <p className="text-[13px] text-ops-text">
               Drift ini akan ditandai sebagai <strong>FLAGGED</strong> (temuan perubahan tidak terotorisasi untuk ISO 27001). Berikut adalah instruksi rollback CLI otomatis untuk remedi mengembalikan switch ke baseline.
             </p>
 
@@ -1829,13 +1818,13 @@ export function NcmConfigReview({
             </label>
 
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-ops-muted mb-1">
+              <div className="mb-1 text-[11px] font-medium text-ops-muted">
                 Remediation CLI Rollback Script:
               </div>
               {rollbackLoading ? (
-                <p className="p-4 text-center text-xs text-ops-muted bg-ops-bg rounded">Membuat script rollback…</p>
+                <p className="rounded-md bg-ops-surface-sunken p-4 text-center text-[13px] text-ops-muted">Membuat script rollback…</p>
               ) : (
-                <pre className="max-h-52 overflow-auto rounded border border-ops-border bg-ops-bg p-3 font-mono text-xs text-ops-text">
+                <pre className="max-h-52 overflow-auto rounded-md border border-ops-border bg-ops-surface-sunken p-3 font-mono text-xs text-ops-text">
                   {rollbackScript || "! Tidak ada script rollback yang tersedia."}
                 </pre>
               )}
@@ -1848,7 +1837,7 @@ export function NcmConfigReview({
                   navigator.clipboard?.writeText(rollbackScript);
                   alert("Script rollback berhasil disalin ke clipboard!");
                 }}
-                className="inline-flex items-center gap-1.5 rounded border border-ops-border bg-ops-surface-raised px-3 py-1.5 text-xs text-ops-text hover:border-ops-accent/50"
+                className="inline-flex items-center gap-1.5 rounded-md border border-ops-border bg-ops-surface-raised px-3 py-1.5 text-[13px] text-ops-text hover:border-ops-accent/50"
               >
                 <Copy className="size-3.5" />
                 Salin Script Rollback
@@ -1872,10 +1861,10 @@ export function NcmConfigReview({
 
       {/* MODAL 3: CYCLE ATTESTATION RESULT */}
       {cycleModalOpen && cycleResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={() => setCycleModalOpen(false)}>
-          <div className="w-full max-w-xl rounded-xl border border-ops-border bg-ops-surface p-6 space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" onClick={() => setCycleModalOpen(false)}>
+          <div className="ops-panel w-full max-w-xl animate-scale-in space-y-4 p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-ops-border pb-3">
-              <h3 className="text-base font-bold text-ops-text flex items-center gap-2">
+              <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
                 <CheckCircle2 className="size-5 text-ops-success" />
                 Siklus Review Fleet Selesai
               </h3>
@@ -1884,19 +1873,19 @@ export function NcmConfigReview({
               </button>
             </div>
 
-            <p className="text-sm text-ops-text font-semibold">{pick(cycleResult, "message")}</p>
+            <p className="text-sm font-semibold text-ops-text">{pick(cycleResult, "message")}</p>
 
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded border border-ops-border bg-ops-bg p-3 text-center">
-                <div className="text-xl font-bold font-mono text-ops-text">{pick(cycleResult, "total_checked")}</div>
+              <div className="ops-panel-subtle p-3 text-center">
+                <div className="text-xl font-semibold tabular-nums text-ops-text">{pick(cycleResult, "total_checked")}</div>
                 <div className="text-[11px] text-ops-muted">Total Diperiksa</div>
               </div>
-              <div className="rounded border border-ops-border bg-ops-bg p-3 text-center">
-                <div className="text-xl font-bold font-mono text-ops-success">{pick(cycleResult, "clean_count")}</div>
+              <div className="ops-panel-subtle p-3 text-center">
+                <div className="text-xl font-semibold tabular-nums text-ops-success">{pick(cycleResult, "clean_count")}</div>
                 <div className="text-[11px] text-ops-muted">Clean Attested</div>
               </div>
-              <div className="rounded border border-ops-border bg-ops-bg p-3 text-center">
-                <div className="text-xl font-bold font-mono text-ops-warning">{pick(cycleResult, "drift_count")}</div>
+              <div className="ops-panel-subtle p-3 text-center">
+                <div className="text-xl font-semibold tabular-nums text-ops-warning">{pick(cycleResult, "drift_count")}</div>
                 <div className="text-[11px] text-ops-muted">Review Baru</div>
               </div>
             </div>
