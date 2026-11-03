@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { checkSystemUpdate, VersionInfo } from "@/actions/update";
-import { RefreshCw, Download, CheckCircle, ArrowUpCircle, GitBranch } from "lucide-react";
+import { RefreshCw, Download, CheckCircle, ArrowUpCircle, GitBranch, AlertCircle, Terminal } from "lucide-react";
 
 export default function SystemUpdatePage() {
     const [currentVersion, setCurrentVersion] = useState<VersionInfo | null>(null);
@@ -67,8 +67,8 @@ export default function SystemUpdatePage() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center p-12">
-                <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
-                <span className="ml-3 text-slate-400">Memuat informasi versi...</span>
+                <RefreshCw className="w-8 h-8 text-ops-info animate-spin" />
+                <span className="ml-3 text-ops-muted">Memuat informasi versi...</span>
             </div>
         );
     }
@@ -78,19 +78,19 @@ export default function SystemUpdatePage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                        <ArrowUpCircle className="w-7 h-7 text-white" />
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-ops-info to-ops-accent flex items-center justify-center shadow-lg shadow-ops-info/20">
+                        <ArrowUpCircle className="w-7 h-7 text-ops-accent-fg" />
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold text-ops-text">System Update</h1>
-                        <p className="text-slate-400">Kelola pembaruan aplikasi OTA (Over-The-Air)</p>
+                        <p className="text-ops-muted">Kelola pembaruan aplikasi OTA (Over-The-Air)</p>
                     </div>
                 </div>
 
                 <button
                     onClick={checkForUpdates}
                     disabled={isChecking}
-                    className="flex h-10 items-center justify-center gap-2 rounded-lg bg-surface px-4 text-sm font-semibold text-ops-text border border-border hover:bg-slate-700 transition-all disabled:opacity-50"
+                    className="flex h-10 items-center justify-center gap-2 rounded-lg bg-surface px-4 text-sm font-semibold text-ops-text border border-border hover:bg-ops-surface-raised transition-all disabled:opacity-50"
                 >
                     <RefreshCw className={`w-4 h-4 ${isChecking ? "animate-spin" : ""}`} />
                     Check for Updates
@@ -98,8 +98,8 @@ export default function SystemUpdatePage() {
             </div>
 
             {errorMsg && (
-                <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl flex items-center gap-3">
-                    <span className="material-symbols-outlined shrink-0">error</span>
+                <div className="bg-ops-danger-soft border border-ops-danger/50 text-ops-danger px-4 py-3 rounded-xl flex items-center gap-3">
+                    <AlertCircle className="size-5 shrink-0" />
                     <p className="text-sm font-medium">{errorMsg}</p>
                 </div>
             )}
@@ -107,7 +107,7 @@ export default function SystemUpdatePage() {
             {/* Current Version Card */}
             <div className="bg-surface border border-border/50 rounded-2xl p-6">
                 <h2 className="text-lg font-semibold text-ops-text mb-4 flex items-center gap-2">
-                    <GitBranch className="w-5 h-5 text-blue-400" />
+                    <GitBranch className="w-5 h-5 text-ops-info" />
                     Versi Saat Ini
                 </h2>
 
@@ -115,15 +115,15 @@ export default function SystemUpdatePage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                             <p className="text-sm text-muted mb-1">Versi Rilis</p>
-                            <p className="text-3xl font-bold text-blue-400">v{currentVersion.version}</p>
+                            <p className="text-3xl font-bold text-ops-info">v{currentVersion.version}</p>
                         </div>
                         <div>
                             <p className="text-sm text-muted mb-1">Tanggal Rilis</p>
-                            <p className="font-medium text-slate-300">{currentVersion.releaseDate}</p>
+                            <p className="font-medium text-ops-muted">{currentVersion.releaseDate}</p>
                         </div>
                         <div>
                             <p className="text-sm text-muted mb-1">Sumber Branch</p>
-                            <p className="font-medium text-slate-300">{currentVersion.branch || "main"}</p>
+                            <p className="font-medium text-ops-muted">{currentVersion.branch || "main"}</p>
                         </div>
                     </div>
                 ) : (
@@ -132,8 +132,8 @@ export default function SystemUpdatePage() {
 
                 {currentVersion?.changelog && currentVersion.changelog.length > 0 && (
                     <div className="mt-6 pt-6 border-t border-border/50">
-                        <p className="text-sm font-medium text-slate-400 mb-3">Changelog Sistem:</p>
-                        <ul className="list-disc list-inside text-sm text-slate-300 space-y-1.5 ml-1">
+                        <p className="text-sm font-medium text-ops-muted mb-3">Changelog Sistem:</p>
+                        <ul className="list-disc list-inside text-sm text-ops-muted space-y-1.5 ml-1">
                             {currentVersion.changelog.map((item, i) => (
                                 <li key={i}>{item}</li>
                             ))}
@@ -144,21 +144,21 @@ export default function SystemUpdatePage() {
 
             {/* Update Available Card */}
             {updateAvailable && latestVersion && (
-                <div className="bg-emerald-900/20 border-2 border-emerald-500/30 rounded-2xl p-6">
+                <div className="bg-ops-success-soft border-2 border-ops-success/30 rounded-2xl p-6">
                     <div className="flex flex-col md:flex-row items-start gap-5">
-                        <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
-                            <Download className="w-6 h-6 text-emerald-400" />
+                        <div className="w-12 h-12 rounded-xl bg-ops-success-soft border border-ops-success/30 flex items-center justify-center flex-shrink-0">
+                            <Download className="w-6 h-6 text-ops-success" />
                         </div>
                         <div className="flex-1">
-                            <h3 className="text-xl font-bold text-emerald-400">Pembaruan Tersedia!</h3>
-                            <p className="text-emerald-100/70 mt-1">
+                            <h3 className="text-xl font-bold text-ops-success">Pembaruan Tersedia!</h3>
+                            <p className="text-ops-text mt-1">
                                 Versi terbaru aplikasi <strong>v{latestVersion.version}</strong> telah dirilis pada {latestVersion.releaseDate}.
                             </p>
 
                             {latestVersion.changelog && latestVersion.changelog.length > 0 && (
                                 <div className="mt-4">
-                                    <p className="text-sm text-emerald-300 font-semibold mb-2">Apa yang baru:</p>
-                                    <ul className="list-disc list-inside text-sm text-emerald-200/80 space-y-1">
+                                    <p className="text-sm text-ops-success font-semibold mb-2">Apa yang baru:</p>
+                                    <ul className="list-disc list-inside text-sm text-ops-muted space-y-1">
                                         {latestVersion.changelog.map((item, i) => (
                                             <li key={i}>{item}</li>
                                         ))}
@@ -166,19 +166,19 @@ export default function SystemUpdatePage() {
                                 </div>
                             )}
 
-                            <div className="mt-6 p-5 bg-background/60 border border-emerald-500/20 rounded-xl">
-                                <p className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-[18px]">terminal</span>
+                            <div className="mt-6 p-5 bg-background/60 border border-ops-success/20 rounded-xl">
+                                <p className="text-sm font-semibold text-ops-success mb-3 flex items-center gap-2">
+                                    <Terminal className="size-[18px]" />
                                     Untuk memperbarui sistem, masuk ke server Anda dan jalankan skrip berikut:
                                 </p>
                                 <div className="space-y-2 font-mono text-sm">
                                     <div className="flex items-center gap-2">
                                         <span className="text-muted w-24">OS Windows</span>
-                                        <code className="text-amber-400 bg-black/40 px-2 py-1 rounded">.\update.ps1</code>
+                                        <code className="text-ops-warning bg-ops-surface-sunken px-2 py-1 rounded">.\update.ps1</code>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="text-muted w-24">OS Linux</span>
-                                        <code className="text-emerald-400 bg-black/40 px-2 py-1 rounded">./update.sh</code>
+                                        <code className="text-ops-success bg-ops-surface-sunken px-2 py-1 rounded">./update.sh</code>
                                     </div>
                                 </div>
                             </div>
@@ -191,12 +191,12 @@ export default function SystemUpdatePage() {
             {!updateAvailable && latestVersion && !isChecking && (
                 <div className="bg-surface border border-border/50 rounded-2xl p-6">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                            <CheckCircle className="w-6 h-6 text-blue-400" />
+                        <div className="w-12 h-12 rounded-xl bg-ops-info-soft border border-ops-info/20 flex items-center justify-center">
+                            <CheckCircle className="w-6 h-6 text-ops-info" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-200">Aplikasi Sudah Mutakhir</h3>
-                            <p className="text-sm text-slate-400 mt-0.5">
+                            <h3 className="text-lg font-bold text-ops-subtle">Aplikasi Sudah Mutakhir</h3>
+                            <p className="text-sm text-ops-muted mt-0.5">
                                 Anda sudah menggunakan versi terbaru (v{currentVersion?.version}). Sistem berjalan dengan aman dan stabil.
                             </p>
                         </div>
@@ -207,17 +207,17 @@ export default function SystemUpdatePage() {
             {/* Instructions */}
             <div className="bg-surface/50 border border-border/30 rounded-2xl p-6">
                 <h2 className="text-lg font-semibold text-ops-text mb-4">Cara Kerja Pembaruan OTA (Over-The-Air)</h2>
-                <div className="space-y-3 text-sm text-slate-400">
+                <div className="space-y-3 text-sm text-ops-muted">
                     <p>
                         DC-Check dilengkapi skrip otomatisasi yang sangat aman dan dapat diandalkan untuk mengambil pembaharuan versi terbaru (OTA) langsung dari repositori Git proyek Anda tanpa memberhentikan sistem secara mendadak.
                     </p>
-                    <p className="mt-4 text-slate-300 font-medium">Skrip akan bekerja secara berurutan:</p>
-                    <ol className="list-decimal list-inside space-y-2 pl-2 text-slate-400">
-                        <li>Melakukan Backup Database otomatis (via <code className="text-pink-400">pg_dump</code>).</li>
-                        <li>Memastikan kode terbaru tertarik dari <code className="text-blue-400">git pull origin main</code>.</li>
+                    <p className="mt-4 text-ops-muted font-medium">Skrip akan bekerja secara berurutan:</p>
+                    <ol className="list-decimal list-inside space-y-2 pl-2 text-ops-muted">
+                        <li>Melakukan Backup Database otomatis (via <code className="text-ops-info">pg_dump</code>).</li>
+                        <li>Memastikan kode terbaru tertarik dari <code className="text-ops-info">git pull origin main</code>.</li>
                         <li>Melakukan *Build* container secara transparan di belakang layar (*Zero-downtime saat build*).</li>
                         <li>Mereset *Container Web* lama, dan menggantinya dengan yang baru dalam waktu &lt; 2 detik.</li>
-                        <li>Menggunakan <code className="text-orange-400">drizzle push</code> untuk menerapkan jika ada skema tabel database terbaru.</li>
+                        <li>Menggunakan <code className="text-ops-warning">drizzle push</code> untuk menerapkan jika ada skema tabel database terbaru.</li>
                     </ol>
                 </div>
             </div>

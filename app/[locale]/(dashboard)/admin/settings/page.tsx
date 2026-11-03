@@ -9,6 +9,7 @@ import NcmSettingsForm from "@/components/admin/ncm-settings-form";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Settings } from "lucide-react";
 
 export const metadata = {
     title: "Global Settings | DataGuard Admin",
@@ -41,12 +42,12 @@ export default async function SettingsPage() {
         <div className="py-8 px-6 max-w-[1600px] mx-auto min-h-[calc(100vh-56px)]">
             <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
-                    <div className="size-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400">
-                        <span className="material-symbols-outlined text-[20px]">settings</span>
+                    <div className="size-10 rounded-xl bg-ops-info-soft flex items-center justify-center text-ops-info">
+                        <Settings className="size-5" />
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold text-ops-text tracking-tight">{t("title")}</h1>
-                        <p className="text-sm text-slate-400 mt-1">
+                        <p className="text-sm text-ops-muted mt-1">
                             {t("description")}
                         </p>
                     </div>

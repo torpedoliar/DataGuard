@@ -53,7 +53,7 @@ export default async function SiemSyslogPage({
         actions={
           <>
             <div
-              className="inline-flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200"
+              className="inline-flex items-center gap-2 rounded-md border border-ops-warning/30 bg-ops-warning-soft px-3 py-1.5 text-xs text-ops-warning"
               title="Orphan syslog events quarantined for forensics (>24h old). Auto-purged after quarantine retention period."
             >
               <Archive className="size-3.5" />
@@ -68,7 +68,7 @@ export default async function SiemSyslogPage({
       />
 
       {"message" in data && data.message ? (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{data.message}</div>
+        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
       ) : (
         <SiemSyslogTable data={data} />
       )}

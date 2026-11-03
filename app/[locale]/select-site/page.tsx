@@ -100,7 +100,7 @@ export default async function SelectSitePage() {
             {sitesWithoutCoords.length > 0 && (
                 <div className="fixed inset-x-4 bottom-4 z-50 md:left-auto md:w-96">
                     <div className="rounded-md border border-ops-border bg-ops-surface-raised p-4 shadow-2xl">
-                        <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em] text-amber-200">
+                        <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em] text-ops-warning">
                             <MapPinOff className="size-4" />
                             Sites without map coordinates
                         </p>
@@ -114,9 +114,9 @@ export default async function SelectSitePage() {
                                 }}>
                                     <button
                                         type="submit"
-                                        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-ops-surface"
+                                        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-ops-muted transition-colors hover:bg-ops-surface"
                                     >
-                                        <span className="size-2 rounded-full bg-amber-400" />
+                                        <span className="size-2 rounded-full bg-ops-warning" />
                                         <span>{site.name}</span>
                                         <span className="ml-auto font-mono text-[10px] text-ops-muted">{site.code}</span>
                                     </button>

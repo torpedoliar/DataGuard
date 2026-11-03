@@ -129,11 +129,11 @@ export default async function ReportPage({
             </div>
             <div className="flex items-center gap-4 text-xs">
               <div className="flex items-center gap-1.5">
-                <span className="size-2.5 rounded-full bg-emerald-400" />
+                <span className="size-2.5 rounded-full bg-ops-success" />
                 <span className="text-ops-muted">Healthy</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="size-2.5 rounded-full bg-orange-400" />
+                <span className="size-2.5 rounded-full bg-ops-danger" />
                 <span className="text-ops-muted">Faulty</span>
               </div>
             </div>
@@ -151,12 +151,12 @@ export default async function ReportPage({
                   <div key={trend.month} className="flex w-full flex-col items-center gap-2">
                     <div className="flex h-[220px] w-full items-end justify-center gap-0.5">
                       <div
-                        className="max-w-[18px] flex-1 rounded-t bg-emerald-400 transition-colors hover:bg-emerald-300"
+                        className="max-w-[18px] flex-1 rounded-t bg-ops-success transition-colors hover:bg-ops-success"
                         style={{ height: `${healthyPct}%` }}
                         title={`Healthy: ${trend.healthy}`}
                       />
                       <div
-                        className="max-w-[18px] flex-1 rounded-t bg-orange-400 transition-colors hover:bg-orange-300"
+                        className="max-w-[18px] flex-1 rounded-t bg-ops-danger transition-colors hover:bg-ops-danger/80"
                         style={{ height: `${Math.max(faultyPct, 2)}%` }}
                         title={`Faulty: ${trend.faulty}`}
                       />
@@ -240,10 +240,10 @@ export default async function ReportPage({
                     <td className="px-4 py-3 text-ops-muted">{item.category}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="flex size-6 items-center justify-center rounded-full bg-blue-400/12 text-[10px] font-bold text-blue-200">
+                        <div className="flex size-6 items-center justify-center rounded-full bg-ops-info-soft text-[10px] font-bold text-ops-info">
                           {item.checker?.substring(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-slate-300">{item.checker}</span>
+                        <span className="text-ops-muted">{item.checker}</span>
                       </div>
                     </td>
                     <td className="max-w-[240px] px-4 py-3 text-ops-muted">
@@ -255,7 +255,7 @@ export default async function ReportPage({
                     <td className="px-4 py-3">
                       {item.incidentId ? (
                         <Link href={`/admin/incidents/${item.incidentId}`} className="inline-flex">
-                          <StatusBadge tone={getIncidentStatusTone(item.incidentStatus)} className="hover:border-red-300/40">
+                          <StatusBadge tone={getIncidentStatusTone(item.incidentStatus)} className="hover:border-ops-danger/40">
                             #{item.incidentId} {item.incidentStatus}
                           </StatusBadge>
                         </Link>

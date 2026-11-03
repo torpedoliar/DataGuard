@@ -41,7 +41,7 @@ export default function DashboardError({
         <button
           type="button"
           onClick={handleReset}
-          className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-ops-accent px-4 text-sm font-semibold text-white transition-colors hover:bg-ops-accent/90"
+          className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-ops-accent px-4 text-sm font-semibold text-ops-accent-fg transition-colors hover:bg-ops-accent-hover"
         >
           <RotateCcw className="size-4" />
           Try Again

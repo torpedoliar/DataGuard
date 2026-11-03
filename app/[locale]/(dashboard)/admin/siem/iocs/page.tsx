@@ -15,7 +15,7 @@ export default async function SiemIocsPage() {
     <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
       <PageHeader eyebrow="Admin / SIEM" title="IOC Watchlist" description="Indikator kompromi yang dicocokkan otomatis ke event oleh rule indicator_match." />
       {"message" in data && data.message ? (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{data.message}</div>
+        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
       ) : (
         <SiemIocsForm iocs={"iocs" in data ? data.iocs : []} />
       )}

@@ -77,7 +77,7 @@ export default async function SiemFindingsPage({
       </DataToolbar>
 
       {"message" in data && data.message ? (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{data.message}</div>
+        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
       ) : data.findings.length === 0 ? (
         <EmptyState
           icon={<ShieldCheck className="size-5" />}

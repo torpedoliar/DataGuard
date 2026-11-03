@@ -107,9 +107,9 @@ export default async function AuditGridPage({
             <StatsCard label="Devices w/ Issue" value={devicesWithIssue} icon={<XCircle className="size-4" />} tone={devicesWithIssue > 0 ? "warning" : "neutral"} />
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-ops-muted">
-            <LegendItem icon={<CheckCircle2 className="size-4 text-emerald-300" />} label="OK" />
-            <LegendItem icon={<XCircle className="size-4 text-red-300" />} label="NOT OK" />
-            <LegendItem icon={<Circle className="size-4 text-slate-600" />} label="No check" />
+            <LegendItem icon={<CheckCircle2 className="size-4 text-ops-success" />} label="OK" />
+            <LegendItem icon={<XCircle className="size-4 text-ops-danger" />} label="NOT OK" />
+            <LegendItem icon={<Circle className="size-4 text-ops-muted" />} label="No check" />
           </div>
         </div>
       </header>
@@ -138,7 +138,7 @@ export default async function AuditGridPage({
                         <span className={clsx("text-[10px]", isToday ? "text-ops-accent" : "text-ops-muted")}>
                           {dayName}
                         </span>
-                        <span className="font-mono text-slate-300">{dateMonth}</span>
+                        <span className="font-mono text-ops-muted">{dateMonth}</span>
                       </div>
                     </th>
                   );
@@ -164,7 +164,7 @@ export default async function AuditGridPage({
                       >
                         <div className="flex items-center gap-2">
                           <span className="size-2.5 rounded-full" style={{ backgroundColor: color }} />
-                          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-300">
+                          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-ops-muted">
                             {categoryName}
                           </span>
                           <span className="font-mono text-[11px] text-ops-muted">({devices.length})</span>
@@ -194,7 +194,7 @@ export default async function AuditGridPage({
                             >
                               {checks.length === 0 ? (
                                 <div className="flex min-h-8 items-center justify-center">
-                                  <Circle className="size-3.5 text-slate-700" />
+                                  <Circle className="size-3.5 text-ops-muted" />
                                 </div>
                               ) : (
                                 <div className="flex flex-col items-center justify-center gap-1">
@@ -233,7 +233,7 @@ export default async function AuditGridPage({
                                 className={clsx(
                                   "rounded px-1.5 py-0.5 text-[10px] font-mono",
                                   t.includes("⚠")
-                                    ? "bg-amber-400/15 text-amber-300 font-semibold"
+                                    ? "bg-ops-warning-soft text-ops-warning font-semibold"
                                     : "bg-ops-bg text-ops-text"
                                 )}
                               >
@@ -268,19 +268,19 @@ function LegendItem({ icon, label }: { icon: ReactNode; label: string }) {
 
 function GridStatusPill({ check }: { check: DailyCheck }) {
   const icon = check.status === "OK"
-    ? <CheckCircle2 className="size-3.5 text-emerald-300" />
-    : <XCircle className="size-3.5 text-red-300" />;
+    ? <CheckCircle2 className="size-3.5 text-ops-success" />
+    : <XCircle className="size-3.5 text-ops-danger" />;
 
   return (
     <div
       className={clsx(
         "group/tooltip relative flex items-center gap-1 rounded-full border px-2 py-0.5",
-        check.status === "OK" && "border-emerald-400/25 bg-emerald-400/10",
-        check.status === "NOT OK" && "border-red-400/25 bg-red-400/10",
+        check.status === "OK" && "border-ops-success/25 bg-ops-success-soft",
+        check.status === "NOT OK" && "border-ops-danger/25 bg-ops-danger-soft",
       )}
       title={`${check.shift} Shift @ ${check.time}`}
     >
-      <span className="max-w-[54px] truncate text-[10px] font-semibold text-slate-300">{check.username}</span>
+      <span className="max-w-[54px] truncate text-[10px] font-semibold text-ops-muted">{check.username}</span>
       {icon}
       <div className="pointer-events-none absolute -top-8 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-md border border-ops-border bg-ops-surface-raised px-2.5 py-1 text-[10px] text-ops-text opacity-0 transition-opacity group-hover/tooltip:opacity-100">
         {check.shift} | {check.time}

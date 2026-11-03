@@ -29,7 +29,7 @@ export default async function AboutPage() {
 
                 {/* ASCII Art Logo */}
                 <div className="mb-8 overflow-x-auto">
-                    <pre className="inline-block text-left font-mono text-[10px] sm:text-xs leading-tight text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.7)] select-none whitespace-pre">{`   _____ ____  ____  _______  __
+                    <pre className="inline-block text-left font-mono text-[10px] sm:text-xs leading-tight text-ops-info drop-shadow-[0_0_8px_rgba(96,165,250,0.7)] select-none whitespace-pre">{`   _____ ____  ____  _______  __
   / ___// __ \\/ __ \\/ ____/ |/ /
  / /   / / / / / / / __/  |   / 
 / /___/ /_/ / /_/ / /___ /   |  
@@ -40,12 +40,12 @@ export default async function AboutPage() {
   / / / / /_/ / _ \\/ ___/ __ \`/ __/ / __ \\/ __ \\/ __ \`/ / 
  / /_/ / ____/  __/ /  / /_/ / /_/ / /_/ / / / / /_/ / /  
  \\____/_/    \\___/_/   \\__,_/\\__/_/\\____/_/ /_/\\__,_/_/   `}</pre>
-                    <p className="mt-3 font-mono text-xs sm:text-sm tracking-[0.25em] text-slate-300">
-                        <span className="text-blue-400 font-bold">[C]</span>ontrol{" "}
-                        <span className="text-blue-400 font-bold">[O]</span>ptimize{" "}
-                        <span className="text-blue-400 font-bold">[D]</span>eploy{" "}
-                        <span className="text-blue-400 font-bold">[E]</span>xecute{" "}
-                        <span className="text-blue-400 font-bold">[X]</span>system
+                    <p className="mt-3 font-mono text-xs sm:text-sm tracking-[0.25em] text-ops-muted">
+                        <span className="text-ops-info font-bold">[C]</span>ontrol{" "}
+                        <span className="text-ops-info font-bold">[O]</span>ptimize{" "}
+                        <span className="text-ops-info font-bold">[D]</span>eploy{" "}
+                        <span className="text-ops-info font-bold">[E]</span>xecute{" "}
+                        <span className="text-ops-info font-bold">[X]</span>system
                     </p>
                 </div>
 
@@ -53,14 +53,14 @@ export default async function AboutPage() {
                     {appSettings.logoPath ? (
                         <img src={appSettings.logoPath} alt="Logo" className="h-20 w-auto object-contain" />
                     ) : (
-                        <div className="size-20 rounded-2xl bg-gradient-to-br from-blue-500/30 to-indigo-600/30 border border-blue-500/30 flex items-center justify-center">
-                            <Shield className="h-10 w-10 text-blue-400" />
+                        <div className="size-20 rounded-2xl bg-gradient-to-br from-ops-info/30 to-ops-accent/30 border border-ops-info/30 flex items-center justify-center">
+                            <Shield className="h-10 w-10 text-ops-info" />
                         </div>
                     )}
                 </div>
-                <h1 className="text-4xl font-bold text-ops-text dark:text-white mb-2">{appSettings.appName}</h1>
+                <h1 className="text-4xl font-bold text-ops-text mb-2">{appSettings.appName}</h1>
                 <p className="text-ops-muted text-lg mb-4">Data Center Monitoring &amp; Audit System</p>
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-ops-info-soft border border-ops-info/20 text-ops-info text-sm">
                     <Star className="h-3.5 w-3.5" />
                     Version {versionData.version} — Released {versionData.releaseDate}
                 </div>
@@ -68,45 +68,45 @@ export default async function AboutPage() {
 
 
             {/* Credits Card */}
-            <div className="bg-gradient-to-br from-ops-surface to-ops-bg border border-ops-border rounded-2xl p-8 mb-8 relative overflow-hidden dark:from-surface dark:to-surface-darker dark:border-border/50">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 pointer-events-none" />
+            <div className="bg-gradient-to-br from-ops-surface to-ops-bg border border-ops-border rounded-2xl p-8 mb-8 relative overflow-hidden ">
+                <div className="absolute inset-0 bg-gradient-to-br from-ops-info/5 to-ops-accent/5 pointer-events-none" />
 
                 <div className="relative">
-                    <h2 className="text-xl font-bold text-ops-text mb-6 flex items-center gap-2 dark:text-white">
-                        <Heart className="h-5 w-5 text-red-400" />
+                    <h2 className="text-xl font-bold text-ops-text mb-6 flex items-center gap-2">
+                        <Heart className="h-5 w-5 text-ops-danger" />
                         Credits
                     </h2>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {/* Created By */}
-                        <div className="bg-ops-surface rounded-xl p-5 border border-ops-border dark:bg-surface dark:border-border">
-                            <p className="text-xs text-muted uppercase tracking-wider mb-1 dark:text-slate-400">Created by</p>
-                            <p className="text-ops-text font-semibold text-lg dark:text-white">Team Operational Support</p>
-                            <p className="text-blue-600 font-medium dark:text-blue-400">SJA</p>
-                            <p className="text-ops-muted text-sm mt-2 dark:text-slate-400">
+                        <div className="bg-ops-surface rounded-xl p-5 border border-ops-border">
+                            <p className="text-xs text-muted uppercase tracking-wider mb-1">Created by</p>
+                            <p className="text-ops-text font-semibold text-lg">Team Operational Support</p>
+                            <p className="text-ops-info font-medium">SJA</p>
+                            <p className="text-ops-muted text-sm mt-2">
                                 Tim yang berdedikasi membangun dan memelihara infrastruktur data center yang handal dan terdokumentasi dengan baik.
                             </p>
                         </div>
 
                         {/* Licensed By */}
-                        <div className="bg-ops-surface rounded-xl p-5 border border-ops-border dark:bg-surface dark:border-border">
-                            <p className="text-xs text-muted uppercase tracking-wider mb-1 dark:text-slate-400">Licensed by</p>
-                            <p className="text-ops-text font-semibold text-lg flex items-center gap-2 dark:text-white">
+                        <div className="bg-ops-surface rounded-xl p-5 border border-ops-border">
+                            <p className="text-xs text-muted uppercase tracking-wider mb-1">Licensed by</p>
+                            <p className="text-ops-text font-semibold text-lg flex items-center gap-2">
                                 <Github className="h-5 w-5" />
                                 Torpedoliar
                             </p>
-                            <p className="text-ops-muted text-sm mt-2 mb-3 dark:text-slate-400">
+                            <p className="text-ops-muted text-sm mt-2 mb-3">
                                 Dikembangkan dan dirilis secara open-source untuk komunitas pengelola data center Indonesia.
                             </p>
                             <Link
                                 href="https://github.com/torpedoliar"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ops-border hover:bg-ops-surface-raised text-ops-text text-sm transition-colors dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white"
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ops-border hover:bg-ops-surface-raised text-ops-text text-sm transition-colors"
                             >
                                 <Github className="h-3.5 w-3.5" />
                                 github.com/torpedoliar
-                                <ExternalLink className="h-3 w-3 text-ops-muted dark:text-slate-400" />
+                                <ExternalLink className="h-3 w-3 text-ops-muted " />
                             </Link>
                         </div>
                     </div>
@@ -116,17 +116,17 @@ export default async function AboutPage() {
             {/* Repository */}
             <div className="bg-surface border border-border rounded-xl p-6 mb-8">
                 <h2 className="text-lg font-bold text-ops-text mb-4 flex items-center gap-2">
-                    <Code2 className="h-5 w-5 text-blue-400" />
+                    <Code2 className="h-5 w-5 text-ops-info" />
                     Repository
                 </h2>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <div className="flex-1">
-                        <p className="text-ops-muted text-sm mb-1 dark:text-slate-300">Source code tersedia publik di GitHub:</p>
+                        <p className="text-ops-muted text-sm mb-1">Source code tersedia publik di GitHub:</p>
                         <a
                             href={versionData.repository}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-400 hover:text-blue-300 text-sm font-mono break-all transition-colors"
+                            className="text-ops-info hover:text-ops-info text-sm font-mono break-all transition-colors"
                         >
                             {versionData.repository}
                         </a>
@@ -135,7 +135,7 @@ export default async function AboutPage() {
                         href={versionData.repository}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm font-medium transition-colors"
+                        className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-ops-accent hover:bg-ops-accent-hover text-ops-accent-fg text-sm font-medium transition-colors"
                     >
                         <Github className="h-4 w-4" />
                         Lihat di GitHub
@@ -147,18 +147,18 @@ export default async function AboutPage() {
             {/* Features */}
             <div className="bg-surface border border-border rounded-xl p-6 mb-8">
                 <h2 className="text-lg font-bold text-ops-text mb-4 flex items-center gap-2">
-                    <Star className="h-5 w-5 text-amber-400" />
+                    <Star className="h-5 w-5 text-ops-warning" />
                     Fitur Utama
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {features.map((f, i) => (
                         <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-surface border border-border">
-                            <div className="p-2 rounded-lg bg-blue-500/15 text-blue-400 shrink-0">
+                            <div className="p-2 rounded-lg bg-ops-info-soft text-ops-info shrink-0">
                                 {f.icon}
                             </div>
                             <div>
                                 <p className="text-ops-text text-sm font-medium">{f.label}</p>
-                                <p className="text-slate-400 text-xs mt-0.5">{f.desc}</p>
+                                <p className="text-ops-muted text-xs mt-0.5">{f.desc}</p>
                             </div>
                         </div>
                     ))}
@@ -172,15 +172,15 @@ export default async function AboutPage() {
                 </h2>
                 <ul className="space-y-2">
                     {versionData.changelog.map((item, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-slate-400">
-                            <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                        <li key={i} className="flex items-start gap-2 text-sm text-ops-muted">
+                            <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-ops-accent shrink-0" />
                             {item}
                         </li>
                     ))}
                 </ul>
 
-                <div className="mt-6 pt-4 border-t border-border text-center text-xs text-slate-600">
-                    Dibuat dengan <span className="text-red-500">♥</span> oleh Team Operational Support SJA · Licensed by Torpedoliar
+                <div className="mt-6 pt-4 border-t border-border text-center text-xs text-ops-muted">
+                    Dibuat dengan <span className="text-ops-danger">♥</span> oleh Team Operational Support SJA · Licensed by Torpedoliar
                 </div>
             </div>
         </div>

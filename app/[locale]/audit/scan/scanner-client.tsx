@@ -93,7 +93,7 @@ export default function QRScannerClient() {
 
           <aside className="border-t border-ops-border bg-ops-surface p-5 lg:border-l lg:border-t-0">
             <div className="flex items-start gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-blue-400/12 text-blue-200">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-ops-info-soft text-ops-info">
                 <Camera className="size-5" />
               </div>
               <div>
@@ -105,7 +105,7 @@ export default function QRScannerClient() {
             </div>
 
             {scanError && (
-              <div className="mt-5 rounded-md border border-red-400/30 bg-red-400/12 p-3 text-sm text-red-200">
+              <div className="mt-5 rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                   <span>{scanError}</span>

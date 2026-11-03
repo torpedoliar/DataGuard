@@ -25,7 +25,7 @@ export default async function SiemPage() {
           title="SIEM Dashboard"
           description="Syslog ingestion, event parsing, rule findings, source mapping, and alert delivery for the active site."
         />
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{data.message}</div>
+        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
       </main>
     );
   }
