@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Image as ImageIcon } from "lucide-react";
 import PhotoModal from "./photo-modal";
 
 export default function PhotoModalTrigger({ photoPath, deviceName }: { photoPath: string; deviceName?: string }) {
@@ -14,10 +15,10 @@ export default function PhotoModalTrigger({ photoPath, deviceName }: { photoPath
                     e.stopPropagation();
                     setIsOpen(true);
                 }}
-                className="text-blue-400 hover:text-blue-300 shrink-0 outline-none"
+                className="text-ops-info hover:text-ops-info shrink-0 outline-none"
                 title="View photo"
             >
-                <span className="material-symbols-outlined text-sm">photo</span>
+                <ImageIcon className="size-4" aria-hidden="true" />
             </button>
 
             {isOpen && (

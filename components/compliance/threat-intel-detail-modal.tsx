@@ -158,7 +158,7 @@ export default function ThreatIntelDetailModal({
           {/* Source & CVEs */}
           <div className="rounded-lg border border-ops-border bg-ops-surface/60 p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2 border-b border-ops-border/60 pb-2 text-xs font-semibold text-ops-muted uppercase tracking-wider">
-              <Globe className="size-3.5 text-blue-400" />
+              <Globe className="size-3.5 text-ops-info" />
               <span>Sumber Informasi & CVE</span>
             </div>
 
@@ -175,7 +175,7 @@ export default function ThreatIntelDetailModal({
                     href={item.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 hover:underline font-medium max-w-[200px] truncate"
+                    className="inline-flex items-center gap-1 text-ops-info hover:text-ops-info hover:underline font-medium max-w-[200px] truncate"
                     title={item.sourceUrl}
                   >
                     <span>Buka Sumber Resmi</span>
@@ -222,7 +222,7 @@ export default function ThreatIntelDetailModal({
           {/* Affected Assets & Location */}
           <div className="rounded-lg border border-ops-border bg-ops-surface/60 p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2 border-b border-ops-border/60 pb-2 text-xs font-semibold text-ops-muted uppercase tracking-wider">
-              <Server className="size-3.5 text-amber-400" />
+              <Server className="size-3.5 text-ops-warning" />
               <span>Asset & Lingkup Infrastruktur</span>
             </div>
 
@@ -272,17 +272,17 @@ export default function ThreatIntelDetailModal({
         {/* Section 3: Remediation & Mitigation (ISO 27001 A.8.8) */}
         <div className={`rounded-lg border p-4 flex flex-col gap-2.5 ${
           item.status === "mitigated"
-            ? "border-emerald-500/30 bg-emerald-500/5"
-            : "border-amber-500/30 bg-amber-500/5"
+            ? "border-ops-success/30 bg-ops-success-soft"
+            : "border-ops-warning/30 bg-ops-warning-soft"
         }`}>
           <div className="flex items-center justify-between border-b border-ops-border/50 pb-2">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ops-text">
-              <Wrench className="size-3.5 text-emerald-400" />
+              <Wrench className="size-3.5 text-ops-success" />
               <span>Rencana Tindakan / Patching (ISO 27001 Control A.8.8)</span>
             </div>
 
             {item.mitigatedAt && (
-              <div className="flex items-center gap-1 text-xs text-emerald-400 font-mono">
+              <div className="flex items-center gap-1 text-xs text-ops-success font-mono">
                 <CheckCircle2 className="size-3" />
                 <span>Dieksekusi: {formatShortDate(item.mitigatedAt)}</span>
               </div>

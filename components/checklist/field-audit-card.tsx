@@ -51,14 +51,14 @@ const statusOptions: {
     label: "OK",
     helper: "Normal",
     icon: CheckCircle,
-    selectedClass: "border-emerald-400/60 bg-emerald-400/12 text-emerald-100 ring-1 ring-emerald-400/40",
+    selectedClass: "border-ops-success/60 bg-ops-success-soft text-ops-success ring-1 ring-ops-success/40",
   },
   {
     value: "NOT OK",
     label: "NOT OK",
     helper: "Needs attention",
     icon: XCircle,
-    selectedClass: "border-red-400/60 bg-red-400/12 text-red-100 ring-1 ring-red-400/40",
+    selectedClass: "border-ops-danger/60 bg-ops-danger-soft text-ops-danger ring-1 ring-ops-danger/40",
   },
 ];
 

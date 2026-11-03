@@ -170,19 +170,19 @@ export default function ChecklistForm({
   return (
     <form action={action} className="flex flex-col gap-5" suppressHydrationWarning>
       {existingDateEntry && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-200 shadow-sm">
+        <div className="rounded-lg border border-ops-warning/40 bg-ops-warning-soft p-4 text-ops-warning shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <p className="font-semibold text-amber-100">
+              <p className="font-semibold text-ops-warning">
                 Audit tanggal ({existingDateEntry.checkDate}) sudah tercatat oleh <span className="underline">{existingDateEntry.checker}</span> ({existingDateEntry.checkTime}, Shift {existingDateEntry.shift}).
               </p>
-              <p className="mt-1 text-xs text-amber-200/80">
+              <p className="mt-1 text-xs text-ops-warning/80">
                 Submisi perangkat di bawah akan otomatis memperbarui audit tanggal ini tanpa menghasilkan auditor ganda.
               </p>
             </div>
             <Link
               href={`/report/edit/${existingDateEntry.id}`}
-              className="inline-flex shrink-0 items-center justify-center rounded-md border border-amber-400/50 bg-amber-400/20 px-3 py-1.5 text-xs font-bold text-amber-100 hover:bg-amber-400/30 transition-colors"
+              className="inline-flex shrink-0 items-center justify-center rounded-md border border-ops-warning/50 bg-ops-warning-soft px-3 py-1.5 text-xs font-bold text-ops-warning hover:bg-ops-warning-soft transition-colors"
             >
               Edit Form Audit ({existingDateEntry.checkDate})
             </Link>
@@ -270,7 +270,7 @@ export default function ChecklistForm({
                     <div className="relative">
                       <Thermometer className={clsx(
                         "pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2",
-                        overIncident ? "text-red-400" : overThreshold ? "text-amber-400" : "text-ops-muted",
+                        overIncident ? "text-ops-danger" : overThreshold ? "text-ops-warning" : "text-ops-muted",
                       )} />
                       <input
                         type="number"
@@ -285,8 +285,8 @@ export default function ChecklistForm({
                         className={clsx(
                           fieldClass,
                           "pl-9 pr-8",
-                          overIncident && "border-red-400/60 ring-1 ring-red-400/40",
-                          overThreshold && !overIncident && "border-amber-400/60",
+                          overIncident && "border-ops-danger/60 ring-1 ring-ops-danger/40",
+                          overThreshold && !overIncident && "border-ops-warning/60",
                         )}
                       />
                       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ops-muted">°C</span>
@@ -355,7 +355,7 @@ export default function ChecklistForm({
                 className={clsx(
                   "flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors",
                   activeTab === undefined
-                    ? "bg-ops-accent text-slate-950"
+                    ? "bg-ops-accent text-ops-accent-fg"
                     : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
                 )}
               >
@@ -363,7 +363,7 @@ export default function ChecklistForm({
                 <span
                   className={clsx(
                     "rounded-full px-2 py-0.5 text-[11px]",
-                    activeTab === undefined ? "bg-slate-950/12 text-slate-950" : "bg-ops-bg text-ops-muted",
+                    activeTab === undefined ? "bg-ops-bg/12 text-ops-accent-fg" : "bg-ops-bg text-ops-muted",
                   )}
                 >
                   {devices.length}
@@ -380,7 +380,7 @@ export default function ChecklistForm({
                     className={clsx(
                       "flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors",
                       active
-                        ? "bg-ops-accent text-slate-950"
+                        ? "bg-ops-accent text-ops-accent-fg"
                         : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
                     )}
                   >
@@ -388,7 +388,7 @@ export default function ChecklistForm({
                     <span
                       className={clsx(
                         "rounded-full px-2 py-0.5 text-[11px]",
-                        active ? "bg-slate-950/12 text-slate-950" : "bg-ops-bg text-ops-muted",
+                        active ? "bg-ops-bg/12 text-ops-accent-fg" : "bg-ops-bg text-ops-muted",
                       )}
                     >
                       {count}
@@ -461,7 +461,7 @@ export default function ChecklistForm({
                               type="checkbox"
                               checked={active}
                               readOnly
-                              className="size-4 rounded border-ops-border accent-[#5eead4] pointer-events-none"
+                              className="size-4 rounded border-ops-border accent-ops-accent pointer-events-none"
                               tabIndex={-1}
                             />
                             <span className="truncate">{rack.label}</span>
@@ -609,11 +609,11 @@ export default function ChecklistForm({
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             {state?.message && (
-              <p className={clsx("text-sm", state.success ? "text-emerald-300" : "text-red-300")}>
+              <p className={clsx("text-sm", state.success ? "text-ops-success" : "text-ops-danger")}>
                 {state.message}
               </p>
             )}
-            {state?.success && <p className="text-sm text-emerald-300">Checklist submitted successfully.</p>}
+            {state?.success && <p className="text-sm text-ops-success">Checklist submitted successfully.</p>}
             <ActionButton
               type="submit"
               isPending={isPending}

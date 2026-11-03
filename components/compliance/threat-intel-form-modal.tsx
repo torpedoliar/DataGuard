@@ -203,7 +203,7 @@ export default function ThreatIntelFormModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="flex items-center gap-2 rounded-md bg-red-500/10 border border-red-500/20 p-3 text-xs text-red-400">
+          <div className="flex items-center gap-2 rounded-md bg-ops-danger-soft border border-ops-danger/20 p-3 text-xs text-ops-danger">
             <AlertCircle className="size-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -456,7 +456,7 @@ export default function ThreatIntelFormModal({
                       <button
                         type="button"
                         onClick={() => markEvidenceDeleted(ev.id)}
-                        className="text-red-400 hover:text-red-300 p-1 shrink-0"
+                        className="text-ops-danger hover:text-ops-danger p-1 shrink-0"
                         title="Hapus bukti ini"
                       >
                         <Trash2 className="size-3.5" />
@@ -502,7 +502,7 @@ export default function ThreatIntelFormModal({
                     <button
                       type="button"
                       onClick={() => removeNewEvidence(idx)}
-                      className="text-red-400 hover:text-red-300 p-1 shrink-0"
+                      className="text-ops-danger hover:text-ops-danger p-1 shrink-0"
                       title="Batal upload"
                     >
                       <Trash2 className="size-4" />

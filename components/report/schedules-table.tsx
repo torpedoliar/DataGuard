@@ -146,15 +146,15 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
                 <div
                     className={`flex items-center justify-between rounded-lg border p-4 text-xs font-medium ${
                         feedback.type === "success"
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                            : "border-red-500/30 bg-red-500/10 text-red-300"
+                            ? "border-ops-success/30 bg-ops-success-soft text-ops-success"
+                            : "border-ops-danger/30 bg-ops-danger-soft text-ops-danger"
                     }`}
                 >
                     <div className="flex items-center gap-2">
                         {feedback.type === "success" ? (
-                            <CheckCircle2 className="size-4 shrink-0 text-emerald-400" />
+                            <CheckCircle2 className="size-4 shrink-0 text-ops-success" />
                         ) : (
-                            <AlertCircle className="size-4 shrink-0 text-red-400" />
+                            <AlertCircle className="size-4 shrink-0 text-ops-danger" />
                         )}
                         <span>{feedback.text}</span>
                     </div>
@@ -172,7 +172,7 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
             <div className="ops-panel overflow-hidden">
                 {schedules.length === 0 ? (
                     <div className="flex flex-col items-center justify-center p-12 text-center">
-                        <div className="flex size-12 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 mb-3">
+                        <div className="flex size-12 items-center justify-center rounded-xl bg-ops-accent-soft text-ops-accent mb-3">
                             <CalendarClock className="size-6" />
                         </div>
                         <h3 className="text-sm font-semibold text-ops-text">Belum ada Jadwal Report</h3>
@@ -226,7 +226,7 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
                                                     {schedule.name}
                                                 </div>
                                                 <div className="flex items-center gap-1.5 mt-1">
-                                                    <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-400 border border-indigo-500/20">
+                                                    <span className="inline-flex items-center rounded-full bg-ops-info-soft px-2 py-0.5 text-[10px] font-semibold text-ops-info border border-ops-info/20">
                                                         {schedule.reportType === "audit_grid"
                                                             ? "Audit Grid (PDF)"
                                                             : schedule.reportType === "incidents"
@@ -252,7 +252,7 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
                                             {/* Next Run */}
                                             <td className="px-4 py-3.5">
                                                 <div className="flex items-center gap-1.5 text-ops-text">
-                                                    <Clock className="size-3.5 text-indigo-400" />
+                                                    <Clock className="size-3.5 text-ops-info" />
                                                     <span>
                                                         {schedule.isActive
                                                             ? formatDateTime(schedule.nextRunAt)
@@ -278,12 +278,12 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
                                                     <div>
                                                         <div className="flex items-center gap-1.5">
                                                             {schedule.lastRunStatus === "success" ? (
-                                                                <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold">
+                                                                <span className="inline-flex items-center gap-1 text-ops-success font-semibold">
                                                                     <CheckCircle2 className="size-3.5" /> Berhasil
                                                                 </span>
                                                             ) : (
                                                                 <span
-                                                                    className="inline-flex items-center gap-1 text-red-400 font-semibold cursor-help"
+                                                                    className="inline-flex items-center gap-1 text-ops-danger font-semibold cursor-help"
                                                                     title={schedule.lastRunError || "Gagal"}
                                                                 >
                                                                     <XCircle className="size-3.5" /> Gagal
@@ -306,7 +306,7 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
                                                     disabled={!canAdminister || isPending}
                                                     onClick={() => handleToggle(schedule.id)}
                                                     className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                                        schedule.isActive ? "bg-indigo-600" : "bg-ops-border"
+                                                        schedule.isActive ? "bg-ops-accent" : "bg-ops-border"
                                                     }`}
                                                 >
                                                     <span
@@ -326,7 +326,7 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
                                                         disabled={isExecutingThis}
                                                         onClick={() => handleSendNow(schedule)}
                                                         title="Kirim laporan sekarang via email (Test Run)"
-                                                        className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/20 disabled:opacity-50 transition-colors"
+                                                        className="inline-flex items-center gap-1 rounded-md border border-ops-info/30 bg-ops-info-soft px-2.5 py-1 text-xs font-semibold text-ops-info hover:bg-ops-info/20 disabled:opacity-50 transition-colors"
                                                     >
                                                         <Send className={`size-3.5 ${isExecutingThis ? "animate-pulse" : ""}`} />
                                                         <span>{isExecutingThis ? "Mengirim..." : "Kirim Sekarang"}</span>
@@ -349,7 +349,7 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
                                                                 type="button"
                                                                 onClick={() => handleDelete(schedule)}
                                                                 title="Hapus Jadwal"
-                                                                className="rounded-md p-1.5 text-ops-muted hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                                                                className="rounded-md p-1.5 text-ops-muted hover:bg-ops-danger-soft hover:text-ops-danger transition-colors"
                                                             >
                                                                 <Trash2 className="size-4" />
                                                             </button>

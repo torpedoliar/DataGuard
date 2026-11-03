@@ -133,20 +133,20 @@ export default function ProfileForm({ user }: { user: UserData }) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-5xl mx-auto">
             {/* Foto Profil & Info */}
             <div className="col-span-1 lg:col-span-5 space-y-6">
-                <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-6 backdrop-blur-sm">
-                    <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
-                        <User className="size-5 text-blue-400" />
+                <div className="bg-ops-surface/50 rounded-2xl border border-ops-border/50 p-6 backdrop-blur-sm">
+                    <h2 className="text-lg font-semibold text-ops-text mb-6 flex items-center gap-2">
+                        <User className="size-5 text-ops-info" />
                         Profil Anda
                     </h2>
 
                     <div className="flex flex-col items-center">
                         <div className="relative group mb-6">
-                            <div className="size-32 rounded-full overflow-hidden border-4 border-slate-700 bg-slate-900 flex items-center justify-center relative shadow-xl">
+                            <div className="size-32 rounded-full overflow-hidden border-4 border-ops-border bg-ops-bg flex items-center justify-center relative shadow-xl">
                                 {photoPreview ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={photoPreview} alt="Profile preview" className="h-full w-full object-cover" />
                                 ) : (
-                                    <span className="text-4xl font-bold text-slate-500">
+                                    <span className="text-4xl font-bold text-ops-muted">
                                         {user.username.substring(0, 2).toUpperCase()}
                                     </span>
                                 )}
@@ -161,7 +161,7 @@ export default function ProfileForm({ user }: { user: UserData }) {
                                 <button
                                     type="button"
                                     onClick={handleRemovePhoto}
-                                    className="absolute bottom-0 right-0 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-transform hover:scale-110"
+                                    className="absolute bottom-0 right-0 bg-ops-danger-soft hover:bg-ops-danger/20 text-ops-danger p-2 rounded-full shadow-lg transition-transform hover:scale-110"
                                     title="Hapus foto"
                                 >
                                     <Trash2 className="size-4" />
@@ -170,20 +170,20 @@ export default function ProfileForm({ user }: { user: UserData }) {
                         </div>
 
                         <div className="text-center w-full">
-                            <h3 className="text-xl font-bold text-white mb-1">{user.username}</h3>
-                            <p className="text-sm text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full inline-block font-medium capitalize mb-2">
+                            <h3 className="text-xl font-bold text-ops-text mb-1">{user.username}</h3>
+                            <p className="text-sm text-ops-info bg-ops-info-soft px-3 py-1 rounded-full inline-block font-medium capitalize mb-2">
                                 {user.role}
                             </p>
                             {user.email && (
-                                <p className="text-sm text-slate-400">{user.email}</p>
+                                <p className="text-sm text-ops-muted">{user.email}</p>
                             )}
                         </div>
                     </div>
 
-                    <div className="mt-8 pt-6 border-t border-slate-700/50">
+                    <div className="mt-8 pt-6 border-t border-ops-border/50">
                         <form onSubmit={handlePhotoSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                <label className="block text-sm font-medium text-ops-text mb-2">
                                     Ubah Foto Profil
                                 </label>
                                 <input
@@ -191,18 +191,18 @@ export default function ProfileForm({ user }: { user: UserData }) {
                                     type="file"
                                     accept="image/*"
                                     onChange={handlePhotoChange}
-                                    className="w-full text-sm text-slate-400
+                                    className="w-full text-sm text-ops-muted
                                         file:mr-4 file:py-2 file:px-4
                                         file:rounded-full file:border-0
                                         file:text-sm file:font-semibold
-                                        file:bg-blue-500/10 file:text-blue-400
-                                        hover:file:bg-blue-500/20 file:transition-colors cursor-pointer"
+                                        file:bg-ops-accent-soft file:text-ops-accent
+                                        hover:file:bg-ops-info-soft file:transition-colors cursor-pointer"
                                 />
-                                <p className="text-xs text-slate-500 mt-2">Format: JPG, PNG, GIF. Maks. 10MB.</p>
+                                <p className="text-xs text-ops-muted mt-2">Format: JPG, PNG, GIF. Maks. 10MB.</p>
                             </div>
 
                             {photoMessage && (
-                                <div className={`p-3 rounded-lg text-sm border flex items-start gap-2 ${photoMessage.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                                <div className={`p-3 rounded-lg text-sm border flex items-start gap-2 ${photoMessage.type === 'success' ? 'bg-ops-success-soft border-ops-success/20 text-ops-success' : 'bg-ops-danger-soft border-ops-danger/20 text-ops-danger'}`}>
                                     {photoMessage.text}
                                 </div>
                             )}
@@ -210,7 +210,7 @@ export default function ProfileForm({ user }: { user: UserData }) {
                             <button
                                 type="submit"
                                 disabled={isPendingPhoto || (!photoFile && !isRemovingPhoto)}
-                                className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                                className="w-full h-10 bg-ops-accent hover:bg-ops-accent-hover disabled:bg-ops-surface-raised disabled:text-ops-muted text-ops-accent-fg font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                             >
                                 {isPendingPhoto && <Loader2 className="size-4 animate-spin" />}
                                 Simpan Foto
@@ -222,15 +222,15 @@ export default function ProfileForm({ user }: { user: UserData }) {
 
             {/* Ganti Password */}
             <div className="col-span-1 lg:col-span-7 space-y-6">
-                <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-6 backdrop-blur-sm">
-                    <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
-                        <KeyRound className="size-5 text-amber-500" />
+                <div className="bg-ops-surface/50 rounded-2xl border border-ops-border/50 p-6 backdrop-blur-sm">
+                    <h2 className="text-lg font-semibold text-ops-text mb-6 flex items-center gap-2">
+                        <KeyRound className="size-5 text-ops-warning" />
                         Ganti Password
                     </h2>
 
                     <form onSubmit={handlePasswordSubmit} className="space-y-5">
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                            <label className="block text-sm font-medium text-ops-text mb-1.5">
                                 Password Saat Ini
                             </label>
                             <input
@@ -238,13 +238,13 @@ export default function ProfileForm({ user }: { user: UserData }) {
                                 value={currentPassword}
                                 onChange={(e) => setCurrentPassword(e.target.value)}
                                 required
-                                className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                className="w-full h-10 px-3 rounded-lg bg-ops-bg border border-ops-border text-sm text-ops-text focus:border-ops-info focus:ring-1 focus:ring-ops-info transition-colors"
                                 placeholder="Masukkan password saat ini"
                             />
                         </div>
 
-                        <div className="border-t border-slate-700/50 pt-5">
-                            <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <div className="border-t border-ops-border/50 pt-5">
+                            <label className="block text-sm font-medium text-ops-text mb-1.5">
                                 Password Baru
                             </label>
                             <input
@@ -253,13 +253,13 @@ export default function ProfileForm({ user }: { user: UserData }) {
                                 onChange={(e) => setNewPassword(e.target.value)}
                                 required
                                 minLength={6}
-                                className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                className="w-full h-10 px-3 rounded-lg bg-ops-bg border border-ops-border text-sm text-ops-text focus:border-ops-info focus:ring-1 focus:ring-ops-info transition-colors"
                                 placeholder="Minimal 6 karakter"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                            <label className="block text-sm font-medium text-ops-text mb-1.5">
                                 Konfirmasi Password Baru
                             </label>
                             <input
@@ -268,13 +268,13 @@ export default function ProfileForm({ user }: { user: UserData }) {
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 required
                                 minLength={6}
-                                className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                className="w-full h-10 px-3 rounded-lg bg-ops-bg border border-ops-border text-sm text-ops-text focus:border-ops-info focus:ring-1 focus:ring-ops-info transition-colors"
                                 placeholder="Ketik ulang password baru"
                             />
                         </div>
 
                         {passwordMessage && (
-                            <div className={`p-3 rounded-lg text-sm border flex items-start gap-2 ${passwordMessage.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                            <div className={`p-3 rounded-lg text-sm border flex items-start gap-2 ${passwordMessage.type === 'success' ? 'bg-ops-success-soft border-ops-success/20 text-ops-success' : 'bg-ops-danger-soft border-ops-danger/20 text-ops-danger'}`}>
                                 {passwordMessage.text}
                             </div>
                         )}
@@ -283,7 +283,7 @@ export default function ProfileForm({ user }: { user: UserData }) {
                             <button
                                 type="submit"
                                 disabled={isPendingPassword || !currentPassword || !newPassword || !confirmPassword}
-                                className="h-10 px-6 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                                className="h-10 px-6 bg-ops-surface-raised hover:bg-ops-surface-raised disabled:opacity-50 text-ops-text font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                             >
                                 {isPendingPassword && <Loader2 className="size-4 animate-spin" />}
                                 Perbarui Password

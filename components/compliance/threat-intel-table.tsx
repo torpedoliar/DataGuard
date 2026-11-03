@@ -98,7 +98,7 @@ export default function ThreatIntelTable({
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 font-medium text-blue-400 hover:text-blue-300 hover:underline"
+                        className="inline-flex items-center gap-1 font-medium text-ops-info hover:text-ops-info hover:underline"
                         title={item.sourceUrl}
                       >
                         <span className="truncate max-w-[120px]">{item.source}</span>
@@ -166,11 +166,11 @@ export default function ThreatIntelTable({
                       </span>
                       <div className="flex flex-wrap items-center gap-1">
                         {item.siteName ? (
-                          <span className="rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 text-[10px]">
+                          <span className="rounded bg-ops-info-soft text-ops-info border border-ops-info/20 px-1.5 py-0.5 text-[10px]">
                             {item.siteName}
                           </span>
                         ) : (
-                          <span className="rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 px-1.5 py-0.5 text-[10px]">
+                          <span className="rounded bg-ops-surface-raised text-ops-muted border border-ops-border px-1.5 py-0.5 text-[10px]">
                             Global (All Sites)
                           </span>
                         )}
@@ -262,7 +262,7 @@ export default function ThreatIntelTable({
                         onClick={() => onEdit(item)}
                       />
                       <IconButton
-                        icon={<Trash2 className="size-4 text-red-400" />}
+                        icon={<Trash2 className="size-4 text-ops-danger" />}
                         label="Delete advisory"
                         onClick={() => onDelete(item)}
                       />

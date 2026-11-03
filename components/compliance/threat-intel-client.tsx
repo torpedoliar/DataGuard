@@ -146,7 +146,7 @@ export default function ThreatIntelClient({
             <ActionButton
               type="button"
               variant="secondary"
-              icon={<FileSpreadsheet className="size-4 text-emerald-500" />}
+              icon={<FileSpreadsheet className="size-4 text-ops-success" />}
               onClick={() => exportThreatIntelToExcel(items, currentSiteName)}
               title="Export formatted Excel report"
             >
@@ -157,7 +157,7 @@ export default function ThreatIntelClient({
             <ActionButton
               type="button"
               variant="secondary"
-              icon={<FileText className="size-4 text-blue-400" />}
+              icon={<FileText className="size-4 text-ops-info" />}
               onClick={() =>
                 generateIso27001ThreatIntelPdf(items, {
                   siteName: currentSiteName,
@@ -340,7 +340,7 @@ export default function ThreatIntelClient({
               <p className="font-semibold text-sm text-ops-text">{deletingItem.title}</p>
               <p className="text-xs text-ops-muted mt-0.5">Asset: {deletingItem.affectedAsset}</p>
             </div>
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-ops-danger">
               ⚠️ Tindakan ini akan menghapus data advisory dan semua file bukti gambar terkait.
             </p>
 

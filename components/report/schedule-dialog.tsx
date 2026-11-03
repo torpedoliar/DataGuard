@@ -47,7 +47,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-ops-border bg-ops-panel px-6 py-4">
                     <div className="flex items-center gap-2.5">
-                        <div className="flex size-9 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+                        <div className="flex size-9 items-center justify-center rounded-lg bg-ops-accent-soft text-ops-accent">
                             <CalendarClock className="size-5" />
                         </div>
                         <div>
@@ -71,7 +71,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                 {/* Form */}
                 <form action={action} className="flex flex-col gap-4 p-6 text-sm">
                     {state?.message && !state.success && (
-                        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
+                        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-3 text-xs text-ops-danger">
                             {state.message}
                         </div>
                     )}
@@ -222,7 +222,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                                 name="includePdf"
                                 value="true"
                                 defaultChecked={schedule ? schedule.includePdf : true}
-                                className="size-4 rounded border-ops-border text-indigo-600 focus:ring-indigo-500"
+                                className="size-4 rounded border-ops-border accent-ops-accent focus:ring-ops-accent"
                             />
                             Lampirkan File PDF Eksekutif
                         </label>
@@ -233,7 +233,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                                 name="includeSummaryHtml"
                                 value="true"
                                 defaultChecked={schedule ? schedule.includeSummaryHtml : true}
-                                className="size-4 rounded border-ops-border text-indigo-600 focus:ring-indigo-500"
+                                className="size-4 rounded border-ops-border accent-ops-accent focus:ring-ops-accent"
                             />
                             Sertakan Ringkasan KPI di Body Email
                         </label>
@@ -244,7 +244,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                                 name="isActive"
                                 value="true"
                                 defaultChecked={schedule ? schedule.isActive : true}
-                                className="size-4 rounded border-ops-border text-indigo-600 focus:ring-indigo-500"
+                                className="size-4 rounded border-ops-border accent-ops-accent focus:ring-ops-accent"
                             />
                             Aktifkan Jadwal Ini
                         </label>

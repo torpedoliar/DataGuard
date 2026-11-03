@@ -78,7 +78,7 @@ export default function PhotoModal({ photoPath, deviceName, onClose }: PhotoModa
                         <h3 className="text-lg font-semibold">
                             {deviceName || "Device Photo"}
                         </h3>
-                        <p className="text-sm text-slate-400">
+                        <p className="text-sm text-ops-muted">
                             Zoom: {Math.round(zoom * 100)}%
                         </p>
                     </div>
@@ -128,7 +128,7 @@ export default function PhotoModal({ photoPath, deviceName, onClose }: PhotoModa
                 </div>
 
                 {/* Image */}
-                <div className="flex-1 flex items-center justify-center overflow-hidden rounded-lg bg-slate-900/50">
+                <div className="flex-1 flex items-center justify-center overflow-hidden rounded-lg bg-ops-bg/50">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={photoPath}

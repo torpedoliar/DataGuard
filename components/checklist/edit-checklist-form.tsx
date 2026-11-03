@@ -67,18 +67,18 @@ export default function EditChecklistForm({
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="bg-white dark:bg-surface rounded-lg shadow-xl max-w-5xl w-full my-8 flex flex-col max-h-[calc(100vh-4rem)]">
+            <div className="bg-ops-surface rounded-lg shadow-xl max-w-5xl w-full my-8 flex flex-col max-h-[calc(100vh-4rem)]">
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between p-6 border-b border-ops-border">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Checklist Entry</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        <h2 className="text-xl font-bold text-ops-text ">Edit Checklist Entry</h2>
+                        <p className="text-sm text-ops-muted mt-1">
                             {new Date(checkDate).toLocaleDateString("en-GB", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                         </p>
                     </div>
                     <button
                         onClick={() => window.location.href = "/report"}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                        className="text-ops-muted hover:text-ops-text "
                     >
                         <X className="h-6 w-6" />
                     </button>
@@ -89,34 +89,34 @@ export default function EditChecklistForm({
                     <input type="hidden" name="entryId" value={entryId} />
 
                     {/* Header Info */}
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                    <div className="p-6 border-b border-ops-border bg-ops-surface-raised ">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
+                                <label className="block text-sm font-medium text-ops-text mb-1">Date</label>
                                 <input
                                     type="date"
                                     name="checkDate"
                                     defaultValue={checkDate}
                                     required
-                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface  text-ops-text  focus:outline-none focus:ring-2 focus:ring-ops-info"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Time</label>
+                                <label className="block text-sm font-medium text-ops-text mb-1">Time</label>
                                 <input
                                     type="time"
                                     name="checkTime"
                                     defaultValue={checkTime}
                                     required
-                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface  text-ops-text  focus:outline-none focus:ring-2 focus:ring-ops-info"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Shift</label>
+                                <label className="block text-sm font-medium text-ops-text mb-1">Shift</label>
                                 <select
                                     name="shift"
                                     defaultValue={shift}
-                                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface  text-ops-text  focus:outline-none focus:ring-2 focus:ring-ops-info"
                                 >
                                     <option value="Pagi">Pagi</option>
                                     <option value="Siang">Siang</option>
@@ -128,7 +128,7 @@ export default function EditChecklistForm({
 
                     {/* Categories Tabs — only show categories containing devices in this entry */}
                     {displayCategories.length > 1 && (
-                        <div className="border-b border-slate-200 dark:border-slate-700">
+                        <div className="border-b border-ops-border">
                             <nav className="flex -mb-px overflow-x-auto" aria-label="Tabs">
                                 {displayCategories.map((category) => (
                                     <button
@@ -137,8 +137,8 @@ export default function EditChecklistForm({
                                         onClick={() => setActiveTab(category.id)}
                                         className={clsx(
                                             activeTab === category.id
-                                                ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                                                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300",
+                                                ? "border-ops-info text-ops-info"
+                                                : "border-transparent text-ops-muted hover:text-ops-text hover:border-ops-border-strong",
                                             "whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-colors"
                                         )}
                                     >
@@ -158,7 +158,7 @@ export default function EditChecklistForm({
 
                             return (
                                 <div key={category.id} className={clsx(activeTab === category.id || displayCategories.length <= 1 ? "block" : "hidden")}>
-                                    <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4">{category.name} Devices ({catDevices.length})</h3>
+                                    <h3 className="text-lg font-medium text-ops-text  mb-4">{category.name} Devices ({catDevices.length})</h3>
                                     <div className="space-y-6">
                                         {catDevices.map((device) => {
                                             const existingItem = itemsByDevice.get(device.id);
@@ -171,7 +171,7 @@ export default function EditChecklistForm({
                                             );
                                         })}
                                         {catDevices.length === 0 && (
-                                            <p className="text-slate-500 dark:text-slate-400 italic">No audited devices in this category.</p>
+                                            <p className="text-ops-muted italic">No audited devices in this category.</p>
                                         )}
                                     </div>
                                 </div>
@@ -180,23 +180,23 @@ export default function EditChecklistForm({
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="p-6 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg flex justify-end items-center gap-4">
+                    <div className="p-6 border-t border-ops-border bg-ops-surface-raised  rounded-b-lg flex justify-end items-center gap-4">
                         {state?.message && (
-                            <p className={`text-sm ${state.success ? 'text-green-600' : 'text-red-600'}`}>
+                            <p className={`text-sm ${state.success ? 'text-ops-success' : 'text-ops-danger'}`}>
                                 {state.message}
                             </p>
                         )}
                         <button
                             type="button"
                             onClick={() => window.location.href = "/report"}
-                            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            className="px-4 py-2 border border-ops-border-strong rounded-md text-ops-text hover:bg-ops-surface-raised "
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={isPending || isSubmitting}
-                            className="bg-blue-600 text-white px-6 py-2.5 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm flex items-center disabled:opacity-50"
+                            className="bg-ops-info-soft text-ops-info px-6 py-2.5 rounded-md hover:bg-ops-info/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ops-info shadow-sm flex items-center disabled:opacity-50"
                         >
                             {isPending || isSubmitting ? (
                                 <>
@@ -227,15 +227,15 @@ function DeviceRow({
     const [deletePhoto, setDeletePhoto] = useState(false);
 
     return (
-        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+        <div className="bg-ops-surface-raised  p-4 rounded-lg border border-ops-border hover:border-ops-info transition-colors">
             <input type="hidden" name="deviceId" value={device.id} />
             <input type="hidden" name={`existingPhoto-${device.id}`} value={existingItem?.photoPath || ""} />
 
             <div className="flex flex-col md:flex-row md:items-start gap-4">
                 {/* Device Info */}
                 <div className="md:w-1/4">
-                    <p className="font-semibold text-slate-900 dark:text-white">{device.name}</p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{device.locationName || "-"}</p>
+                    <p className="font-semibold text-ops-text ">{device.name}</p>
+                    <p className="text-sm text-ops-muted">{device.locationName || "-"}</p>
                 </div>
 
                 {/* Status Selection */}
@@ -243,8 +243,8 @@ function DeviceRow({
                     <label className={clsx(
                         "flex-1 cursor-pointer border rounded-md p-2 flex flex-col items-center gap-1 transition-all",
                         status === "OK"
-                            ? "bg-green-50 dark:bg-green-500/10 border-green-500 text-green-700 dark:text-green-400 ring-1 ring-green-500"
-                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
+                            ? "bg-ops-success-soft border-ops-success text-ops-success ring-1 ring-ops-success"
+                            : "bg-ops-surface  border-ops-border-strong text-ops-muted hover:bg-ops-surface-raised"
                     )}>
                         <input
                             type="radio"
@@ -261,8 +261,8 @@ function DeviceRow({
                     <label className={clsx(
                         "flex-1 cursor-pointer border rounded-md p-2 flex flex-col items-center gap-1 transition-all",
                         status === "NOT OK"
-                            ? "bg-red-50 dark:bg-red-500/10 border-red-500 text-red-700 dark:text-red-400 ring-1 ring-red-500"
-                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
+                            ? "bg-ops-danger-soft border-ops-danger text-ops-danger ring-1 ring-ops-danger"
+                            : "bg-ops-surface  border-ops-border-strong text-ops-muted hover:bg-ops-surface-raised"
                     )}>
                         <input
                             type="radio"
@@ -284,13 +284,13 @@ function DeviceRow({
                         defaultValue={existingItem?.remarks || ""}
                         placeholder="Remarks (optional)"
                         rows={2}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface  text-ops-text  text-sm focus:outline-none focus:ring-1 focus:ring-ops-info"
                     />
 
                     {/* Existing Photo Display */}
                     {existingItem?.photoPath && !deletePhoto && (
-                        <div className="flex items-center gap-3 p-2 bg-slate-100 dark:bg-slate-700 rounded">
-                            <div className="h-16 w-16 rounded overflow-hidden bg-slate-200 dark:bg-slate-600">
+                        <div className="flex items-center gap-3 p-2 bg-ops-surface-raised rounded">
+                            <div className="h-16 w-16 rounded overflow-hidden bg-ops-surface-sunken ">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src={existingItem.photoPath}
@@ -299,14 +299,14 @@ function DeviceRow({
                                 />
                             </div>
                             <div className="flex-1">
-                                <p className="text-sm text-slate-600 dark:text-slate-300">Existing photo</p>
-                                <label className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 cursor-pointer mt-1">
+                                <p className="text-sm text-ops-muted">Existing photo</p>
+                                <label className="flex items-center gap-2 text-sm text-ops-danger cursor-pointer mt-1">
                                     <input
                                         type="checkbox"
                                         name={`deletePhoto-${device.id}`}
                                         checked={deletePhoto}
                                         onChange={(e) => setDeletePhoto(e.target.checked)}
-                                        className="rounded border-slate-300 text-red-600 focus:ring-red-500"
+                                        className="rounded border-ops-border-strong text-ops-danger focus:ring-ops-danger"
                                     />
                                     <Trash2 className="h-4 w-4" />
                                     Remove photo
@@ -317,8 +317,8 @@ function DeviceRow({
 
                     {/* Upload New Photo */}
                     {(status === "NOT OK" || existingItem?.photoPath) && (
-                        <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-400">
-                            <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-2 font-semibold hover:border-blue-400">
+                        <div className="grid grid-cols-2 gap-2 text-sm text-ops-muted">
+                            <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-md border border-ops-border-strong px-2 py-2 font-semibold hover:border-ops-info">
                                 <Camera className="h-4 w-4" />
                                 Kamera
                                 <input
@@ -336,7 +336,7 @@ function DeviceRow({
                                     }}
                                 />
                             </label>
-                            <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-2 font-semibold hover:border-blue-400">
+                            <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-md border border-ops-border-strong px-2 py-2 font-semibold hover:border-ops-info">
                                 <Upload className="h-4 w-4" />
                                 Galeri
                                 <input
