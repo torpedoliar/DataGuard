@@ -3,14 +3,13 @@ import clsx from "clsx";
 import type { UiTone } from "@/lib/ui/status";
 
 const iconToneClasses: Record<UiTone, string> = {
-  neutral: "bg-slate-400/15 text-slate-500 dark:bg-slate-500/12 dark:text-slate-300",
-  success: "bg-emerald-500/15 text-emerald-500 dark:bg-emerald-400/12 dark:text-emerald-200",
-  warning: "bg-amber-500/15 text-amber-500 dark:bg-amber-400/12 dark:text-amber-200",
-  orange: "bg-orange-500/15 text-orange-500 dark:bg-orange-400/12 dark:text-orange-200",
-  danger: "bg-red-500/15 text-red-500 dark:bg-red-400/12 dark:text-red-200",
-  info: "bg-blue-500/15 text-blue-500 dark:bg-blue-400/12 dark:text-blue-200",
-  accent: "bg-ops-accent/12 text-ops-accent",
-  purple: "bg-purple-500/15 text-purple-500 dark:bg-purple-400/12 dark:text-purple-200",
+  neutral: "bg-ops-surface-raised text-ops-muted",
+  success: "bg-ops-success-soft text-ops-success",
+  warning: "bg-ops-warning-soft text-ops-warning",
+  orange: "bg-ops-orange-soft text-ops-orange",
+  danger: "bg-ops-danger-soft text-ops-danger",
+  info: "bg-ops-info-soft text-ops-info",
+  accent: "bg-ops-accent-soft text-ops-accent",
 };
 
 export default function StatsCard({
@@ -32,11 +31,11 @@ export default function StatsCard({
     <div className={clsx("ops-panel p-4", className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">{label}</p>
-          <div className="mt-2 text-3xl font-bold leading-none tracking-normal text-ops-text">{value}</div>
+          <p className="text-[13px] font-medium text-ops-muted">{label}</p>
+          <div className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.02em] text-ops-text tabular-nums">{value}</div>
         </div>
         {icon && (
-          <div className={clsx("flex size-9 shrink-0 items-center justify-center rounded-md", iconToneClasses[tone])}>
+          <div className={clsx("flex size-8 shrink-0 items-center justify-center rounded-md [&_svg]:size-4", iconToneClasses[tone])}>
             {icon}
           </div>
         )}

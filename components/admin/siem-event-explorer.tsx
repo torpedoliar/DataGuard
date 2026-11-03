@@ -239,7 +239,7 @@ export default function SiemEventExplorer({ data }: { data: ExplorerData }) {
                     <div className="mt-1 text-sm text-ops-muted">{event.message}</div>
                     <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
                       {event.action && <StatusBadge tone="accent">{event.action}</StatusBadge>}
-                      {event.outcome && <StatusBadge tone="purple">{event.outcome}</StatusBadge>}
+                      {event.outcome && <StatusBadge tone="neutral">{event.outcome}</StatusBadge>}
                       {event.username && <StatusBadge tone="neutral">user: {event.username}</StatusBadge>}
                       {event.srcIp && <StatusBadge tone="neutral">src: {event.srcIp}</StatusBadge>}
                       {event.dstIp && <StatusBadge tone="neutral">dst: {event.dstIp}</StatusBadge>}

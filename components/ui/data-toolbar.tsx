@@ -11,7 +11,7 @@ export default function DataToolbar({
   return (
     <div
       className={clsx(
-        "ops-panel flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between",
+        "flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between",
         className,
       )}
     >

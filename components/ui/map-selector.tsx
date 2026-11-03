@@ -80,23 +80,24 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
   };
 
   return (
-    <div className="relative flex min-h-screen select-none flex-col overflow-hidden bg-ops-bg text-ops-text">
+    <div className="relative flex min-h-dvh select-none flex-col overflow-hidden bg-ops-bg text-ops-text">
+      <div aria-hidden className="ops-grid-bg pointer-events-none absolute inset-0 opacity-60" />
       <header className="relative z-10 mx-auto flex w-full max-w-[1200px] flex-col gap-3 px-5 pb-3 pt-8 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="mb-3 flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-md bg-ops-accent text-slate-950">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-ops-accent text-ops-accent-fg shadow-[inset_0_1px_0_rgb(255_255_255/0.15)]">
               <Server className="size-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-normal font-display">{appName}</h1>
-              <p className="text-sm text-ops-muted">Welcome, <span className="font-semibold text-ops-accent">{username}</span></p>
+              <h1 className="font-display text-xl font-semibold tracking-[-0.02em]">{appName}</h1>
+              <p className="text-sm text-ops-muted">Welcome back, <span className="font-medium text-ops-text">{username}</span></p>
             </div>
           </div>
-          <p className="max-w-2xl text-sm text-ops-muted">Select the active data center from the operations map.</p>
+          <p className="max-w-2xl text-[15px] text-ops-muted">Choose a data center to open its workspace.</p>
         </div>
-        <div className="inline-flex w-fit items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">
+        <div className="inline-flex w-fit items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-1.5 text-[13px] text-ops-muted">
           <MapPin className="size-4 text-ops-accent" />
-          {sites.length} mapped sites
+          <span className="font-medium tabular-nums text-ops-text">{sites.length}</span> mapped {sites.length === 1 ? "site" : "sites"}
         </div>
       </header>
 
@@ -110,15 +111,22 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
           }}
         >
           <div className="relative w-full" style={{ aspectRatio: "792.546 / 316.664" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/indonesia-map.svg"
-              alt="Peta Indonesia"
-              className="h-full w-full object-contain opacity-70"
+            {/* Land is painted from the theme token through the SVG as a mask, so
+                the map reads cleanly in both light and dark mode. */}
+            <div
+              role="img"
+              aria-label="Peta Indonesia"
+              className="h-full w-full bg-ops-border-strong"
               style={{
-                filter: "invert(0.72) sepia(0.1) saturate(0.55) hue-rotate(170deg) brightness(0.72) contrast(1.05)",
+                maskImage: "url(/indonesia-map.svg)",
+                WebkitMaskImage: "url(/indonesia-map.svg)",
+                maskSize: "contain",
+                WebkitMaskSize: "contain",
+                maskRepeat: "no-repeat",
+                WebkitMaskRepeat: "no-repeat",
+                maskPosition: "center",
+                WebkitMaskPosition: "center",
               }}
-              draggable={false}
             />
 
             {sites.map((site) => {
@@ -146,17 +154,18 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
                 >
                   <span
                     className={clsx(
-                      "absolute size-9 rounded-full border transition-colors",
+                      "absolute size-9 rounded-full border transition-[transform,background-color,border-color] duration-200",
                       active
-                        ? "border-ops-accent bg-ops-accent/20"
+                        ? "scale-110 border-ops-accent bg-ops-accent/20"
                         : isPreset
-                          ? "border-ops-accent bg-ops-accent/12"
-                          : "border-ops-accent/35 bg-ops-bg/80",
+                          ? "border-ops-accent/70 bg-ops-accent/12"
+                          : "border-ops-accent/40 bg-ops-surface/70",
                     )}
                   />
+                  <span aria-hidden className="absolute size-9 animate-ping rounded-full bg-ops-accent/15 [animation-duration:2.4s]" />
                   <span
                     className={clsx(
-                      "relative size-3 rounded-full transition-transform",
+                      "relative size-3 rounded-full shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-ops-accent)_25%,transparent)] transition-transform",
                       active
                         ? "scale-125 bg-ops-accent"
                         : isPreset
@@ -164,7 +173,7 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
                           : "bg-ops-accent",
                     )}
                   />
-                  <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded bg-ops-bg/90 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-[0.08em] text-ops-accent">
+                  <span className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-sm border border-ops-border bg-ops-surface/95 px-1.5 py-0.5 font-mono text-[11px] font-medium text-ops-text shadow-[var(--shadow-raised)]">
                     {site.code}
                   </span>
                 </button>
@@ -174,15 +183,15 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
         </div>
 
         {!isTransitioning && sites.length > 0 && (
-          <div className="relative z-10 mt-8 inline-flex items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-xs text-ops-muted">
+          <div className="relative z-10 mt-8 inline-flex animate-enter items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-[13px] text-ops-muted">
             <MousePointer2 className="size-4 text-ops-accent" />
             Click a map marker to enter the data center.
           </div>
         )}
 
         {!isTransitioning && sites.length === 0 && (
-          <div className="relative z-10 mt-8 max-w-md rounded-md border border-amber-400/25 bg-amber-400/10 px-5 py-4 text-center">
-            <MapPin className="mx-auto mb-2 size-8 text-amber-300" />
+          <div className="relative z-10 mt-8 max-w-md rounded-lg border border-ops-warning/25 bg-ops-warning-soft px-5 py-4 text-center">
+            <MapPin className="mx-auto mb-2 size-6 text-ops-warning" />
             <p className="text-sm font-semibold text-ops-text">No sites with coordinates.</p>
             <p className="mt-1 text-xs text-ops-muted">Add latitude and longitude in Site Management.</p>
           </div>
@@ -197,25 +206,25 @@ export default function MapSelector({ sites, username, appName, defaultSelectedI
             top: tooltipPos.y - 12,
           }}
         >
-          <div className="min-w-[220px] rounded-md border border-ops-border bg-ops-surface-raised px-4 py-3 shadow-2xl">
+          <div className="min-w-[220px] animate-scale-in rounded-lg border border-ops-border bg-ops-surface px-3.5 py-3 shadow-[var(--shadow-overlay)]">
             <div className="mb-1 flex items-center gap-2">
               <span className="size-2 rounded-full bg-ops-accent" />
-              <span className="text-sm font-bold text-ops-text">{hoveredSite.name}</span>
+              <span className="text-sm font-semibold text-ops-text">{hoveredSite.name}</span>
             </div>
-            <div className="mb-1 font-mono text-[10px] text-ops-accent">{hoveredSite.code}</div>
-            {hoveredSite.address && <p className="text-[11px] leading-tight text-ops-muted">{hoveredSite.address}</p>}
+            <div className="mb-1 font-mono text-[11px] text-ops-muted">{hoveredSite.code}</div>
+            {hoveredSite.address && <p className="text-xs leading-snug text-ops-muted">{hoveredSite.address}</p>}
           </div>
         </div>
       )}
 
       {isTransitioning && selectedSite && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ops-bg/88 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-ops-bg/90 backdrop-blur-sm">
           <div className="text-center">
-            <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-md border border-ops-accent/40 bg-ops-accent/12 text-ops-accent">
-              <Server className="size-7" />
+            <div className="mx-auto mb-5 flex size-12 animate-scale-in items-center justify-center rounded-lg border border-ops-accent/30 bg-ops-accent-soft text-ops-accent">
+              <Server className="size-6" />
             </div>
-            <h2 className="text-xl font-bold text-ops-text">Entering {selectedSite.name}</h2>
-            <p className="mt-1 font-mono text-sm text-ops-accent">{selectedSite.code}</p>
+            <h2 className="text-lg font-semibold tracking-[-0.01em] text-ops-text">Opening {selectedSite.name}</h2>
+            <p className="mt-1 font-mono text-[13px] text-ops-muted">{selectedSite.code}</p>
           </div>
         </div>
       )}

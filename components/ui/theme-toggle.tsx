@@ -68,14 +68,14 @@ export function ThemeToggle() {
       onClick={() => {
         applyTheme(!isDark);
       }}
-      className="p-2 rounded-md text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised transition-colors"
+      className="inline-flex size-9 items-center justify-center rounded-md text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text"
     >
       {dark === null ? (
-        <span className="block w-5 h-5" />
+        <span className="block size-[18px]" />
       ) : isDark ? (
-        <Sun className="w-5 h-5" />
+        <Sun className="size-[18px]" />
       ) : (
-        <Moon className="w-5 h-5" />
+        <Moon className="size-[18px]" />
       )}
     </button>
   );

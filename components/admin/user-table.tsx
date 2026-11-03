@@ -182,7 +182,7 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
                   </td>
                   <td className="px-5 py-3">
                     <div>
-                      <StatusBadge tone={user.role === "superadmin" ? "warning" : user.role === "admin" ? "purple" : "neutral"}>
+                      <StatusBadge tone={user.role === "superadmin" ? "warning" : user.role === "admin" ? "info" : "neutral"}>
                         <Shield className="size-3" /> {user.role}
                       </StatusBadge>
                     </div>

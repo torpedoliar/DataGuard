@@ -3,25 +3,23 @@ import clsx from "clsx";
 import type { UiTone } from "@/lib/ui/status";
 
 const toneClasses: Record<UiTone, string> = {
-  neutral: "border-slate-400/40 bg-slate-400/15 text-slate-600 dark:border-slate-500/25 dark:bg-slate-500/12 dark:text-slate-300",
-  success: "border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:border-emerald-400/25 dark:bg-emerald-400/12 dark:text-emerald-200",
-  warning: "border-amber-500/40 bg-amber-500/15 text-amber-600 dark:border-amber-400/30 dark:bg-amber-400/12 dark:text-amber-200",
-  orange: "border-orange-500/40 bg-orange-500/15 text-orange-600 dark:border-orange-400/30 dark:bg-orange-400/12 dark:text-orange-200",
-  danger: "border-red-500/40 bg-red-500/15 text-red-600 dark:border-red-400/30 dark:bg-red-400/12 dark:text-red-200",
-  info: "border-blue-500/40 bg-blue-500/15 text-blue-600 dark:border-blue-400/30 dark:bg-blue-400/12 dark:text-blue-200",
-  accent: "border-ops-accent/30 bg-ops-accent/12 text-ops-accent dark:border-ops-accent/30 dark:bg-ops-accent/12 dark:text-ops-accent",
-  purple: "border-purple-500/40 bg-purple-500/15 text-purple-600 dark:border-purple-400/30 dark:bg-purple-400/12 dark:text-purple-200",
+  neutral: "border-ops-border-strong bg-ops-surface-raised text-ops-muted",
+  success: "border-ops-success/25 bg-ops-success-soft text-ops-success",
+  warning: "border-ops-warning/25 bg-ops-warning-soft text-ops-warning",
+  orange: "border-ops-orange/25 bg-ops-orange-soft text-ops-orange",
+  danger: "border-ops-danger/25 bg-ops-danger-soft text-ops-danger",
+  info: "border-ops-info/25 bg-ops-info-soft text-ops-info",
+  accent: "border-ops-accent/25 bg-ops-accent-soft text-ops-accent",
 };
 
 const dotClasses: Record<UiTone, string> = {
-  neutral: "bg-slate-400",
-  success: "bg-emerald-400",
-  warning: "bg-amber-400",
-  orange: "bg-orange-400",
-  danger: "bg-red-400",
-  info: "bg-blue-400",
+  neutral: "bg-ops-subtle",
+  success: "bg-ops-success",
+  warning: "bg-ops-warning",
+  orange: "bg-ops-orange",
+  danger: "bg-ops-danger",
+  info: "bg-ops-info",
   accent: "bg-ops-accent",
-  purple: "bg-purple-400",
 };
 
 export default function StatusBadge({
@@ -38,12 +36,12 @@ export default function StatusBadge({
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold leading-none",
+        "inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-sm border px-2 text-xs font-medium leading-none",
         toneClasses[tone],
         className,
       )}
     >
-      {dot && <span className={clsx("size-1.5 rounded-full", dotClasses[tone])} />}
+      {dot && <span className={clsx("size-1.5 shrink-0 rounded-full", dotClasses[tone])} />}
       {children}
     </span>
   );

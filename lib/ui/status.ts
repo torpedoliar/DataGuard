@@ -5,8 +5,7 @@ export type UiTone =
   | "orange"
   | "danger"
   | "info"
-  | "accent"
-  | "purple";
+  | "accent";
 
 export function getChecklistStatusTone(status: string | null | undefined): UiTone {
   if (status === "OK") return "success";
@@ -23,7 +22,7 @@ export function getIncidentSeverityTone(severity: string | null | undefined): Ui
 
 export function getIncidentStatusTone(status: string | null | undefined): UiTone {
   if (status === "Verified") return "success";
-  if (status === "Resolved") return "purple";
+  if (status === "Resolved") return "neutral";
   if (status === "In Progress") return "accent";
   if (status === "Open") return "info";
   return "neutral";

@@ -18,7 +18,7 @@ describe("status tone helpers", () => {
   it("maps incident workflow statuses to stable tones", () => {
     expect(getIncidentStatusTone("Open")).toBe("info");
     expect(getIncidentStatusTone("In Progress")).toBe("accent");
-    expect(getIncidentStatusTone("Resolved")).toBe("purple");
+    expect(getIncidentStatusTone("Resolved")).toBe("neutral");
     expect(getIncidentStatusTone("Verified")).toBe("success");
   });
 });

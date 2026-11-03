@@ -9,72 +9,178 @@
 /* class-based dark variant: .dark on <html> flips tokens + dark: utilities */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Design tokens — "ops console": cool graphite neutrals, one restrained teal
+ * accent, muted semantic status colours. Light values live in @theme; .dark
+ * swaps the same names. Components should only ever reference these tokens
+ * (bg-ops-*, text-ops-*, border-ops-*), never raw palette classes.
+ */
 @theme {
-  --color-primary: #0d9488;
-  --color-primary-light: #14b8a6;
-  --color-success: #16a34a;
-  --color-warning: #d97706;
-  --color-error: #dc2626;
+  --color-primary: #0e7f6e;
+  --color-primary-light: #13937f;
+  --color-success: #1a7f4b;
+  --color-warning: #a35f00;
+  --color-error: #c4302b;
 
   /* legacy alias — kept for global CSS selectors */
-  --color-background: #f1f5f9;
+  --color-background: #f6f7f9;
   --color-surface: #ffffff;
   --color-card: #ffffff;
-  --color-border: #e2e8f0;
-  --color-foreground: #0f172a;
-  --color-muted: #64748b;
+  --color-border: #e3e6eb;
+  --color-foreground: #0e1116;
+  --color-muted: #5b6472;
 
-  --color-ops-bg: #e2e8f0;
+  --color-ops-bg: #f6f7f9;
   --color-ops-surface: #ffffff;
-  --color-ops-surface-raised: #f1f5f9;
-  --color-ops-border: #cbd5e1;
-  --color-ops-muted: #475569;
-  --color-ops-text: #0f172a;
-  --color-ops-accent: #0d9488;
-  --color-ops-info: #2563eb;
-  --color-ops-success: #16a34a;
-  --color-ops-warning: #d97706;
-  --color-ops-orange: #ea580c;
-  --color-ops-danger: #dc2626;
+  --color-ops-surface-raised: #f1f3f6;
+  --color-ops-surface-sunken: #eceff3;
+  --color-ops-border: #e3e6eb;
+  --color-ops-border-strong: #cdd2da;
+  --color-ops-muted: #5b6472;
+  --color-ops-subtle: #8a92a0;
+  --color-ops-text: #0e1116;
+  --color-ops-accent: #0e7f6e;
+  --color-ops-accent-hover: #0b6b5d;
+  --color-ops-accent-fg: #ffffff;
+  --color-ops-info: #2f5fb3;
+  --color-ops-success: #1a7f4b;
+  --color-ops-warning: #a35f00;
+  --color-ops-orange: #b9480f;
+  --color-ops-danger: #c4302b;
 
-  --font-display: "Inter", sans-serif;
-  --font-body: "Inter", sans-serif;
+  /* soft fills for badges, icon chips and inline notices */
+  --color-ops-accent-soft: color-mix(in srgb, var(--color-ops-accent) 10%, transparent);
+  --color-ops-info-soft: color-mix(in srgb, var(--color-ops-info) 10%, transparent);
+  --color-ops-success-soft: color-mix(in srgb, var(--color-ops-success) 10%, transparent);
+  --color-ops-warning-soft: color-mix(in srgb, var(--color-ops-warning) 11%, transparent);
+  --color-ops-orange-soft: color-mix(in srgb, var(--color-ops-orange) 10%, transparent);
+  --color-ops-danger-soft: color-mix(in srgb, var(--color-ops-danger) 10%, transparent);
+
+  --font-display: var(--font-geist-sans), "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-geist-sans), "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist-sans), "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1rem;
+
+  --shadow-overlay: 0 1px 0 rgb(14 17 22 / 0.04), 0 12px 32px -8px rgb(14 17 22 / 0.18), 0 4px 12px -4px rgb(14 17 22 / 0.08);
+  --shadow-raised: 0 1px 2px rgb(14 17 22 / 0.05);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+
+  --animate-enter: ops-enter 280ms var(--ease-out-quart) both;
+  --animate-scale-in: ops-scale-in 160ms var(--ease-out-quart) both;
+  --animate-fade-in: ops-fade-in 160ms ease-out both;
+  --animate-slide-in-left: ops-slide-in-left 220ms var(--ease-out-quart) both;
 }
 
 /* dark token overrides — html.dark swaps every token-aware utility */
 .dark {
-  --color-primary: #5eead4;
-  --color-primary-light: #8bf5e3;
+  --color-primary: #3cc4a8;
+  --color-primary-light: #5fd3bb;
 
   /* legacy dark overrides — kept for global CSS selectors */
-  --color-background: #0b1120;
-  --color-surface: #111827;
-  --color-card: #111827;
-  --color-border: #1e293b;
-  --color-foreground: #f8fafc;
-  --color-muted: #94a3b8;
+  --color-background: #0b0d10;
+  --color-surface: #111418;
+  --color-card: #111418;
+  --color-border: #232830;
+  --color-foreground: #e6e8eb;
+  --color-muted: #8b93a1;
 
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
+  --color-success: #3fb27f;
+  --color-warning: #d9a03f;
+  --color-error: #e5615a;
 
-  --color-ops-bg: #0b1120;
-  --color-ops-surface: #111827;
-  --color-ops-surface-raised: #172033;
-  --color-ops-border: #1e293b;
-  --color-ops-muted: #94a3b8;
-  --color-ops-text: #f8fafc;
-  --color-ops-accent: #5eead4;
-  --color-ops-info: #3b82f6;
-  --color-ops-success: #22c55e;
-  --color-ops-warning: #f59e0b;
-  --color-ops-orange: #f97316;
-  --color-ops-danger: #ef4444;
+  --color-ops-bg: #0b0d10;
+  --color-ops-surface: #111418;
+  --color-ops-surface-raised: #171b21;
+  --color-ops-surface-sunken: #0e1013;
+  --color-ops-border: #232830;
+  --color-ops-border-strong: #2f353f;
+  --color-ops-muted: #8b93a1;
+  --color-ops-subtle: #626a77;
+  --color-ops-text: #e6e8eb;
+  --color-ops-accent: #3cc4a8;
+  --color-ops-accent-hover: #5fd3bb;
+  --color-ops-accent-fg: #06201b;
+  --color-ops-info: #6b9be6;
+  --color-ops-success: #3fb27f;
+  --color-ops-warning: #d9a03f;
+  --color-ops-orange: #e07b45;
+  --color-ops-danger: #e5615a;
+
+  --color-ops-accent-soft: color-mix(in srgb, var(--color-ops-accent) 13%, transparent);
+  --color-ops-info-soft: color-mix(in srgb, var(--color-ops-info) 14%, transparent);
+  --color-ops-success-soft: color-mix(in srgb, var(--color-ops-success) 14%, transparent);
+  --color-ops-warning-soft: color-mix(in srgb, var(--color-ops-warning) 14%, transparent);
+  --color-ops-orange-soft: color-mix(in srgb, var(--color-ops-orange) 14%, transparent);
+  --color-ops-danger-soft: color-mix(in srgb, var(--color-ops-danger) 14%, transparent);
+
+  --shadow-overlay: 0 0 0 1px rgb(255 255 255 / 0.04), 0 16px 40px -8px rgb(0 0 0 / 0.6), 0 4px 12px -4px rgb(0 0 0 / 0.4);
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.3);
+}
+
+/* ===== MOTION ===== */
+@keyframes ops-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ops-scale-in {
+  from { opacity: 0; transform: scale(0.97) translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ops-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ops-slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes ops-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Staggered entrance: give each child style={{ "--i": n }} */
+.stagger > * {
+  animation: ops-enter 320ms var(--ease-out-quart) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.skeleton {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-ops-surface-raised) 25%,
+    color-mix(in srgb, var(--color-ops-border) 70%, var(--color-ops-surface-raised)) 50%,
+    var(--color-ops-surface-raised) 75%
+  );
+  background-size: 200% 100%;
+  animation: ops-shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ===== BASE ===== */
 html {
   touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
 }
 html:not(.dark) {
   color-scheme: light;
@@ -84,9 +190,43 @@ html.dark {
 }
 
 body {
-  font-family: var(--font-body), system-ui, sans-serif;
+  font-family: var(--font-body);
+  font-feature-settings: "cv11", "ss01";
   background-color: var(--color-ops-bg);
   color: var(--color-ops-text);
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  letter-spacing: -0.015em;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* Numbers in data-heavy UI line up in columns */
+table,
+.tabular,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-ops-accent) 28%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-ops-accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+/* Lucide icons: one consistent stroke weight everywhere */
+svg.lucide {
+  stroke-width: 1.75;
 }
 
 /* ===== FORM ELEMENTS ===== */
@@ -103,13 +243,23 @@ textarea::placeholder {
   color: var(--color-muted);
 }
 
+input,
+select,
+textarea {
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
-  outline: 2px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
-  outline-offset: 2px;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  outline: none;
+  border-color: var(--color-ops-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ops-accent) 18%, transparent);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-ops-accent);
 }
 
 /* ===== TABLE ===== */
@@ -118,11 +268,20 @@ table {
 }
 
 thead {
-  background-color: var(--color-surface);
+  background-color: var(--color-ops-surface-raised);
+}
+
+thead th {
+  font-weight: 500;
+  color: var(--color-ops-muted);
 }
 
 tbody {
-  background-color: var(--color-background);
+  background-color: var(--color-ops-surface);
+}
+
+tbody tr {
+  transition: background-color 120ms ease;
 }
 
 td,
@@ -183,12 +342,11 @@ th {
 .glow-card {
   background: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: 16px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  border-radius: var(--radius-lg);
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
 .glow-card:hover {
-  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--color-primary) 4%, transparent);
+  border-color: var(--color-ops-border-strong);
 }
 
 /* ===== STATUS PILLS ===== */
@@ -209,27 +367,41 @@ th {
 }
 
 .ops-panel {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
+  background: var(--color-ops-surface);
+  border: 1px solid var(--color-ops-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised);
 }
 
 .ops-panel-subtle {
   background: var(--color-ops-surface-raised);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border: 1px solid var(--color-ops-border);
+  border-radius: var(--radius-lg);
 }
 
 .ops-input {
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
+  background: var(--color-ops-surface);
+  border: 1px solid var(--color-ops-border-strong);
   color: var(--color-foreground);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
+}
+
+.ops-input:hover {
+  border-color: color-mix(in srgb, var(--color-ops-muted) 45%, var(--color-ops-border-strong));
 }
 
 .ops-input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 16%, transparent);
+  border-color: var(--color-ops-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ops-accent) 18%, transparent);
+}
+
+/* Subtle engineering-grid backdrop for auth / empty canvases */
+.ops-grid-bg {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--color-ops-border) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-ops-border) 55%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 100%);
 }
 
 /* ===== LIGHT MODE FIXES: route pages using legacy Tailwind utilities ===== */
@@ -253,32 +425,32 @@ html:not(.dark) .border-slate-300 { border-color: var(--color-ops-border); }
 
 /* ===== RACK LAYOUT CHASSIS — dark/light aware ===== */
 .rack-chassis {
-    background: linear-gradient(180deg, #0b1120 0%, #111827 50%, #0f172a 100%);
-    border-top: 1px solid #1e293b;
-    border-bottom: 1px solid #1e293b;
+    background: linear-gradient(180deg, #0b0d10 0%, #111418 50%, #0e1013 100%);
+    border-top: 1px solid #232830;
+    border-bottom: 1px solid #232830;
     min-height: 140px;
     box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 -4px 12px rgba(0, 0, 0, 0.2);
 }
 html:not(.dark) .rack-chassis {
-    background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+    background: linear-gradient(180deg, #f1f3f6 0%, #e3e6eb 50%, #f1f3f6 100%);
     border-top-color: var(--color-ops-border);
     border-bottom-color: var(--color-ops-border);
     box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 .rack-rail {
-    background: linear-gradient(180deg, #1a2332 0%, #0f1a28 100%);
-    border-left: 1px solid #1e293b;
-    border-right: 1px solid #1e293b;
+    background: linear-gradient(180deg, #1b1f26 0%, #121519 100%);
+    border-left: 1px solid #232830;
+    border-right: 1px solid #232830;
     box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.3);
 }
 html:not(.dark) .rack-rail {
-    background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+    background: linear-gradient(180deg, #e3e6eb 0%, #cdd2da 100%);
     border-color: var(--color-ops-border);
     box-shadow: none;
 }
-.rack-rail-left { border-right: 1px solid #1e293b; }
+.rack-rail-left { border-right: 1px solid #232830; }
 html:not(.dark) .rack-rail-left { border-right-color: var(--color-ops-border); }
-.rack-rail-right { border-left: 1px solid #1e293b; }
+.rack-rail-right { border-left: 1px solid #232830; }
 html:not(.dark) .rack-rail-right { border-left-color: var(--color-ops-border); }
 
 .rack-device-grid {
@@ -286,28 +458,28 @@ html:not(.dark) .rack-rail-right { border-left-color: var(--color-ops-border); }
     grid-auto-rows: 26px;
 }
 .rack-u-row {
-    color: #94a3b8;
+    color: #8b93a1;
 }
 html:not(.dark) .rack-u-row {
     color: var(--color-muted);
 }
 .rack-line {
-    border-color: #334155;
+    border-color: #2f353f;
 }
 html:not(.dark) .rack-line {
     border-color: var(--color-ops-border);
 }
 .rack-label {
-    color: #64748b;
+    color: #626a77;
 }
 html:not(.dark) .rack-label {
     color: var(--color-muted);
 }
 .rack-label-dark {
-    color: #94a3b8;
+    color: #8b93a1;
 }
 html:not(.dark) .rack-label-dark {
-    color: #475569;
+    color: #5b6472;
 }
 .rack-blade-dark {
     filter: brightness(1.15);

@@ -57,8 +57,8 @@ export function Modal({
   headerExtra,
   footer,
   hideCloseButton = false,
-  panelClassName = "w-full max-w-md rounded-xl border border-ops-border bg-ops-surface-raised shadow-2xl",
-  backdropClassName = "fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4",
+  panelClassName = "w-full max-w-md rounded-xl border border-ops-border bg-ops-surface shadow-[var(--shadow-overlay)]",
+  backdropClassName = "fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]",
   bodyClassName = "p-5",
   children,
 }: ModalProps) {
@@ -128,7 +128,7 @@ export function Modal({
 
   return createPortal(
     <div
-      className={backdropClassName}
+      className={`animate-fade-in ${backdropClassName}`}
       onMouseDown={handleBackdropMouseDown}
     >
       <div
@@ -139,13 +139,13 @@ export function Modal({
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        className={panelClassName}
+        className={`animate-scale-in overflow-hidden ${panelClassName}`}
       >
         <div className="flex items-start justify-between gap-3 border-b border-ops-border bg-ops-surface px-5 py-4">
           <div className="min-w-0">
-            <h2 id={titleId} className="text-base font-bold text-ops-text">{title}</h2>
+            <h2 id={titleId} className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">{title}</h2>
             {description ? (
-              <p id={descriptionId} className="mt-0.5 text-xs text-ops-muted">{description}</p>
+              <p id={descriptionId} className="mt-0.5 text-[13px] text-ops-muted">{description}</p>
             ) : null}
           </div>
           <div className="flex items-center gap-2">
@@ -168,7 +168,7 @@ export function Modal({
           {children}
         </div>
         {footer && (
-          <div className="border-t border-ops-border bg-ops-surface px-5 py-3">
+          <div className="border-t border-ops-border bg-ops-surface-raised px-5 py-3">
             {footer}
           </div>
         )}

@@ -3,7 +3,7 @@ import type { ComponentProps, MouseEventHandler, ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import clsx from "clsx";
 
-type ActionButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+type ActionButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "link";
 type ActionButtonSize = "sm" | "md" | "icon";
 
 type ActionButtonBaseProps = {
@@ -29,16 +29,19 @@ type ActionButtonProps = ActionButtonBaseProps & {
   "aria-pressed"?: boolean;
 };
 
-const variantClasses: Record<ActionButtonVariant, string> = {
-  primary: "border-transparent bg-ops-accent text-slate-950 hover:bg-[#0a7a6f] shadow-[0_8px_28px_rgba(93,212,180,0.12)] dark:hover:bg-[#2dd4bf]/30",
-  secondary: "border-ops-border bg-ops-surface-raised text-ops-text hover:border-ops-accent/50 hover:text-ops-text dark:hover:text-white",
-  danger: "border-red-500/30 bg-red-500/12 text-red-600 dark:text-red-200 hover:bg-red-500/20",
+export const actionButtonVariantClasses: Record<ActionButtonVariant, string> = {
+  primary:
+    "border-transparent bg-ops-accent text-ops-accent-fg shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-ops-accent-hover",
+  secondary:
+    "border-ops-border-strong bg-ops-surface text-ops-text shadow-[0_1px_2px_rgb(0_0_0/0.04)] hover:bg-ops-surface-raised hover:border-ops-subtle/60",
+  danger: "border-ops-danger/25 bg-ops-danger-soft text-ops-danger hover:border-ops-danger/45 hover:bg-ops-danger/15",
   ghost: "border-transparent bg-transparent text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
+  link: "h-auto border-transparent bg-transparent px-0 text-ops-accent underline-offset-4 hover:underline",
 };
 
 const sizeClasses: Record<ActionButtonSize, string> = {
-  sm: "h-8 px-3 text-xs",
-  md: "h-9 px-4 text-sm",
+  sm: "h-8 px-3 text-[13px]",
+  md: "h-9 px-3.5 text-sm",
   icon: "size-9 justify-center p-0",
 };
 
@@ -54,8 +57,8 @@ function actionButtonClassName({
   disabled?: boolean;
 }) {
   return clsx(
-    "inline-flex shrink-0 items-center justify-center gap-2 rounded-md border font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ops-accent/40",
-    variantClasses[variant],
+    "inline-flex shrink-0 select-none items-center justify-center gap-2 rounded-md border font-medium transition-[background-color,border-color,color,transform] duration-150 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ops-accent/30 [&_svg]:size-4 [&_svg]:shrink-0",
+    actionButtonVariantClasses[variant],
     sizeClasses[size],
     disabled && "pointer-events-none opacity-55",
     className,

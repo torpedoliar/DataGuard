@@ -19,14 +19,14 @@ export function ErrorState({
     <div
       role="alert"
       className={clsx(
-        "ops-panel flex flex-col items-center justify-center gap-3 px-6 py-10 text-center",
+        "ops-panel flex animate-enter flex-col items-center justify-center gap-2 px-6 py-12 text-center",
         className,
       )}
     >
-      <div className="flex size-12 items-center justify-center rounded-full bg-red-500/15 text-red-300">
+      <div className="mb-1 flex size-10 items-center justify-center rounded-lg border border-ops-danger/25 bg-ops-danger-soft text-ops-danger [&_svg]:size-5">
         {icon ?? <AlertTriangle className="size-6" aria-hidden="true" />}
       </div>
-      <h3 className="text-base font-semibold text-ops-text">{title}</h3>
+      <h3 className="text-[15px] font-semibold text-ops-text">{title}</h3>
       {description ? <p className="max-w-md text-sm text-ops-muted">{description}</p> : null}
       {action ? <div className="pt-1">{action}</div> : null}
     </div>

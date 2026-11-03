@@ -69,7 +69,7 @@ export default function Pagination({
     if (totalPages <= 1) return null;
 
     const controlClass =
-        "p-2 rounded-lg border border-ops-border text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ops-muted";
+        "inline-flex size-8 items-center justify-center rounded-md border border-ops-border text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ops-muted";
 
     return (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-ops-border">
@@ -113,10 +113,10 @@ export default function Pagination({
                                 onClick={() => handlePageChange(page)}
                                 aria-current={page === currentPage ? "page" : undefined}
                                 aria-label={`Page ${page}`}
-                                className={`min-w-[40px] h-10 rounded-lg border text-sm font-medium transition-colors ${
+                                className={`min-w-8 h-8 rounded-md border px-2 text-[13px] font-medium tabular-nums transition-colors ${
                                     page === currentPage
-                                        ? "bg-ops-accent border-ops-accent text-slate-950"
-                                        : "border-ops-border text-ops-text hover:bg-ops-surface-raised"
+                                        ? "border-ops-border-strong bg-ops-surface-raised text-ops-text"
+                                        : "border-transparent text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text"
                                 }`}
                             >
                                 {page}
