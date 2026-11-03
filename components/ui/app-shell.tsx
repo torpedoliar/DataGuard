@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { routing } from "@/i18n/routing";
 import {
@@ -12,37 +12,47 @@ import {
   Cable,
   CalendarClock,
   ChartColumn,
-  ChevronDown,
+  Check,
+  ChevronRight,
+  ChevronsUpDown,
   CircleAlert,
   ClipboardCheck,
   Download,
   FolderTree,
   Grid3X3,
   History,
+  Languages,
   LayoutDashboard,
   LogOut,
   Mail,
   MapPin,
   Menu,
   Network,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelTop,
   QrCode,
   Router,
+  ScrollText,
+  Search,
   Server,
   Settings,
   ShieldAlert,
   ShieldCheck,
+  SunMoon,
   Tag,
   User,
   Users,
   Waypoints,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import clsx from "clsx";
 import { logout, switchSite } from "@/actions/auth";
 import { getAppNavigation, type NavGroup, type NavItem } from "@/lib/ui/navigation";
 import ActionButton from "@/components/ui/action-button";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ThemeToggle, applyTheme } from "@/components/ui/theme-toggle";
+import CommandPalette, { type CommandItem } from "@/components/ui/command-palette";
 import NcmFleetNavBadge from "@/components/admin/ncm-fleet-nav-badge";
 
 type SiteInfo = { id: number; name: string; code: string };
@@ -73,6 +83,7 @@ const iconMap: Record<string, LucideIcon> = {
   "folder-tree": FolderTree,
   "map-pin": MapPin,
   history: History,
+  "scroll-text": ScrollText,
   mail: Mail,
   users: Users,
   "building-2": Building2,
@@ -83,8 +94,19 @@ const iconMap: Record<string, LucideIcon> = {
   "calendar-clock": CalendarClock,
 };
 
+const COLLAPSE_KEY = "dg.sidebar.collapsed";
+
 function getInitials(username: string) {
   return username.slice(0, 2).toUpperCase();
+}
+
+/** Strip a locale prefix ("/en/admin" -> "/admin") so matching works for every locale. */
+function stripLocale(pathname: string) {
+  for (const loc of routing.locales) {
+    if (pathname === `/${loc}`) return "/";
+    if (pathname.startsWith(`/${loc}/`)) return pathname.slice(loc.length + 1);
+  }
+  return pathname;
 }
 
 export default function AppShell({
@@ -102,26 +124,38 @@ export default function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [siteOpen, setSiteOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [isPending, startTransition] = useTransition();
   const navigation = getAppNavigation(user.role);
+  const path = stripLocale(pathname);
 
-  const itemLabel = (item: NavItem) =>
-    item.labelKey ? (item.ns === "AdminMenu" ? tAdmin(item.labelKey) : tNav(item.labelKey)) : item.label;
+  useEffect(() => {
+    // Restore the rail preference after hydration so SSR markup stays stable.
+    const stored = window.localStorage.getItem(COLLAPSE_KEY) === "1";
+    if (stored) setCollapsed(true);
+  }, []);
 
-  const groupLabel = (group: NavGroup) => (group.labelKey ? tNav(group.labelKey) : group.label);
+  const toggleCollapsed = () => {
+    setCollapsed((value) => {
+      window.localStorage.setItem(COLLAPSE_KEY, value ? "0" : "1");
+      return !value;
+    });
+  };
+
+  const itemLabel = useCallback(
+    (item: NavItem) => (item.labelKey ? (item.ns === "AdminMenu" ? tAdmin(item.labelKey) : tNav(item.labelKey)) : item.label),
+    [tAdmin, tNav],
+  );
+
+  const groupLabel = useCallback((group: NavGroup) => (group.labelKey ? tNav(group.labelKey) : group.label), [tNav]);
 
   // Locale switcher: with localePrefix "as-needed" only the non-default
   // locale ("en") is URL-prefixed. Strip any prefix, then re-apply the
   // target prefix when it is not the default, preserving the current query.
   const switchLocale = (nextLocale: (typeof routing.locales)[number]) => {
     if (nextLocale === locale) return;
-    let nextPath = pathname;
-    for (const loc of routing.locales) {
-      if (nextPath === `/${loc}` || nextPath.startsWith(`/${loc}/`)) {
-        nextPath = nextPath.slice(loc.length + 1) || "/";
-        break;
-      }
-    }
+    let nextPath = stripLocale(pathname);
     if (nextLocale !== routing.defaultLocale) {
       nextPath = nextPath === "/" ? `/${nextLocale}` : `/${nextLocale}${nextPath}`;
     }
@@ -144,10 +178,30 @@ export default function AppShell({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [siteOpen, userOpen, mobileOpen]);
 
-  const isActive = (href: string) => {
-    if (href === "/admin") return pathname === "/admin";
-    return pathname === href || pathname.startsWith(`${href}/`);
-  };
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const allItems = useMemo(() => navigation.flatMap((group) => group.items), [navigation]);
+
+  // Longest matching href wins, so /admin/ncm/fleet does not also light up /admin/ncm.
+  const activeHref = useMemo(() => {
+    let best: string | null = null;
+    for (const item of allItems) {
+      const match = item.href === "/admin" ? path === "/admin" : path === item.href || path.startsWith(`${item.href}/`);
+      if (match && (!best || item.href.length > best.length)) best = item.href;
+    }
+    return best;
+  }, [allItems, path]);
+
+  const breadcrumb = useMemo(() => {
+    for (const group of navigation) {
+      const item = group.items.find((entry) => entry.href === activeHref);
+      if (item) return { group: groupLabel(group), item: itemLabel(item) };
+    }
+    return null;
+  }, [navigation, activeHref, groupLabel, itemLabel]);
 
   const handleSwitchSite = (siteId: number) => {
     startTransition(async () => {
@@ -157,80 +211,189 @@ export default function AppShell({
     });
   };
 
-  const rail = (
-    <aside className="flex h-full min-h-0 flex-col border-r border-ops-border bg-ops-surface px-4 py-5">
-      <Link href="/select-site" className="mb-5 flex min-w-0 items-center gap-3 px-2">
-        {appSettings.logoPath ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={appSettings.logoPath} alt={appSettings.appName} className="h-8 w-8 shrink-0 object-contain" />
-        ) : (
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-ops-accent text-slate-950">
-            <Server className="size-4" />
-          </div>
-        )}
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-ops-text">{appSettings.appName}</p>
-          <p className="text-[11px] font-medium text-ops-muted">{tNav("subtitle")}</p>
-        </div>
-      </Link>
+  const commands: CommandItem[] = useMemo(() => {
+    const pages: CommandItem[] = navigation.flatMap((group) =>
+      group.items.map((item) => {
+        const Icon = iconMap[item.icon] || Server;
+        return {
+          id: `nav:${item.href}`,
+          label: itemLabel(item),
+          group: tNav("pages"),
+          hint: groupLabel(group),
+          keywords: `${item.href} ${item.label}`,
+          icon: <Icon />,
+          run: () => router.push(item.href),
+        };
+      }),
+    );
+    const actions: CommandItem[] = [
+      { id: "act:audit", label: tNav("newAudit"), group: tNav("quickActions"), icon: <ClipboardCheck />, run: () => router.push("/audit/new") },
+      { id: "act:scan", label: tNav("qrScanner"), group: tNav("quickActions"), icon: <QrCode />, run: () => router.push("/audit/scan") },
+      {
+        id: "act:theme",
+        label: "Toggle theme",
+        group: tNav("quickActions"),
+        keywords: "dark light mode tema",
+        icon: <SunMoon />,
+        run: () => applyTheme(!document.documentElement.classList.contains("dark")),
+      },
+      { id: "act:locale", label: tNav("switchLocale"), group: tNav("quickActions"), hint: otherLocale.toUpperCase(), icon: <Languages />, run: () => switchLocale(otherLocale) },
+      { id: "act:profile", label: tNav("profileSettings"), group: tNav("quickActions"), icon: <User />, run: () => router.push("/profile") },
+      ...(userSites.length > 1
+        ? userSites
+            .filter((site) => site.id !== activeSite.id)
+            .map((site) => ({
+              id: `site:${site.id}`,
+              label: `${tNav("switchSite")}: ${site.name}`,
+              group: tNav("quickActions"),
+              hint: site.code,
+              icon: <Building2 />,
+              run: () => handleSwitchSite(site.id),
+            }))
+        : []),
+      { id: "act:logout", label: tNav("logOut"), group: tNav("quickActions"), icon: <LogOut />, run: () => logout() },
+    ];
+    return [...actions, ...pages];
+    // switchLocale/handleSwitchSite are recreated each render but only close over stable values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, itemLabel, groupLabel, tNav, router, otherLocale, userSites, activeSite.id]);
 
-      <button
-        type="button"
-        onClick={() => setSiteOpen((value) => !value)}
-        disabled={isPending || userSites.length <= 1}
-        aria-haspopup="listbox"
-        aria-expanded={siteOpen}
-        aria-controls="site-switcher-menu"
-        className="relative mb-5 rounded-md border border-ops-border bg-ops-surface-raised p-3 text-left transition-colors hover:border-ops-accent/45 disabled:cursor-default"
-      >
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">{tNav("activeSite")}</p>
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-semibold text-ops-text">{activeSite.name || tNav("noSiteSelected")}</span>
-          {userSites.length > 1 && <ChevronDown className="size-4 shrink-0 text-ops-muted" />}
-        </div>
-      </button>
+  const isRail = collapsed && !mobileOpen;
 
-      {siteOpen && userSites.length > 1 && (
-        <>
-          <div role="presentation" className="fixed inset-0 z-40" onClick={() => setSiteOpen(false)} />
-          <div id="site-switcher-menu" className="absolute left-5 top-[104px] z-50 w-64 overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl">
-            <div className="border-b border-ops-border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">
-              {tNav("switchSite")}
-            </div>
-            <div className="max-h-64 overflow-y-auto p-1.5">
-              {userSites.map((site) => (
-                <button
-                  key={site.id}
-                  type="button"
-                  onClick={() => handleSwitchSite(site.id)}
-                  disabled={isPending || site.id === activeSite.id}
-                  className={clsx(
-                    "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
-                    site.id === activeSite.id
-                      ? "bg-ops-accent/12 text-ops-accent"
-                      : "text-slate-600 hover:bg-ops-surface hover:text-ops-text dark:text-slate-400 dark:hover:text-white",
-                  )}
-                >
-                  <span className={clsx("size-1.5 rounded-full", site.id === activeSite.id ? "bg-ops-accent" : "bg-slate-400 dark:bg-slate-600")} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{site.name}</span>
-                    <span className="block font-mono text-[10px] text-ops-muted">{site.code}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+  const sidebar = (rail: boolean) => (
+    <aside
+      className={clsx(
+        "flex h-full min-h-0 flex-col border-r border-ops-border bg-ops-surface",
+        rail ? "items-center px-2 py-3" : "px-3 py-3",
       )}
+    >
+      {/* Brand */}
+      <div className={clsx("flex h-10 items-center", rail ? "justify-center" : "justify-between gap-2 px-1.5")}>
+        <Link href="/select-site" className="flex min-w-0 items-center gap-2.5" title={appSettings.appName}>
+          {appSettings.logoPath ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={appSettings.logoPath} alt={appSettings.appName} className="size-7 shrink-0 object-contain" />
+          ) : (
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-ops-accent text-ops-accent-fg shadow-[inset_0_1px_0_rgb(255_255_255/0.15)]">
+              <Server className="size-4" />
+            </span>
+          )}
+          {!rail && <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ops-text">{appSettings.appName}</span>}
+        </Link>
+        {!rail && !mobileOpen && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={tNav("collapseSidebar")}
+            title={tNav("collapseSidebar")}
+            className="hidden size-7 items-center justify-center rounded-md text-ops-subtle transition-colors hover:bg-ops-surface-raised hover:text-ops-text lg:flex"
+          >
+            <PanelLeftClose className="size-4" />
+          </button>
+        )}
+        {mobileOpen && (
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            aria-label={tNav("closeNavigation")}
+            className="flex size-8 items-center justify-center rounded-md text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text"
+          >
+            <X className="size-4" />
+          </button>
+        )}
+      </div>
 
-      <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1.5">
-        {navigation.map((group) => (
+      {/* Site switcher */}
+      <div className={clsx("relative mt-3", rail ? "w-full" : "")}>
+        <button
+          type="button"
+          onClick={() => setSiteOpen((value) => !value)}
+          disabled={isPending || userSites.length <= 1}
+          aria-haspopup="listbox"
+          aria-expanded={siteOpen}
+          aria-controls="site-switcher-menu"
+          title={activeSite.name || tNav("noSiteSelected")}
+          className={clsx(
+            "group flex w-full items-center rounded-lg border border-ops-border bg-ops-surface-raised text-left transition-colors enabled:hover:border-ops-border-strong disabled:cursor-default",
+            rail ? "size-10 justify-center" : "gap-2.5 px-2.5 py-2",
+          )}
+        >
+          <span className="relative flex size-6 shrink-0 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-ops-muted">
+            <Building2 className="size-3.5" />
+            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-ops-surface-raised bg-ops-success" aria-hidden />
+          </span>
+          {!rail && (
+            <>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] text-ops-subtle">{tNav("activeSite")}</span>
+                <span className="block truncate text-[13px] font-medium text-ops-text">{activeSite.name || tNav("noSiteSelected")}</span>
+              </span>
+              {userSites.length > 1 && <ChevronsUpDown className="size-4 shrink-0 text-ops-subtle" />}
+            </>
+          )}
+        </button>
+
+        {siteOpen && userSites.length > 1 && (
+          <>
+            <div role="presentation" className="fixed inset-0 z-40" onClick={() => setSiteOpen(false)} />
+            <div
+              id="site-switcher-menu"
+              role="listbox"
+              className={clsx(
+                "absolute z-50 w-64 origin-top-left animate-scale-in overflow-hidden rounded-lg border border-ops-border bg-ops-surface shadow-[var(--shadow-overlay)]",
+                rail ? "left-full top-0 ml-2" : "left-0 top-full mt-1.5",
+              )}
+            >
+              <div className="px-3 pb-1 pt-2.5 text-xs font-medium text-ops-subtle">{tNav("switchSite")}</div>
+              <div className="max-h-64 overflow-y-auto p-1.5 pt-0">
+                {userSites.map((site) => {
+                  const current = site.id === activeSite.id;
+                  return (
+                    <button
+                      key={site.id}
+                      type="button"
+                      role="option"
+                      aria-selected={current}
+                      onClick={() => handleSwitchSite(site.id)}
+                      disabled={isPending || current}
+                      className={clsx(
+                        "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                        current ? "text-ops-text" : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
+                      )}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{site.name}</span>
+                        <span className="block font-mono text-[11px] text-ops-subtle">{site.code}</span>
+                      </span>
+                      {current && <Check className="size-4 shrink-0 text-ops-accent" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <nav aria-label="Main" className={clsx("mt-4 min-h-0 flex-1 overflow-y-auto", rail ? "w-full space-y-3" : "-mx-1 space-y-4 px-1")}>
+        {navigation.map((group, groupIndex) => (
           <div key={group.label}>
-            <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ops-muted">{groupLabel(group)}</p>
-            <div className="space-y-1">
+            {rail ? (
+              groupIndex > 0 && <div className="mx-auto mb-3 h-px w-6 bg-ops-border" aria-hidden />
+            ) : (
+              <p className="mb-1 px-2.5 text-xs font-medium text-ops-subtle">{groupLabel(group)}</p>
+            )}
+            <div className="space-y-px">
               {group.items.map((item) => (
-                <NavLink key={item.href} item={item} label={itemLabel(item)} active={isActive(item.href)} onNavigate={() => setMobileOpen(false)}>
-                  {item.href === "/admin/ncm/fleet" && <NcmFleetNavBadge />}
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  label={itemLabel(item)}
+                  active={activeHref === item.href}
+                  rail={rail}
+                >
+                  {item.href === "/admin/ncm/fleet" && !rail && <NcmFleetNavBadge />}
                 </NavLink>
               ))}
             </div>
@@ -238,115 +401,182 @@ export default function AppShell({
         ))}
       </nav>
 
-      <div className="mt-4 border-t border-ops-border pt-3">
-        <Link
-          href="/profile"
-          className="flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text"
-        >
-          <User className="size-4" />
-          {tNav("profile")}
-        </Link>
+      {/* Footer */}
+      <div className={clsx("mt-3 border-t border-ops-border pt-3", rail && "flex w-full flex-col items-center gap-1")}>
+        {rail ? (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={tNav("expandSidebar")}
+            title={tNav("expandSidebar")}
+            className="flex size-9 items-center justify-center rounded-md text-ops-subtle transition-colors hover:bg-ops-surface-raised hover:text-ops-text"
+          >
+            <PanelLeftOpen className="size-4" />
+          </button>
+        ) : (
+          <Link
+            href="/profile"
+            className="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 transition-colors hover:bg-ops-surface-raised"
+          >
+            <Avatar user={user} className="size-7 text-[11px]" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium text-ops-text">{user.username}</span>
+              <span className="block text-[11px] capitalize text-ops-subtle">{user.role}</span>
+            </span>
+          </Link>
+        )}
       </div>
     </aside>
   );
 
   return (
-    <div className="min-h-screen bg-ops-bg text-ops-text">
-      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:block lg:w-[17rem]">{rail}</div>
+    <div className="min-h-dvh bg-ops-bg text-ops-text">
+      <div
+        className={clsx(
+          "hidden transition-[width] duration-200 ease-out lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:block",
+          isRail ? "lg:w-[60px]" : "lg:w-60",
+        )}
+      >
+        {sidebar(isRail)}
+      </div>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <button type="button" aria-label="Close navigation overlay" className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
-          <div className="relative h-full w-[min(20rem,88vw)]">{rail}</div>
+          <button
+            type="button"
+            aria-label={tNav("closeNavigation")}
+            className="absolute inset-0 animate-fade-in bg-black/50 backdrop-blur-[2px]"
+            onClick={() => setMobileOpen(false)}
+          />
+          <div className="relative h-full w-[min(17rem,86vw)] animate-slide-in-left shadow-[var(--shadow-overlay)]">{sidebar(false)}</div>
         </div>
       )}
 
-      <div className="min-h-screen lg:pl-[17rem]">
-        <header className="sticky top-0 z-30 border-b border-ops-border bg-ops-bg/94 backdrop-blur-sm">
+      <div className={clsx("min-h-dvh transition-[padding] duration-200 ease-out", isRail ? "lg:pl-[60px]" : "lg:pl-60")}>
+        <header className="sticky top-0 z-30 border-b border-ops-border bg-ops-bg/80 backdrop-blur-md supports-[backdrop-filter]:bg-ops-bg/70">
           <div className="flex h-14 items-center justify-between gap-3 px-4 lg:px-6">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 type="button"
                 onClick={() => setMobileOpen(true)}
-                className="flex size-11 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-ops-muted lg:hidden"
-                aria-label="Open navigation"
+                className="flex size-9 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-ops-muted lg:hidden"
+                aria-label={tNav("openNavigation")}
               >
-                <Menu className="size-5" />
+                <Menu className="size-[18px]" />
               </button>
 
-              <div className="hidden items-center gap-2 text-xs text-ops-muted xl:flex">
-                <span className="rounded-full border border-ops-border px-2.5 py-1">{activeSite.name || tNav("noActiveSite")}</span>
-                <span>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
-              </div>
+              <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-[13px] sm:flex">
+                <span className="truncate text-ops-muted">{activeSite.name || tNav("noActiveSite")}</span>
+                {breadcrumb && (
+                  <>
+                    <ChevronRight className="size-3.5 shrink-0 text-ops-subtle" aria-hidden />
+                    <span className="truncate text-ops-muted">{breadcrumb.group}</span>
+                    <ChevronRight className="size-3.5 shrink-0 text-ops-subtle" aria-hidden />
+                    <span className="truncate font-medium text-ops-text" aria-current="page">{breadcrumb.item}</span>
+                  </>
+                )}
+              </nav>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPaletteOpen(true)}
+                aria-label={tNav("search")}
+                className="flex h-9 items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-2.5 text-[13px] text-ops-subtle transition-colors hover:border-ops-border-strong hover:text-ops-muted md:w-56"
+              >
+                <Search className="size-4 shrink-0" />
+                <span className="hidden flex-1 text-left md:inline">{tNav("search")}…</span>
+                <kbd className="hidden rounded border border-ops-border bg-ops-surface-raised px-1.5 font-mono text-[11px] text-ops-muted md:inline">⌘K</kbd>
+              </button>
+
               <button
                 type="button"
                 onClick={() => switchLocale(otherLocale)}
                 aria-label={tNav("switchLocale")}
                 title={tNav("switchLocale")}
-                className="flex size-9 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-[11px] font-bold text-ops-muted transition-colors hover:border-ops-accent/50 hover:text-ops-text"
+                className="hidden size-9 items-center justify-center rounded-md font-mono text-[11px] font-medium text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text sm:flex"
               >
                 {otherLocale.toUpperCase()}
               </button>
 
               <ThemeToggle />
 
-              <ActionButton href="/audit/new" size="sm" icon={<ClipboardCheck className="size-4" />}>
-                <span className="hidden sm:inline">{tNav("newAudit")}</span>
-              </ActionButton>
-
               <ActionButton
                 href="/admin/incidents"
                 size="icon"
                 variant="ghost"
-                icon={<Bell className="size-4" />}
-                title="Notifications"
-                aria-label="Notifications"
+                icon={<Bell />}
+                title={tNav("notifications")}
+                aria-label={tNav("notifications")}
               />
 
-              <div className="relative">
+              <div className="mx-1 hidden h-5 w-px bg-ops-border sm:block" aria-hidden />
+
+              <ActionButton href="/audit/new" size="sm" icon={<ClipboardCheck />} className="hidden sm:inline-flex">
+                {tNav("newAudit")}
+              </ActionButton>
+
+              <div className="relative ml-1">
                 <button
                   type="button"
                   onClick={() => setUserOpen((value) => !value)}
                   aria-haspopup="menu"
                   aria-expanded={userOpen}
                   aria-controls="user-menu"
-                  className="flex size-9 items-center justify-center overflow-hidden rounded-full border border-ops-border bg-ops-surface-raised text-xs font-bold text-ops-text transition-colors hover:border-ops-accent/50"
+                  className="flex rounded-full ring-offset-2 ring-offset-ops-bg transition-shadow hover:ring-2 hover:ring-ops-border-strong"
                   title={user.username}
                 >
-                  {user.photoPath ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={user.photoPath} alt={user.username} className="h-full w-full object-cover" />
-                  ) : (
-                    getInitials(user.username)
-                  )}
+                  <Avatar user={user} className="size-8 text-xs" />
                 </button>
 
                 {userOpen && (
                   <>
                     <div role="presentation" className="fixed inset-0 z-40" onClick={() => setUserOpen(false)} />
-                    <div id="user-menu" className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl">
-                      <div className="border-b border-ops-border px-4 py-3">
-                        <p className="truncate text-sm font-semibold text-ops-text">{user.username}</p>
-                        <p className="text-xs capitalize text-ops-muted">{user.role}</p>
+                    <div
+                      id="user-menu"
+                      role="menu"
+                      className="absolute right-0 top-full z-50 mt-2 w-60 origin-top-right animate-scale-in overflow-hidden rounded-lg border border-ops-border bg-ops-surface p-1.5 shadow-[var(--shadow-overlay)]"
+                    >
+                      <div className="flex items-center gap-2.5 px-2 py-2">
+                        <Avatar user={user} className="size-8 text-xs" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-ops-text">{user.username}</p>
+                          <p className="text-xs capitalize text-ops-muted">{user.role}</p>
+                        </div>
                       </div>
+                      <div className="my-1 h-px bg-ops-border" />
                       <Link
                         href="/profile"
+                        role="menuitem"
                         onClick={() => setUserOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-ops-surface hover:text-ops-text dark:text-slate-300 dark:hover:text-white"
+                        className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text"
                       >
                         <User className="size-4" />
                         {tNav("profileSettings")}
                       </Link>
                       <button
                         type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setUserOpen(false);
+                          setPaletteOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text"
+                      >
+                        <Search className="size-4" />
+                        <span className="flex-1">{tNav("search")}</span>
+                        <kbd className="font-mono text-[11px] text-ops-subtle">⌘K</kbd>
+                      </button>
+                      <div className="my-1 h-px bg-ops-border" />
+                      <button
+                        type="button"
+                        role="menuitem"
                         onClick={() => {
                           setUserOpen(false);
                           logout();
                         }}
-                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                        className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-ops-danger transition-colors hover:bg-ops-danger-soft"
                       >
                         <LogOut className="size-4" />
                         {tNav("logOut")}
@@ -359,9 +589,35 @@ export default function AppShell({
           </div>
         </header>
 
-        <main id="main-content" className="min-h-[calc(100vh-56px)]">{children}</main>
+        <main id="main-content" className="min-h-[calc(100dvh-56px)]">{children}</main>
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        items={commands}
+        placeholder={tNav("searchPlaceholder")}
+        emptyLabel={tNav("noResults")}
+      />
     </div>
+  );
+}
+
+function Avatar({ user, className }: { user: AppShellProps["user"]; className?: string }) {
+  return (
+    <span
+      className={clsx(
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-ops-border bg-ops-surface-raised font-semibold text-ops-muted",
+        className,
+      )}
+    >
+      {user.photoPath ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={user.photoPath} alt="" className="h-full w-full object-cover" />
+      ) : (
+        getInitials(user.username)
+      )}
+    </span>
   );
 }
 
@@ -369,13 +625,13 @@ function NavLink({
   item,
   label,
   active,
-  onNavigate,
+  rail,
   children,
 }: {
   item: NavItem;
   label: string;
   active: boolean;
-  onNavigate: () => void;
+  rail: boolean;
   children?: React.ReactNode;
 }) {
   const Icon = iconMap[item.icon] || Server;
@@ -383,16 +639,18 @@ function NavLink({
   return (
     <Link
       href={item.href}
-      onClick={onNavigate}
+      title={rail ? label : undefined}
+      aria-label={rail ? label : undefined}
+      aria-current={active ? "page" : undefined}
       className={clsx(
-        "flex items-center gap-2.5 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors",
-        active
-          ? "border border-ops-accent/30 bg-ops-accent/12 text-ops-accent"
-          : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
+        "group relative flex items-center rounded-md text-[13px] font-medium transition-colors",
+        rail ? "mx-auto size-10 justify-center" : "h-8 gap-2.5 px-2.5",
+        active ? "bg-ops-surface-raised text-ops-text" : "text-ops-muted hover:bg-ops-surface-raised/70 hover:text-ops-text",
       )}
     >
-      <Icon className="size-4 shrink-0" />
-      <span className="truncate">{label}</span>
+      {active && !rail && <span aria-hidden className="absolute -left-1 top-1.5 bottom-1.5 w-0.5 rounded-full bg-ops-accent" />}
+      <Icon className={clsx("size-4 shrink-0 transition-colors", active ? "text-ops-accent" : "text-ops-subtle group-hover:text-ops-muted")} />
+      {!rail && <span className="truncate">{label}</span>}
       {children}
     </Link>
   );

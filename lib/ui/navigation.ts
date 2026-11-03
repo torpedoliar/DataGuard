@@ -38,21 +38,30 @@ const complianceItems: NavItem[] = [
   { href: "/compliance/threat-intel", label: "Threat Intelligence", icon: "shield-check" },
 ];
 
-const adminItems: NavItem[] = [
+const infrastructureItems: NavItem[] = [
   { href: "/admin", label: "Devices", labelKey: "devices", ns: "AdminMenu", icon: "server" },
   { href: "/admin/rack-manage", label: "Racks", labelKey: "racks", ns: "AdminMenu", icon: "boxes" },
   { href: "/admin/rack", label: "Rack Layout", labelKey: "rackLayout", ns: "AdminMenu", icon: "panel-top" },
+  { href: "/admin/locations", label: "Locations", labelKey: "locations", ns: "AdminMenu", icon: "map-pin" },
+];
+
+const networkItems: NavItem[] = [
   { href: "/admin/network/vlans", label: "Network", labelKey: "network", ns: "AdminMenu", icon: "network" },
   { href: "/admin/network-docs", label: "Network Docs", ns: "AdminMenu", icon: "cable" },
   { href: "/admin/ncm", label: "NCM", ns: "AdminMenu", icon: "router" },
   { href: "/admin/ncm/fleet", label: "NCM Fleet", ns: "AdminMenu", icon: "waypoints" },
-  { href: "/admin/ncm/history", label: "Riwayat Perubahan", ns: "AdminMenu", icon: "history" },
+  { href: "/admin/ncm/history", label: "Change History", ns: "AdminMenu", icon: "history" },
+];
+
+const catalogItems: NavItem[] = [
   { href: "/admin/brands", label: "Brands", labelKey: "brands", ns: "AdminMenu", icon: "tag" },
   { href: "/admin/categories", label: "Categories", labelKey: "categories", ns: "AdminMenu", icon: "folder-tree" },
-  { href: "/admin/locations", label: "Locations", labelKey: "locations", ns: "AdminMenu", icon: "map-pin" },
-  { href: "/admin/audit-log", label: "Audit Log", labelKey: "auditLog", ns: "AdminMenu", icon: "history" },
+  { href: "/admin/audit-log", label: "Audit Log", labelKey: "auditLog", ns: "AdminMenu", icon: "scroll-text" },
   { href: "/admin/email-log", label: "Email Log", labelKey: "emailLog", ns: "AdminMenu", icon: "mail" },
 ];
+
+/** Every admin-only item, flattened (kept for callers that need the full set). */
+export const adminItems: NavItem[] = [...infrastructureItems, ...networkItems, ...catalogItems];
 
 const superadminItems: NavItem[] = [
   { href: "/admin/settings", label: "Settings", labelKey: "settings", ns: "AdminMenu", icon: "settings" },
@@ -68,15 +77,12 @@ export function getAppNavigation(role: UserRole): NavGroup[] {
   ];
 
   if (role === "admin" || role === "superadmin") {
-    groups.push({ label: "SIEM", labelKey: "siem", items: siemItems });
-  }
-
-  if (role === "admin" || role === "superadmin") {
-    groups.push({ label: "Compliance", items: complianceItems });
-  }
-
-  if (role === "admin" || role === "superadmin") {
-    groups.push({ label: "Admin", labelKey: "admin", items: adminItems });
+    groups.push(
+      { label: "Security", labelKey: "security", items: [...siemItems, ...complianceItems] },
+      { label: "Infrastructure", labelKey: "infrastructure", items: infrastructureItems },
+      { label: "Network", labelKey: "network", items: networkItems },
+      { label: "Records", labelKey: "records", items: catalogItems },
+    );
   }
 
   if (role === "superadmin") {

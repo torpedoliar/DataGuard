@@ -5,6 +5,7 @@ import { verifySession } from "@/lib/session";
 import { hasAdminAccess } from "@/lib/site-access";
 import {
   Boxes,
+  ChevronRight,
   Building2,
   CircleAlert,
   DatabaseBackup,
@@ -49,24 +50,23 @@ function readSettled<T>(result: PromiseSettledResult<T[]>): T[] {
 
 function ShortcutGroup({ title, items }: { title: string; items: Shortcut[] }) {
   return (
-    <section className="space-y-2">
-      <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">{title}</h2>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
+    <section>
+      <h2 className="mb-1.5 px-2 text-xs font-medium text-ops-subtle">{title}</h2>
+      <div className="space-y-px">
         {items.map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className="rounded-md border border-ops-border bg-ops-surface p-3 transition-colors hover:border-ops-accent/45 hover:bg-ops-surface-raised"
+            className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-ops-surface-raised"
           >
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">
-                {item.icon}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-ops-text">{item.label}</p>
-                <p className="text-xs text-ops-muted">{item.meta}</p>
-              </div>
-            </div>
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-ops-border bg-ops-surface text-ops-muted transition-colors group-hover:border-ops-accent/30 group-hover:text-ops-accent [&_svg]:size-4">
+              {item.icon}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium text-ops-text">{item.label}</span>
+              <span className="block truncate text-xs text-ops-muted">{item.meta}</span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-ops-subtle opacity-0 transition-[opacity,transform] group-hover:translate-x-0.5 group-hover:opacity-100" />
           </Link>
         ))}
       </div>
@@ -129,26 +129,32 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 py-5 lg:px-6">
+    <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 lg:px-8">
       <PageHeader
         eyebrow="Admin / Inventory"
-        title="Device Management"
-        description={session.activeSiteName ? `Active site: ${session.activeSiteName}` : "Manage data center devices, rack placement, and supporting inventory data."}
+        title="Device management"
+        description={session.activeSiteName ? `Inventory for ${session.activeSiteName}.` : "Manage data center devices, rack placement, and supporting inventory data."}
         actions={
-          <div className="inline-flex items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-sm text-ops-muted">
-            <Server className="size-4 text-ops-accent" />
-            {devices.length} devices
+          <div className="inline-flex h-9 items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 text-[13px] text-ops-muted">
+            <Server className="size-4 text-ops-subtle" />
+            <span className="font-medium tabular-nums text-ops-text">{devices.length}</span> devices
           </div>
         }
       />
 
-      <details className="rounded-lg border border-ops-border bg-ops-surface p-3"><summary className="cursor-pointer text-sm font-semibold">Admin shortcuts</summary><div className="mt-3 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <ShortcutGroup title="Inventory" items={inventoryShortcuts} />
-        <ShortcutGroup title="Infrastructure" items={infrastructureShortcuts} />
-        <ShortcutGroup title="SIEM" items={siemShortcuts} />
-        <ShortcutGroup title="Governance" items={governanceShortcuts} />
-      </div></details>
-      {(await searchParams).deviceId && initialDeviceId === null && <p role="alert" className="text-sm text-ops-warning">Device ID pada URL tidak valid.</p>}
+      <details className="group ops-panel animate-enter overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[13px] font-medium text-ops-text transition-colors hover:bg-ops-surface-raised/60">
+          <span>Admin workspace</span>
+          <ChevronRight className="size-4 text-ops-subtle transition-transform duration-200 group-open:rotate-90" />
+        </summary>
+        <div className="grid gap-x-4 gap-y-5 border-t border-ops-border p-3 md:grid-cols-2 xl:grid-cols-4">
+          <ShortcutGroup title="Inventory" items={inventoryShortcuts} />
+          <ShortcutGroup title="Infrastructure" items={infrastructureShortcuts} />
+          <ShortcutGroup title="SIEM" items={siemShortcuts} />
+          <ShortcutGroup title="Governance" items={governanceShortcuts} />
+        </div>
+      </details>
+      {(await searchParams).deviceId && initialDeviceId === null && <p role="alert" className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2 text-sm text-ops-warning">Device ID pada URL tidak valid.</p>}
       <DeviceManagement devices={devices} categories={categories} brands={brands} locations={locations} canEdit={await hasAdminAccess()} />
     </main>
   );

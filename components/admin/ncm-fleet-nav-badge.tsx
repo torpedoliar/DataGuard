@@ -39,7 +39,7 @@ export default function NcmFleetNavBadge() {
         <span
           title={`${badge.offlineSites} site NCM offline`}
           aria-label={`${badge.offlineSites} site NCM offline`}
-          className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500/15 px-1.5 text-[10px] font-bold text-red-500 dark:text-red-300"
+          className="inline-flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-sm bg-ops-danger-soft px-1 text-[11px] font-medium tabular-nums text-ops-danger"
         >
           <WifiOff className="size-3" />
           {badge.offlineSites}
@@ -49,7 +49,7 @@ export default function NcmFleetNavBadge() {
         <span
           title={`${badge.openDrifts} drift terbuka`}
           aria-label={`${badge.openDrifts} drift terbuka`}
-          className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500/15 px-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-300"
+          className="inline-flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-sm bg-ops-warning-soft px-1 text-[11px] font-medium tabular-nums text-ops-warning"
         >
           <GitCompareArrows className="size-3" />
           {badge.openDrifts}

@@ -9,7 +9,7 @@ import {
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { UiTone } from "@/lib/ui/status";
 import {
   Activity,
@@ -34,81 +34,81 @@ export default async function ChecklistPage() {
   return (
     <>
       <OfflineBanner />
-      <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-6 py-6 pb-20" suppressHydrationWarning>
-      {/* Top header */}
-      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 pb-24 md:pb-10 lg:px-8" suppressHydrationWarning>
+      {/* Header: title + the page's primary actions (was a sticky bar that covered content) */}
+      <section className="flex animate-enter flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ops-accent">Dashboard</p>
-          <h1 className="mt-1 text-[40px] font-bold leading-none tracking-tight text-ops-text">
-            Operations Overview
+          <h1 className="text-2xl font-semibold tracking-[-0.025em] text-ops-text sm:text-[28px]">
+            Operations overview
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-ops-muted">
+          <p className="mt-1 max-w-2xl text-sm text-ops-muted">
             Audit completion, incident pressure, and recent device activity for the active site.
           </p>
         </div>
-        <ActionButton href="/audit/new" icon={<ClipboardCheck className="size-4" />}>
-          New Audit
-        </ActionButton>
+        <div className="flex flex-wrap items-center gap-2">
+          <ActionButton href="/audit/scan" variant="secondary" icon={<QrCode />}>
+            Scan QR
+          </ActionButton>
+          <ActionButton href="/grid" variant="secondary" icon={<Grid3X3 />}>
+            Audit grid
+          </ActionButton>
+          <ActionButton href="/audit/new" icon={<ClipboardCheck />}>
+            {stats.overallCompletion > 0 ? "Continue audit" : "Start audit"}
+          </ActionButton>
+        </div>
       </section>
 
-      {/* Hero */}
-      <section className="rounded-2xl border border-ops-border/40 bg-ops-surface p-6 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
-        <div className="flex flex-col gap-8 md:flex-row md:items-center">
-          <div className="relative flex size-48 shrink-0 items-center justify-center">
+      {/* Hero: today's progress */}
+      <section className="ops-panel animate-enter overflow-hidden">
+        <div className="flex flex-col gap-6 p-5 md:flex-row md:items-center md:gap-8 md:p-6">
+          <div className="relative flex size-36 shrink-0 items-center justify-center self-center md:self-auto">
             <CircularProgress value={stats.overallCompletion} />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-[40px] font-bold leading-none text-ops-text">{stats.overallCompletion}%</span>
-              <span className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-ops-muted">Complete</span>
+              <span className="text-[32px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{stats.overallCompletion}%</span>
+              <span className="mt-1 text-xs text-ops-muted">complete</span>
             </div>
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ops-accent">Today&apos;s Audit Progress</p>
-            <h2 className="mt-2 text-[30px] font-bold leading-none text-ops-text">{stats.overallCompletion}% complete</h2>
-            <p className="mt-2 text-sm text-ops-muted">
-              {totalChecked} of {totalDevices} devices checked across {stats.categoryStats.length} categories.
+            <p className="text-[13px] font-medium text-ops-muted">Today&apos;s audit</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-ops-text">
+              <span className="tabular-nums">{totalChecked}</span>
+              <span className="text-ops-subtle"> / </span>
+              <span className="tabular-nums">{totalDevices}</span> devices checked
+            </h2>
+            <p className="mt-1 text-sm text-ops-muted">
+              Across {stats.categoryStats.length} {stats.categoryStats.length === 1 ? "category" : "categories"} in the active site.
             </p>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <ActionButton href="/audit/new" icon={<ClipboardCheck className="size-4" />}>
-                Continue Audit
-              </ActionButton>
-              <ActionButton href="/grid" variant="secondary" icon={<Grid3X3 className="size-4" />}>
-                Audit Grid
-              </ActionButton>
+            <div className="mt-4 h-1.5 max-w-md overflow-hidden rounded-full bg-ops-surface-raised">
+              <div
+                className="h-full rounded-full bg-ops-accent transition-[width] duration-700 ease-out"
+                style={{ width: `${Math.min(stats.overallCompletion, 100)}%` }}
+              />
             </div>
           </div>
 
-          <div className="grid shrink-0 grid-cols-2 gap-3 md:w-60">
-            <div className="rounded-xl border border-ops-border/30 bg-ops-surface-raised p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.08em] text-ops-muted">Checked</p>
-              <p className="mt-1 text-2xl font-bold text-ops-text">{totalChecked}</p>
-            </div>
-            <div className="rounded-xl border border-ops-border/30 bg-ops-surface-raised p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.08em] text-ops-muted">Remaining</p>
-              <p className="mt-1 text-2xl font-bold text-ops-text">{Math.max(totalDevices - totalChecked, 0)}</p>
-            </div>
-            <div className="col-span-2 rounded-xl border border-ops-border/30 bg-ops-surface-raised p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.08em] text-ops-muted">Categories Active</p>
-              <p className="mt-1 text-2xl font-bold text-ops-text">
-                {stats.categoryStats.filter((c) => c.total > 0).length}
-              </p>
-            </div>
-          </div>
+          <dl className="grid shrink-0 grid-cols-3 divide-x divide-ops-border overflow-hidden rounded-lg border border-ops-border md:w-80">
+            <HeroStat label="Checked" value={totalChecked} />
+            <HeroStat label="Remaining" value={Math.max(totalDevices - totalChecked, 0)} />
+            <HeroStat label="Categories" value={stats.categoryStats.filter((c) => c.total > 0).length} />
+          </dl>
         </div>
       </section>
 
       {/* KPI row */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="Checked Today"
+          index={0}
+          label="Checked today"
           value={totalChecked}
           description={`of ${totalDevices} total devices`}
           tone={stats.overallCompletion >= 90 ? "success" : "accent"}
-          badge={stats.overallCompletion >= 90 ? "On Track" : "In Progress"}
+          badge={stats.overallCompletion >= 90 ? "On track" : "In progress"}
           sparkline={stats.dailyCompletion.map((d) => d.checked)}
         />
         <KpiCard
-          label="Open Incidents"
+          index={1}
+          label="Open incidents"
           value={stats.incidentStats.open}
           description={`${stats.incidentStats.critical} critical, ${stats.incidentStats.overdue} overdue`}
           tone={stats.incidentStats.open > 0 ? "info" : "success"}
@@ -116,7 +116,8 @@ export default async function ChecklistPage() {
           sparkline={stats.incidentTrend.map((d) => d.total)}
         />
         <KpiCard
-          label="Critical Pressure"
+          index={2}
+          label="Critical pressure"
           value={incidentPressure}
           description="critical + overdue incidents"
           tone={incidentPressure > 0 ? "danger" : "success"}
@@ -124,7 +125,8 @@ export default async function ChecklistPage() {
           sparkline={stats.incidentTrend.map((d) => d.Critical)}
         />
         <KpiCard
-          label="Total Devices"
+          index={3}
+          label="Total devices"
           value={totalDevices}
           description="registered in active site"
           tone="neutral"
@@ -133,37 +135,37 @@ export default async function ChecklistPage() {
       </section>
 
       {/* Analytics */}
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="rounded-2xl border border-ops-border/40 bg-ops-surface p-6 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="ops-panel p-5">
           <div className="mb-4">
-            <h3 className="text-[20px] font-semibold text-ops-text">Audit Progress</h3>
-            <p className="text-sm text-ops-muted">Device coverage over the last 7 days</p>
+            <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Audit progress</h3>
+            <p className="mt-0.5 text-[13px] text-ops-muted">Device coverage over the last 7 days</p>
           </div>
           <LineChart
             data={stats.dailyCompletion.map((d) => ({ label: formatShortDate(d.date), value: d.percentage }))}
-            color="#5eead4"
+            color="var(--color-ops-accent)"
           />
         </div>
 
-        <div className="rounded-2xl border border-ops-border/40 bg-ops-surface p-6 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
+        <div className="ops-panel p-5">
           <div className="mb-4">
-            <h3 className="text-[20px] font-semibold text-ops-text">Incident Pressure</h3>
-            <p className="text-sm text-ops-muted">New incidents by severity over the last 7 days</p>
+            <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Incident pressure</h3>
+            <p className="mt-0.5 text-[13px] text-ops-muted">New incidents by severity over the last 7 days</p>
           </div>
           <MultiLineChart data={stats.incidentTrend} />
         </div>
 
-        <div className="rounded-2xl border border-ops-border/40 bg-ops-surface p-6 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
+        <div className="ops-panel p-5">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-[20px] font-semibold text-ops-text">Recent Activity</h3>
-              <p className="text-sm text-ops-muted">Latest checklist entries</p>
+              <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Recent activity</h3>
+              <p className="mt-0.5 text-[13px] text-ops-muted">Latest checklist entries</p>
             </div>
-            <Activity className="size-5 text-ops-muted" />
+            <Activity className="size-4 text-ops-subtle" />
           </div>
           <div className="max-h-[320px] overflow-y-auto pr-1">
             {stats.recentActivities.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-ops-border/50 p-6 text-center text-sm text-ops-muted">
+              <div className="rounded-lg border border-dashed border-ops-border px-6 py-10 text-center text-sm text-ops-muted">
                 No activity recorded.
               </div>
             ) : (
@@ -171,13 +173,13 @@ export default async function ChecklistPage() {
                 {stats.recentActivities.map((activity, idx, arr) => (
                   <div key={activity.id} className="flex gap-3">
                     <div className="flex flex-col items-center pt-1.5">
-                      <span className="size-2 rounded-full bg-ops-accent" />
-                      {idx !== arr.length - 1 && <span className="mt-2 h-full w-px bg-ops-border/50" />}
+                      <span className="size-2 rounded-full border-2 border-ops-accent bg-ops-surface" />
+                      {idx !== arr.length - 1 && <span className="mt-1.5 h-full w-px bg-ops-border" />}
                     </div>
                     <div className="min-w-0 flex-1 pb-5">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="truncate text-sm font-semibold text-ops-text">{activity.device}</p>
-                        <span className="shrink-0 text-[11px] text-ops-muted">
+                        <p className="truncate text-sm font-medium text-ops-text">{activity.device}</p>
+                        <span className="shrink-0 text-xs tabular-nums text-ops-subtle">
                           {activity.date === todayIso ? activity.time : formatShortDate(activity.date)}
                         </span>
                       </div>
@@ -202,48 +204,48 @@ export default async function ChecklistPage() {
       </section>
 
       {/* Operations */}
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-ops-border/40 bg-ops-surface p-6 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="ops-panel p-5">
           <div className="mb-5">
-            <h3 className="text-[20px] font-semibold text-ops-text">Daily Audit Progress by Category</h3>
-            <p className="text-sm text-ops-muted">Category completion for today</p>
+            <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Progress by category</h3>
+            <p className="mt-0.5 text-[13px] text-ops-muted">Category completion for today</p>
           </div>
           <div className="space-y-4">
             {stats.categoryStats.map((category) => (
               <CategoryRow key={category.id} category={category} />
             ))}
             {stats.categoryStats.length === 0 && (
-              <div className="rounded-xl border border-dashed border-ops-border/50 p-6 text-center text-sm text-ops-muted">
+              <div className="rounded-lg border border-dashed border-ops-border px-6 py-10 text-center text-sm text-ops-muted">
                 No categories configured for this site.
               </div>
             )}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-ops-border/40 bg-ops-surface p-6 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
+        <div className="ops-panel p-5">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-[20px] font-semibold text-ops-text">Recent Incidents</h3>
-              <p className="text-sm text-ops-muted">Open issues needing attention</p>
+              <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Recent incidents</h3>
+              <p className="mt-0.5 text-[13px] text-ops-muted">Open issues needing attention</p>
             </div>
-            <ShieldAlert className="size-5 text-ops-muted" />
+            <ShieldAlert className="size-4 text-ops-subtle" />
           </div>
           {stats.recentIncidents.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-ops-border/50 p-6 text-center text-sm text-ops-muted">
+            <div className="rounded-lg border border-dashed border-ops-border px-6 py-10 text-center text-sm text-ops-muted">
               No open incidents.
             </div>
           ) : (
             <div className="-mx-1 overflow-x-auto">
             <table className="w-full min-w-[520px] border-collapse">
-              <thead>
-                <tr className="border-b border-ops-border/40 text-left text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">
+              <thead className="bg-transparent">
+                <tr className="border-b border-ops-border text-left text-xs text-ops-muted">
                   <th className="pb-3 font-medium">Title</th>
                   <th className="pb-3 font-medium">Severity</th>
                   <th className="pb-3 font-medium">Status</th>
                   <th className="pb-3 font-medium text-right">Last Seen</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-ops-border/30">
+              <tbody className="divide-y divide-ops-border bg-transparent">
                 {stats.recentIncidents.map((incident) => (
                   <tr key={incident.id}>
                     <td className="py-3 text-sm font-medium text-ops-text">
@@ -260,7 +262,7 @@ export default async function ChecklistPage() {
                     <td className="py-3">
                       <StatusBadge tone={getIncidentStatusTone(incident.status)}>{incident.status}</StatusBadge>
                     </td>
-                    <td className="py-3 text-right text-xs text-ops-muted">{formatDateTime(incident.updatedAt)}</td>
+                    <td className="py-3 text-right text-xs tabular-nums text-ops-muted">{formatDateTime(incident.updatedAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -270,15 +272,6 @@ export default async function ChecklistPage() {
         </div>
       </section>
 
-      {/* Quick actions */}
-      <section className="sticky bottom-20 z-20 mt-2 md:bottom-6">
-        <div className="flex flex-wrap gap-3 rounded-2xl border border-ops-border/40 bg-ops-surface p-3 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
-          <QuickAction href="/audit/new" icon={<ClipboardCheck className="size-5" />} title="Start New Audit" />
-          <QuickAction href="/audit/scan" icon={<QrCode className="size-5" />} title="Scan QR Code" />
-          <QuickAction href="/admin/incidents" icon={<ShieldAlert className="size-5" />} title="Incident Center" />
-          <QuickAction href="/grid" icon={<Grid3X3 className="size-5" />} title="Audit Grid" />
-        </div>
-      </section>
     </main>
     <BottomNav />
     </>
@@ -302,25 +295,25 @@ function formatDateTime(value: Date | string | null) {
 }
 
 function CircularProgress({ value }: { value: number }) {
-  const radius = 54;
-  const stroke = 10;
+  const radius = 52;
+  const stroke = 8;
   const circumference = 2 * Math.PI * radius;
   const pct = Math.min(Math.max(value, 0), 100);
   const offset = circumference - (pct / 100) * circumference;
   return (
-    <svg width="192" height="192" viewBox="0 0 120 120" className="shrink-0 -rotate-90">
-      <circle cx="60" cy="60" r={radius} stroke="#172033" strokeWidth={stroke} fill="none" />
+    <svg width="144" height="144" viewBox="0 0 120 120" className="shrink-0 -rotate-90">
+      <circle cx="60" cy="60" r={radius} stroke="var(--color-ops-surface-raised)" strokeWidth={stroke} fill="none" />
       <circle
         cx="60"
         cy="60"
         r={radius}
-        stroke="#5eead4"
+        stroke="var(--color-ops-accent)"
         strokeWidth={stroke}
         fill="none"
         strokeLinecap="round"
         strokeDasharray={circumference}
         strokeDashoffset={offset}
-        className="transition-all duration-500"
+        className="transition-[stroke-dashoffset] duration-700 ease-out"
       />
     </svg>
   );
@@ -376,7 +369,7 @@ function LineChart({ data, color }: { data: { label: string; value: number }[]; 
             y1={pad.top + plotH * (1 - r)}
             x2={w}
             y2={pad.top + plotH * (1 - r)}
-            stroke="#1e293b"
+            stroke="var(--color-ops-border)"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
           />
@@ -385,13 +378,13 @@ function LineChart({ data, color }: { data: { label: string; value: number }[]; 
           d={path}
           fill="none"
           stroke={color}
-          strokeWidth="2.5"
+          strokeWidth="2"
           vectorEffect="non-scaling-stroke"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
       </svg>
-      <div className="mt-2 flex justify-between text-[11px] text-ops-muted">
+      <div className="mt-2 flex justify-between text-[11px] tabular-nums text-ops-subtle">
         {data.map((d, i) => (
           <span key={i}>{d.label}</span>
         ))}
@@ -406,9 +399,9 @@ function MultiLineChart({
   data: { date: string; Critical: number; High: number; Medium: number; Low: number; total: number }[];
 }) {
   const series = [
-    { key: "Critical" as const, color: "#ef4444" },
-    { key: "High" as const, color: "#f59e0b" },
-    { key: "Medium" as const, color: "#3b82f6" },
+    { key: "Critical" as const, color: "var(--color-ops-danger)" },
+    { key: "High" as const, color: "var(--color-ops-orange)" },
+    { key: "Medium" as const, color: "var(--color-ops-warning)" },
   ];
   const h = 160;
   const w = 300;
@@ -426,7 +419,7 @@ function MultiLineChart({
             y1={pad.top + plotH * (1 - r)}
             x2={w}
             y2={pad.top + plotH * (1 - r)}
-            stroke="#1e293b"
+            stroke="var(--color-ops-border)"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
           />
@@ -453,7 +446,7 @@ function MultiLineChart({
           );
         })}
       </svg>
-      <div className="mt-2 flex justify-between text-[11px] text-ops-muted">
+      <div className="mt-2 flex justify-between text-[11px] tabular-nums text-ops-subtle">
         {data.map((d, i) => (
           <span key={i}>{formatShortDate(d.date)}</span>
         ))}
@@ -461,7 +454,7 @@ function MultiLineChart({
       <div className="mt-3 flex flex-wrap gap-3">
         {series.map((s) => (
           <div key={s.key} className="flex items-center gap-1.5 text-xs text-ops-muted">
-            <span className="size-2 rounded-full" style={{ backgroundColor: s.color }} />
+            <span className="h-0.5 w-3 rounded-full" style={{ backgroundColor: s.color }} />
             {s.key}
           </div>
         ))}
@@ -471,6 +464,7 @@ function MultiLineChart({
 }
 
 function KpiCard({
+  index,
   label,
   value,
   description,
@@ -478,6 +472,7 @@ function KpiCard({
   badge,
   sparkline,
 }: {
+  index: number;
   label: string;
   value: ReactNode;
   description: string;
@@ -486,22 +481,41 @@ function KpiCard({
   sparkline?: number[];
 }) {
   const sparkColor =
-    tone === "success" ? "#22c55e" : tone === "danger" ? "#ef4444" : tone === "warning" ? "#f59e0b" : tone === "info" ? "#3b82f6" : "#5eead4";
+    tone === "success"
+      ? "var(--color-ops-success)"
+      : tone === "danger"
+        ? "var(--color-ops-danger)"
+        : tone === "warning"
+          ? "var(--color-ops-warning)"
+          : tone === "info"
+            ? "var(--color-ops-info)"
+            : "var(--color-ops-accent)";
   return (
-    <div className="flex flex-col rounded-2xl border border-ops-border/40 bg-ops-surface p-5 shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
+    <div className="ops-panel flex flex-col p-4" style={{ "--i": index } as CSSProperties}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ops-muted">{label}</p>
-          <p className="mt-2 text-[30px] font-bold leading-none text-ops-text">{value}</p>
-          <p className="mt-1.5 text-xs text-ops-muted">{description}</p>
-        </div>
-        <StatusBadge tone={tone}>{badge}</StatusBadge>
+        <p className="text-[13px] font-medium text-ops-muted">{label}</p>
+        <StatusBadge tone={tone} dot>{badge}</StatusBadge>
       </div>
-      {sparkline && sparkline.length > 0 && (
-        <div className="mt-4 h-8">
-          <Sparkline data={sparkline} color={sparkColor} />
+      <div className="mt-3 flex items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{value}</p>
+          <p className="mt-2 text-xs text-ops-muted">{description}</p>
         </div>
-      )}
+        {sparkline && sparkline.length > 1 && (
+          <div className="h-8 w-20 shrink-0">
+            <Sparkline data={sparkline} color={sparkColor} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HeroStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-ops-surface-raised/50 px-3 py-3">
+      <dt className="text-xs text-ops-muted">{label}</dt>
+      <dd className="mt-1 text-lg font-semibold tracking-[-0.02em] text-ops-text tabular-nums">{value}</dd>
     </div>
   );
 }
@@ -511,29 +525,17 @@ function CategoryRow({ category }: { category: { id: number; name: string; total
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[15px] font-semibold text-ops-text">{category.name}</p>
-          <p className="text-xs text-ops-muted">{category.checked}/{category.total} devices checked</p>
+          <p className="text-sm font-medium text-ops-text">{category.name}</p>
+          <p className="text-xs tabular-nums text-ops-muted">{category.checked}/{category.total} devices checked</p>
         </div>
-        <span className="text-sm font-bold text-ops-text">{category.percentage}%</span>
+        <span className="text-sm font-medium tabular-nums text-ops-text">{category.percentage}%</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-ops-surface-raised">
+      <div className="h-1.5 overflow-hidden rounded-full bg-ops-surface-raised">
         <div
-          className="h-full rounded-full bg-ops-accent transition-all"
+          className="h-full rounded-full bg-ops-accent transition-[width] duration-700 ease-out"
           style={{ width: `${Math.min(category.percentage, 100)}%` }}
         />
       </div>
     </div>
-  );
-}
-
-function QuickAction({ href, icon, title }: { href: string; icon: ReactNode; title: string }) {
-  return (
-    <Link
-      href={href}
-      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-ops-border/40 bg-ops-surface-raised px-4 py-3 text-sm font-semibold text-ops-text transition-colors hover:border-ops-accent/40 hover:bg-ops-surface"
-    >
-      <span className="text-ops-accent">{icon}</span>
-      {title}
-    </Link>
   );
 }

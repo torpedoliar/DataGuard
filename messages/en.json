@@ -15,19 +15,20 @@
     "close": "Close"
   },
   "Login": {
-    "title": "DC Check",
+    "title": "DataGuard",
     "subtitle": "Data center audit operations",
-    "heading": "Sign In",
+    "heading": "Sign in",
     "description": "Use your operator account to continue.",
     "username": "Username",
     "password": "Password",
     "usernamePlaceholder": "admin",
     "passwordPlaceholder": "Password",
-    "submit": "Sign In",
+    "submit": "Sign in",
     "errors": {
       "invalidCredentials": "Invalid username or password",
       "required": "This field is required"
-    }
+    },
+    "footer": "Session activity is audit-logged"
   },
   "Nav": {
     "dashboard": "Dashboard",
@@ -52,7 +53,21 @@
     "noActiveSite": "No active site",
     "switchLocale": "Switch language",
     "qrScanner": "QR Scanner",
-    "auditGrid": "Audit Grid"
+    "auditGrid": "Audit Grid",
+    "security": "Security",
+    "infrastructure": "Infrastructure",
+    "network": "Network",
+    "records": "Records",
+    "search": "Search",
+    "searchPlaceholder": "Search pages and actions…",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "noResults": "No matches",
+    "quickActions": "Quick actions",
+    "pages": "Pages",
+    "notifications": "Notifications",
+    "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation"
   },
   "AdminMenu": {
     "devices": "Devices",

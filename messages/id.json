@@ -15,7 +15,7 @@
     "close": "Tutup"
   },
   "Login": {
-    "title": "DC Check",
+    "title": "DataGuard",
     "subtitle": "Operasi audit data center",
     "heading": "Masuk",
     "description": "Gunakan akun operator Anda untuk melanjutkan.",
@@ -27,7 +27,8 @@
     "errors": {
       "invalidCredentials": "Nama pengguna atau kata sandi salah",
       "required": "Kolom ini wajib diisi"
-    }
+    },
+    "footer": "Aktivitas sesi tercatat di audit log"
   },
   "Nav": {
     "dashboard": "Dasbor",
@@ -52,7 +53,21 @@
     "noActiveSite": "Tidak ada situs aktif",
     "switchLocale": "Ganti bahasa",
     "qrScanner": "Pemindai QR",
-    "auditGrid": "Grid Audit"
+    "auditGrid": "Grid Audit",
+    "security": "Keamanan",
+    "infrastructure": "Infrastruktur",
+    "network": "Jaringan",
+    "records": "Data & Log",
+    "search": "Cari",
+    "searchPlaceholder": "Cari halaman dan aksi…",
+    "collapseSidebar": "Ciutkan sidebar",
+    "expandSidebar": "Lebarkan sidebar",
+    "noResults": "Tidak ada hasil",
+    "quickActions": "Aksi cepat",
+    "pages": "Halaman",
+    "notifications": "Notifikasi",
+    "openNavigation": "Buka navigasi",
+    "closeNavigation": "Tutup navigasi"
   },
   "AdminMenu": {
     "devices": "Perangkat",
