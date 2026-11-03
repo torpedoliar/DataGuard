@@ -49,21 +49,21 @@ export default function SiemIngestSettingsForm({ initialData }: { initialData: S
   };
 
   return (
-    <form action={action} className="mt-6 max-w-5xl space-y-4 rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
+    <form action={action} className="mt-6 max-w-5xl space-y-4 rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
       <div>
         <h2 className="text-sm font-semibold text-white">SIEM Ingest</h2>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-ops-muted">
           Tentukan severity minimum untuk alert dan retensi data per-site. Source syslog harus dipetakan eksplisit ke site ini.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-1.5 text-sm font-medium text-slate-300">
+        <label className="space-y-1.5 text-sm font-medium text-ops-muted">
           Alert Minimum Severity
           <select
             name="alertMinSeverity"
             defaultValue={initialData.alertMinSeverity}
-            className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+            className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white"
           >
             {siemSeverities.map((severity) => (
               <option key={severity} value={severity}>
@@ -71,15 +71,15 @@ export default function SiemIngestSettingsForm({ initialData }: { initialData: S
               </option>
             ))}
           </select>
-          <span className="text-xs text-slate-500">Finding di bawah severity ini tidak akan masuk antrean alert.</span>
+          <span className="text-xs text-ops-subtle">Finding di bawah severity ini tidak akan masuk antrean alert.</span>
         </label>
       </div>
 
-      <div className="rounded-lg border border-slate-700/50 bg-slate-800/40 p-4">
+      <div className="rounded-lg border border-ops-border/50 bg-ops-surface-raised/40 p-4">
         <h3 className="text-sm font-semibold text-white">Retention (hari)</h3>
-        <p className="mt-1 text-xs text-slate-400">Data lebih tua dari batas ini akan dihapus otomatis oleh retention worker untuk menjaga storage server tetap aman.</p>
+        <p className="mt-1 text-xs text-ops-muted">Data lebih tua dari batas ini akan dihapus otomatis oleh retention worker untuk menjaga storage server tetap aman.</p>
         <div className="mt-3 grid gap-4 md:grid-cols-4">
-          <label className="space-y-1.5 text-sm font-medium text-slate-300">
+          <label className="space-y-1.5 text-sm font-medium text-ops-muted">
             Raw Events
             <input
               name="rawRetentionDays"
@@ -87,11 +87,11 @@ export default function SiemIngestSettingsForm({ initialData }: { initialData: S
               min={1}
               max={3650}
               defaultValue={initialData.rawRetentionDays}
-              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+              className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white"
             />
-            <span className="text-xs text-slate-500">Default: 90 hari</span>
+            <span className="text-xs text-ops-subtle">Default: 90 hari</span>
           </label>
-          <label className="space-y-1.5 text-sm font-medium text-slate-300">
+          <label className="space-y-1.5 text-sm font-medium text-ops-muted">
             Events
             <input
               name="eventRetentionDays"
@@ -99,11 +99,11 @@ export default function SiemIngestSettingsForm({ initialData }: { initialData: S
               min={1}
               max={3650}
               defaultValue={initialData.eventRetentionDays}
-              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+              className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white"
             />
-            <span className="text-xs text-slate-500">Default: 180 hari</span>
+            <span className="text-xs text-ops-subtle">Default: 180 hari</span>
           </label>
-          <label className="space-y-1.5 text-sm font-medium text-slate-300">
+          <label className="space-y-1.5 text-sm font-medium text-ops-muted">
             Findings
             <input
               name="findingRetentionDays"
@@ -111,11 +111,11 @@ export default function SiemIngestSettingsForm({ initialData }: { initialData: S
               min={1}
               max={3650}
               defaultValue={initialData.findingRetentionDays}
-              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+              className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white"
             />
-            <span className="text-xs text-slate-500">Default: 365 hari</span>
+            <span className="text-xs text-ops-subtle">Default: 365 hari</span>
           </label>
-          <label className="space-y-1.5 text-sm font-medium text-slate-300">
+          <label className="space-y-1.5 text-sm font-medium text-ops-muted">
             Alerts
             <input
               name="alertRetentionDays"
@@ -123,21 +123,21 @@ export default function SiemIngestSettingsForm({ initialData }: { initialData: S
               min={1}
               max={3650}
               defaultValue={initialData.alertRetentionDays}
-              className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+              className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white"
             />
-            <span className="text-xs text-slate-500">Default: 365 hari</span>
+            <span className="text-xs text-ops-subtle">Default: 365 hari</span>
           </label>
         </div>
 
-        <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-slate-700/50 pt-3">
-          <div className="text-xs text-slate-400">
-            <span className="font-semibold text-slate-300">Pembersihan Otomatis:</span> Berjalan berkala via worker <code className="text-amber-400/90 font-mono">siem:retention</code> &amp; otomatis terpicu saat setting disimpan.
+        <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-ops-border/50 pt-3">
+          <div className="text-xs text-ops-muted">
+            <span className="font-semibold text-ops-muted">Pembersihan Otomatis:</span> Berjalan berkala via worker <code className="text-ops-warning/90 font-mono">siem:retention</code> &amp; otomatis terpicu saat setting disimpan.
           </div>
           <button
             type="button"
             disabled={isCleaning}
             onClick={handleManualCleanup}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/20 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ops-warning/30 bg-ops-warning-soft px-3 py-1.5 text-xs font-semibold text-ops-warning hover:bg-ops-warning-soft disabled:opacity-50 transition-colors"
           >
             {isCleaning ? (
               <>
@@ -154,23 +154,23 @@ export default function SiemIngestSettingsForm({ initialData }: { initialData: S
         </div>
 
         {cleanResult && (
-          <div className={clsx("mt-3 flex items-start gap-2 rounded-lg border p-3 text-xs", cleanResult.success ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300")}>
-            {cleanResult.success ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" /> : <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />}
+          <div className={clsx("mt-3 flex items-start gap-2 rounded-lg border p-3 text-xs", cleanResult.success ? "border-ops-success/20 bg-ops-success-soft text-ops-success" : "border-ops-danger/20 bg-ops-danger-soft text-ops-danger")}>
+            {cleanResult.success ? <CheckCircle2 className="h-4 w-4 shrink-0 text-ops-success" /> : <AlertCircle className="h-4 w-4 shrink-0 text-ops-danger" />}
             <span>{cleanResult.message}</span>
           </div>
         )}
       </div>
 
       {state?.errors && (
-        <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">
+        <div className="rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">
           {Object.values(state.errors).flat().join(" ")}
         </div>
       )}
       {state?.message && !state.success && (
-        <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">{state.message}</div>
+        <div className="rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">{state.message}</div>
       )}
       {state?.success && (
-        <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-300">SIEM ingest settings tersimpan dan pembersihan retensi otomatis dijalankan di latar belakang.</div>
+        <div className="rounded-lg border border-ops-success/20 bg-ops-success-soft p-3 text-sm text-ops-success">SIEM ingest settings tersimpan dan pembersihan retensi otomatis dijalankan di latar belakang.</div>
       )}
 
       <div className="flex justify-end">

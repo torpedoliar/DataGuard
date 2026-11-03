@@ -1155,10 +1155,10 @@ export function NcmConfigReview({
             variant="secondary"
             isPending={isTriggeringCycle}
             onClick={handleTriggerCycle}
-            className="border-amber-400/50 bg-amber-400/20 text-amber-300 font-bold hover:bg-amber-400/30 hover:text-amber-200 hover:border-amber-300 shadow-sm"
+            className="border-ops-warning/50 bg-ops-warning-soft text-ops-warning font-bold hover:bg-ops-warning-soft hover:text-ops-warning hover:border-ops-warning shadow-sm"
             title="Bandingkan seluruh switch ke baseline sekarang, reset siklus periode, dan kirim email hasil review"
           >
-            <Sparkles className="size-4 text-amber-300" />
+            <Sparkles className="size-4 text-ops-warning" />
             Jalankan Siklus Review Sekarang (All Switches)
           </ActionButton>
         </div>
@@ -1407,7 +1407,7 @@ export function NcmConfigReview({
                               size="sm"
                               variant="secondary"
                               onClick={() => openPromoteModal(id)}
-                              className="border-amber-400/50 bg-amber-400/20 text-amber-300 font-bold hover:bg-amber-400/30 hover:text-amber-200 hover:border-amber-300"
+                              className="border-ops-warning/50 bg-ops-warning-soft text-ops-warning font-bold hover:bg-ops-warning-soft hover:text-ops-warning hover:border-ops-warning"
                               title="Setujui dan jadikan backup ini sebagai Golden Baseline baru"
                             >
                               ★ Promote
@@ -1471,7 +1471,7 @@ export function NcmConfigReview({
                                   onClick={() => setViewStyle("side-by-side")}
                                   className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
                                     viewStyle === "side-by-side"
-                                      ? "bg-ops-accent text-ops-text font-bold"
+                                      ? "bg-ops-accent text-ops-accent-fg font-bold"
                                       : "text-ops-muted hover:text-ops-text"
                                   }`}
                                 >
@@ -1482,7 +1482,7 @@ export function NcmConfigReview({
                                   onClick={() => setViewStyle("unified")}
                                   className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
                                     viewStyle === "unified"
-                                      ? "bg-ops-accent text-ops-text font-bold"
+                                      ? "bg-ops-accent text-ops-accent-fg font-bold"
                                       : "text-ops-muted hover:text-ops-text"
                                   }`}
                                 >
@@ -1493,7 +1493,7 @@ export function NcmConfigReview({
                                   onClick={() => setViewStyle("decode")}
                                   className={`rounded px-2.5 py-0.5 font-mono transition-colors ${
                                     viewStyle === "decode"
-                                      ? "bg-ops-accent text-ops-text font-bold"
+                                      ? "bg-ops-accent text-ops-accent-fg font-bold"
                                       : "text-ops-muted hover:text-ops-text"
                                   }`}
                                 >
@@ -1789,7 +1789,7 @@ export function NcmConfigReview({
                   variant="primary"
                   isPending={isPromoting}
                   disabled={!promoteReason.trim()}
-                  className="bg-amber-400 text-amber-950 font-bold hover:bg-amber-300"
+                  className="bg-ops-warning text-ops-warning font-bold hover:bg-ops-warning"
                 >
                   Konfirmasi &amp; Jadikan Baseline Baru
                 </ActionButton>

@@ -18,30 +18,30 @@ export default function AddCategoryForm() {
     }, [state?.success, router]);
 
     return (
-        <div className="bg-white dark:bg-surface p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
+        <div className="bg-ops-surface p-6 rounded-lg shadow-sm border border-ops-border mb-8">
             <div className="flex items-center gap-2 mb-4">
                 <Tag className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Add New Category</h3>
+                <h3 className="text-lg font-semibold text-ops-text">Add New Category</h3>
             </div>
 
             <form ref={formRef} action={action} className="flex gap-4">
                 <div className="flex-1">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-ops-muted mb-1">
                         Category Name *
                     </label>
                     <input
                         name="name"
                         required
                         placeholder="e.g. Server, Network, Storage"
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                     />
                 </div>
 
                 <div className="w-24">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-ops-muted mb-1">
                         Color
                     </label>
-                    <div className="h-[42px] relative rounded-md border border-slate-300 dark:border-slate-600 overflow-hidden bg-white dark:bg-slate-800 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-primary">
+                    <div className="h-[42px] relative rounded-md border border-ops-border-strong overflow-hidden bg-ops-surface focus-within:ring-2 focus-within:ring-ops-accent focus-within:border-primary">
                         <input
                             type="color"
                             name="color"
@@ -55,7 +55,7 @@ export default function AddCategoryForm() {
                     <button
                         type="submit"
                         disabled={isPending}
-                        className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+                        className="bg-ops-accent text-ops-accent-fg px-6 py-2 rounded-md hover:bg-ops-accent-hover flex items-center gap-2 disabled:opacity-50"
                     >
                         {isPending ? <Loader2 className="animate-spin h-5 w-5" /> : <><Plus className="h-5 w-5" /> Add Category</>}
                     </button>
@@ -63,17 +63,17 @@ export default function AddCategoryForm() {
             </form>
 
             {state?.errors && (
-                <div className="mt-3 text-red-500 text-sm">
+                <div className="mt-3 text-ops-danger text-sm">
                     {Object.values(state.errors as Record<string, string[]>).flat().map((e, i) => (
                         <p key={i}>{e}</p>
                     ))}
                 </div>
             )}
             {state?.message && !state.success && (
-                <div className="mt-3 text-red-500 text-sm">{state.message}</div>
+                <div className="mt-3 text-ops-danger text-sm">{state.message}</div>
             )}
             {state?.success && (
-                <div className="mt-3 text-green-600 dark:text-green-400 text-sm">{state.message}</div>
+                <div className="mt-3 text-ops-success text-sm">{state.message}</div>
             )}
         </div>
     );

@@ -60,10 +60,10 @@ function formatDate(date: Date) {
 function StatCard({ label, value, detail, tone = "neutral" }: { label: string; value: number; detail: string; tone?: "neutral" | "danger" | "warning" | "info" | "success" }) {
   const toneClass = {
     neutral: "border-ops-border",
-    danger: "border-red-400/30 bg-red-500/10",
-    warning: "border-amber-400/30 bg-amber-500/10",
-    info: "border-blue-400/30 bg-blue-500/10",
-    success: "border-emerald-400/30 bg-emerald-500/10",
+    danger: "border-ops-danger/30 bg-ops-danger-soft",
+    warning: "border-ops-warning/30 bg-ops-warning-soft",
+    info: "border-ops-info/30 bg-ops-info-soft",
+    success: "border-ops-success/30 bg-ops-success-soft",
   }[tone];
 
   return (
@@ -220,21 +220,21 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">Unmapped Sources</p>
             <p className="mt-2 text-2xl font-bold text-ops-text">{stats.unmappedSources.toLocaleString("id-ID")}</p>
           </div>
-          <RadioTower className="size-8 text-amber-200" />
+          <RadioTower className="size-8 text-ops-warning" />
         </div>
         <div className="ops-panel flex items-center justify-between p-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">Pending Alerts</p>
             <p className="mt-2 text-2xl font-bold text-ops-text">{stats.pendingAlerts.toLocaleString("id-ID")}</p>
           </div>
-          <Bell className="size-8 text-blue-200" />
+          <Bell className="size-8 text-ops-info" />
         </div>
         <div className="ops-panel flex items-center justify-between p-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">Failed Alerts</p>
             <p className="mt-2 text-2xl font-bold text-ops-text">{stats.failedAlerts.toLocaleString("id-ID")}</p>
           </div>
-          <AlertTriangle className="size-8 text-red-200" />
+          <AlertTriangle className="size-8 text-ops-danger" />
         </div>
       </section>
 

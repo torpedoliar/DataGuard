@@ -76,36 +76,36 @@ export default function FaceplateConfigForm({
     };
 
     return (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface shadow-sm">
+        <div className="rounded-lg border border-ops-border bg-ops-surface shadow-sm">
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 aria-expanded={isOpen}
                 className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left"
             >
-                <span className="text-sm font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-                    <LayoutPanelTop className="h-4 w-4 text-teal-500" />
+                <span className="text-sm font-semibold text-ops-text flex items-center gap-2">
+                    <LayoutPanelTop className="h-4 w-4 text-ops-accent" />
                     Faceplate Layout
-                    <span className="font-normal text-xs text-slate-500 dark:text-slate-400">
+                    <span className="font-normal text-xs text-ops-subtle dark:text-ops-muted">
                         {isConfigured
                             ? `${config.portCount} port${(config.uplinkCount ?? 0) > 0 ? ` + ${config.uplinkCount} uplink` : ""}, ${config.rows ?? 2} baris`
                             : "belum diatur"}
                     </span>
                 </span>
-                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                <ChevronDown className={`h-4 w-4 text-ops-muted transition-transform ${isOpen ? "rotate-180" : ""}`} />
             </button>
 
             {isOpen && (
-                <form onSubmit={handleSubmit} className="border-t border-slate-200 dark:border-slate-700 p-4">
+                <form onSubmit={handleSubmit} className="border-t border-ops-border p-4">
                     <div className="flex flex-wrap items-center gap-2 mb-4">
-                        <span className="text-xs text-slate-500 dark:text-slate-400">Preset:</span>
+                        <span className="text-xs text-ops-subtle dark:text-ops-muted">Preset:</span>
                         {PRESETS.map((preset) => (
                             <button
                                 key={preset.label}
                                 type="button"
                                 onClick={() => applyPreset(preset)}
                                 disabled={isPending}
-                                className="px-2.5 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                                className="px-2.5 py-1 text-xs rounded border border-ops-border text-ops-muted hover:bg-ops-surface-raised dark:hover:bg-ops-surface-raised transition-colors disabled:opacity-50"
                             >
                                 {preset.label}
                             </button>
@@ -114,7 +114,7 @@ export default function FaceplateConfigForm({
 
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <div>
-                            <label htmlFor="faceplate-port-count" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                            <label htmlFor="faceplate-port-count" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                                 Jumlah Port
                             </label>
                             <input
@@ -126,12 +126,12 @@ export default function FaceplateConfigForm({
                                 onChange={(event) => setPortCount(event.target.value)}
                                 disabled={isPending}
                                 placeholder="24"
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                             />
-                            <p className="mt-1 text-[11px] text-slate-400">0 = tanpa faceplate</p>
+                            <p className="mt-1 text-[11px] text-ops-muted">0 = tanpa faceplate</p>
                         </div>
                         <div>
-                            <label htmlFor="faceplate-uplink-count" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                            <label htmlFor="faceplate-uplink-count" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                                 Port Uplink (SFP)
                             </label>
                             <input
@@ -142,12 +142,12 @@ export default function FaceplateConfigForm({
                                 value={uplinkCount}
                                 onChange={(event) => setUplinkCount(event.target.value)}
                                 disabled={isPending}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                             />
-                            <p className="mt-1 text-[11px] text-slate-400">Blok terpisah di sisi kanan</p>
+                            <p className="mt-1 text-[11px] text-ops-muted">Blok terpisah di sisi kanan</p>
                         </div>
                         <div>
-                            <label htmlFor="faceplate-rows" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                            <label htmlFor="faceplate-rows" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                                 Baris
                             </label>
                             <select
@@ -155,14 +155,14 @@ export default function FaceplateConfigForm({
                                 value={rows}
                                 onChange={(event) => setRows(event.target.value)}
                                 disabled={isPending}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                             >
                                 <option value="1">1 baris</option>
                                 <option value="2">2 baris</option>
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="faceplate-numbering" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                            <label htmlFor="faceplate-numbering" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                                 Urutan Nomor
                             </label>
                             <select
@@ -170,7 +170,7 @@ export default function FaceplateConfigForm({
                                 value={numbering}
                                 onChange={(event) => setNumbering(event.target.value)}
                                 disabled={isPending}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                             >
                                 <option value="zigzag">Zigzag (ganjil atas, genap bawah)</option>
                                 <option value="sequential">Berurutan (baris atas dulu)</option>
@@ -178,14 +178,14 @@ export default function FaceplateConfigForm({
                         </div>
                     </div>
 
-                    {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
-                    {success && <p className="mt-4 text-sm text-green-500">{success}</p>}
+                    {error && <p className="mt-4 text-sm text-ops-danger">{error}</p>}
+                    {success && <p className="mt-4 text-sm text-ops-success">{success}</p>}
 
                     <div className="mt-4 flex justify-end">
                         <button
                             type="submit"
                             disabled={isPending}
-                            className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700 transition focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
+                            className="flex items-center gap-2 bg-ops-accent text-ops-accent-fg px-4 py-2 rounded-md hover:bg-ops-accent-hover transition focus:outline-none focus:ring-2 focus:ring-ops-accent focus:ring-offset-2 disabled:opacity-50"
                         >
                             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                             Simpan Layout

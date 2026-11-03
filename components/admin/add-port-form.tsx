@@ -234,10 +234,10 @@ export default function AddPortForm({
     const busy = isPending || isTemplateDownloading || isImporting;
 
     return (
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-surface rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+        <form onSubmit={handleSubmit} className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-6">
             <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
-                <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-                    <Plus className="h-5 w-5 text-teal-500" />
+                <h3 className="text-lg font-semibold text-ops-text flex items-center gap-2">
+                    <Plus className="h-5 w-5 text-ops-accent" />
                     Provision New Port
                 </h3>
                 <div className="flex flex-wrap items-center gap-2">
@@ -245,12 +245,12 @@ export default function AddPortForm({
                         type="button"
                         onClick={handleDownloadTemplate}
                         disabled={busy}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-ops-border text-xs font-medium text-ops-muted hover:bg-ops-surface-raised dark:hover:bg-ops-surface-raised transition-colors disabled:opacity-50"
                     >
                         {isTemplateDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                         Download XLSX Template
                     </button>
-                    <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer has-[:disabled]:opacity-50 has-[:disabled]:cursor-not-allowed">
+                    <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-ops-border text-xs font-medium text-ops-muted hover:bg-ops-surface-raised dark:hover:bg-ops-surface-raised transition-colors cursor-pointer has-[:disabled]:opacity-50 has-[:disabled]:cursor-not-allowed">
                         {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                         Import XLSX
                         <input
@@ -268,11 +268,11 @@ export default function AddPortForm({
                             if (!isBulk) setMediaTypeTouched(false);
                             setIsBulk(!isBulk);
                         }}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ops-surface-raised cursor-pointer hover:bg-ops-surface-raised dark:hover:bg-ops-surface-raised transition-colors border border-ops-border"
                     >
-                        <Layers className={`h-4 w-4 ${isBulk ? "text-teal-500" : "text-slate-400"}`} />
-                        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Bulk Mode</span>
-                        <div className={`w-8 h-4 rounded-full relative transition-colors ${isBulk ? "bg-teal-500" : "bg-slate-300 dark:bg-slate-600"}`}>
+                        <Layers className={`h-4 w-4 ${isBulk ? "text-ops-accent" : "text-ops-muted"}`} />
+                        <span className="text-xs font-medium text-ops-muted">Bulk Mode</span>
+                        <div className={`w-8 h-4 rounded-full relative transition-colors ${isBulk ? "bg-ops-accent" : "bg-ops-surface-sunken"}`}>
                             <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isBulk ? "left-4.5" : "left-0.5"}`} />
                         </div>
                     </div>
@@ -280,23 +280,23 @@ export default function AddPortForm({
             </div>
 
             {isBulk && (
-                <div className="mb-6 p-4 bg-teal-50 dark:bg-teal-900/10 border border-teal-200 dark:border-teal-900/30 rounded-lg flex gap-3">
-                    <Info className="h-5 w-5 text-teal-500 shrink-0 mt-0.5" />
-                    <p className="text-sm text-teal-800 dark:text-teal-200">
+                <div className="mb-6 p-4 bg-ops-accent-soft border border-ops-accent/30 rounded-lg flex gap-3">
+                    <Info className="h-5 w-5 text-ops-accent shrink-0 mt-0.5" />
+                    <p className="text-sm text-ops-accent">
                         <strong>Bulk Mode Active:</strong> Generates ports from selected naming template and numeric range. MAC, IP, and Topology settings are disabled.
                     </p>
                 </div>
             )}
 
-            <div className="grid gap-6 md:grid-cols-4 border-b border-slate-200 dark:border-slate-700 pb-6 mb-6">
+            <div className="grid gap-6 md:grid-cols-4 border-b border-ops-border pb-6 mb-6">
                 <div>
-                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                         Naming Template
                     </label>
                     <select
                         value={effectiveTemplateId}
                         onChange={(e) => setTemplateId(e.target.value as PortNamingTemplateId)}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                         disabled={busy}
                     >
                         {namingTemplates.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}
@@ -306,24 +306,24 @@ export default function AddPortForm({
                 {selectedTemplate.needsSlot && (
                     <>
                         <div>
-                            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Slot</label>
+                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">Slot</label>
                             <input
                                 type="number"
                                 value={templateSlot}
                                 onChange={(e) => setTemplateSlot(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                                 min="0"
                                 required
                                 disabled={busy}
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Subslot</label>
+                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">Subslot</label>
                             <input
                                 type="number"
                                 value={templateSubslot}
                                 onChange={(e) => setTemplateSubslot(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                                 min="0"
                                 required
                                 disabled={busy}
@@ -335,14 +335,14 @@ export default function AddPortForm({
                 {!isBulk ? (
                     selectedTemplate.id === "custom" ? (
                         <div>
-                            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                                 Physical Interface
                             </label>
                             <input
                                 type="text"
                                 value={portName}
                                 onChange={(e) => setPortName(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                                 placeholder="e.g. Gi1/0/1 or eth0"
                                 required
                                 disabled={busy}
@@ -350,14 +350,14 @@ export default function AddPortForm({
                         </div>
                     ) : (
                         <div>
-                            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                                 Port Number
                             </label>
                             <input
                                 type="number"
                                 value={templatePort}
                                 onChange={(e) => setTemplatePort(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                                 min="0"
                                 required
                                 disabled={busy}
@@ -367,24 +367,24 @@ export default function AddPortForm({
                 ) : (
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Start Range</label>
+                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">Start Range</label>
                             <input
                                 type="number"
                                 value={portStart}
                                 onChange={(e) => setPortStart(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                                 min="0"
                                 required
                                 disabled={busy}
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">End Range</label>
+                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">End Range</label>
                             <input
                                 type="number"
                                 value={portEnd}
                                 onChange={(e) => setPortEnd(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                                 min="1"
                                 required
                                 disabled={busy}
@@ -395,14 +395,14 @@ export default function AddPortForm({
 
                 {!isBulk && (
                     <div>
-                        <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                        <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                             MAC Address
                         </label>
                         <input
                             type="text"
                             value={macAddress}
                             onChange={(e) => setMacAddress(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                            className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                             placeholder="00:1A:2B:3C:4D:5E"
                             disabled={busy}
                         />
@@ -411,7 +411,7 @@ export default function AddPortForm({
 
                 {!isBulk && (
                     <div>
-                        <label htmlFor="add-port-slot" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                        <label htmlFor="add-port-slot" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                             Slot Faceplate
                         </label>
                         <input
@@ -420,7 +420,7 @@ export default function AddPortForm({
                             min="1"
                             value={slotIndex}
                             onChange={(e) => setSlotIndex(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white"
+                            className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
                             placeholder="Auto dari nama port"
                             disabled={busy}
                         />
@@ -428,58 +428,58 @@ export default function AddPortForm({
                 )}
             </div>
 
-            <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
+            <div className="mb-6 rounded-lg border border-ops-border bg-ops-surface/40 px-3 py-2 text-sm text-ops-muted">
                 <span className="font-medium">Preview:</span> {isBulk ? bulkPortPreview || "Complete range/template fields" : singlePortPreview || "Complete interface fields"}
             </div>
 
-            <div className="grid gap-6 md:grid-cols-4 border-b border-slate-200 dark:border-slate-700 pb-6 mb-6">
+            <div className="grid gap-6 md:grid-cols-4 border-b border-ops-border pb-6 mb-6">
                 <div>
-                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                         Port Speed
                     </label>
-                    <select value={speed} onChange={(e) => setSpeed(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" disabled={busy}>
+                    <select value={speed} onChange={(e) => setSpeed(e.target.value)} className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text" disabled={busy}>
                         {["10/100M", "1G", "10G", "25G", "40G", "100G", "Auto"].map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                         Media Type
                     </label>
-                    <select value={effectiveMediaType} onChange={(e) => { setMediaType(e.target.value); setMediaTypeTouched(true); }} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" disabled={busy}>
+                    <select value={effectiveMediaType} onChange={(e) => { setMediaType(e.target.value); setMediaTypeTouched(true); }} className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text" disabled={busy}>
                         {["Copper (RJ45)", "Fiber (SFP/SFP+)", "Twinax (DAC)"].map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                         Logical Config
                     </label>
-                    <select value={portMode} onChange={(e) => setPortMode(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" disabled={busy}>
+                    <select value={portMode} onChange={(e) => setPortMode(e.target.value)} className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text" disabled={busy}>
                         {["Access", "Trunk", "Routed", "LACP"].map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                         Access / Native VLAN
                     </label>
-                    <select value={vlanId} onChange={(e) => setVlanId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" disabled={busy}>
+                    <select value={vlanId} onChange={(e) => setVlanId(e.target.value)} className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text" disabled={busy}>
                         <option value="">-- No VLAN --</option>
                         {vlans.map(v => <option key={v.id} value={v.id}>{v.vlanId} - {v.name}</option>)}
                     </select>
                 </div>
                 {portMode === "Trunk" && (
                     <div>
-                        <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                        <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                             Allowed Trunk VLANs
                         </label>
-                        <input type="text" value={trunkVlans} onChange={(e) => setTrunkVlans(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" placeholder="e.g. 10,20,100-200" disabled={busy} />
+                        <input type="text" value={trunkVlans} onChange={(e) => setTrunkVlans(e.target.value)} className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text" placeholder="e.g. 10,20,100-200" disabled={busy} />
                     </div>
                 )}
                 {portMode === "Routed" && !isBulk && (
                     <div>
-                        <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                        <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                             IP Address
                         </label>
-                        <input type="text" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" placeholder="e.g. 10.0.0.1/30" disabled={busy} />
+                        <input type="text" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text" placeholder="e.g. 10.0.0.1/30" disabled={busy} />
                     </div>
                 )}
             </div>
@@ -487,38 +487,38 @@ export default function AddPortForm({
             <div className={`grid gap-6 ${isBulk ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
                 {!isBulk && (
                     <div>
-                        <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                        <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                             Topology / Target Device
                         </label>
-                        <select value={connectedToDeviceId} onChange={(e) => setConnectedToDeviceId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" disabled={busy}>
+                        <select value={connectedToDeviceId} onChange={(e) => setConnectedToDeviceId(e.target.value)} className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text" disabled={busy}>
                             <option value="">-- No Connection --</option>
                             {otherDevices.map(d => <option key={d.id} value={d.id}>{d.name} ({d.locationName || "-"})</option>)}
                         </select>
                     </div>
                 )}
                 <div>
-                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                         Link Status
                     </label>
-                    <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white flex items-center" disabled={busy}>
+                    <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text flex items-center" disabled={busy}>
                         <option value="Active">Active (Up)</option>
                         <option value="Inactive">Inactive (Admin Down)</option>
                         <option value="Down">Down (No Link)</option>
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
                         Description
                     </label>
-                    <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 dark:bg-slate-800 dark:text-white" placeholder="Uplink to Core" disabled={busy} />
+                    <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text" placeholder="Uplink to Core" disabled={busy} />
                 </div>
             </div>
 
-            {error && <p className="mt-4 whitespace-pre-line text-sm text-red-500">{error}</p>}
-            {success && <p className="mt-4 text-sm text-green-500">{success}</p>}
+            {error && <p className="mt-4 whitespace-pre-line text-sm text-ops-danger">{error}</p>}
+            {success && <p className="mt-4 text-sm text-ops-success">{success}</p>}
 
             <div className="mt-8 flex justify-end">
-                <button type="submit" disabled={busy} className="flex items-center gap-2 bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50">
+                <button type="submit" disabled={busy} className="flex items-center gap-2 bg-ops-accent text-ops-accent-fg px-6 py-2 rounded-md hover:bg-ops-accent-hover transition focus:outline-none focus:ring-2 focus:ring-ops-accent focus:ring-offset-2 disabled:opacity-50">
                     {isPending ? <Loader2 className="animate-spin h-5 w-5" /> : <Plus className="h-5 w-5" />}
                     Add Port
                 </button>

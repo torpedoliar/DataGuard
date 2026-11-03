@@ -48,8 +48,8 @@ export default function IncidentAssignmentForm({
         description="Set owner, severity, and target date."
         footer={
           <div className="space-y-3">
-            {state?.message && <p className={state.success ? "text-sm text-emerald-300" : "text-sm text-red-300"}>{state.message}</p>}
-            {state?.success && <p className="text-sm text-emerald-300">Assignment saved.</p>}
+            {state?.message && <p className={state.success ? "text-sm text-ops-success" : "text-sm text-ops-danger"}>{state.message}</p>}
+            {state?.success && <p className="text-sm text-ops-success">Assignment saved.</p>}
             <ActionButton type="submit" isPending={pending} className="w-full">
               Save Assignment
             </ActionButton>

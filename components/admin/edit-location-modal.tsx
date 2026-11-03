@@ -30,12 +30,12 @@ export default function EditLocationModal({ location, onClose }: EditLocationMod
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-surface rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="bg-ops-surface rounded-lg shadow-xl max-w-md w-full p-6">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Edit Location</h3>
+                    <h3 className="text-lg font-semibold text-ops-text">Edit Location</h3>
                     <button
                         onClick={onClose}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                        className="text-ops-muted hover:text-ops-muted dark:hover:text-ops-muted"
                     >
                         <X className="h-5 w-5" />
                     </button>
@@ -46,30 +46,30 @@ export default function EditLocationModal({ location, onClose }: EditLocationMod
 
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            <label className="block text-sm font-medium text-ops-muted mb-1">
                                 Location Name *
                             </label>
                             <input
                                 name="name"
                                 required
                                 defaultValue={location.name}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            <label className="block text-sm font-medium text-ops-muted mb-1">
                                 Description
                             </label>
                             <input
                                 name="description"
                                 defaultValue={location.description || ""}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            <label className="block text-sm font-medium text-ops-muted mb-1">
                                 Batas Suhu Ruangan (°C)
                             </label>
                             <input
@@ -79,23 +79,23 @@ export default function EditLocationModal({ location, onClose }: EditLocationMod
                                 min={10}
                                 max={60}
                                 defaultValue={location.tempThresholdC ?? 27}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                             />
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-ops-subtle">
                                 Suhu lebih dari batas +3°C saat audit otomatis membuat incident.
                             </p>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            <label className="block text-sm font-medium text-ops-muted mb-1">
                                 Floor Plan (3D view)
                             </label>
                             {location.floorPlanPath && (
                                 <div className="mb-2 flex items-center gap-3">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={location.floorPlanPath} alt="Current floor plan" className="h-16 w-24 rounded border border-slate-300 dark:border-slate-600 object-cover" />
-                                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                                        <input type="checkbox" name="removeFloorPlan" className="size-4 rounded border-slate-300 dark:border-slate-600" />
+                                    <img src={location.floorPlanPath} alt="Current floor plan" className="h-16 w-24 rounded border border-ops-border-strong object-cover" />
+                                    <label className="flex items-center gap-2 text-sm text-ops-muted cursor-pointer">
+                                        <input type="checkbox" name="removeFloorPlan" className="size-4 rounded border-ops-border-strong" />
                                         Remove
                                     </label>
                                 </div>
@@ -104,20 +104,20 @@ export default function EditLocationModal({ location, onClose }: EditLocationMod
                                 type="file"
                                 name="floorPlan"
                                 accept="image/png,image/jpeg,image/webp"
-                                className="block w-full text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 dark:file:bg-slate-700 dark:file:text-slate-200"
+                                className="block w-full text-sm text-ops-muted file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface-raised file:px-3 file:py-1.5 dark:file:bg-ops-surface-raised dark:file:text-ops-text"
                             />
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-ops-subtle">
                                 PNG/JPG/WebP, maks 5 MB. Dipakai sebagai lantai di tampilan 3D rack.
                             </p>
                         </div>
 
                         <div>
-                            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                            <label className="flex items-center gap-2 text-sm text-ops-muted cursor-pointer">
                                 <input
                                     type="checkbox"
                                     name="excludeTempCheck"
                                     defaultChecked={location.excludeTempCheck ?? false}
-                                    className="size-4 rounded border-slate-300 dark:border-slate-600"
+                                    className="size-4 rounded border-ops-border-strong"
                                 />
                                 Kecualikan dari audit suhu
                             </label>
@@ -125,21 +125,21 @@ export default function EditLocationModal({ location, onClose }: EditLocationMod
                     </div>
 
                     {state?.message && !state?.success && (
-                        <div className="mt-3 text-red-500 text-sm">{state.message}</div>
+                        <div className="mt-3 text-ops-danger text-sm">{state.message}</div>
                     )}
 
                     <div className="flex gap-3 mt-6">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            className="flex-1 px-4 py-2 border border-ops-border-strong rounded-md text-ops-muted hover:bg-ops-surface dark:hover:bg-ops-surface-raised"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={isPending}
-                            className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                            className="flex-1 bg-ops-accent text-ops-accent-fg px-4 py-2 rounded-md hover:bg-ops-accent-hover flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {isPending && <Loader2 className="animate-spin h-4 w-4" />}
                             Save Changes

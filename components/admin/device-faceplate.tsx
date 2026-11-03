@@ -108,7 +108,7 @@ function UnplacedPortRow({ port, maxSlot }: { port: NetworkPortRow; maxSlot: num
                 type="button"
                 onClick={handleSave}
                 disabled={isPending}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-ops-accent text-ops-text hover:bg-ops-accent/80 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-ops-accent text-ops-accent-fg hover:bg-ops-accent/80 disabled:opacity-50 transition-colors"
             >
                 {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
                 Pasang

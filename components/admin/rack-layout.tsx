@@ -133,7 +133,7 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
                     {/* Audit status + U height badge */}
                     <div className="shrink-0 flex items-center gap-1">
                         {device.status === "NOT OK" && (
-                            <div className="flex items-center gap-0.5 text-[9px] font-bold text-red-200 bg-red-950/80 px-1.5 py-0.5 rounded">
+                            <div className="flex items-center gap-0.5 text-[9px] font-bold text-ops-danger bg-ops-danger-soft px-1.5 py-0.5 rounded">
                                 <XCircle className={auditIconSize} />
                                 <span className="hidden xl:inline">NOT OK</span>
                             </div>
@@ -359,10 +359,10 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                                     const occupiedCount = rack.occupiedU.length;
                                     const freeU = totalU - occupiedCount;
                                     const pct = Math.round((occupiedCount / totalU) * 100);
-                                    const barColor = pct > 90 ? "from-red-500 to-red-400" :
-                                        pct > 70 ? "from-ops-warning to-amber-400" :
-                                        pct > 40 ? "from-blue-500 to-cyan-400" :
-                                        "from-emerald-500 to-green-400";
+                                    const barColor = pct > 90 ? "from-ops-danger to-ops-danger/70" :
+                                        pct > 70 ? "from-ops-warning to-ops-warning/70" :
+                                        pct > 40 ? "from-ops-info to-ops-info/70" :
+                                        "from-ops-success to-ops-success/70";
 
                                     return (
                                         <SortableRack key={`${rack.name}-${rack.zone || 'no-zone'}`} name={rack.name} dragKind={dragKind} reorderable={reorderable}>

@@ -46,20 +46,20 @@ export default function SiemTemplateCatalog({
     });
 
   return (
-    <section className="rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
+    <section className="rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold text-white">Tambah dari Template</h2>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-ops-muted">
           {available.length > 0 ? `${available.length} template tersedia` : "Semua template sudah terpasang"}
         </span>
       </div>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-ops-subtle">
         Template deteksi siap pakai per tactic MITRE. Centang lalu pasang — menjadi rule biasa yang bisa diedit/dimatikan. Template first_seen bisa berisik di minggu pertama.
       </p>
 
       {available.length > 0 && (
         <form action={action} className="mt-4">
-          <div className="divide-y divide-slate-700/40">
+          <div className="divide-y divide-ops-border/40">
             {available.map((template) => (
               <label key={template.key} className="flex cursor-pointer items-start gap-3 py-3">
                 <input
@@ -73,14 +73,14 @@ export default function SiemTemplateCatalog({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-white">{template.name}</span>
-                    <span className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{template.severity}</span>
-                    <span className="rounded border border-slate-600 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">{template.ruleType}</span>
+                    <span className="rounded-full border border-ops-border-strong px-2 py-0.5 text-[10px] uppercase tracking-wide text-ops-muted">{template.severity}</span>
+                    <span className="rounded border border-ops-border-strong px-1.5 py-0.5 font-mono text-[10px] text-ops-muted">{template.ruleType}</span>
                     {(template.mitreTactics ?? []).map((tactic) => (
-                      <span key={tactic} className="rounded border border-purple-500/40 bg-purple-500/10 px-1.5 py-0.5 text-[10px] text-purple-300">{tactic}</span>
+                      <span key={tactic} className="rounded border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 text-[10px] text-ops-info">{tactic}</span>
                     ))}
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-500">{template.description}</p>
-                  <p className="mt-0.5 font-mono text-[10px] text-slate-600">{template.key}</p>
+                  <p className="mt-0.5 text-xs text-ops-subtle">{template.description}</p>
+                  <p className="mt-0.5 font-mono text-[10px] text-ops-muted">{template.key}</p>
                 </div>
               </label>
             ))}
@@ -94,7 +94,7 @@ export default function SiemTemplateCatalog({
               <button
                 type="button"
                 onClick={() => setChecked(new Set(available.map((template) => template.key)))}
-                className="text-xs text-slate-400 underline-offset-2 hover:text-white hover:underline"
+                className="text-xs text-ops-muted underline-offset-2 hover:text-white hover:underline"
               >
                 Pilih semua
               </button>
@@ -102,10 +102,10 @@ export default function SiemTemplateCatalog({
           </div>
 
           {state?.message && !state.success && (
-            <div className="mt-3 rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">{state.message}</div>
+            <div className="mt-3 rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">{state.message}</div>
           )}
           {state?.success && (
-            <div className="mt-3 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-300">
+            <div className="mt-3 rounded-lg border border-ops-success/20 bg-ops-success-soft p-3 text-sm text-ops-success">
               {state.installed} template terpasang sebagai rule aktif.
             </div>
           )}
@@ -113,20 +113,20 @@ export default function SiemTemplateCatalog({
       )}
 
       {locked.length > 0 && (
-        <div className="mt-5 border-t border-slate-700/50 pt-4">
-          <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <div className="mt-5 border-t border-ops-border/50 pt-4">
+          <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ops-muted">
             <Lock className="size-3.5" /> Butuh sumber data
           </h3>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             {locked.map((template) => (
-              <div key={template.key} className="rounded-xl border border-dashed border-slate-600 bg-slate-900/40 p-4">
+              <div key={template.key} className="rounded-xl border border-dashed border-ops-border-strong bg-ops-surface/40 p-4">
                 <div className="flex items-center gap-2">
-                  <span className="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">{template.tactic}</span>
+                  <span className="rounded border border-ops-border-strong px-1.5 py-0.5 text-[10px] uppercase text-ops-muted">{template.tactic}</span>
                 </div>
-                <p className="mt-2 text-sm font-medium text-slate-200">{template.name}</p>
-                <p className="mt-1 text-xs text-slate-400">{template.description}</p>
-                <p className="mt-2 text-xs text-amber-200/90">⚠️ {template.missingSignal}</p>
-                <p className="mt-1 text-xs text-slate-500">Aktifkan: {template.howToEnable}</p>
+                <p className="mt-2 text-sm font-medium text-ops-text">{template.name}</p>
+                <p className="mt-1 text-xs text-ops-muted">{template.description}</p>
+                <p className="mt-2 text-xs text-ops-warning/90">⚠️ {template.missingSignal}</p>
+                <p className="mt-1 text-xs text-ops-subtle">Aktifkan: {template.howToEnable}</p>
               </div>
             ))}
           </div>

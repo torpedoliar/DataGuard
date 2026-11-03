@@ -23,7 +23,7 @@ function formatDate(value: string): string {
 function SiteCard({ site }: { site: FleetSite }) {
     if (!site.configured) {
         return (
-            <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
+            <div className="rounded-lg border border-ops-border/50 bg-ops-surface/40 p-4">
                 <p className="truncate text-sm font-semibold text-white">{site.siteName}</p>
                 <div className="mt-2">
                     <StatusBadge tone="neutral">belum dikonfigurasi</StatusBadge>
@@ -32,7 +32,7 @@ function SiteCard({ site }: { site: FleetSite }) {
         );
     }
     return (
-        <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
+        <div className="rounded-lg border border-ops-border/50 bg-ops-surface/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="truncate text-sm font-semibold text-white">{site.siteName}</p>
                 {site.reachable ? (
@@ -49,7 +49,7 @@ function SiteCard({ site }: { site: FleetSite }) {
                 </StatusBadge>
                 <span>terakhir terlihat {formatLastSeen(site.lastSeenAt)}</span>
             </div>
-            {site.error && <p className="mt-2 truncate text-xs text-red-300" title={site.error}>{site.error.slice(0, 160)}</p>}
+            {site.error && <p className="mt-2 truncate text-xs text-ops-danger" title={site.error}>{site.error.slice(0, 160)}</p>}
         </div>
     );
 }
@@ -72,18 +72,18 @@ function DriftTable({ drifts }: { drifts: FleetDriftRow[] }) {
                 </thead>
                 <tbody>
                     {drifts.map((drift) => (
-                        <tr key={`${drift.siteId}-${drift.reviewId}`} className="border-t border-slate-800">
+                        <tr key={`${drift.siteId}-${drift.reviewId}`} className="border-t border-ops-border">
                             <td className="py-2 pr-3 font-medium text-white">{drift.siteName}</td>
                             <td className="py-2 pr-3">
                                 <Link href="/admin/ncm" className="font-mono text-xs text-ops-accent hover:underline">
                                     #{drift.reviewId || "?"}
                                 </Link>
                             </td>
-                            <td className="py-2 pr-3 text-slate-300">{drift.switchLabel || "-"}</td>
+                            <td className="py-2 pr-3 text-ops-muted">{drift.switchLabel || "-"}</td>
                             <td className="py-2 pr-3">
                                 <StatusBadge tone="warning">{drift.status}</StatusBadge>
                             </td>
-                            <td className="py-2 pr-3 text-slate-300">{formatDate(drift.createdAt)}</td>
+                            <td className="py-2 pr-3 text-ops-muted">{formatDate(drift.createdAt)}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -118,7 +118,7 @@ export default function NcmFleetDashboard({ snapshot }: { snapshot: FleetSnapsho
                 )}
             </section>
 
-            <section className="space-y-3 rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
+            <section className="space-y-3 rounded-lg border border-ops-border/50 bg-ops-surface/40 p-4">
                 <h2 className="text-sm font-semibold text-white">Drift terbuka lintas site ({snapshot.drifts.length})</h2>
                 <DriftTable drifts={snapshot.drifts} />
                 <p className="text-xs text-ops-muted">

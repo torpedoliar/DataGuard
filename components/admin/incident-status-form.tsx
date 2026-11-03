@@ -47,8 +47,8 @@ export default function IncidentStatusForm({
         description="Move the incident through the remediation workflow."
         footer={
           <div className="space-y-3">
-            {state?.message && <p className={state.success ? "text-sm text-emerald-300" : "text-sm text-red-300"}>{state.message}</p>}
-            {state?.success && <p className="text-sm text-emerald-300">Status updated.</p>}
+            {state?.message && <p className={state.success ? "text-sm text-ops-success" : "text-sm text-ops-danger"}>{state.message}</p>}
+            {state?.success && <p className="text-sm text-ops-success">Status updated.</p>}
             {allowed.length === 0 ? (
               <p className="text-xs text-ops-muted">No further status transitions available for this incident.</p>
             ) : (
@@ -74,7 +74,7 @@ export default function IncidentStatusForm({
           </div>
           <div>
             <label className={labelClass}>
-              Resolution Category {isResolutionState && <span className="text-red-400">*</span>}
+              Resolution Category {isResolutionState && <span className="text-ops-danger">*</span>}
             </label>
             <select
               name="resolutionCategory"
@@ -87,7 +87,7 @@ export default function IncidentStatusForm({
           </div>
           <div>
             <label className={labelClass}>
-              Resolution Action {isResolutionState && <span className="text-red-400">*</span>}
+              Resolution Action {isResolutionState && <span className="text-ops-danger">*</span>}
             </label>
             <select
               name="resolutionAction"

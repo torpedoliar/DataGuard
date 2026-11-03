@@ -64,10 +64,10 @@ function Tile({ label, covered, count, onClick }: { label: string; covered: bool
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-md border px-2 py-1.5 text-center transition-colors hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-blue-400/60 ${
+      className={`rounded-md border px-2 py-1.5 text-center transition-colors hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-ops-accent/60 ${
         covered
-          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-          : "border-slate-700 bg-slate-800/60 text-slate-500 hover:text-slate-300"
+          ? "border-ops-success/40 bg-ops-success-soft text-ops-success"
+          : "border-ops-border bg-ops-surface-raised/60 text-ops-subtle hover:text-ops-muted"
       }`}
     >
       <div className="truncate text-[11px] font-medium leading-tight">{label}</div>
@@ -83,7 +83,7 @@ function techniqueChips(techniques: string[] | undefined) {
       {techniques.map((technique) => {
         const info = ATTACK_TECHNIQUE_INFO[technique];
         return (
-          <span key={technique} title={info ? `${technique} — ${info.name}` : technique} className="rounded border border-purple-500/40 bg-purple-500/10 px-1.5 py-0.5 font-mono text-[10px] text-purple-300">
+          <span key={technique} title={info ? `${technique} — ${info.name}` : technique} className="rounded border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 font-mono text-[10px] text-ops-info">
             {technique}
           </span>
         );
@@ -112,7 +112,7 @@ function RuleToggleForm({ ruleId, enabled, onToggled }: { ruleId: number; enable
         disabled={isPending}
         title={enabled ? "Matikan rule ini" : "Aktifkan rule ini"}
         className={`relative h-5 w-9 rounded-full transition-colors disabled:opacity-50 ${
-          enabled ? "bg-emerald-500" : "bg-slate-600"
+          enabled ? "bg-ops-success" : "bg-ops-surface-sunken"
         }`}
       >
         <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${enabled ? "left-[18px]" : "left-0.5"}`} />
@@ -123,18 +123,18 @@ function RuleToggleForm({ ruleId, enabled, onToggled }: { ruleId: number; enable
 
 function RuleListItem({ rule, enabled, onToggled }: { rule: SiemCoverageRule; enabled: boolean; onToggled: (id: number, enabled: boolean) => void }) {
   return (
-    <li className="rounded border border-slate-700/60 bg-slate-900/60 p-2.5">
+    <li className="rounded border border-ops-border/60 bg-ops-surface/60 p-2.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-medium text-white">{rule.name}</span>
-          <span className={`shrink-0 rounded-full border px-1.5 py-px text-[10px] ${enabled ? "border-emerald-500/40 text-emerald-300" : "border-slate-600 text-slate-500"}`}>
+          <span className={`shrink-0 rounded-full border px-1.5 py-px text-[10px] ${enabled ? "border-ops-success/40 text-ops-success" : "border-ops-border-strong text-ops-subtle"}`}>
             {enabled ? "aktif" : "mati"}
           </span>
-          {rule.category && <span className="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">{rule.category}</span>}
+          {rule.category && <span className="shrink-0 text-[10px] uppercase tracking-wide text-ops-subtle">{rule.category}</span>}
         </div>
         <RuleToggleForm ruleId={rule.id} enabled={enabled} onToggled={onToggled} />
       </div>
-      {rule.description && <p className="mt-1 text-xs text-slate-400">{rule.description}</p>}
+      {rule.description && <p className="mt-1 text-xs text-ops-muted">{rule.description}</p>}
       {techniqueChips(rule.techniques)}
     </li>
   );
@@ -181,14 +181,14 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
     : [];
 
   return (
-    <section className="rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
+    <section className="rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold text-white">MITRE ATT&amp;CK &amp; ISO 27001 Coverage</h2>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-ops-muted">
           {stats.tacticsCovered}/{matrix.tactics.length} tactics · {stats.attackMappedEnabled}/{stats.totalRules} rules mapped &amp; enabled
         </span>
       </div>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-ops-subtle">
         Klik kotak untuk melihat detail tactic/kontrol dan rule yang memetakannya. Ubah pemetaan di halaman Rules (Edit rule).
       </p>
 
@@ -206,7 +206,7 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
 
       {liveMatrix.isoControls.length > 0 && (
         <div className="mt-5">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">ISO 27001 Annex A</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ops-muted">ISO 27001 Annex A</h3>
           <div className="mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-7">
             {liveMatrix.isoControls.map((entry) => (
               <Tile
@@ -231,14 +231,14 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
               <div>
                 {selected.kind === "tactic" ? (
                   <>
-                    <p className="font-mono text-[11px] uppercase tracking-wide text-purple-300">
+                    <p className="font-mono text-[11px] uppercase tracking-wide text-ops-info">
                       {tacticInfo?.id ?? "MITRE ATT&CK"} · {selected.tactic}
                     </p>
                     <h3 className="mt-1 text-lg font-semibold text-ops-text">{selected.tactic}</h3>
                   </>
                 ) : (
                   <>
-                    <p className="font-mono text-[11px] uppercase tracking-wide text-sky-300">
+                    <p className="font-mono text-[11px] uppercase tracking-wide text-ops-info">
                       ISO/IEC 27001:2022 Annex A · {selected.control}
                     </p>
                     <h3 className="mt-1 text-lg font-semibold text-ops-text">
@@ -260,7 +260,7 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
               </p>
 
               {selected.kind === "tactic" && tacticInfo && (
-                <a href={tacticInfo.url} target="_blank" rel="noreferrer" className="inline-block text-xs text-blue-400 hover:text-blue-300">
+                <a href={tacticInfo.url} target="_blank" rel="noreferrer" className="inline-block text-xs text-ops-info hover:text-ops-info">
                   Lihat di attack.mitre.org ↗
                 </a>
               )}
@@ -273,7 +273,7 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
                       const info = ATTACK_TECHNIQUE_INFO[technique];
                       return (
                         <li key={technique} className="text-xs text-ops-text">
-                          <a href={info?.url ?? `https://attack.mitre.org/techniques/${technique.split(".")[0]}/`} target="_blank" rel="noreferrer" className="font-mono text-purple-300 hover:text-purple-200">
+                          <a href={info?.url ?? `https://attack.mitre.org/techniques/${technique.split(".")[0]}/`} target="_blank" rel="noreferrer" className="font-mono text-ops-info hover:text-ops-info">
                             {technique}
                           </a>
                           {info && <span className="ml-2 text-ops-muted">{info.name}</span>}

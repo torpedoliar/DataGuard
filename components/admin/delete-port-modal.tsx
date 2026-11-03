@@ -26,30 +26,30 @@ export default function DeletePortModal({ port, onClose }: { port: Port; onClose
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white dark:bg-slate-800 rounded-xl max-w-sm w-full shadow-xl">
-                <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-                    <h2 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-red-500" />
+        <div className="fixed inset-0 bg-ops-surface/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-ops-surface rounded-xl max-w-sm w-full shadow-xl">
+                <div className="flex items-center justify-between p-4 border-b border-ops-border">
+                    <h2 className="text-lg font-semibold text-ops-text flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-ops-danger" />
                         Delete Port
                     </h2>
                     <button
                         onClick={onClose}
                         disabled={isPending}
-                        className="text-slate-400 hover:text-slate-500 dark:hover:text-slate-300 transition-colors"
+                        className="text-ops-muted hover:text-ops-subtle dark:hover:text-ops-muted transition-colors"
                     >
                         <X className="h-5 w-5" />
                     </button>
                 </div>
 
                 <div className="p-6">
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
-                        Are you sure you want to completely remove the configuration for physical port <span className="font-semibold text-slate-900 dark:text-white">{port.portName}</span>?
+                    <p className="text-sm text-ops-muted">
+                        Are you sure you want to completely remove the configuration for physical port <span className="font-semibold text-ops-text">{port.portName}</span>?
                         Any topology links terminating at this port will be severed automatically.
                     </p>
 
                     {error && (
-                        <div className="mt-3 p-2 text-xs rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
+                        <div className="mt-3 p-2 text-xs rounded bg-ops-danger-soft text-ops-danger border border-ops-danger">
                             {error}
                         </div>
                     )}
@@ -59,14 +59,14 @@ export default function DeletePortModal({ port, onClose }: { port: Port; onClose
                             type="button"
                             onClick={onClose}
                             disabled={isPending}
-                            className="px-4 py-2 text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                            className="px-4 py-2 text-ops-muted bg-ops-surface-raised hover:bg-ops-surface-raised dark:text-ops-muted dark:bg-ops-surface-raised dark:hover:bg-ops-surface-sunken rounded-lg transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={handleDelete}
                             disabled={isPending}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 py-2 bg-ops-danger text-ops-status-fg hover:bg-ops-danger rounded-lg transition-colors disabled:opacity-50"
                         >
                             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                             Delete

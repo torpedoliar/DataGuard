@@ -6,11 +6,11 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
 const STATUS_TONE: Record<string, string> = {
-  pending_approval: "text-amber-300 border-amber-400/40 bg-amber-400/10",
-  approved: "text-blue-300 border-blue-400/40 bg-blue-400/10",
-  executed: "text-emerald-300 border-emerald-400/40 bg-emerald-400/10",
-  failed: "text-red-300 border-red-400/40 bg-red-400/10",
-  cancelled: "text-slate-400 border-slate-500/40 bg-slate-500/10",
+  pending_approval: "text-ops-warning border-ops-warning/40 bg-ops-warning-soft",
+  approved: "text-ops-info border-ops-info/40 bg-ops-info-soft",
+  executed: "text-ops-success border-ops-success/40 bg-ops-success-soft",
+  failed: "text-ops-danger border-ops-danger/40 bg-ops-danger-soft",
+  cancelled: "text-ops-muted border-ops-border-strong/40 bg-ops-surface-sunken/10",
 };
 
 export default function SiemResponseActionsPanel({ findingId }: { findingId: number }) {
@@ -111,8 +111,8 @@ export default function SiemResponseActionsPanel({ findingId }: { findingId: num
               <ActionButton type="submit" size="sm" isPending={requestPending}>Ajukan</ActionButton>
             </div>
           </form>
-          {message && <p className="text-xs text-red-200">{message}</p>}
-          {requestState?.errors && <p className="text-xs text-red-200">{Object.values(requestState.errors).flat().join(" ")}</p>}
+          {message && <p className="text-xs text-ops-danger">{message}</p>}
+          {requestState?.errors && <p className="text-xs text-ops-danger">{Object.values(requestState.errors).flat().join(" ")}</p>}
         </div>
       )}
     </div>

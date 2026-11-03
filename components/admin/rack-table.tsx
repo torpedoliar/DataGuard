@@ -90,7 +90,7 @@ export default function RackTable({ racks, onEdit, onDeleteSuccess }: RackTableP
                 <td className="whitespace-nowrap px-5 py-3 text-right">
                   <div className="inline-flex items-center gap-1">
                     <ActionButton type="button" variant="ghost" size="icon" onClick={() => onEdit(rack)} title="Edit rack">
-                      <Edit className="size-4 text-blue-300" />
+                      <Edit className="size-4 text-ops-info" />
                     </ActionButton>
                     <ActionButton
                       type="button"

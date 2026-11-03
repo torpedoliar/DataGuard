@@ -215,12 +215,12 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
           </div>
 
           {state?.errors && (
-            <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+            <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">
               {Object.values(state.errors).flat().join(" ")}
             </div>
           )}
           {state?.message && !state.success && (
-            <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{state.message}</div>
+            <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">{state.message}</div>
           )}
 
           <div className="flex justify-end gap-3 border-t border-ops-border pt-4">
@@ -267,26 +267,26 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
     <form action={action} className="mt-6 space-y-6">
       <input type="hidden" name="ruleIds" value={ruleIds} />
 
-      <div className="max-w-md rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
-        <label className="space-y-1.5 text-sm font-medium text-slate-300">
+      <div className="max-w-md rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
+        <label className="space-y-1.5 text-sm font-medium text-ops-muted">
           Severity Minimum Alert
           <select
             name="alertMinSeverity"
             defaultValue={alertMinSeverity}
-            className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white"
+            className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white"
           >
             {siemSeverities.map((severity) => (
               <option key={severity} value={severity}>{severity}</option>
             ))}
           </select>
-          <span className="text-xs text-slate-500">Finding di bawah severity ini tidak masuk antrean alert Telegram.</span>
+          <span className="text-xs text-ops-subtle">Finding di bawah severity ini tidak masuk antrean alert Telegram.</span>
         </label>
       </div>
 
       {grouped.map(([category, list]) => (
-        <div key={category} className="rounded-2xl border border-slate-700/50 bg-slate-800/40 p-6">
+        <div key={category} className="rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
           <h2 className="text-sm font-semibold text-white">{category}</h2>
-          <div className="mt-4 divide-y divide-slate-700/40">
+          <div className="mt-4 divide-y divide-ops-border/40">
             {list.map((rule) => {
               const current = toggles[rule.id];
               return (
@@ -294,22 +294,22 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-white">{rule.name}</span>
-                      <span className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{rule.severity}</span>
+                      <span className="rounded-full border border-ops-border-strong px-2 py-0.5 text-[10px] uppercase tracking-wide text-ops-muted">{rule.severity}</span>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-500">{rule.description}</p>
+                    <p className="mt-0.5 text-xs text-ops-subtle">{rule.description}</p>
                     {(rule.mitreTechniques?.length || rule.isoControls?.length) ? (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(rule.mitreTechniques ?? []).map((technique) => (
-                          <span key={technique} className="rounded border border-purple-500/40 bg-purple-500/10 px-1.5 py-0.5 font-mono text-[10px] text-purple-300">{technique}</span>
+                          <span key={technique} className="rounded border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 font-mono text-[10px] text-ops-info">{technique}</span>
                         ))}
                         {(rule.isoControls ?? []).map((control) => (
-                          <span key={control} className="rounded border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[10px] text-sky-300">{control}</span>
+                          <span key={control} className="rounded border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 font-mono text-[10px] text-ops-info">{control}</span>
                         ))}
                       </div>
                     ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-5">
-                    <label className="flex items-center gap-2 text-xs text-slate-300">
+                    <label className="flex items-center gap-2 text-xs text-ops-muted">
                       <input
                         type="checkbox"
                         name={`enabled-${rule.id}`}
@@ -319,7 +319,7 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
                       />
                       Aktif
                     </label>
-                    <label className={`flex items-center gap-2 text-xs ${current.enabled ? "text-slate-300" : "text-slate-600"}`}>
+                    <label className={`flex items-center gap-2 text-xs ${current.enabled ? "text-ops-muted" : "text-ops-muted"}`}>
                       <input
                         type="checkbox"
                         name={`alert-${rule.id}`}
@@ -333,7 +333,7 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
                     <button
                       type="button"
                       onClick={() => setEditingRuleId(rule.id)}
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-300 transition-colors hover:border-blue-400 hover:text-white"
+                      className="inline-flex items-center gap-1 rounded-md border border-ops-border-strong px-2 py-1 text-xs text-ops-muted transition-colors hover:border-ops-info hover:text-white"
                       title="Edit rule detail (severity, threshold, conditions, ...)"
                     >
                       <Edit className="size-3.5" />
@@ -348,15 +348,15 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
       ))}
 
       {state?.errors && (
-        <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">
+        <div className="rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">
           {Object.values(state.errors).flat().join(" ")}
         </div>
       )}
       {state?.message && !state.success && (
-        <div className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">{state.message}</div>
+        <div className="rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">{state.message}</div>
       )}
       {state?.success && (
-        <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-300">Pengaturan rule tersimpan.</div>
+        <div className="rounded-lg border border-ops-success/20 bg-ops-success-soft p-3 text-sm text-ops-success">Pengaturan rule tersimpan.</div>
       )}
 
       <div className="flex justify-end">

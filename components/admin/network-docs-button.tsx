@@ -8,7 +8,7 @@ import ActionButton from "@/components/ui/action-button";
 
 function SummaryCard({ label, value, tone }: { label: string; value: number; tone?: "default" | "good" | "warn" }) {
   const valueClass =
-    tone === "good" ? "text-emerald-400" : tone === "warn" ? "text-amber-400" : "text-ops-text";
+    tone === "good" ? "text-ops-success" : tone === "warn" ? "text-ops-warning" : "text-ops-text";
   return (
     <div className="rounded-md border border-ops-border bg-ops-surface-raised p-3">
       <div className={`text-2xl font-bold ${valueClass}`}>{value}</div>
@@ -55,7 +55,7 @@ export default function NetworkDocsButton() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">
           {error}
         </div>
       )}
@@ -77,9 +77,9 @@ export default function NetworkDocsButton() {
           </div>
 
           {summary.warnings.length > 0 && (
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-              <div className="text-sm font-semibold text-amber-200">Warnings</div>
-              <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs text-amber-100/80">
+            <div className="rounded-md border border-ops-warning/30 bg-ops-warning-soft p-3">
+              <div className="text-sm font-semibold text-ops-warning">Warnings</div>
+              <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs text-ops-warning/80">
                 {summary.warnings.map((warning, i) => (
                   <li key={i}>• {warning}</li>
                 ))}

@@ -66,7 +66,7 @@ export default function IncidentTable({ incidents }: { incidents: IncidentRow[] 
               <td className="px-4 py-3">
                 <div className="font-semibold text-ops-text">#{incident.id} {incident.title}</div>
                 {incident.isRecurring && (
-                  <div className="mt-1 text-xs font-medium text-red-300">Recurring issue</div>
+                  <div className="mt-1 text-xs font-medium text-ops-danger">Recurring issue</div>
                 )}
               </td>
               <td className="px-4 py-3 text-muted">{incident.deviceName}</td>

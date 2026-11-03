@@ -39,45 +39,45 @@ export default function AddRackForm({
     }, [state, router, onSuccess]);
 
     return (
-        <div className="bg-white dark:bg-surface p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
+        <div className="bg-ops-surface p-6 rounded-lg shadow-sm border border-ops-border mb-8">
             <div className="flex items-center gap-2 mb-4">
                 <Server className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Add New Rack</h3>
+                <h3 className="text-lg font-semibold text-ops-text">Add New Rack</h3>
             </div>
 
             <form ref={formRef} action={action} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="lg:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-ops-muted mb-1">
                         Rack Name *
                     </label>
                     <input
                         name="name"
                         required
                         placeholder="e.g. Rack A-01"
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-ops-muted mb-1">
                         Zone
                     </label>
                     <input
                         name="zone"
                         placeholder="e.g. Zone A"
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-ops-muted mb-1">
                         Total U
                     </label>
                     <select
                         name="totalU"
                         defaultValue="42"
                         onChange={(event) => setCustomU(event.target.value === "custom")}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                     >
                         <option value="42">42U (Standard)</option>
                         <option value="45">45U</option>
@@ -98,18 +98,18 @@ export default function AddRackForm({
                             max={60}
                             required
                             placeholder="Jumlah U (1-60)"
-                            className="mt-2 w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="mt-2 w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                         />
                     )}
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-ops-muted mb-1">
                         Location
                     </label>
                     <select
                         name="locationId"
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                     >
                         <option value="">-- No Location --</option>
                         {locations.map(loc => (
@@ -120,37 +120,37 @@ export default function AddRackForm({
 
                 <div className="lg:col-span-5 grid grid-cols-3 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Floor Row</label>
+                        <label className="block text-sm font-medium text-ops-muted mb-1">Floor Row</label>
                         <input
                             name="floorRow"
                             maxLength={4}
                             placeholder="A"
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Slot</label>
+                        <label className="block text-sm font-medium text-ops-muted mb-1">Slot</label>
                         <input
                             type="number"
                             name="floorSlot"
                             min={1}
                             max={99}
                             placeholder="1"
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Facing</label>
+                        <label className="block text-sm font-medium text-ops-muted mb-1">Facing</label>
                         <select
                             name="facing"
                             defaultValue="front"
-                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
                         >
                             <option value="front">Front</option>
                             <option value="back">Back</option>
                         </select>
                     </div>
-                    <p className="col-span-3 text-xs text-slate-500">
+                    <p className="col-span-3 text-xs text-ops-subtle">
                         Posisi fisik di ruangan untuk tampilan 3D (baris, urutan, arah pintu depan). Kosongkan jika belum diketahui.
                     </p>
                 </div>
@@ -159,13 +159,13 @@ export default function AddRackForm({
                     <fieldset className="flex items-center gap-2">
                         <input type="hidden" name="isAuditable" value="false" />
                         <input type="checkbox" name="isAuditable" defaultChecked value="on" />
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Include in audit</label>
+                        <label className="text-sm font-medium text-ops-muted">Include in audit</label>
                     </fieldset>
                     <div className="flex-1"></div>
                     <button
                         type="submit"
                         disabled={isPending}
-                        className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+                        className="bg-ops-accent text-ops-accent-fg px-6 py-2 rounded-md hover:bg-ops-accent-hover flex items-center gap-2 disabled:opacity-50"
                     >
                         {isPending ? <Loader2 className="animate-spin h-5 w-5" /> : <><Plus className="h-5 w-5" /> Add Rack</>}
                     </button>
@@ -173,17 +173,17 @@ export default function AddRackForm({
             </form>
 
             {state?.errors && (
-                <div className="mt-3 text-red-500 text-sm">
+                <div className="mt-3 text-ops-danger text-sm">
                     {Object.values(state.errors as Record<string, string[]>).flat().map((e, i) => (
                         <p key={i}>{e}</p>
                     ))}
                 </div>
             )}
             {state?.message && !state.success && (
-                <div className="mt-3 text-red-500 text-sm">{state.message}</div>
+                <div className="mt-3 text-ops-danger text-sm">{state.message}</div>
             )}
             {state?.success && (
-                <div className="mt-3 text-green-600 dark:text-green-400 text-sm">{state.message}</div>
+                <div className="mt-3 text-ops-success text-sm">{state.message}</div>
             )}
         </div>
     );

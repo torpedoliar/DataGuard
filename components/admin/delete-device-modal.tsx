@@ -71,18 +71,18 @@ export default function DeleteDeviceModal({
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-surface rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-ops-surface rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-surface z-10">
+                <div className="flex items-center justify-between p-4 border-b border-ops-border sticky top-0 bg-ops-surface z-10">
                     <div className="flex items-center gap-2">
-                        <div className="size-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+                        <div className="size-10 rounded-full bg-ops-danger-soft flex items-center justify-center text-ops-danger">
                             <AlertTriangle className="h-5 w-5" />
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete Device</h3>
+                        <h3 className="text-lg font-bold text-ops-text">Delete Device</h3>
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                        className="text-ops-muted hover:text-ops-muted dark:hover:text-ops-muted"
                     >
                         <X className="h-5 w-5" />
                     </button>
@@ -91,41 +91,41 @@ export default function DeleteDeviceModal({
                 {/* Content */}
                 <div className="p-4 space-y-4">
                     <div>
-                        <p className="text-slate-700 dark:text-slate-300">
+                        <p className="text-ops-muted">
                             Are you sure you want to delete:
                         </p>
-                        <p className="mt-2 font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 p-3 rounded">
+                        <p className="mt-2 font-semibold text-ops-text bg-ops-surface-raised p-3 rounded">
                             {deviceName}
                         </p>
                     </div>
 
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-                        <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                    <div className="bg-ops-warning-soft border border-ops-warning/20 rounded-lg p-3">
+                        <p className="text-sm text-ops-warning">
                             ⚠️ This action cannot be undone. The device will be permanently removed.
                         </p>
                     </div>
 
                     {/* Blocked: related history/data cannot be deleted */}
                     {blocked && usageInfo && (
-                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 space-y-3">
-                            <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                        <div className="bg-ops-danger-soft border border-ops-danger/20 rounded-lg p-4 space-y-3">
+                            <div className="flex items-center gap-2 text-ops-danger">
                                 <Info className="h-5 w-5" />
                                 <p className="font-semibold">Device cannot be deleted</p>
                             </div>
-                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                            <p className="text-sm text-ops-muted">
                                 This device is referenced by <strong>{usageInfo.blockingCount}</strong> related record{usageInfo.blockingCount === 1 ? "" : "s"} (checklist history, incidents, ports, syslog/SIEM data). Related data cannot be deleted.
                             </p>
-                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                            <p className="text-sm text-ops-muted">
                                 To retire this device, decommission it instead with the <strong>Active/Inactive</strong> toggle in the device table.
                             </p>
                             {usageInfo.checklistPreview.length > 0 && (
                                 <>
-                                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                                    <p className="text-sm text-ops-muted">
                                         Recent checklist history ({usageInfo.checklistPreview.length} of {usageInfo.dependencies.checklistItems} shown):
                                     </p>
                                     <div className="max-h-40 overflow-y-auto space-y-1">
                                         {usageInfo.checklistPreview.map((entry, idx) => (
-                                            <div key={idx} className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                                            <div key={idx} className="text-xs text-ops-muted flex items-center gap-2">
                                                 <span className="font-mono">{entry.date}</span>
                                                 <span>at</span>
                                                 <span className="font-mono">{entry.time}</span>
@@ -141,8 +141,8 @@ export default function DeleteDeviceModal({
 
                     {/* No references found: safe to delete */}
                     {canDelete && usageInfo && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
-                            <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                        <div className="bg-ops-success-soft border border-ops-success/20 rounded-lg p-3">
+                            <p className="text-sm text-ops-success">
                                 No related records found — this device can be safely deleted.
                             </p>
                         </div>
@@ -150,7 +150,7 @@ export default function DeleteDeviceModal({
 
                     {!blocked && (
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            <label className="block text-sm font-medium text-ops-muted mb-1">
                                 Reason for Deletion *
                             </label>
                             <textarea
@@ -158,10 +158,10 @@ export default function DeleteDeviceModal({
                                 onChange={(e) => setReason(e.target.value)}
                                 placeholder="e.g., Device decommissioned, replaced with new equipment, etc."
                                 rows={3}
-                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-danger"
                             />
                             {error && (
-                                <p className="mt-1 text-sm text-red-500">{error}</p>
+                                <p className="mt-1 text-sm text-ops-danger">{error}</p>
                             )}
                         </div>
                     )}
@@ -170,7 +170,7 @@ export default function DeleteDeviceModal({
                         <button
                             onClick={handleCheckUsage}
                             disabled={isChecking}
-                            className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            className="w-full px-4 py-2 bg-ops-surface-raised text-ops-muted rounded-md hover:bg-ops-surface-raised dark:hover:bg-ops-surface-raised transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {isChecking ? (
                                 <>
@@ -185,12 +185,12 @@ export default function DeleteDeviceModal({
                 </div>
 
                 {/* Footer Actions */}
-                <div className="flex gap-3 p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg sticky bottom-0">
+                <div className="flex gap-3 p-4 border-t border-ops-border bg-ops-surface/50 rounded-b-lg sticky bottom-0">
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={isDeleting}
-                        className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                        className="flex-1 px-4 py-2 border border-ops-border-strong rounded-md text-ops-muted hover:bg-ops-surface dark:hover:bg-ops-surface-raised disabled:opacity-50"
                     >
                         Cancel
                     </button>
@@ -198,7 +198,7 @@ export default function DeleteDeviceModal({
                         <button
                             onClick={handleDelete}
                             disabled={isDeleting || !reason.trim()}
-                            className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 bg-ops-danger text-ops-status-fg px-4 py-2 rounded-md hover:bg-ops-danger flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isDeleting ? (
                                 <>

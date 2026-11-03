@@ -44,7 +44,7 @@ export default function VlanTable({ vlans }: { vlans: Vlan[] }) {
   };
 
   const renderSortIcon = (column: SortKey) => {
-    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-slate-600" />;
+    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-ops-muted" />;
     return sortDir === "asc" ? <ArrowUp className="size-3.5 text-ops-accent" /> : <ArrowDown className="size-3.5 text-ops-accent" />;
   };
 
@@ -112,7 +112,7 @@ export default function VlanTable({ vlans }: { vlans: Vlan[] }) {
                   <td className="whitespace-nowrap px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
                       <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingVlan(vlan)} title="Edit">
-                        <Edit className="size-4 text-blue-300" />
+                        <Edit className="size-4 text-ops-info" />
                       </ActionButton>
                       <ActionButton type="button" variant="danger" size="icon" onClick={() => setDeletingVlan(vlan)} title="Delete">
                         <Trash2 className="size-4" />

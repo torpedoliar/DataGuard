@@ -57,7 +57,7 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
   return (
     <div className="space-y-5">
       {deleteError && (
-        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft px-4 py-3 text-sm text-ops-danger">
           {deleteError}
         </div>
       )}
@@ -124,7 +124,7 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
                     <div className="inline-flex items-center gap-1">
                       <ActionButton type="button" variant="ghost" size="icon" title={t("editGroup")}
                         onClick={() => { setEditing(group); setCreating(false); setDeleteError(null); }}>
-                        <Edit className="size-4 text-blue-300" />
+                        <Edit className="size-4 text-ops-info" />
                       </ActionButton>
                       <ActionButton type="button" variant="danger" size="icon" title={t("deleteGroup")}
                         onClick={() => {
@@ -303,11 +303,11 @@ function GroupModal({
           <div className="flex flex-col gap-3 border-t border-ops-border p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1 text-sm">
               {state?.errors && (
-                <div className="text-red-300">
+                <div className="text-ops-danger">
                   {Object.values(state.errors as Record<string, string[]>).flat().map((error, index) => <p key={index}>{error}</p>)}
                 </div>
               )}
-              {state?.message && !state.success && <p className="text-red-300">{state.message}</p>}
+              {state?.message && !state.success && <p className="text-ops-danger">{state.message}</p>}
             </div>
             <div className="flex gap-2">
               <ActionButton type="button" variant="secondary" onClick={onClose}>{t("cancel")}</ActionButton>

@@ -82,7 +82,7 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
   };
 
   const renderSortIcon = (column: SortKey) => {
-    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-slate-600" />;
+    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-ops-muted" />;
     return sortDir === "asc" ? <ArrowUp className="size-3.5 text-ops-accent" /> : <ArrowDown className="size-3.5 text-ops-accent" />;
   };
 
@@ -166,7 +166,7 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
                 <tr key={user.id} className={`transition-colors hover:bg-ops-surface ${user.id === currentUserId ? "bg-ops-accent/[0.045]" : ""}`}>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ops-accent text-xs font-bold text-slate-950">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ops-accent text-xs font-bold text-ops-accent-fg">
                         {user.username.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
@@ -189,7 +189,7 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
                     {user.role !== "superadmin" && user.sites && user.sites.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {user.sites.map((site) => (
-                          <span key={site.id} className="inline-flex items-center gap-1 rounded-md border border-ops-border bg-ops-bg px-1.5 py-0.5 text-[10px] text-slate-300">
+                          <span key={site.id} className="inline-flex items-center gap-1 rounded-md border border-ops-border bg-ops-bg px-1.5 py-0.5 text-[10px] text-ops-muted">
                             <Database className="size-2.5" />
                             {site.code}
                           </span>
@@ -207,10 +207,10 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
                   <td className="px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
                       <ActionButton type="button" variant="ghost" size="icon" onClick={() => setResettingUser(user)} title="Reset password">
-                        <Key className="size-4 text-amber-300" />
+                        <Key className="size-4 text-ops-warning" />
                       </ActionButton>
                       <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingUser(user)} title="Edit">
-                        <Edit className="size-4 text-blue-300" />
+                        <Edit className="size-4 text-ops-info" />
                       </ActionButton>
                       <ActionButton
                         type="button"

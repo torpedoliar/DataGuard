@@ -95,8 +95,8 @@ function CreateIncidentForm({ finding }: { finding: SiemFindingRow }) {
         <input type="hidden" name="id" value={finding.id} />
         <ActionButton type="submit" size="sm" disabled={disabled} isPending={isPending} icon={<ShieldCheck className="size-4" />}>Create Incident</ActionButton>
       </form>
-      {!finding.deviceId && <p className="text-xs text-amber-200">Map source to device first.</p>}
-      {state?.message && !state.success && <p className="text-xs text-red-200">{state.message}</p>}
+      {!finding.deviceId && <p className="text-xs text-ops-warning">Map source to device first.</p>}
+      {state?.message && !state.success && <p className="text-xs text-ops-danger">{state.message}</p>}
     </div>
   );
 }
@@ -122,9 +122,9 @@ function GenerateAiAnalysisForm({ finding }: { finding: SiemFindingRow }) {
         <input type="hidden" name="id" value={finding.id} />
         <ActionButton type="submit" size="sm" variant="secondary" isPending={isPending}>AI Analysis</ActionButton>
       </form>
-      {state?.message && !state.success && <p className="text-xs text-red-200">{state.message}</p>}
+      {state?.message && !state.success && <p className="text-xs text-ops-danger">{state.message}</p>}
       {blocked && (
-        <p className="text-[10px] text-amber-200" title={lastRegeneratedAt ? `Last regenerated ${lastRegeneratedAt}` : undefined}>
+        <p className="text-[10px] text-ops-warning" title={lastRegeneratedAt ? `Last regenerated ${lastRegeneratedAt}` : undefined}>
           Last regenerated {formatRelativeCooldown(finding.aiGeneratedAt)} (cooldown {cooldownSec ?? "?"}s, try in {cooldownRemainingSec ?? "?"}s).
         </p>
       )}
@@ -147,7 +147,7 @@ function AiAnalysisBlock({ analysis }: { analysis: Record<string, unknown> }) {
   const actions = Array.isArray(analysis.recommendedActions) ? analysis.recommendedActions.filter((item): item is string => typeof item === "string") : [];
 
   return (
-    <div className="mt-2 max-w-xl rounded-md border border-purple-400/25 bg-purple-500/10 p-3 text-xs text-purple-100">
+    <div className="mt-2 max-w-xl rounded-md border border-ops-info/25 bg-ops-info-soft p-3 text-xs text-ops-info">
       {summary && <p><span className="font-semibold">AI:</span> {summary}</p>}
       {likelyCause && <p className="mt-1"><span className="font-semibold">Likely cause:</span> {likelyCause}</p>}
       {impact && <p className="mt-1"><span className="font-semibold">Impact:</span> {impact}</p>}
@@ -213,7 +213,7 @@ function CasePanel({ finding }: { finding: SiemFindingRow }) {
           Notes
         </ActionButton>
       </div>
-      {(assignState?.message && !assignState.success) && <p className="text-xs text-red-200">{assignState.message}</p>}
+      {(assignState?.message && !assignState.success) && <p className="text-xs text-ops-danger">{assignState.message}</p>}
       {open && (
         <div className="w-full max-w-xl rounded-md border border-ops-border bg-ops-surface p-3">
           {comments === null ? (
@@ -237,7 +237,7 @@ function CasePanel({ finding }: { finding: SiemFindingRow }) {
             <textarea name="body" rows={2} maxLength={5000} required placeholder="Tambah catatan investigasi…" className="w-full rounded border border-ops-border bg-ops-surface px-2 py-1.5 text-xs text-ops-text" />
             <ActionButton type="submit" size="sm" isPending={commentPending}>Kirim</ActionButton>
           </form>
-          {commentState?.errors && <p className="mt-1 text-xs text-red-200">{Object.values(commentState.errors).flat().join(" ")}</p>}
+          {commentState?.errors && <p className="mt-1 text-xs text-ops-danger">{Object.values(commentState.errors).flat().join(" ")}</p>}
         </div>
       )}
     </div>
@@ -274,12 +274,12 @@ export default function SiemFindingTable({ findings, highlightId }: { findings: 
             <tr
               key={finding.id}
               data-finding-id={finding.id}
-              className={`align-top transition-colors hover:bg-ops-surface ${finding.id === highlightId ? "bg-amber-500/10 ring-2 ring-inset ring-amber-500/60" : ""}`}
+              className={`align-top transition-colors hover:bg-ops-surface ${finding.id === highlightId ? "bg-ops-warning-soft ring-2 ring-inset ring-ops-warning/60" : ""}`}
             >
               <td className="px-4 py-3">
                 <div className="font-semibold text-ops-text">#{finding.id} {finding.title}</div>
                 <p className="mt-1 max-w-xl text-sm text-ops-muted">{finding.humanAnalysis || finding.summary}</p>
-                {finding.recommendedAction && <p className="mt-2 max-w-xl text-xs text-emerald-200">Action: {finding.recommendedAction}</p>}
+                {finding.recommendedAction && <p className="mt-2 max-w-xl text-xs text-ops-success">Action: {finding.recommendedAction}</p>}
                 {finding.aiAnalysis && <AiAnalysisBlock analysis={finding.aiAnalysis} />}
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <StatusBadge tone="neutral">{finding.eventCount} events</StatusBadge>
@@ -310,7 +310,7 @@ export default function SiemFindingTable({ findings, highlightId }: { findings: 
                         ? `/admin/siem/events?eventIds=${finding.sampleEventIds.join(",")}`
                         : `/admin/siem/events?sourceIp=${finding.sourceIp ?? ""}`}
                       variant="ghost" size="sm" icon={<Eye className="size-4" />}>Events</ActionButton>
-                    {finding.status === "Resolved" && <CheckCircle2 className="mt-1 size-4 text-emerald-300" />}
+                    {finding.status === "Resolved" && <CheckCircle2 className="mt-1 size-4 text-ops-success" />}
                   </div>
                   <GenerateAiAnalysisForm finding={finding} />
                   <CreateIncidentForm finding={finding} />

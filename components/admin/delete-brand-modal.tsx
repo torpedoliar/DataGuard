@@ -52,24 +52,24 @@ export default function DeleteBrandModal({ brandId, brandName, onClose, onSucces
             backdropClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         >
             <div className="flex items-center gap-4 mb-6">
-                <div className="size-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 flex-shrink-0">
+                <div className="size-12 rounded-full bg-ops-danger-soft flex items-center justify-center text-ops-danger flex-shrink-0">
                     <AlertTriangle aria-hidden="true" className="h-6 w-6" />
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm text-ops-subtle dark:text-ops-muted">
                     This action is permanent and cannot be undone.
                 </p>
             </div>
 
             {error && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/50 rounded-lg" role="alert">
-                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">{error}</p>
+                <div className="mb-6 p-4 bg-ops-danger-soft border border-ops-danger/50 rounded-lg" role="alert">
+                    <p className="text-sm text-ops-danger font-medium">{error}</p>
 
                     {usageInfo && (
                         <div className="mt-3">
-                            <p className="text-xs text-red-500 dark:text-red-400/80 mb-2">
+                            <p className="text-xs text-ops-danger/80 mb-2">
                                 This brand is currently assigned to {usageInfo.count} device{usageInfo.count > 1 ? 's' : ''}:
                             </p>
-                            <ul className="text-xs text-red-600/80 dark:text-red-300/80 list-disc list-inside space-y-1 max-h-32 overflow-y-auto pl-2">
+                            <ul className="text-xs text-ops-danger/80 list-disc list-inside space-y-1 max-h-32 overflow-y-auto pl-2">
                                 {usageInfo.devices.map((device, i) => (
                                     <li key={i}>{device}</li>
                                 ))}
@@ -84,7 +84,7 @@ export default function DeleteBrandModal({ brandId, brandName, onClose, onSucces
                     type="button"
                     onClick={onClose}
                     disabled={isDeleting}
-                    className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-ops-muted bg-ops-surface border border-ops-border-strong rounded-lg hover:bg-ops-surface dark:hover:bg-ops-surface-raised focus:outline-none focus:ring-2 focus:ring-ops-border-strong transition-colors"
                 >
                     Cancel
                 </button>
@@ -92,7 +92,7 @@ export default function DeleteBrandModal({ brandId, brandName, onClose, onSucces
                     type="button"
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className="flex items-center justify-center gap-2 px-6 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center justify-center gap-2 px-6 py-2 bg-ops-danger text-ops-status-fg text-sm font-medium rounded-lg hover:bg-ops-danger focus:outline-none focus:ring-2 focus:ring-ops-danger focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                     {isDeleting ? (
                         <>

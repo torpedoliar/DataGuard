@@ -30,9 +30,9 @@ function formatDate(date: Date | null) {
 }
 
 const STATUS_META: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
-    sent: { label: "Sent", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: <MailCheck className="h-3 w-3" /> },
-    failed: { label: "Failed", className: "bg-red-500/15 text-red-400 border-red-500/30", icon: <MailX className="h-3 w-3" /> },
-    pending: { label: "Pending", className: "bg-amber-500/15 text-amber-400 border-amber-500/30", icon: <Mail className="h-3 w-3" /> },
+    sent: { label: "Sent", className: "bg-ops-success-soft text-ops-success border-ops-success/30", icon: <MailCheck className="h-3 w-3" /> },
+    failed: { label: "Failed", className: "bg-ops-danger-soft text-ops-danger border-ops-danger/30", icon: <MailX className="h-3 w-3" /> },
+    pending: { label: "Pending", className: "bg-ops-warning-soft text-ops-warning border-ops-warning/30", icon: <Mail className="h-3 w-3" /> },
 };
 
 export default function EmailLogClient({
@@ -86,7 +86,7 @@ export default function EmailLogClient({
                             </button>
                         )}
                     </div>
-                    <button type="submit" className="h-9 px-4 rounded-md bg-ops-accent text-slate-950 text-sm font-semibold hover:bg-[#0a7a6f] flex items-center gap-1.5">
+                    <button type="submit" className="h-9 px-4 rounded-md bg-ops-accent text-ops-accent-fg text-sm font-semibold hover:bg-ops-accent-hover flex items-center gap-1.5">
                         <Search className="h-3.5 w-3.5" /> Cari
                     </button>
                 </form>
@@ -106,7 +106,7 @@ export default function EmailLogClient({
                     </div>
 
                     {(search || statusFilter) && (
-                        <button onClick={() => { setSearchInput(""); navigate({}); }} className="h-9 px-3 rounded-md bg-red-500/10 text-red-400 border border-red-500/20 text-sm hover:bg-red-500/20 flex items-center gap-1.5">
+                        <button onClick={() => { setSearchInput(""); navigate({}); }} className="h-9 px-3 rounded-md bg-ops-danger-soft text-ops-danger border border-ops-danger/20 text-sm hover:bg-ops-danger-soft flex items-center gap-1.5">
                             <X className="h-3.5 w-3.5" /> Reset
                         </button>
                     )}
@@ -157,7 +157,7 @@ export default function EmailLogClient({
                                                 {detectedIncidentId ? (
                                                     <Link
                                                         href={`/admin/incidents/${detectedIncidentId}`}
-                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/25 transition-colors"
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-ops-info-soft text-ops-info border border-ops-info/30 hover:bg-ops-info-soft transition-colors"
                                                         title={`Lihat Detail Incident #${detectedIncidentId}`}
                                                     >
                                                         <span>#{detectedIncidentId}</span>
@@ -188,7 +188,7 @@ export default function EmailLogClient({
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 max-w-[180px]">
-                                                <p className="text-red-300/80 text-xs truncate" title={log.error ?? ""}>{log.error ?? "-"}</p>
+                                                <p className="text-ops-danger/80 text-xs truncate" title={log.error ?? ""}>{log.error ?? "-"}</p>
                                             </td>
                                         </tr>
                                     );

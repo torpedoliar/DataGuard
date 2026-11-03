@@ -59,14 +59,14 @@ export default function SiemPruneForm() {
   }, [state]);
 
   return (
-    <section className="rounded-lg border border-red-500/30 bg-red-500/5 p-5">
+    <section className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-5">
       <div className="mb-4 flex items-center gap-2">
-        <Scissors className="size-4 text-red-300" />
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-red-200">
+        <Scissors className="size-4 text-ops-danger" />
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ops-danger">
           Manual Prune (N21)
         </h2>
       </div>
-      <p className="mb-4 text-xs text-slate-400">
+      <p className="mb-4 text-xs text-ops-muted">
         Permanently deletes parsed syslog events (and optionally orphan raw events) older than the
         chosen date. This action cannot be undone. Superadmin only.
       </p>
@@ -74,7 +74,7 @@ export default function SiemPruneForm() {
       <form ref={formRef} action={formAction} onSubmit={handleOpenConfirm} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label htmlFor="prune-cutoff" className="mb-1 block text-xs font-medium text-slate-300">
+            <label htmlFor="prune-cutoff" className="mb-1 block text-xs font-medium text-ops-muted">
               Prune events received before
             </label>
             <input
@@ -85,47 +85,47 @@ export default function SiemPruneForm() {
               value={cutoff}
               onChange={(event) => setCutoff(event.target.value)}
               aria-label="Cutoff date for events to prune"
-              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+              className="w-full rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-sm text-ops-text focus:border-ops-danger focus:outline-none focus:ring-1 focus:ring-ops-danger"
             />
           </div>
           <div className="flex flex-col gap-2 pt-1">
-            <label className="flex items-center gap-2 text-sm text-slate-200">
+            <label className="flex items-center gap-2 text-sm text-ops-text">
               <input
                 type="checkbox"
                 name="includeEvents"
                 checked={includeEvents}
                 onChange={(event) => setIncludeEvents(event.target.checked)}
                 aria-label="Prune parsed syslog_events rows"
-                className="size-4 rounded border-slate-600 bg-slate-900 text-red-500 focus:ring-red-500"
+                className="size-4 rounded border-ops-border-strong bg-ops-surface text-ops-danger focus:ring-ops-danger"
               />
               <span>
-                Prune <code className="font-mono text-xs text-red-300">syslog_events</code>
+                Prune <code className="font-mono text-xs text-ops-danger">syslog_events</code>
               </span>
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-200">
+            <label className="flex items-center gap-2 text-sm text-ops-text">
               <input
                 type="checkbox"
                 name="rawEventsOnly"
                 checked={includeRawOrphans}
                 onChange={(event) => setIncludeRawOrphans(event.target.checked)}
                 aria-label="Prune orphan syslog_events_raw rows"
-                className="size-4 rounded border-slate-600 bg-slate-900 text-red-500 focus:ring-red-500"
+                className="size-4 rounded border-ops-border-strong bg-ops-surface text-ops-danger focus:ring-ops-danger"
               />
               <span>
-                Prune <code className="font-mono text-xs text-red-300">syslog_events_raw</code> (orphans only)
+                Prune <code className="font-mono text-xs text-ops-danger">syslog_events_raw</code> (orphans only)
               </span>
             </label>
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ops-subtle">
             Deletes are batched (10k rows) and scoped to the active site.
           </p>
           <button
             type="submit"
             disabled={isPending || !cutoff || (!includeEvents && !includeRawOrphans)}
-            className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md bg-ops-danger px-4 py-2 text-sm font-semibold text-ops-status-fg shadow-sm transition-colors hover:bg-ops-danger focus:outline-none focus:ring-2 focus:ring-ops-danger focus:ring-offset-2 focus:ring-offset-ops-surface disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isPending ? (
               <>
@@ -140,17 +140,17 @@ export default function SiemPruneForm() {
         </div>
 
         {state.message && !state.ok && (
-          <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+          <div className="flex items-start gap-2 rounded-md border border-ops-danger/40 bg-ops-danger-soft p-3 text-sm text-ops-danger">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             <span>{state.message}</span>
           </div>
         )}
         {state.ok && state.deletedEvents !== undefined && (
-          <div className="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+          <div className="flex items-start gap-2 rounded-md border border-ops-success/40 bg-ops-success-soft p-3 text-sm text-ops-success">
             <ShieldCheck className="mt-0.5 size-4 shrink-0" />
             <div>
               <p className="font-medium">Prune complete.</p>
-              <p className="text-xs text-emerald-300/80">
+              <p className="text-xs text-ops-success/80">
                 Deleted <strong>{state.deletedEvents.toLocaleString()}</strong> parsed events
                 {state.deletedRaw !== undefined && state.deletedRaw > 0 ? (
                   <>
@@ -166,24 +166,24 @@ export default function SiemPruneForm() {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-red-500/30 bg-slate-900 p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-xl border border-ops-danger/30 bg-ops-surface p-6 shadow-2xl">
             <div className="mb-4 flex items-center gap-3">
-              <div className="grid size-10 place-items-center rounded-full bg-red-500/20 text-red-300">
+              <div className="grid size-10 place-items-center rounded-full bg-ops-danger-soft text-ops-danger">
                 <AlertTriangle className="size-5" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-white">Confirm manual prune</h3>
-                <p className="text-xs text-slate-400">This action is irreversible.</p>
+                <p className="text-xs text-ops-muted">This action is irreversible.</p>
               </div>
             </div>
-            <p className="mb-4 text-sm text-slate-300">
+            <p className="mb-4 text-sm text-ops-muted">
               Will delete parsed syslog events
               {includeRawOrphans ? " and orphan raw events " : " "}
-              received before <code className="rounded bg-slate-800 px-1 py-0.5 font-mono text-red-300">{cutoff}</code>.
+              received before <code className="rounded bg-ops-surface-raised px-1 py-0.5 font-mono text-ops-danger">{cutoff}</code>.
               {includeRawOrphans ? "" : " Raw events with surviving parsed events are kept."}
             </p>
-            <p className="mb-2 text-xs text-slate-400">
-              Type <code className="font-mono text-red-300">{CONFIRM_WORD}</code> to confirm:
+            <p className="mb-2 text-xs text-ops-muted">
+              Type <code className="font-mono text-ops-danger">{CONFIRM_WORD}</code> to confirm:
             </p>
             <input
               type="text"
@@ -191,7 +191,7 @@ export default function SiemPruneForm() {
               onChange={(event) => setConfirmText(event.target.value)}
               autoFocus
               placeholder={CONFIRM_WORD}
-              className="mb-4 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm uppercase tracking-widest text-white focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+              className="mb-4 w-full rounded-md border border-ops-border bg-ops-surface px-3 py-2 font-mono text-sm uppercase tracking-widest text-white focus:border-ops-danger focus:outline-none focus:ring-1 focus:ring-ops-danger"
             />
             <div className="flex items-center justify-end gap-2">
               <button
@@ -200,7 +200,7 @@ export default function SiemPruneForm() {
                   setShowModal(false);
                   setConfirmText("");
                 }}
-                className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+                className="inline-flex items-center gap-1 rounded-md border border-ops-border px-3 py-2 text-sm text-ops-muted transition-colors hover:bg-ops-surface-raised"
               >
                 <X className="size-3" /> Cancel
               </button>
@@ -208,7 +208,7 @@ export default function SiemPruneForm() {
                 type="button"
                 onClick={handleConfirmed}
                 disabled={confirmText.trim() !== CONFIRM_WORD || isPending}
-                className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-md bg-ops-danger px-4 py-2 text-sm font-semibold text-ops-status-fg transition-colors hover:bg-ops-danger disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isPending ? <Loader2 className="size-4 animate-spin" /> : <Scissors className="size-4" />}
                 Prune now

@@ -157,8 +157,8 @@ function EditSourceModal({ source, devices, onClose }: { source: SiemSourceRow; 
             </label>
           </div>
 
-          {state?.errors && <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{Object.values(state.errors).flat().join(" ")}</div>}
-          {state?.message && !state.success && <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{state.message}</div>}
+          {state?.errors && <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">{Object.values(state.errors).flat().join(" ")}</div>}
+          {state?.message && !state.success && <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">{state.message}</div>}
 
           <div className="flex justify-end gap-3 border-t border-ops-border pt-4">
             <ActionButton type="button" variant="secondary" onClick={onClose} disabled={isPending}>Cancel</ActionButton>
@@ -186,7 +186,7 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
   };
 
   const renderSortIcon = (column: SortKey) => {
-    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-slate-600" />;
+    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-ops-muted" />;
     return sortDir === "asc" ? <ArrowUp className="size-3.5 text-ops-accent" /> : <ArrowDown className="size-3.5 text-ops-accent" />;
   };
 
@@ -278,7 +278,7 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
                 <td className="whitespace-nowrap px-5 py-3 text-right">
                   <div className="inline-flex items-center gap-1">
                     <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingSource(source)} aria-label="Edit source mapping" title="Edit source mapping">
-                      <Edit aria-hidden="true" className="size-4 text-blue-300" />
+                      <Edit aria-hidden="true" className="size-4 text-ops-info" />
                     </ActionButton>
                     <DeleteSourceButton source={source} />
                   </div>

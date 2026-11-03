@@ -95,9 +95,9 @@ function formatBytes(bytes: unknown): string {
   return `${(num / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const cardClass = "rounded-lg border border-slate-700/50 bg-slate-900/40 p-4";
-const inputClass = "h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-white";
-const labelClass = "space-y-1 text-sm font-medium text-slate-300";
+const cardClass = "rounded-lg border border-ops-border/50 bg-ops-surface/40 p-4";
+const inputClass = "h-9 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white";
+const labelClass = "space-y-1 text-sm font-medium text-ops-muted";
 
 const PROTOCOLS = [
   { value: "ssh", label: "SSH (CLI: Cisco / ATI / Ruijie / Generic)", defaultPort: 22 },
@@ -116,7 +116,7 @@ function ResultBanner({ state }: { state: NcmWriteResult | null | undefined }) {
   return (
     <div
       className={`rounded-lg border p-3 text-sm ${
-        ok ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-red-400/20 bg-red-400/10 text-red-300"
+        ok ? "border-ops-success/20 bg-ops-success-soft text-ops-success" : "border-ops-danger/20 bg-ops-danger-soft text-ops-danger"
       }`}
     >
       {state.message}
@@ -314,8 +314,8 @@ function SwitchArea({
         <div
           className={`rounded-lg border p-3 text-sm flex items-center justify-between ${
             syncBanner.success
-              ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
-              : "border-red-400/20 bg-red-400/10 text-red-300"
+              ? "border-ops-success/20 bg-ops-success-soft text-ops-success"
+              : "border-ops-danger/20 bg-ops-danger-soft text-ops-danger"
           }`}
         >
           <span>{syncBanner.message}</span>
@@ -348,22 +348,22 @@ function SwitchArea({
               const isEditingRow = editingId === id;
               return (
                 <Fragment key={id}>
-                <tr className={`border-t border-slate-800 ${isEditingRow ? "bg-ops-accent/5" : ""}`}>
+                <tr className={`border-t border-ops-border ${isEditingRow ? "bg-ops-accent/5" : ""}`}>
                   <td className="py-2 pr-3">
                     <div className="font-semibold text-white">{pick(sw, "name", "hostname") || "-"}</div>
                     {model && <div className="text-xs text-ops-muted">{model}</div>}
                   </td>
-                  <td className="py-2 pr-3 font-mono text-xs text-slate-300">{pick(sw, "ip_address", "ip", "host") || "-"}</td>
-                  <td className="py-2 pr-3 text-slate-300 font-mono text-xs">{pick(sw, "protocol") || "-"}</td>
-                  <td className="py-2 pr-3 text-slate-300 font-mono text-xs">{pick(sw, "port") || "-"}</td>
-                  <td className="py-2 pr-3 text-slate-300">
+                  <td className="py-2 pr-3 font-mono text-xs text-ops-muted">{pick(sw, "ip_address", "ip", "host") || "-"}</td>
+                  <td className="py-2 pr-3 text-ops-muted font-mono text-xs">{pick(sw, "protocol") || "-"}</td>
+                  <td className="py-2 pr-3 text-ops-muted font-mono text-xs">{pick(sw, "port") || "-"}</td>
+                  <td className="py-2 pr-3 text-ops-muted">
                     {credName ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-300 border border-slate-700">
+                      <span className="inline-flex items-center gap-1 rounded bg-ops-surface-raised px-2 py-0.5 text-xs text-ops-muted border border-ops-border">
                         <KeyRound className="size-3 text-ops-accent" />
                         {credName}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-500">—</span>
+                      <span className="text-xs text-ops-subtle">—</span>
                     )}
                   </td>
                   <td className="py-2 pr-3">
@@ -374,7 +374,7 @@ function SwitchArea({
                         title={`Trigger backup sekarang untuk ${pick(sw, "name", "hostname")}`}
                         isPending={triggeringSwitchId === id}
                         onClick={() => handleRowBackup(id, pick(sw, "name", "hostname"))}
-                        className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/15"
+                        className="border-ops-success/40 text-ops-success hover:bg-ops-success-soft"
                       >
                         <Play className="size-3.5" />
                         Backup
@@ -442,16 +442,16 @@ function SwitchArea({
       </div>
 
       {/* FORM TAMBAH SWITCH LENGKAP */}
-      <form action={addAction} className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/60 p-4 pt-3">
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-200">
+      <form action={addAction} className="space-y-3 rounded-lg border border-ops-border bg-ops-surface/60 p-4 pt-3">
+        <div className="flex items-center gap-2 border-b border-ops-border pb-2 text-xs font-semibold uppercase tracking-wider text-ops-text">
           <Plus className="size-4 text-ops-accent" />
           <span>Tambah Switch Baru</span>
         </div>
 
         {/* 1. Ambil dari Inventory DC-Check */}
-        <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-2">
+        <div className="rounded-lg border border-ops-border/60 bg-ops-surface/40 p-3 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-slate-200">
+            <span className="text-xs font-semibold text-ops-text">
               Ambil Data dari Inventory DC-Check (Opsional)
             </span>
             {inventoryDevices.length > 0 && (
@@ -469,13 +469,13 @@ function SwitchArea({
                 placeholder="Ketik untuk mencari perangkat inventory (nama, IP, brand, model)..."
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900 pl-9 pr-8 text-xs text-white placeholder:text-slate-500 focus:border-ops-accent focus:outline-none"
+                className="h-9 w-full rounded-lg border border-ops-border bg-ops-surface pl-9 pr-8 text-xs text-white placeholder:text-ops-subtle focus:border-ops-accent focus:outline-none"
               />
               {inventorySearch && (
                 <button
                   type="button"
                   onClick={() => setInventorySearch("")}
-                  className="absolute right-2.5 top-2 text-xs text-slate-500 hover:text-white"
+                  className="absolute right-2.5 top-2 text-xs text-ops-subtle hover:text-white"
                   title="Bersihkan pencarian"
                 >
                   ✕
@@ -509,14 +509,14 @@ function SwitchArea({
             </select>
 
             {selectedInventoryId && (
-              <div className="flex items-center justify-between rounded border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-400">
+              <div className="flex items-center justify-between rounded border border-ops-success/25 bg-ops-success-soft px-2.5 py-1 text-xs text-ops-success">
                 <span>
                   ✓ Terpilih: <b>{switchName}</b> {switchIp ? `(${switchIp})` : ""}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleSelectInventory("")}
-                  className="ml-2 text-[11px] text-slate-400 underline hover:text-white"
+                  className="ml-2 text-[11px] text-ops-muted underline hover:text-white"
                 >
                   Batal pilih
                 </button>
@@ -586,12 +586,12 @@ function SwitchArea({
         </div>
 
         {/* 3. Pengaturan Kredensial Backup */}
-        <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-3">
+        <div className="rounded-lg border border-ops-border/60 bg-ops-surface/40 p-3 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-            <span className="font-semibold text-slate-200">Pengaturan Credential Backup:</span>
+            <span className="font-semibold text-ops-text">Pengaturan Credential Backup:</span>
             <div className="flex items-center gap-4">
               {credentials.length > 0 && (
-                <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
+                <label className="flex items-center gap-1.5 cursor-pointer text-ops-muted">
                   <input
                     type="radio"
                     name="credModeSelection"
@@ -602,7 +602,7 @@ function SwitchArea({
                   Gunakan Profil Kredensial Tersimpan ({credentials.length})
                 </label>
               )}
-              <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
+              <label className="flex items-center gap-1.5 cursor-pointer text-ops-muted">
                 <input
                   type="radio"
                   name="credModeSelection"
@@ -683,7 +683,7 @@ function SwitchArea({
       {credFor && (
         <form action={credAction} className="grid gap-3 rounded-lg border border-ops-accent/30 bg-ops-accent/5 p-4 md:grid-cols-3">
           <input type="hidden" name="switchId" value={pick(credFor, "id", "switch_id", "switchId")} />
-          <p className="text-sm text-slate-300 md:col-span-3">
+          <p className="text-sm text-ops-muted md:col-span-3">
             Rotasi kredensial untuk <span className="font-semibold text-white">{pick(credFor, "name", "hostname") || `#${pick(credFor, "id")}`}</span>. Password diteruskan ke NCM dan tidak pernah disimpan di database DG.
           </p>
           <label className={labelClass}>Username<input name="username" required autoComplete="off" className={inputClass} /></label>
@@ -782,17 +782,17 @@ function CredentialArea({
               const dateStr = formatDate(pick(c, "updated_at", "created_at"));
 
               return (
-                <tr key={id} className="border-t border-slate-800">
+                <tr key={id} className="border-t border-ops-border">
                   <td className="py-2 pr-3 font-mono font-medium text-white">#{id}</td>
                   <td className="py-2 pr-3 font-semibold text-white">{name}</td>
-                  <td className="py-2 pr-3 font-mono text-xs text-slate-300">{username}</td>
+                  <td className="py-2 pr-3 font-mono text-xs text-ops-muted">{username}</td>
                   <td className="py-2 pr-3">
                     {inUse ? (
                       <div className="flex flex-wrap gap-1">
                         {usingSwitches.map((sw) => (
                           <span
                             key={pick(sw, "id")}
-                            className="inline-flex items-center rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 text-xs text-slate-200"
+                            className="inline-flex items-center rounded bg-ops-surface-raised border border-ops-border px-1.5 py-0.5 text-xs text-ops-text"
                           >
                             {pick(sw, "name", "hostname")}
                           </span>
@@ -802,7 +802,7 @@ function CredentialArea({
                       <span className="text-xs text-ops-muted italic">Belum digunakan</span>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-slate-300 text-xs">{dateStr}</td>
+                  <td className="py-2 pr-3 text-ops-muted text-xs">{dateStr}</td>
                   <td className="py-2 pr-3">
                     <div className="flex justify-end gap-1">
                       <ActionButton
@@ -835,7 +835,7 @@ function CredentialArea({
       </div>
 
       {/* FORM TAMBAH KREDENSIAL */}
-      <form action={addAction} className="grid gap-3 border-t border-slate-800 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+      <form action={addAction} className="grid gap-3 border-t border-ops-border pt-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className={labelClass}>
           Nama Profil Kredensial *
           <input name="name" required placeholder="e.g. Allied-Admin-SSH" className={inputClass} />
@@ -991,33 +991,33 @@ function BackupArea({
 
       {/* LIVE ANIMATED BACKUP PROGRESS WIDGET */}
       {isBackup && (
-        <div className="rounded-xl border border-amber-500/50 bg-amber-500/10 p-5 space-y-3 ncm-backup-glow shadow-lg shadow-amber-500/10">
+        <div className="rounded-xl border border-ops-warning/50 bg-ops-warning-soft p-5 space-y-3 ncm-backup-glow shadow-lg shadow-ops-warning/10">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <span className="relative flex size-4">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full size-4 bg-amber-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ops-warning opacity-75"></span>
+                <span className="relative inline-flex rounded-full size-4 bg-ops-warning"></span>
               </span>
               <div>
-                <h4 className="text-sm font-bold text-amber-300">
+                <h4 className="text-sm font-bold text-ops-warning">
                   Sedang Menjalankan Backup Switch: {triggeredSwitch ? pick(triggeredSwitch, "name", "hostname") : "Perangkat Terpilih"}
                 </h4>
-                <p className="text-xs text-amber-200/80">
+                <p className="text-xs text-ops-warning/80">
                   NCM sedang menghubungi switch via protocol jaringan, mengunduh running-config, dan menghitung hash delta...
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 rounded bg-amber-500/20 px-3 py-1 font-mono text-xs font-bold text-amber-300 border border-amber-500/30">
-              <Clock className="size-3.5 animate-spin text-amber-400" />
+            <div className="flex items-center gap-2 rounded bg-ops-warning-soft px-3 py-1 font-mono text-xs font-bold text-ops-warning border border-ops-warning/30">
+              <Clock className="size-3.5 animate-spin text-ops-warning" />
               <span>00:{String(backupElapsed).padStart(2, "0")}</span>
             </div>
           </div>
 
-          <div className="h-2.5 w-full rounded-full bg-slate-950 overflow-hidden border border-amber-500/30">
-            <div className="h-full w-full ncm-backup-stripes bg-amber-500 rounded-full" />
+          <div className="h-2.5 w-full rounded-full bg-ops-surface overflow-hidden border border-ops-warning/30">
+            <div className="h-full w-full ncm-backup-stripes bg-ops-warning rounded-full" />
           </div>
 
-          <div className="flex justify-between text-[11px] text-amber-200/70 font-mono">
+          <div className="flex justify-between text-[11px] text-ops-warning/70 font-mono">
             <span>Fase: Handshake &amp; Fetch Running Config</span>
             <span>Status: Menunggu respons switch...</span>
           </div>
@@ -1029,12 +1029,12 @@ function BackupArea({
         <div
           className={`rounded-lg border p-3.5 text-sm flex items-center justify-between ${
             backupState.success
-              ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
-              : "border-red-400/30 bg-red-500/10 text-red-300"
+              ? "border-ops-success/30 bg-ops-success-soft text-ops-success"
+              : "border-ops-danger/30 bg-ops-danger-soft text-ops-danger"
           }`}
         >
           <div className="flex items-center gap-2.5">
-            {backupState.success ? <CheckCircle2 className="size-5 text-emerald-400" /> : <Activity className="size-5 text-red-400" />}
+            {backupState.success ? <CheckCircle2 className="size-5 text-ops-success" /> : <Activity className="size-5 text-ops-danger" />}
             <div>
               <div className="font-semibold">{backupState.success ? "Backup Berhasil!" : "Backup Gagal"}</div>
               <div className="text-xs opacity-90">{backupState.message}</div>
@@ -1070,17 +1070,17 @@ function BackupArea({
               const review = reviewByBackupId.get(Number(id));
 
               return (
-                <tr key={id} className="border-t border-slate-800">
+                <tr key={id} className="border-t border-ops-border">
                   <td className="py-2 pr-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono font-medium text-white">#{id}</span>
                       {isGolden && (
-                        <span className="inline-flex items-center gap-1 rounded bg-amber-400/20 border border-amber-400/40 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+                        <span className="inline-flex items-center gap-1 rounded bg-ops-warning-soft border border-ops-warning/40 px-1.5 py-0.5 text-[10px] font-bold text-ops-warning">
                           ★ GOLDEN
                         </span>
                       )}
                       {review?.status === "approved" && (
-                        <span className="inline-flex items-center gap-1 rounded bg-emerald-400/15 border border-emerald-400/30 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                        <span className="inline-flex items-center gap-1 rounded bg-ops-success-soft border border-ops-success/30 px-1.5 py-0.5 text-[10px] font-semibold text-ops-success">
                           ✓ Approved
                         </span>
                       )}
@@ -1091,11 +1091,11 @@ function BackupArea({
                     {switchModel ? (
                       <div className="text-xs text-ops-muted">{switchModel}</div>
                     ) : (
-                      <div className="text-[11px] text-slate-500 font-mono">ID: #{swId}</div>
+                      <div className="text-[11px] text-ops-subtle font-mono">ID: #{swId}</div>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-slate-300">{formatDate(pick(bk, "created_at", "createdAt", "taken_at"))}</td>
-                  <td className="py-2 pr-3 text-slate-300 font-mono text-xs">{sizeFormatted}</td>
+                  <td className="py-2 pr-3 text-ops-muted">{formatDate(pick(bk, "created_at", "createdAt", "taken_at"))}</td>
+                  <td className="py-2 pr-3 text-ops-muted font-mono text-xs">{sizeFormatted}</td>
                   <td className="py-2 pr-3 text-right">
                     <div className="inline-flex items-center justify-end gap-1.5">
                       <ActionButton
@@ -1130,7 +1130,7 @@ function BackupArea({
         </table>
       </div>
 
-      <div className="overflow-x-auto border-t border-slate-800 pt-2">
+      <div className="overflow-x-auto border-t border-ops-border pt-2">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-ops-muted">
@@ -1153,7 +1153,7 @@ function BackupArea({
               const credName = sw ? ((sw.credential as { name?: string } | undefined)?.name || pick(sw, "credential_name")) : "";
               const enabled = pick(job, "enabled", "is_enabled") === "true";
               return (
-                <tr key={id} className="border-t border-slate-800">
+                <tr key={id} className="border-t border-ops-border">
                   <td className="py-2 pr-3 font-mono font-medium text-white">#{id}</td>
                   <td className="py-2 pr-3">
                     <div className="font-semibold text-white">{swName}</div>
@@ -1164,9 +1164,9 @@ function BackupArea({
                       </div>
                     )}
                   </td>
-                  <td className="py-2 pr-3 font-mono text-xs text-slate-300">{pick(job, "schedule", "cron") || "-"}</td>
+                  <td className="py-2 pr-3 font-mono text-xs text-ops-muted">{pick(job, "schedule", "cron") || "-"}</td>
                   <td className="py-2 pr-3">
-                    <span className={`inline-flex h-6 items-center rounded-full border px-2 text-[11px] font-medium ${enabled ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-slate-600 bg-slate-800 text-slate-400"}`}>
+                    <span className={`inline-flex h-6 items-center rounded-full border px-2 text-[11px] font-medium ${enabled ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : "border-ops-border-strong bg-ops-surface-raised text-ops-muted"}`}>
                       {enabled ? "aktif" : "nonaktif"}
                     </span>
                   </td>
@@ -1184,7 +1184,7 @@ function BackupArea({
         <form action={schedAction} className="grid gap-3 rounded-lg border border-ops-accent/30 bg-ops-accent/5 p-3 md:grid-cols-3">
           <input type="hidden" name="jobId" value={pick(editingJob, "id", "job_id", "jobId")} />
           <label className={labelClass}>Jadwal (cron)<input name="schedule" defaultValue={pick(editingJob, "schedule", "cron")} required className={inputClass} /></label>
-          <label className="flex items-end gap-2 pb-2 text-sm text-slate-300">
+          <label className="flex items-end gap-2 pb-2 text-sm text-ops-muted">
             <input type="checkbox" name="enabled" defaultChecked={pick(editingJob, "enabled", "is_enabled") === "true"} className="size-4" />
             Aktif
           </label>
@@ -1196,7 +1196,7 @@ function BackupArea({
       )}
 
       {/* FORM PICU BACKUP DENGAN DETAIL SWITCH & KREDENSIAL */}
-      <form action={backupAction} className="flex flex-wrap items-end gap-3 border-t border-slate-800 pt-3">
+      <form action={backupAction} className="flex flex-wrap items-end gap-3 border-t border-ops-border pt-3">
         <label className={`${labelClass} min-w-56 flex-1`}>
           Picu backup on-demand
           <select
@@ -1327,7 +1327,7 @@ function ReviewArea({
         meta={`${baselines.length} baseline · ${reviews.length} review`}
       />
       <ResultBanner state={decideState} />
-      {prepareError && <p className="text-sm text-red-300">{prepareError}</p>}
+      {prepareError && <p className="text-sm text-ops-danger">{prepareError}</p>}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -1360,30 +1360,30 @@ function ReviewArea({
               const lastReviewedAt = pick(bl, "last_reviewed_at", "lastReviewedAt");
 
               return (
-                <tr key={id} className="border-t border-slate-800">
+                <tr key={id} className="border-t border-ops-border">
                   <td className="py-2 pr-3 font-mono font-medium text-white">#{id}</td>
                   <td className="py-2 pr-3">
                     <div className="font-semibold text-white">{targetName}</div>
                     <div className="text-[11px] text-ops-muted">{kind === "model" ? "Template Model" : "Per switch"}</div>
                   </td>
-                  <td className="py-2 pr-3 font-mono text-xs text-slate-300">{model}</td>
-                  <td className="py-2 pr-3 font-mono text-slate-300">#{backupId}</td>
-                  <td className="py-2 pr-3 text-slate-300">{createdAt}</td>
+                  <td className="py-2 pr-3 font-mono text-xs text-ops-muted">{model}</td>
+                  <td className="py-2 pr-3 font-mono text-ops-muted">#{backupId}</td>
+                  <td className="py-2 pr-3 text-ops-muted">{createdAt}</td>
                   <td className="py-2 pr-3">
                     {reviewStatus ? (
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${reviewStatus === "approved" ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : reviewStatus === "flagged" ? "border-red-400/25 bg-red-400/10 text-red-300" : "border-amber-400/25 bg-amber-400/10 text-amber-300"}`}>
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${reviewStatus === "approved" ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : reviewStatus === "flagged" ? "border-ops-danger/25 bg-ops-danger-soft text-ops-danger" : "border-ops-warning/25 bg-ops-warning-soft text-ops-warning"}`}>
                         {reviewStatus.toUpperCase()}
                       </span>
                     ) : (
                       <span className="text-xs text-ops-muted">Aktif</span>
                     )}
                     {reviewer && (
-                      <div className="text-[11px] text-slate-300 mt-0.5">
-                        Oleh: <span className="text-amber-400 font-semibold">{reviewer}</span>
+                      <div className="text-[11px] text-ops-muted mt-0.5">
+                        Oleh: <span className="text-ops-warning font-semibold">{reviewer}</span>
                       </div>
                     )}
                     {lastReviewedAt && (
-                      <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                      <div className="text-[10px] text-ops-muted mt-0.5 font-mono">
                         {formatDate(lastReviewedAt)}
                       </div>
                     )}
@@ -1395,7 +1395,7 @@ function ReviewArea({
                         variant="secondary"
                         onClick={() => handleReviewBaseline(id)}
                         isPending={preparingId === id}
-                        className="border-amber-400/50 bg-amber-400/20 text-amber-300 font-bold hover:bg-amber-400/30 hover:text-amber-200"
+                        className="border-ops-warning/50 bg-ops-warning-soft text-ops-warning font-bold hover:bg-ops-warning-soft hover:text-ops-warning"
                         title="Bandingkan Golden Baseline vs Backup Terakhir di layar Config Review"
                       >
                         <GitCompareArrows className="size-3.5" />
@@ -1436,17 +1436,17 @@ function ReviewArea({
 
       {/* INSPEKSI ISI CONFIG BASELINE */}
       {viewingConfigId && configContent && (
-        <div className="rounded-lg border border-slate-700 bg-slate-950 p-3 mt-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs text-ops-muted">
+        <div className="rounded-lg border border-ops-border bg-ops-surface p-3 mt-3">
+          <div className="flex items-center justify-between pb-2 border-b border-ops-border text-xs text-ops-muted">
             <span className="font-semibold text-white">Isi Konfigurasi Golden Baseline (dari Backup #{viewingConfigId}):</span>
-            <button type="button" onClick={() => setViewingConfigId(null)} className="text-slate-400 hover:text-white">Tutup</button>
+            <button type="button" onClick={() => setViewingConfigId(null)} className="text-ops-muted hover:text-white">Tutup</button>
           </div>
-          <pre className="mt-2 max-h-80 overflow-auto font-mono text-xs text-slate-300 whitespace-pre-wrap">
+          <pre className="mt-2 max-h-80 overflow-auto font-mono text-xs text-ops-muted whitespace-pre-wrap">
             {configContent}
           </pre>
         </div>
       )}
-      {configError && <p className="mt-2 text-sm text-red-300">{configError}</p>}
+      {configError && <p className="mt-2 text-sm text-ops-danger">{configError}</p>}
     </section>
   );
 }
@@ -1460,8 +1460,8 @@ function ConnectionArea({ overview, isSuperadmin }: { overview: NcmOverview & { 
     <section className={`${cardClass} space-y-2`}>
       <SectionHeader icon={<Router className="size-4" />} title="Connection" subtitle="Koneksi per site ke aplikasi NCM" />
       <dl className="grid gap-2 text-sm md:grid-cols-2">
-        <div><dt className="text-xs uppercase text-ops-muted">URL</dt><dd className="font-mono text-xs text-slate-300">{url || "—"}</dd></div>
-        <div><dt className="text-xs uppercase text-ops-muted">Terakhir terlihat</dt><dd className="text-slate-300">{formatLastSeen(lastSeen)}</dd></div>
+        <div><dt className="text-xs uppercase text-ops-muted">URL</dt><dd className="font-mono text-xs text-ops-muted">{url || "—"}</dd></div>
+        <div><dt className="text-xs uppercase text-ops-muted">Terakhir terlihat</dt><dd className="text-ops-muted">{formatLastSeen(lastSeen)}</dd></div>
       </dl>
       <p className="text-xs text-ops-muted">
         {isSuperadmin
@@ -1489,7 +1489,7 @@ export default function NcmDashboard({
 
   if (overview.status === "unconfigured") {
     return (
-      <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-amber-200">
+      <div className="rounded-lg border border-ops-warning/25 bg-ops-warning-soft p-4 text-sm text-ops-warning">
         <p className="font-semibold">NCM belum dikonfigurasi untuk site ini.</p>
         <p className="mt-1">{overview.message}</p>
         {isSuperadmin && (
@@ -1502,11 +1502,11 @@ export default function NcmDashboard({
   if (overview.status === "offline") {
     return (
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-400/25 bg-red-400/10 p-4 text-sm text-red-200">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-ops-danger/25 bg-ops-danger-soft p-4 text-sm text-ops-danger">
           <WifiOff className="size-5 shrink-0" />
           <div>
             <p className="font-semibold">NCM offline — terakhir terlihat {formatLastSeen(overview.lastSeenAt)}</p>
-            <p className="mt-0.5 text-xs text-red-300/80">{overview.error}</p>
+            <p className="mt-0.5 text-xs text-ops-danger/80">{overview.error}</p>
           </div>
           <ActionButton className="ml-auto" size="sm" variant="secondary" onClick={() => router.refresh()}><RefreshCw className="size-3.5" />Coba lagi</ActionButton>
         </div>
@@ -1532,12 +1532,12 @@ export default function NcmDashboard({
   return (
     <div className="space-y-5">
       {/* TOP NAVIGATION TABS */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-ops-border pb-3">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "overview" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+            activeTab === "overview" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
           }`}
         >
           <Activity className="size-4" />
@@ -1548,7 +1548,7 @@ export default function NcmDashboard({
           type="button"
           onClick={() => setActiveTab("switches")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "switches" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+            activeTab === "switches" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
           }`}
         >
           <Server className="size-4" />
@@ -1559,7 +1559,7 @@ export default function NcmDashboard({
           type="button"
           onClick={() => setActiveTab("backups")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "backups" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+            activeTab === "backups" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
           }`}
         >
           <DatabaseBackup className="size-4" />
@@ -1570,14 +1570,14 @@ export default function NcmDashboard({
           type="button"
           onClick={() => setActiveTab("review")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors relative ${
-            activeTab === "review" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+            activeTab === "review" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
           }`}
         >
           <ShieldCheck className="size-4" />
           <span>Config Review (ISO 27001)</span>
           {pendingReviewsCount > 0 && (
             <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-              activeTab === "review" ? "bg-slate-950 text-amber-400" : "bg-amber-500 text-slate-950"
+              activeTab === "review" ? "bg-ops-surface text-ops-warning" : "bg-ops-warning text-ops-text"
             }`}>
               {pendingReviewsCount}
             </span>
@@ -1588,7 +1588,7 @@ export default function NcmDashboard({
           type="button"
           onClick={() => setActiveTab("credentials")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            activeTab === "credentials" ? "bg-ops-accent text-slate-950 shadow-md font-bold" : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+            activeTab === "credentials" ? "bg-ops-accent text-ops-accent-fg shadow-md font-bold" : "text-ops-muted hover:text-ops-text hover:bg-ops-surface-raised/60"
           }`}
         >
           <KeyRound className="size-4" />
@@ -1597,7 +1597,7 @@ export default function NcmDashboard({
 
         <Link
           href="/admin/ncm/history"
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg text-slate-400 transition-colors hover:text-white hover:bg-slate-800/60"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg text-ops-muted transition-colors hover:text-ops-text hover:bg-ops-surface-raised/60"
         >
           <GitCompareArrows className="size-4" />
           <span>Riwayat Perubahan</span>

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { sendEmailTestMessage, sendTelegramTestMessage, updateSettings } from "@/actions/settings";
 import Image from "next/image";
+import { CircleAlert, CircleCheck, Info, Trash2, Upload, LoaderCircle, Send, Mail, Save, TriangleAlert } from "lucide-react";
 
 type SettingsData = {
     id: number;
@@ -221,16 +222,16 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl bg-slate-800/40 p-6 rounded-2xl border border-slate-700/50">
+        <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl bg-ops-surface-raised/40 p-6 rounded-2xl border border-ops-border/50">
             {error && (
-                <div className="p-3 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px]">error</span>
+                <div className="p-3 text-sm text-ops-danger bg-ops-danger-soft border border-ops-danger/20 rounded-lg flex items-center gap-2">
+                    <CircleAlert className="size-[18px]" />
                     {error}
                 </div>
             )}
             {success && (
-                <div className="p-3 text-sm text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded-lg flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                <div className="p-3 text-sm text-ops-success bg-ops-success-soft border border-ops-success/20 rounded-lg flex items-center gap-2">
+                    <CircleCheck className="size-[18px]" />
                     {success}
                 </div>
             )}
@@ -238,7 +239,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
             <div className="space-y-4">
                 {/* App Name */}
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5 shrink-0">
+                    <label className="block text-sm font-medium text-ops-muted mb-1.5 shrink-0">
                         Nama Aplikasi
                     </label>
                     <input
@@ -246,24 +247,24 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         name="appName"
                         required
                         defaultValue={initialData.appName}
-                        className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                         placeholder="e.g DataGuard"
                     />
-                    <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[14px]">info</span>
+                    <p className="text-xs text-ops-subtle mt-1.5 flex items-center gap-1">
+                        <Info className="size-[14px]" />
                         Akan ditampilkan di tab browser dan Navbar utama.
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-700/50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-ops-border/50">
                     {/* Logo Upload */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <label className="block text-sm font-medium text-ops-muted mb-1.5">
                             Logo Navbar
                         </label>
                         <div className="flex flex-col gap-3">
                             {logoPreview ? (
-                                <div className="relative w-full h-24 bg-slate-900 rounded-lg border border-slate-700 flex flex-col items-center justify-center group overflow-hidden">
+                                <div className="relative w-full h-24 bg-ops-surface rounded-lg border border-ops-border flex flex-col items-center justify-center group overflow-hidden">
                                     <div className="relative w-auto h-12 flex items-center justify-center p-2 mb-2">
                                         <Image
                                             src={logoPreview}
@@ -277,18 +278,18 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                                         <button
                                             type="button"
                                             onClick={handleRemoveLogo}
-                                            className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
+                                            className="text-xs text-ops-danger hover:text-ops-danger flex items-center gap-1"
                                         >
-                                            <span className="material-symbols-outlined text-[14px]">delete</span>
+                                            <Trash2 className="size-[14px]" />
                                             Hapus Logo
                                         </button>
                                     </div>
                                 </div>
                             ) : (
-                                <label className="flex flex-col items-center justify-center w-full h-24 bg-slate-900 border border-slate-700 border-dashed rounded-lg cursor-pointer hover:bg-slate-800 transition-colors">
+                                <label className="flex flex-col items-center justify-center w-full h-24 bg-ops-surface border border-ops-border border-dashed rounded-lg cursor-pointer hover:bg-ops-surface-raised transition-colors">
                                     <div className="flex flex-col items-center justify-center pt-3 pb-4">
-                                        <span className="material-symbols-outlined text-slate-400 mb-1">upload</span>
-                                        <p className="text-xs text-slate-400">Pilih logo .png/.svg</p>
+                                        <Upload className="text-ops-muted mb-1" />
+                                        <p className="text-xs text-ops-muted">Pilih logo .png/.svg</p>
                                     </div>
                                     <input
                                         type="file"
@@ -298,7 +299,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                                     />
                                 </label>
                             )}
-                            <p className="text-[11px] text-slate-500 leading-tight">
+                            <p className="text-[11px] text-ops-subtle leading-tight">
                                 Disarankan gambar horizontal transparan (max 500x200px) untuk hasil optimal di Navbar.
                             </p>
                         </div>
@@ -306,12 +307,12 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
 
                     {/* Favicon Upload */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <label className="block text-sm font-medium text-ops-muted mb-1.5">
                             Favicon (Tab Icon)
                         </label>
                         <div className="flex flex-col gap-3">
                             {faviconPreview ? (
-                                <div className="relative w-full h-24 bg-slate-900 rounded-lg border border-slate-700 flex flex-col items-center justify-center group overflow-hidden">
+                                <div className="relative w-full h-24 bg-ops-surface rounded-lg border border-ops-border flex flex-col items-center justify-center group overflow-hidden">
                                     <div className="relative w-10 h-10 flex items-center justify-center p-1 mb-2 bg-white/5 rounded-md">
                                         <Image
                                             src={faviconPreview}
@@ -325,18 +326,18 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                                         <button
                                             type="button"
                                             onClick={handleRemoveFavicon}
-                                            className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
+                                            className="text-xs text-ops-danger hover:text-ops-danger flex items-center gap-1"
                                         >
-                                            <span className="material-symbols-outlined text-[14px]">delete</span>
+                                            <Trash2 className="size-[14px]" />
                                             Hapus Favicon
                                         </button>
                                     </div>
                                 </div>
                             ) : (
-                                <label className="flex flex-col items-center justify-center w-full h-24 bg-slate-900 border border-slate-700 border-dashed rounded-lg cursor-pointer hover:bg-slate-800 transition-colors">
+                                <label className="flex flex-col items-center justify-center w-full h-24 bg-ops-surface border border-ops-border border-dashed rounded-lg cursor-pointer hover:bg-ops-surface-raised transition-colors">
                                     <div className="flex flex-col items-center justify-center pt-3 pb-4">
-                                        <span className="material-symbols-outlined text-slate-400 mb-1">upload</span>
-                                        <p className="text-xs text-slate-400">Pilih ikon .ico/.png</p>
+                                        <Upload className="text-ops-muted mb-1" />
+                                        <p className="text-xs text-ops-muted">Pilih ikon .ico/.png</p>
                                     </div>
                                     <input
                                         type="file"
@@ -346,7 +347,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                                     />
                                 </label>
                             )}
-                            <p className="text-[11px] text-slate-500 leading-tight">
+                            <p className="text-[11px] text-ops-subtle leading-tight">
                                 Disarankan gambar ratio 1:1 format <code>.ico</code> atau <code>.png</code> ukuran 32x32px minimum.
                             </p>
                         </div>
@@ -354,27 +355,25 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                 </div>
             </div>
 
-            <div className="pt-6 border-t border-slate-700/50 space-y-4">
+            <div className="pt-6 border-t border-ops-border/50 space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h2 className="text-sm font-semibold text-white">Telegram Alert</h2>
-                        <p className="mt-1 text-xs text-slate-400">
+                        <p className="mt-1 text-xs text-ops-muted">
                             Template ini dipakai saat perangkat berstatus NOT OK.
                         </p>
                     </div>
                     <span className={`inline-flex h-7 w-fit items-center gap-2 rounded-full border px-3 text-xs font-medium ${initialData.telegramBotConfigured
-                        ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
-                        : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                        ? "border-ops-success/25 bg-ops-success-soft text-ops-success"
+                        : "border-ops-warning/25 bg-ops-warning-soft text-ops-warning"
                         }`}>
-                        <span className="material-symbols-outlined text-[16px]">
-                            {initialData.telegramBotConfigured ? "check_circle" : "warning"}
-                        </span>
+                        {initialData.telegramBotConfigured ? <CircleCheck className="size-4" /> : <TriangleAlert className="size-4" />}
                         {initialData.telegramBotConfigured ? "Bot token aktif" : "Bot token belum aktif"}
                     </span>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    <label className="block text-sm font-medium text-ops-muted mb-1.5">
                         Template Pesan Perangkat
                     </label>
                     <textarea
@@ -383,9 +382,9 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         onChange={(event) => setTelegramTemplate(event.target.value)}
                         rows={13}
                         maxLength={4000}
-                        className="w-full resize-y rounded-lg bg-slate-950 border border-slate-700 px-3 py-3 font-mono text-xs leading-relaxed text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        className="w-full resize-y rounded-lg bg-ops-surface border border-ops-border px-3 py-3 font-mono text-xs leading-relaxed text-ops-text focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                     />
-                    <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-ops-subtle">
                         <span>Markdown Telegram didukung.</span>
                         <span>{telegramTemplate.length}/4000</span>
                     </div>
@@ -397,7 +396,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                             key={token}
                             type="button"
                             onClick={() => setTelegramTemplate((current) => `${current}${current && !current.endsWith("\n") ? " " : ""}{${token}}`)}
-                            className="h-7 rounded-md border border-slate-700 bg-slate-900 px-2.5 font-mono text-[11px] text-slate-300 hover:border-blue-400/60 hover:text-white transition-colors"
+                            className="h-7 rounded-md border border-ops-border bg-ops-surface px-2.5 font-mono text-[11px] text-ops-muted hover:border-ops-info/60 hover:text-white transition-colors"
                         >
                             {`{${token}}`}
                         </button>
@@ -405,7 +404,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    <label className="block text-sm font-medium text-ops-muted mb-1.5">
                         Token Bot Telegram
                     </label>
                     <input
@@ -414,43 +413,43 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         value={telegramBotToken}
                         onChange={(event) => setTelegramBotToken(event.target.value)}
                         autoComplete="off"
-                        className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border font-mono text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                         placeholder={initialData.telegramBotConfigured ? "Token tersimpan; isi hanya untuk mengganti" : "123456789:AA..."}
                     />
-                    <p className="text-xs text-slate-500 mt-1.5">
+                    <p className="text-xs text-ops-subtle mt-1.5">
                         Dipakai untuk mengirim alert Telegram. Kosongkan jika tidak ingin mengganti token tersimpan.
                     </p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
                     <label>
-                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <span className="block text-sm font-medium text-ops-muted mb-1.5">
                             Chat ID Telegram Site Aktif
                         </span>
                         <input
                             type="text"
                             name="activeSiteTelegramChatId"
                             defaultValue={initialData.activeSiteTelegramChatId || ""}
-                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border font-mono text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                             placeholder="-1001234567890"
                         />
-                        <p className="text-xs text-slate-500 mt-1.5">
+                        <p className="text-xs text-ops-subtle mt-1.5">
                             Dipakai untuk alert checklist di {initialData.activeSiteName || "site aktif"}; bukan token bot.
                         </p>
                     </label>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <label className="block text-sm font-medium text-ops-muted mb-1.5">
                             Test Chat ID
                         </label>
                         <input
                             type="text"
                             value={telegramTestChatId}
                             onChange={(event) => setTelegramTestChatId(event.target.value)}
-                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                             placeholder="-1001234567890"
                         />
-                        <p className="text-xs text-slate-500 mt-1.5">
+                        <p className="text-xs text-ops-subtle mt-1.5">
                             Untuk test cepat; otomatis memakai Chat ID site aktif jika tersedia.
                         </p>
                     </div>
@@ -458,16 +457,16 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         type="button"
                         onClick={handleTelegramTest}
                         disabled={isTestingTelegram}
-                        className="h-10 px-4 rounded-lg border border-slate-600 text-sm font-medium text-slate-100 hover:border-blue-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="h-10 px-4 rounded-lg border border-ops-border-strong text-sm font-medium text-ops-text hover:border-ops-info hover:text-white focus:outline-none focus:ring-2 focus:ring-ops-accent focus:ring-offset-2 focus:ring-offset-ops-surface transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {isTestingTelegram ? (
                             <>
-                                <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                                <LoaderCircle className="animate-spin size-[18px]" />
                                 Mengirim...
                             </>
                         ) : (
                             <>
-                                <span className="material-symbols-outlined text-[18px]">send</span>
+                                <Send className="size-[18px]" />
                                 Kirim Test
                             </>
                         )}
@@ -476,32 +475,28 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
 
                 {telegramTestResult && (
                     <div className={`p-3 text-sm rounded-lg border flex items-center gap-2 ${telegramTestResult.type === "success"
-                        ? "text-emerald-300 bg-emerald-400/10 border-emerald-400/20"
-                        : "text-red-300 bg-red-400/10 border-red-400/20"
+                        ? "text-ops-success bg-ops-success-soft border-ops-success/20"
+                        : "text-ops-danger bg-ops-danger-soft border-ops-danger/20"
                         }`}>
-                        <span className="material-symbols-outlined text-[18px]">
-                            {telegramTestResult.type === "success" ? "check_circle" : "error"}
-                        </span>
+                        {telegramTestResult.type === "success" ? <CircleCheck className="size-[18px]" /> : <CircleAlert className="size-[18px]" />}
                         {telegramTestResult.message}
                     </div>
                 )}
             </div>
 
-            <div className="pt-6 border-t border-slate-700/50 space-y-4">
+            <div className="pt-6 border-t border-ops-border/50 space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h2 className="text-sm font-semibold text-white">Email Alert</h2>
-                        <p className="mt-1 text-xs text-slate-400">
+                        <p className="mt-1 text-xs text-ops-muted">
                             Template email PIC saat perangkat berstatus NOT OK — sintaks {"{field}"} sama dengan template Telegram.
                         </p>
                     </div>
                     <span className={`inline-flex h-7 w-fit items-center gap-2 rounded-full border px-3 text-xs font-medium ${initialData.smtpConfigured
-                        ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
-                        : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                        ? "border-ops-success/25 bg-ops-success-soft text-ops-success"
+                        : "border-ops-warning/25 bg-ops-warning-soft text-ops-warning"
                         }`}>
-                        <span className="material-symbols-outlined text-[16px]">
-                            {initialData.smtpConfigured ? "check_circle" : "warning"}
-                        </span>
+                        {initialData.smtpConfigured ? <CircleCheck className="size-4" /> : <TriangleAlert className="size-4" />}
                         {initialData.smtpConfigured ? "SMTP aktif" : "SMTP belum aktif"}
                     </span>
                 </div>
@@ -510,13 +505,13 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                     terenkripsi di DB (AES-256-GCM); env SMTP_URL tetap menang
                     bila diisi (deployment server/headless). */}
                 {initialData.smtpUsingEnv && (
-                    <div className="p-3 text-sm rounded-lg border border-blue-400/25 bg-blue-400/10 text-blue-200">
+                    <div className="p-3 text-sm rounded-lg border border-ops-info/25 bg-ops-info-soft text-ops-info">
                         SMTP saat ini diambil dari SMTP_URL di .env server (menang atas pengaturan di bawah). Kosongkan env tersebut agar pengaturan UI dipakai.
                     </div>
                 )}
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <label className="lg:col-span-2">
-                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <span className="block text-sm font-medium text-ops-muted mb-1.5">
                             Server (Host)
                         </span>
                         <input
@@ -524,12 +519,12 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                             name="smtpHost"
                             defaultValue={initialData.smtpHost ?? ""}
                             autoComplete="off"
-                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                             placeholder="smtp.office365.com"
                         />
                     </label>
                     <label>
-                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <span className="block text-sm font-medium text-ops-muted mb-1.5">
                             Port
                         </span>
                         <input
@@ -538,18 +533,18 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                             min={1}
                             max={65535}
                             defaultValue={initialData.smtpPort ?? ""}
-                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border font-mono text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                             placeholder="587"
                         />
                     </label>
                     <label>
-                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <span className="block text-sm font-medium text-ops-muted mb-1.5">
                             Enkripsi
                         </span>
                         <select
                             name="smtpSecure"
                             defaultValue={initialData.smtpSecure ?? "starttls"}
-                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                         >
                             <option value="starttls">STARTTLS (port 587)</option>
                             <option value="ssl">SSL/TLS (port 465)</option>
@@ -557,7 +552,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         </select>
                     </label>
                     <label>
-                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <span className="block text-sm font-medium text-ops-muted mb-1.5">
                             Username
                         </span>
                         <input
@@ -565,36 +560,36 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                             name="smtpUser"
                             defaultValue={initialData.smtpUser ?? ""}
                             autoComplete="off"
-                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                             placeholder="noreply@perusahaan.co.id"
                         />
                     </label>
                     <label>
-                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <span className="block text-sm font-medium text-ops-muted mb-1.5">
                             Password
                         </span>
                         <input
                             type="password"
                             name="smtpPass"
                             autoComplete="new-password"
-                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border font-mono text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                             placeholder={initialData.smtpPassSet ? "Tersimpan — isi hanya untuk mengganti" : "••••••••"}
                         />
                     </label>
                 </div>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
                     <label>
-                        <span className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <span className="block text-sm font-medium text-ops-muted mb-1.5">
                             Pengirim (From)
                         </span>
                         <input
                             type="text"
                             name="smtpFrom"
                             defaultValue={initialData.smtpFrom ?? ""}
-                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                             placeholder="DataGuard &lt;noreply@perusahaan.co.id&gt;"
                         />
-                        <p className="text-xs text-slate-500 mt-1.5">
+                        <p className="text-xs text-ops-subtle mt-1.5">
                             {initialData.smtpFromEnvOnly
                                 ? "Saat ini dipakai SMTP_FROM dari .env (menang atas nilai di sini bila kosong)."
                                 : "Nama/alamat yang muncul sebagai pengirim email. Kosongkan server (Host) untuk menghapus akun SMTP."}
@@ -603,7 +598,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    <label className="block text-sm font-medium text-ops-muted mb-1.5">
                         Subject Email Alert
                     </label>
                     <input
@@ -612,7 +607,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         value={emailSubject}
                         onChange={(event) => setEmailSubject(event.target.value)}
                         maxLength={500}
-                        className="w-full h-10 px-3 rounded-lg bg-slate-950 border border-slate-700 font-mono text-xs text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border font-mono text-xs text-ops-text focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                         placeholder="[DataGuard] {deviceCount} device(s) NOT OK — {siteName} — {checkDate} {shift}"
                     />
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -621,20 +616,20 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                                 key={token}
                                 type="button"
                                 onClick={() => setEmailSubject((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}{${token}}`)}
-                                className="h-6 rounded border border-slate-700 bg-slate-900 px-2 font-mono text-[10px] text-slate-300 hover:border-blue-400/60 hover:text-white transition-colors"
+                                className="h-6 rounded border border-ops-border bg-ops-surface px-2 font-mono text-[10px] text-ops-muted hover:border-ops-info/60 hover:text-white transition-colors"
                             >
                                 {`{${token}}`}
                             </button>
                         ))}
                     </div>
-                    <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                    <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-ops-subtle">
                         <span>Subject pesan email per PIC group sesuai temuan audit. Variabel dinamis didukung.</span>
                         <span>{emailSubject.length}/500</span>
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    <label className="block text-sm font-medium text-ops-muted mb-1.5">
                         Template Email Perangkat (HTML)
                     </label>
                     <textarea
@@ -643,9 +638,9 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         onChange={(event) => setEmailTemplate(event.target.value)}
                         rows={13}
                         maxLength={50000}
-                        className="w-full resize-y rounded-lg bg-slate-950 border border-slate-700 px-3 py-3 font-mono text-xs leading-relaxed text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        className="w-full resize-y rounded-lg bg-ops-surface border border-ops-border px-3 py-3 font-mono text-xs leading-relaxed text-ops-text focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                     />
-                    <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-ops-subtle">
                         <span>Format HTML penuh didukung; nilai variabel otomatis di-escape untuk keamanan.</span>
                         <span>{emailTemplate.length}/50000</span>
                     </div>
@@ -657,7 +652,7 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                             key={token}
                             type="button"
                             onClick={() => setEmailTemplate((current) => `${current}${current && !current.endsWith("\n") ? " " : ""}{${token}}`)}
-                            className="h-7 rounded-md border border-slate-700 bg-slate-900 px-2.5 font-mono text-[11px] text-slate-300 hover:border-blue-400/60 hover:text-white transition-colors"
+                            className="h-7 rounded-md border border-ops-border bg-ops-surface px-2.5 font-mono text-[11px] text-ops-muted hover:border-ops-info/60 hover:text-white transition-colors"
                         >
                             {`{${token}}`}
                         </button>
@@ -666,17 +661,17 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        <label className="block text-sm font-medium text-ops-muted mb-1.5">
                             Alamat Email Test
                         </label>
                         <input
                             type="email"
                             value={emailTestAddress}
                             onChange={(event) => setEmailTestAddress(event.target.value)}
-                            className="w-full h-10 px-3 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                            className="w-full h-10 px-3 rounded-lg bg-ops-surface border border-ops-border text-sm text-white focus:outline-none focus:border-ops-info focus:ring-1 focus:ring-ops-accent transition-colors"
                             placeholder="pic@perusahaan.co.id"
                         />
-                        <p className="text-xs text-slate-500 mt-1.5">
+                        <p className="text-xs text-ops-subtle mt-1.5">
                             Mengirim template dengan data sample device site aktif ke alamat ini.
                         </p>
                     </div>
@@ -684,16 +679,16 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
                         type="button"
                         onClick={handleEmailTest}
                         disabled={isTestingEmail}
-                        className="h-10 px-4 rounded-lg border border-slate-600 text-sm font-medium text-slate-100 hover:border-blue-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="h-10 px-4 rounded-lg border border-ops-border-strong text-sm font-medium text-ops-text hover:border-ops-info hover:text-white focus:outline-none focus:ring-2 focus:ring-ops-accent focus:ring-offset-2 focus:ring-offset-ops-surface transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {isTestingEmail ? (
                             <>
-                                <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                                <LoaderCircle className="animate-spin size-[18px]" />
                                 Mengirim...
                             </>
                         ) : (
                             <>
-                                <span className="material-symbols-outlined text-[18px]">mail</span>
+                                <Mail className="size-[18px]" />
                                 Kirim Test Email
                             </>
                         )}
@@ -702,31 +697,29 @@ export default function SettingsForm({ initialData }: { initialData: SettingsDat
 
                 {emailTestResult && (
                     <div className={`p-3 text-sm rounded-lg border flex items-center gap-2 ${emailTestResult.type === "success"
-                        ? "text-emerald-300 bg-emerald-400/10 border-emerald-400/20"
-                        : "text-red-300 bg-red-400/10 border-red-400/20"
+                        ? "text-ops-success bg-ops-success-soft border-ops-success/20"
+                        : "text-ops-danger bg-ops-danger-soft border-ops-danger/20"
                         }`}>
-                        <span className="material-symbols-outlined text-[18px]">
-                            {emailTestResult.type === "success" ? "check_circle" : "error"}
-                        </span>
+                        {emailTestResult.type === "success" ? <CircleCheck className="size-[18px]" /> : <CircleAlert className="size-[18px]" />}
                         {emailTestResult.message}
                     </div>
                 )}
             </div>
 
-            <div className="pt-4 border-t border-slate-700/50 flex justify-end">
+            <div className="pt-4 border-t border-ops-border/50 flex justify-end">
                 <button
                     type="submit"
                     disabled={isPending}
-                    className="h-10 px-5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="h-10 px-5 rounded-lg bg-ops-accent text-ops-accent-fg text-sm font-medium hover:bg-ops-accent-hover focus:outline-none focus:ring-2 focus:ring-ops-accent focus:ring-offset-2 focus:ring-offset-ops-surface transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                     {isPending ? (
                         <>
-                            <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                            <LoaderCircle className="animate-spin size-[18px]" />
                             Menyimpan...
                         </>
                     ) : (
                         <>
-                            <span className="material-symbols-outlined text-[18px]">save</span>
+                            <Save className="size-[18px]" />
                             Simpan Pengaturan
                         </>
                     )}

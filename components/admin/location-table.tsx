@@ -65,7 +65,7 @@ export default function LocationTable({ locations, canEditLayout = false }: { lo
   };
 
   const renderSortIcon = (column: SortKey) => {
-    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-slate-600" />;
+    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-ops-muted" />;
     return sortDir === "asc" ? <ArrowUp className="size-3.5 text-ops-accent" /> : <ArrowDown className="size-3.5 text-ops-accent" />;
   };
 
@@ -91,7 +91,7 @@ export default function LocationTable({ locations, canEditLayout = false }: { lo
   return (
     <div className="space-y-3">
       {errorMsg && (
-        <div className="flex items-center gap-2 rounded-md border border-red-400/25 bg-red-400/10 p-3 text-sm text-red-200">
+        <div className="flex items-center gap-2 rounded-md border border-ops-danger/25 bg-ops-danger-soft p-3 text-sm text-ops-danger">
           <AlertCircle className="size-4" /> {errorMsg}
         </div>
       )}
@@ -133,7 +133,7 @@ export default function LocationTable({ locations, canEditLayout = false }: { lo
                   <td className="px-5 py-3 font-mono text-ops-text">
                     {location.tempThresholdC != null ? `${location.tempThresholdC}°C` : "-"}
                     {location.excludeTempCheck && (
-                      <span className="ml-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                      <span className="ml-2 rounded-full border border-ops-warning/30 bg-ops-warning-soft px-2 py-0.5 text-[10px] font-semibold text-ops-warning">
                         Audit suhu off
                       </span>
                     )}
@@ -143,7 +143,7 @@ export default function LocationTable({ locations, canEditLayout = false }: { lo
                     <div className="inline-flex items-center gap-1">
                       {canEditLayout && <ActionButton type="button" variant="secondary" size="sm" onClick={() => setLayoutRoomId(location.id)}>Atur Layout</ActionButton>}
                       <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingLocation(location)} title="Edit">
-                        <Edit2 className="size-4 text-blue-300" />
+                        <Edit2 className="size-4 text-ops-info" />
                       </ActionButton>
                       <ActionButton
                         type="button"

@@ -31,8 +31,8 @@ export default function IncidentUpdateForm({ incidentId }: { incidentId: number 
         description="Attach progress notes and evidence."
         footer={
           <div className="space-y-3">
-            {state?.message && <p className={state.success ? "text-sm text-emerald-300" : "text-sm text-red-300"}>{state.message}</p>}
-            {state?.success && <p className="text-sm text-emerald-300">Update added.</p>}
+            {state?.message && <p className={state.success ? "text-sm text-ops-success" : "text-sm text-ops-danger"}>{state.message}</p>}
+            {state?.success && <p className="text-sm text-ops-success">Update added.</p>}
             <ActionButton type="submit" isPending={pending} className="w-full">
               Add Update
             </ActionButton>
@@ -50,7 +50,7 @@ export default function IncidentUpdateForm({ incidentId }: { incidentId: number 
               name="photo"
               type="file"
               accept="image/*"
-              className="block w-full text-sm text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-ops-text"
+              className="block w-full text-sm text-ops-muted file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-ops-text"
             />
           </div>
         </div>

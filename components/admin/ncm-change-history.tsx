@@ -431,7 +431,7 @@ function ComparePanel({ baselineId, latestId }: { baselineId: number | null; lat
                 onClick={() => setMode(view.id)}
                 className={
                   "rounded px-2.5 py-0.5 font-mono transition-colors " +
-                  (active ? "bg-ops-accent text-ops-text font-bold" : "text-ops-muted hover:text-ops-text") +
+                  (active ? "bg-ops-accent text-ops-accent-fg font-bold" : "text-ops-muted hover:text-ops-text") +
                   (disabled ? " cursor-not-allowed opacity-40" : "")
                 }
               >

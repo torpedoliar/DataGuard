@@ -107,7 +107,7 @@ function buildPageHref(searchParams: URLSearchParams, page: number) {
 function SafeRawLogBlock({ value, indicators }: { value: string; indicators: InjectionIndicator[] }) {
   return (
     <div className="space-y-2">
-      <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-all rounded-md border border-ops-border bg-slate-950/70 p-3 font-mono text-xs leading-relaxed text-slate-100">
+      <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-all rounded-md border border-ops-border bg-ops-surface/70 p-3 font-mono text-xs leading-relaxed text-ops-text">
         {value}
       </pre>
       <div className="flex flex-wrap gap-2">
@@ -287,7 +287,7 @@ export default function SiemEventExplorer({ data }: { data: ExplorerData }) {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge tone={statusTone(event.ingestStatus)} dot>{event.ingestStatus}</StatusBadge>
-                    {event.parseError && <div className="mt-2 max-w-xs text-xs text-red-200">{event.parseError}</div>}
+                    {event.parseError && <div className="mt-2 max-w-xs text-xs text-ops-danger">{event.parseError}</div>}
                   </td>
                   <td className="min-w-[420px] px-4 py-3">
                     <SafeRawLogBlock value={event.rawMessage} indicators={event.injectionIndicators} />

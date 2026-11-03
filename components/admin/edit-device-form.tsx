@@ -157,13 +157,13 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
                   {state?.errors && (
-                    <div className="text-sm text-red-300">
+                    <div className="text-sm text-ops-danger">
                       {Object.values(state.errors as Record<string, string[]>).flat().map((error, index) => (
                         <p key={index}>{error}</p>
                       ))}
                     </div>
                   )}
-                  {state?.message && !state.success && <p className="text-sm text-red-300">{state.message}</p>}
+                  {state?.message && !state.success && <p className="text-sm text-ops-danger">{state.message}</p>}
                 </div>
                 <div className="flex gap-2">
                   <ActionButton type="button" variant="secondary" onClick={onClose}>
@@ -339,7 +339,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
                     <img src={device.photoPath} alt="Current device photo" className="h-24 w-full min-w-0 max-w-full rounded object-contain sm:w-48" />
                     <div className="flex flex-col gap-1">
                       <p className="text-sm font-semibold text-ops-text">Current Photo</p>
-                      <label className="mt-1 flex cursor-pointer items-center gap-2 text-sm text-red-300">
+                      <label className="mt-1 flex cursor-pointer items-center gap-2 text-sm text-ops-danger">
                         <input type="checkbox" name="deletePhoto" className="rounded border-ops-border bg-ops-bg" />
                         Remove this photo
                       </label>
@@ -383,7 +383,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
                   type="checkbox"
                   name="excludeChecklist"
                   defaultChecked={device.excludeChecklist}
-                  className="size-4 accent-[#5eead4]"
+                  className="size-4 accent-ops-accent"
                 />
                 <span className="text-sm font-medium text-ops-text">
                   Exclude dari checklist audit
@@ -393,7 +393,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
                 </span>
               </label>
 
-              <label className="flex cursor-pointer items-center gap-3 rounded-md border border-amber-400/30 bg-amber-400/5 px-3 py-2.5 md:col-span-2">
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border border-ops-warning/30 bg-ops-warning-soft px-3 py-2.5 md:col-span-2">
                 <input
                   type="checkbox"
                   name="isCritical"

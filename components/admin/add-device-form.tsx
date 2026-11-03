@@ -126,12 +126,12 @@ export default function AddDeviceForm({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1">
               {state?.errors && (
-                <div className="text-sm text-red-300">
+                <div className="text-sm text-ops-danger">
                   {Object.values(state.errors as Record<string, string[]>).flat().map((error, index) => <p key={index}>{error}</p>)}
                 </div>
               )}
               {state?.message && (
-                <p className={clsx("text-sm", state.success ? "text-emerald-300" : "text-red-300")}>{state.message}</p>
+                <p className={clsx("text-sm", state.success ? "text-ops-success" : "text-ops-danger")}>{state.message}</p>
               )}
             </div>
             <ActionButton type="submit" isPending={isPending} icon={<Plus className="size-4" />}>
@@ -306,7 +306,7 @@ export default function AddDeviceForm({
             />
           </label>
 
-          <label className="flex cursor-pointer items-center gap-3 rounded-md border border-amber-400/30 bg-amber-400/5 px-3 py-2.5 md:col-span-2">
+          <label className="flex cursor-pointer items-center gap-3 rounded-md border border-ops-warning/30 bg-ops-warning-soft px-3 py-2.5 md:col-span-2">
             <input type="checkbox" name="isCritical" className="size-4 accent-amber-400" />
             <span className="text-sm font-medium text-ops-text">
               Perangkat kritikal (SIEM)
