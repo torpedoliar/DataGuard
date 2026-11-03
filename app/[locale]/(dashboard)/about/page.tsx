@@ -27,31 +27,9 @@ export default async function AboutPage() {
             {/* Hero */}
             <div className="flex flex-col items-center text-center">
 
-                {/* ASCII Art Logo */}
-                <div className="mb-8 overflow-x-auto">
-                    <pre className="inline-block text-left font-mono text-[10px] sm:text-xs leading-tight text-ops-info drop-shadow-[0_0_8px_rgba(96,165,250,0.7)] select-none whitespace-pre">{`   _____ ____  ____  _______  __
-  / ___// __ \\/ __ \\/ ____/ |/ /
- / /   / / / / / / / __/  |   / 
-/ /___/ /_/ / /_/ / /___ /   |  
-\\____/\\____/_____/_____//_/|_|  
-
-    ____  ____                    __         
-   / __ \\/ __ \\___  __________ _/ /_(_)___  ____  ____ _/ /
-  / / / / /_/ / _ \\/ ___/ __ \`/ __/ / __ \\/ __ \\/ __ \`/ / 
- / /_/ / ____/  __/ /  / /_/ / /_/ / /_/ / / / / /_/ / /  
- \\____/_/    \\___/_/   \\__,_/\\__/_/\\____/_/ /_/\\__,_/_/   `}</pre>
-                    <p className="mt-3 font-mono text-xs sm:text-sm tracking-[0.25em] text-ops-muted">
-                        <span className="text-ops-info font-bold">[C]</span>ontrol{" "}
-                        <span className="text-ops-info font-bold">[O]</span>ptimize{" "}
-                        <span className="text-ops-info font-bold">[D]</span>eploy{" "}
-                        <span className="text-ops-info font-bold">[E]</span>xecute{" "}
-                        <span className="text-ops-info font-bold">[X]</span>system
-                    </p>
-                </div>
-
                 <div className="inline-flex items-center justify-center mb-6">
                     {appSettings.logoPath ? (
-                        <img src={appSettings.logoPath} alt="Logo" className="h-20 w-auto object-contain" />
+                        <img src={appSettings.logoPath} alt="Logo" className="h-12 w-auto object-contain" />
                     ) : (
                         <div className="flex size-14 items-center justify-center rounded-xl border border-ops-border bg-ops-surface-raised text-ops-info">
                             <Shield className="size-7" />
@@ -60,8 +38,11 @@ export default async function AboutPage() {
                 </div>
                 <h1 className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-ops-text">About {appSettings.appName}</h1>
                 <p className="mt-1 text-sm text-ops-muted">Data center monitoring &amp; audit system</p>
+                <p className="mt-3 font-mono text-[11px] tracking-[0.16em] text-ops-subtle">
+                    [C]ontrol · [O]ptimize · [D]eploy · [E]xecute · [X]system
+                </p>
                 <div className="mt-4 inline-flex items-center gap-2 rounded-sm border border-ops-border bg-ops-surface px-2.5 py-1 text-[13px] text-ops-muted">
-                    <Star className="h-3.5 w-3.5" />
+                    <Star className="size-3.5 text-ops-warning" aria-hidden />
                     Version {versionData.version} — Released {versionData.releaseDate}
                 </div>
             </div>

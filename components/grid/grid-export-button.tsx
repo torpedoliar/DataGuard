@@ -83,7 +83,7 @@ export default function GridExportButton() {
                 disabled={isExportingPDF || isExportingExcel}
                 isPending={isExportingPDF}
                 icon={<FileText className="size-4" />}
-                variant="danger"
+                variant="secondary"
                 title="Download an executive printable colored PDF report"
             >
                 PDF

@@ -174,7 +174,7 @@ export default function ExportButton() {
                 disabled={isExportingPDF || isExportingExcel}
                 isPending={isExportingPDF}
                 icon={<FileText className="size-4" />}
-                variant="danger"
+                variant="secondary"
                 title="Download as PDF Report"
             >
                 Export PDF
