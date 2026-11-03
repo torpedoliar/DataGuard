@@ -65,8 +65,8 @@ export default function LocationTable({ locations, canEditLayout = false }: { lo
   };
 
   const renderSortIcon = (column: SortKey) => {
-    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-ops-muted" />;
-    return sortDir === "asc" ? <ArrowUp className="size-3.5 text-ops-accent" /> : <ArrowDown className="size-3.5 text-ops-accent" />;
+    if (sortKey !== column) return <ArrowUpDown aria-hidden="true" className="size-3.5 text-ops-muted" />;
+    return sortDir === "asc" ? <ArrowUp aria-hidden="true" className="size-3.5 text-ops-accent" /> : <ArrowDown aria-hidden="true" className="size-3.5 text-ops-accent" />;
   };
 
   const filtered = useMemo(() => {
@@ -91,23 +91,23 @@ export default function LocationTable({ locations, canEditLayout = false }: { lo
   return (
     <div className="space-y-3">
       {errorMsg && (
-        <div className="flex items-center gap-2 rounded-md border border-ops-danger/25 bg-ops-danger-soft p-3 text-sm text-ops-danger">
-          <AlertCircle className="size-4" /> {errorMsg}
+        <div className="flex items-center gap-2 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger" role="alert">
+          <AlertCircle aria-hidden="true" className="size-4" /> {errorMsg}
         </div>
       )}
 
       <DataToolbar>
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:w-72">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search locations..." className={`${fieldClass} w-full pl-9 pr-8`} />
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search locations..." aria-label="Search locations" className={`${fieldClass} w-full pl-9 pr-8`} />
             {search && (
-              <button type="button" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text" title="Clear search">
-                <X className="size-3.5" />
+              <button type="button" onClick={() => setSearch("")} aria-label="Clear search" title="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted transition-colors hover:text-ops-text">
+                <X aria-hidden="true" className="size-3.5" />
               </button>
             )}
           </div>
-          <span className="text-xs font-medium text-ops-muted">{filtered.length} of {locations.length} Locations</span>
+          <span className="text-xs font-medium tabular-nums text-ops-muted">{filtered.length} of {locations.length} locations</span>
         </div>
       </DataToolbar>
 
@@ -127,23 +127,23 @@ export default function LocationTable({ locations, canEditLayout = false }: { lo
               <DataTableEmpty colSpan={5} title={search ? "No locations match your search" : "No locations found"} description="Add one location to start mapping devices to rooms." />
             ) : (
               filtered.map((location) => (
-                <tr key={location.id} className="transition-colors hover:bg-ops-surface">
+                <tr key={location.id}>
                   <td className="px-5 py-3 font-semibold text-ops-text">{location.name}</td>
                   <td className="px-5 py-3 text-ops-muted">{location.description || "-"}</td>
-                  <td className="px-5 py-3 font-mono text-ops-text">
+                  <td className="whitespace-nowrap px-5 py-3 font-mono tabular-nums text-ops-text">
                     {location.tempThresholdC != null ? `${location.tempThresholdC}°C` : "-"}
                     {location.excludeTempCheck && (
-                      <span className="ml-2 rounded-full border border-ops-warning/30 bg-ops-warning-soft px-2 py-0.5 text-[10px] font-semibold text-ops-warning">
+                      <span className="ml-2 rounded-full border border-ops-warning/25 bg-ops-warning-soft px-2 py-0.5 text-[11px] font-medium text-ops-warning">
                         Audit suhu off
                       </span>
                     )}
                   </td>
-                  <td className="px-5 py-3 text-ops-muted">{location.createdAt ? new Date(location.createdAt).toLocaleDateString("id-ID") : "-"}</td>
+                  <td className="whitespace-nowrap px-5 py-3 tabular-nums text-ops-muted">{location.createdAt ? new Date(location.createdAt).toLocaleDateString("id-ID") : "-"}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
                       {canEditLayout && <ActionButton type="button" variant="secondary" size="sm" onClick={() => setLayoutRoomId(location.id)}>Atur Layout</ActionButton>}
-                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingLocation(location)} title="Edit">
-                        <Edit2 className="size-4 text-ops-info" />
+                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingLocation(location)} aria-label="Edit" title="Edit">
+                        <Edit2 aria-hidden="true" className="size-4 text-ops-info" />
                       </ActionButton>
                       <ActionButton
                         type="button"
@@ -151,9 +151,10 @@ export default function LocationTable({ locations, canEditLayout = false }: { lo
                         size="icon"
                         onClick={() => handleDelete(location.id)}
                         disabled={isPending && deletingId === location.id}
+                        aria-label="Delete"
                         title="Delete"
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 aria-hidden="true" className="size-4" />
                       </ActionButton>
                     </div>
                   </td>
@@ -173,7 +174,7 @@ export default function LocationTable({ locations, canEditLayout = false }: { lo
 function SortableHead({ label, onClick, icon }: { label: string; onClick: () => void; icon: ReactNode }) {
   return (
     <th className="px-5 py-3 text-left">
-      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5">
+      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5 transition-colors hover:text-ops-text">
         {label}
         {icon}
       </button>

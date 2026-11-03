@@ -1,9 +1,10 @@
 "use client";
 
 import { updateUser } from "@/actions/users";
+import ActionButton from "@/components/ui/action-button";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
 
 type Site = { id: number; name: string; code: string };
 
@@ -22,6 +23,9 @@ interface EditUserFormProps {
     onClose: () => void;
 }
 
+const labelClass = "mb-1.5 block text-[13px] font-medium text-ops-muted";
+const fieldClass = "ops-input h-9 w-full px-3 text-sm";
+
 export default function EditUserForm({ user, sites, onClose }: EditUserFormProps) {
     const router = useRouter();
     const [state, action, isPending] = useActionState(updateUser, undefined);
@@ -38,54 +42,54 @@ export default function EditUserForm({ user, sites, onClose }: EditUserFormProps
     }, [state?.success, onClose, router]);
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-ops-surface rounded-lg shadow-xl max-w-md w-full p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-ops-text">Edit User</h3>
-                    <button
-                        onClick={onClose}
-                        className="text-ops-muted hover:text-ops-muted dark:hover:text-ops-muted"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
+            <div className="w-full max-w-md overflow-hidden rounded-xl border border-ops-border bg-ops-surface shadow-[var(--shadow-overlay)] animate-scale-in">
+                <div className="flex items-center justify-between border-b border-ops-border px-5 py-4">
+                    <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Edit User</h3>
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
+                        <X aria-hidden="true" className="size-4" />
+                    </ActionButton>
                 </div>
 
-                <form action={action}>
+                <form action={action} className="p-5">
                     <input type="hidden" name="id" value={user.id} />
 
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">
+                            <label htmlFor="edit-user-username" className={labelClass}>
                                 Username
                             </label>
                             <input
+                                id="edit-user-username"
                                 name="username"
                                 defaultValue={user.username}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                className={fieldClass}
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">
+                            <label htmlFor="edit-user-email" className={labelClass}>
                                 Email
                             </label>
                             <input
+                                id="edit-user-email"
                                 name="email"
                                 type="email"
                                 defaultValue={user.email || ""}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                className={fieldClass}
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">
+                            <label htmlFor="edit-user-role" className={labelClass}>
                                 Role
                             </label>
                             <select
+                                id="edit-user-role"
                                 name="role"
                                 value={role}
                                 onChange={(e) => setRole(e.target.value as User["role"])}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                className={fieldClass}
                             >
                                 <option value="staff">Staff</option>
                                 <option value="admin">Admin</option>
@@ -94,19 +98,19 @@ export default function EditUserForm({ user, sites, onClose }: EditUserFormProps
                         </div>
 
                         {role !== "superadmin" && (
-                            <div className="border border-ops-border rounded-md p-4 bg-ops-surface/50">
-                                <label className="block text-sm font-medium text-ops-muted mb-3">
+                            <div className="rounded-md border border-ops-border bg-ops-surface-raised/40 p-4">
+                                <p className="mb-3 text-[13px] font-medium text-ops-muted">
                                     Data Center Access (Sites)
-                                </label>
-                                <div className="grid gap-3 grid-cols-2">
+                                </p>
+                                <div className="grid grid-cols-2 gap-3">
                                     {sites.map((site) => (
-                                        <label key={site.id} className="flex items-start gap-2 cursor-pointer">
+                                        <label key={site.id} className="flex cursor-pointer items-start gap-2">
                                             <input
                                                 type="checkbox"
                                                 name="siteIds"
                                                 value={site.id}
                                                 defaultChecked={assignedSiteIds.has(site.id)}
-                                                className="mt-1 shrink-0 rounded border-ops-border-strong text-ops-info focus:ring-ops-accent"
+                                                className="mt-0.5 shrink-0 rounded border-ops-border-strong text-ops-info focus:ring-ops-accent"
                                             />
                                             <span className="text-sm text-ops-muted">
                                                 {site.code}
@@ -115,7 +119,7 @@ export default function EditUserForm({ user, sites, onClose }: EditUserFormProps
                                     ))}
                                 </div>
                                 {sites.length === 0 && (
-                                    <p className="text-sm text-ops-subtle italic">No sites available.</p>
+                                    <p className="text-sm italic text-ops-subtle">No sites available.</p>
                                 )}
                             </div>
                         )}
@@ -126,7 +130,7 @@ export default function EditUserForm({ user, sites, onClose }: EditUserFormProps
                                 name="isActive"
                                 id="isActive"
                                 defaultChecked={user.isActive ?? true}
-                                className="h-4 w-4 text-ops-info focus:ring-ops-accent border-ops-border-strong rounded"
+                                className="size-4 rounded border-ops-border-strong text-ops-info focus:ring-ops-accent"
                             />
                             <label htmlFor="isActive" className="text-sm font-medium text-ops-muted">
                                 Active User
@@ -135,32 +139,32 @@ export default function EditUserForm({ user, sites, onClose }: EditUserFormProps
                     </div>
 
                     {state && typeof state === 'object' && 'errors' in state && (state as { errors?: Record<string, string[]> }).errors && (
-                        <div className="mt-3 text-ops-danger text-sm">
+                        <div className="mt-3 text-sm text-ops-danger">
                             {Object.values((state as { errors: Record<string, string[]> }).errors).flat().map((e, i) => (
                                 <p key={i}>{e}</p>
                             ))}
                         </div>
                     )}
                     {state?.message && !state?.success && (
-                        <div className="mt-3 text-ops-danger text-sm">{state.message}</div>
+                        <div className="mt-3 text-sm text-ops-danger">{state.message}</div>
                     )}
 
-                    <div className="flex gap-3 mt-6">
-                        <button
+                    <div className="mt-6 flex gap-2">
+                        <ActionButton
                             type="button"
+                            variant="secondary"
                             onClick={onClose}
-                            className="flex-1 px-4 py-2 border border-ops-border-strong rounded-md text-ops-muted hover:bg-ops-surface dark:hover:bg-ops-surface-raised"
+                            className="flex-1"
                         >
                             Cancel
-                        </button>
-                        <button
+                        </ActionButton>
+                        <ActionButton
                             type="submit"
-                            disabled={isPending}
-                            className="flex-1 bg-ops-accent text-ops-accent-fg px-4 py-2 rounded-md hover:bg-ops-accent-hover flex items-center justify-center gap-2 disabled:opacity-50"
+                            isPending={isPending}
+                            className="flex-1"
                         >
-                            {isPending && <Loader2 className="animate-spin h-4 w-4" />}
                             Save Changes
-                        </button>
+                        </ActionButton>
                     </div>
                 </form>
             </div>

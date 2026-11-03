@@ -1,9 +1,10 @@
 import { getSiemEventExplorerData, type SiemEventFilters } from "@/actions/siem-events";
 import SiemEventExplorer from "@/components/admin/siem-event-explorer";
+import ActionButton from "@/components/ui/action-button";
 import EmptyState from "@/components/ui/empty-state";
+import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
-import { FileSearch, SearchX, ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { SearchX, ArrowLeft } from "lucide-react";
 import { redirect } from "next/navigation";
 
 function firstParam(value: string | string[] | undefined) {
@@ -42,30 +43,21 @@ export default async function SiemEventsPage({
   const data = await getSiemEventExplorerData(parseFilters(params));
 
   return (
-    <div className="mx-auto max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-ops-success-soft text-ops-success">
-            <FileSearch className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-ops-text">SIEM Event Explorer</h1>
-            <p className="text-sm text-ops-muted">Search parsed syslog events, inspect raw ingest, and flag injection-like payloads safely.</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/admin/siem/sources" className="rounded-md border border-ops-border px-3 py-2 text-sm font-medium text-ops-muted hover:bg-ops-surface-raised">
-            Sources
-          </Link>
-          <Link href="/admin" className="flex items-center gap-1 text-sm font-medium text-ops-info hover:text-ops-info">
-            <ArrowLeft className="size-[18px]" />
-            Back to Admin
-          </Link>
-        </div>
-      </div>
+    <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+      <PageHeader
+        eyebrow="Admin / SIEM"
+        title="SIEM event explorer"
+        description="Search parsed syslog events, inspect raw ingest, and flag injection-like payloads safely."
+        actions={
+          <>
+            <ActionButton href="/admin/siem/sources" variant="secondary">Sources</ActionButton>
+            <ActionButton href="/admin" variant="ghost" icon={<ArrowLeft className="size-4" />}>Back to Admin</ActionButton>
+          </>
+        }
+      />
 
       {"message" in data && data.message ? (
-        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{data.message}</div>
       ) : data.events.length === 0 && data.rawEvents.length === 0 ? (
         <EmptyState
           icon={<SearchX className="size-5" />}
@@ -75,6 +67,6 @@ export default async function SiemEventsPage({
       ) : (
         <SiemEventExplorer data={data} />
       )}
-    </div>
+    </main>
   );
 }

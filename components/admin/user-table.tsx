@@ -82,8 +82,8 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
   };
 
   const renderSortIcon = (column: SortKey) => {
-    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-ops-muted" />;
-    return sortDir === "asc" ? <ArrowUp className="size-3.5 text-ops-accent" /> : <ArrowDown className="size-3.5 text-ops-accent" />;
+    if (sortKey !== column) return <ArrowUpDown aria-hidden="true" className="size-3.5 text-ops-muted" />;
+    return sortDir === "asc" ? <ArrowUp aria-hidden="true" className="size-3.5 text-ops-accent" /> : <ArrowDown aria-hidden="true" className="size-3.5 text-ops-accent" />;
   };
 
   const filtered = useMemo(() => {
@@ -117,32 +117,32 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
         <div className="flex w-full flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex w-full flex-wrap items-center gap-3 xl:w-auto">
             <div className="relative w-full sm:w-64">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users..." className={`${fieldClass} w-full pl-9 pr-8`} />
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users..." aria-label="Search users" className={`${fieldClass} w-full pl-9 pr-8`} />
               {search && (
-                <button type="button" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text" title="Clear search">
-                  <X className="size-3.5" />
+                <button type="button" onClick={() => setSearch("")} aria-label="Clear search" title="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted transition-colors hover:text-ops-text">
+                  <X aria-hidden="true" className="size-3.5" />
                 </button>
               )}
             </div>
-            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className={`${fieldClass} min-w-36`}>
+            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} aria-label="Filter role" className={`${fieldClass} min-w-36`}>
               <option value="All">All Roles</option>
               <option value="superadmin">Superadmin</option>
               <option value="admin">Admin</option>
               <option value="staff">Staff</option>
             </select>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={`${fieldClass} min-w-32`}>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter status" className={`${fieldClass} min-w-32`}>
               <option value="All">All Status</option>
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
             </select>
             {hasFilters && (
-              <ActionButton type="button" variant="ghost" size="sm" onClick={() => { setSearch(""); setRoleFilter("All"); setStatusFilter("All"); }} icon={<X className="size-3.5" />}>
+              <ActionButton type="button" variant="ghost" size="sm" onClick={() => { setSearch(""); setRoleFilter("All"); setStatusFilter("All"); }} icon={<X aria-hidden="true" className="size-3.5" />}>
                 Clear
               </ActionButton>
             )}
           </div>
-          <span className="shrink-0 text-xs font-medium text-ops-muted">{filtered.length} of {users.length} Users</span>
+          <span className="shrink-0 text-xs font-medium tabular-nums text-ops-muted">{filtered.length} of {users.length} users</span>
         </div>
       </DataToolbar>
 
@@ -163,19 +163,19 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
               <DataTableEmpty colSpan={6} title={hasFilters ? "No users match your filters" : "No users found"} description="Add or adjust users from this admin area." />
             ) : (
               filtered.map((user) => (
-                <tr key={user.id} className={`transition-colors hover:bg-ops-surface ${user.id === currentUserId ? "bg-ops-accent/[0.045]" : ""}`}>
+                <tr key={user.id} className={user.id === currentUserId ? "bg-ops-accent/[0.045]" : undefined}>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ops-accent text-xs font-bold text-ops-accent-fg">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ops-accent text-xs font-semibold text-ops-accent-fg">
                         {user.username.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
                         <div className="font-semibold text-ops-text">
                           {user.username}
-                          {user.id === currentUserId && <span className="ml-1.5 text-[10px] text-ops-accent">(You)</span>}
+                          {user.id === currentUserId && <span className="ml-1.5 text-[11px] text-ops-accent">(You)</span>}
                         </div>
                         <div className="flex items-center gap-1 text-xs text-ops-muted">
-                          <Mail className="size-3" /> {user.email || "No email"}
+                          <Mail aria-hidden="true" className="size-3" /> {user.email || "No email"}
                         </div>
                       </div>
                     </div>
@@ -183,14 +183,14 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
                   <td className="px-5 py-3">
                     <div>
                       <StatusBadge tone={user.role === "superadmin" ? "warning" : user.role === "admin" ? "info" : "neutral"}>
-                        <Shield className="size-3" /> {user.role}
+                        <Shield aria-hidden="true" className="size-3" /> {user.role}
                       </StatusBadge>
                     </div>
                     {user.role !== "superadmin" && user.sites && user.sites.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {user.sites.map((site) => (
-                          <span key={site.id} className="inline-flex items-center gap-1 rounded-md border border-ops-border bg-ops-bg px-1.5 py-0.5 text-[10px] text-ops-muted">
-                            <Database className="size-2.5" />
+                          <span key={site.id} className="inline-flex items-center gap-1 rounded-sm border border-ops-border bg-ops-bg px-1.5 py-0.5 font-mono text-[11px] text-ops-muted">
+                            <Database aria-hidden="true" className="size-2.5" />
                             {site.code}
                           </span>
                         ))}
@@ -202,15 +202,15 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
                       {user.isActive ? "Active" : "Inactive"}
                     </StatusBadge>
                   </td>
-                  <td className="px-5 py-3 text-xs text-ops-muted">{formatDate(user.lastLogin)}</td>
-                  <td className="px-5 py-3 text-xs text-ops-muted">{formatDate(user.createdAt)}</td>
+                  <td className="px-5 py-3 text-xs tabular-nums text-ops-muted">{formatDate(user.lastLogin)}</td>
+                  <td className="px-5 py-3 text-xs tabular-nums text-ops-muted">{formatDate(user.createdAt)}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
-                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setResettingUser(user)} title="Reset password">
-                        <Key className="size-4 text-ops-warning" />
+                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setResettingUser(user)} aria-label="Reset password" title="Reset password">
+                        <Key aria-hidden="true" className="size-4 text-ops-warning" />
                       </ActionButton>
-                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingUser(user)} title="Edit">
-                        <Edit className="size-4 text-ops-info" />
+                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingUser(user)} aria-label="Edit" title="Edit">
+                        <Edit aria-hidden="true" className="size-4 text-ops-info" />
                       </ActionButton>
                       <ActionButton
                         type="button"
@@ -218,9 +218,10 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
                         size="icon"
                         onClick={() => handleDelete(user.id, user.username)}
                         disabled={(isPending && deletingId === user.id) || user.id === currentUserId}
+                        aria-label={user.id === currentUserId ? "Cannot delete your own account" : "Delete"}
                         title={user.id === currentUserId ? "Cannot delete your own account" : "Delete"}
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 aria-hidden="true" className="size-4" />
                       </ActionButton>
                     </div>
                   </td>
@@ -240,7 +241,7 @@ export default function UserTable({ users, sites, currentUserId }: { users: User
 function SortableHead({ label, onClick, icon }: { label: string; onClick: () => void; icon: ReactNode }) {
   return (
     <th className="px-5 py-3 text-left">
-      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5">
+      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5 transition-colors hover:text-ops-text">
         {label}
         {icon}
       </button>

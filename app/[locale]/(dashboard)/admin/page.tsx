@@ -129,7 +129,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 lg:px-8">
+    <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
       <PageHeader
         eyebrow="Admin / Inventory"
         title="Device management"
@@ -142,19 +142,22 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         }
       />
 
-      <details className="group ops-panel animate-enter overflow-hidden [&_summary::-webkit-details-marker]:hidden">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[13px] font-medium text-ops-text transition-colors hover:bg-ops-surface-raised/60">
-          <span>Admin workspace</span>
-          <ChevronRight className="size-4 text-ops-subtle transition-transform duration-200 group-open:rotate-90" />
+      <details className="group ops-panel overflow-hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-ops-surface-raised/60 [&_summary::-webkit-details-marker]:hidden">
+          <span className="min-w-0">
+            <span className="block text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Admin workspace</span>
+            <span className="mt-0.5 block text-[13px] text-ops-muted">Inventory, infrastructure, SIEM, and governance shortcuts.</span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-ops-subtle transition-transform duration-200 group-open:rotate-90" />
         </summary>
-        <div className="grid gap-x-4 gap-y-5 border-t border-ops-border p-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-x-6 gap-y-6 border-t border-ops-border p-5 md:grid-cols-2 xl:grid-cols-4">
           <ShortcutGroup title="Inventory" items={inventoryShortcuts} />
           <ShortcutGroup title="Infrastructure" items={infrastructureShortcuts} />
           <ShortcutGroup title="SIEM" items={siemShortcuts} />
           <ShortcutGroup title="Governance" items={governanceShortcuts} />
         </div>
       </details>
-      {(await searchParams).deviceId && initialDeviceId === null && <p role="alert" className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2 text-sm text-ops-warning">Device ID pada URL tidak valid.</p>}
+      {(await searchParams).deviceId && initialDeviceId === null && <p role="alert" className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">Device ID pada URL tidak valid.</p>}
       <DeviceManagement devices={devices} categories={categories} brands={brands} locations={locations} canEdit={await hasAdminAccess()} />
     </main>
   );

@@ -33,7 +33,7 @@ function writePartialDevices(partial: Record<string, { status: string; remarks: 
 }
 
 const fieldClass = "ops-input w-full px-3 py-2 text-sm";
-const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
+const labelClass = "mb-1.5 block text-xs font-medium text-ops-muted";
 
 export default function ChecklistForm({
   categories,
@@ -515,7 +515,7 @@ export default function ChecklistForm({
           block renders the full submit scope (search filter does not shrink it) */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-ops-text">
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
             {activeCategory?.name
               ?? (activeRacks.length === 1 ? sortedRacks.find((r) => r.name === activeRacks[0])?.label ?? activeRacks[0] : null)
               ?? (activeRacks.length > 1 ? `${activeRacks.length} racks` : null)
@@ -602,7 +602,7 @@ export default function ChecklistForm({
       <div className="sticky bottom-3 z-20 rounded-md border border-ops-border bg-ops-bg/95 p-3 shadow-[0_14px_40px_rgba(0,0,0,0.32)] backdrop-blur">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">Summary</p>
+            <p className="text-xs font-medium text-ops-muted">Summary</p>
             <p className="text-sm font-semibold text-ops-text">
               {scopedDevices.filter(d => auditData[d.id]?.status === "NOT OK").length} flagged · {scopedDevices.length} in scope
             </p>

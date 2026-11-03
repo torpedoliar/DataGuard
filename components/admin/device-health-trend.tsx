@@ -26,9 +26,9 @@ export default function DeviceHealthTrend({ deviceId, days = 30 }: { deviceId: n
 
     if (isLoading) {
         return (
-            <div className="flex justify-center items-center p-6 bg-ops-surface/50 rounded-lg border border-ops-border">
-                <Loader2 className="h-5 w-5 animate-spin text-ops-muted" />
-                <span className="ml-3 text-sm text-ops-subtle">Loading health history...</span>
+            <div className="ops-panel-subtle flex items-center justify-center p-6">
+                <Loader2 className="size-5 animate-spin text-ops-muted" />
+                <span className="ml-3 text-[13px] text-ops-muted">Loading health history…</span>
             </div>
         );
     }
@@ -63,17 +63,17 @@ export default function DeviceHealthTrend({ deviceId, days = 30 }: { deviceId: n
     const uptimeRatio = totalChecks > 0 ? ((okCount / totalChecks) * 100).toFixed(1) : "0.0";
 
     return (
-        <div className="bg-ops-surface rounded-xl border border-ops-border p-5 mt-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
+        <div className="ops-panel mt-6 p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-ops-info-soft text-ops-info rounded-lg">
-                        <Activity className="h-4 w-4" />
+                    <div className="rounded-md bg-ops-info-soft p-1.5 text-ops-info">
+                        <Activity className="size-4" />
                     </div>
-                    <h3 className="text-sm font-semibold text-ops-text">Device Health History ({days} Days)</h3>
+                    <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Device health history ({days} days)</h3>
                 </div>
                 {totalChecks > 0 && (
-                    <span className="text-xs font-medium text-ops-subtle dark:text-ops-muted">
-                        Reliability: <span className={clsx(Number(uptimeRatio) > 90 ? "text-ops-success" : "text-ops-warning")}>{uptimeRatio}%</span>
+                    <span className="text-[13px] text-ops-muted">
+                        Reliability: <span className={clsx("font-medium tabular-nums", Number(uptimeRatio) > 90 ? "text-ops-success" : "text-ops-warning")}>{uptimeRatio}%</span>
                     </span>
                 )}
             </div>
@@ -86,7 +86,7 @@ export default function DeviceHealthTrend({ deviceId, days = 30 }: { deviceId: n
                         className={clsx("w-3 h-8 sm:w-4 sm:h-10 rounded-sm transition-transform hover:scale-110 cursor-pointer group relative", getStatusColor(day.status))}
                     >
                         {/* Tooltip */}
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-ops-surface-raised text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 transition-opacity">
+                        <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-ops-border bg-ops-surface px-2 py-1 text-xs text-ops-text opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
                             {new Date(day.date).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}: {getStatusText(day.status)}
                         </div>
                     </div>
@@ -94,7 +94,7 @@ export default function DeviceHealthTrend({ deviceId, days = 30 }: { deviceId: n
             </div>
 
             {/* Legend */}
-            <div className="flex items-center gap-4 text-xs text-ops-subtle dark:text-ops-muted">
+            <div className="flex items-center gap-4 text-xs text-ops-muted">
                 <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-sm bg-ops-success"></div> OK ({okCount})
                 </div>

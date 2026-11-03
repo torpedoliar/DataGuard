@@ -211,7 +211,7 @@ export default function ThreatIntelFormModal({
 
         {/* Title */}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+          <label className="block text-xs font-medium text-ops-muted mb-1">
             Vulnerability / Advisory Title *
           </label>
           <input
@@ -227,7 +227,7 @@ export default function ThreatIntelFormModal({
         {/* Source & Source URL */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+            <label className="block text-xs font-medium text-ops-muted mb-1">
               Source Name *
             </label>
             <input
@@ -240,7 +240,7 @@ export default function ThreatIntelFormModal({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+            <label className="block text-xs font-medium text-ops-muted mb-1">
               Source Bulletin URL
             </label>
             <input
@@ -256,7 +256,7 @@ export default function ThreatIntelFormModal({
         {/* Date, CVE List, CVSS Score */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+            <label className="block text-xs font-medium text-ops-muted mb-1">
               Intel Date *
             </label>
             <input
@@ -268,7 +268,7 @@ export default function ThreatIntelFormModal({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+            <label className="block text-xs font-medium text-ops-muted mb-1">
               CVE ID(s)
             </label>
             <input
@@ -281,7 +281,7 @@ export default function ThreatIntelFormModal({
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">
+              <label className="text-xs font-medium text-ops-muted">
                 CVSS Base Score
               </label>
               <StatusBadge
@@ -307,7 +307,7 @@ export default function ThreatIntelFormModal({
         {/* Affected Asset & Device Hybrid Picker */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+            <label className="block text-xs font-medium text-ops-muted mb-1">
               Affected Asset Name *
             </label>
             <input
@@ -320,7 +320,7 @@ export default function ThreatIntelFormModal({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+            <label className="block text-xs font-medium text-ops-muted mb-1">
               Linked Hardware Device (Optional)
             </label>
             <select
@@ -341,7 +341,7 @@ export default function ThreatIntelFormModal({
         {/* Site Scope & Status */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+            <label className="block text-xs font-medium text-ops-muted mb-1">
               Site Scope
             </label>
             <select
@@ -354,7 +354,7 @@ export default function ThreatIntelFormModal({
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+            <label className="block text-xs font-medium text-ops-muted mb-1">
               Mitigation Status
             </label>
             <select
@@ -370,7 +370,7 @@ export default function ThreatIntelFormModal({
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+            <label className="block text-xs font-medium text-ops-muted mb-1">
               Mitigation Date
             </label>
             <input
@@ -384,7 +384,7 @@ export default function ThreatIntelFormModal({
 
         {/* Description */}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+          <label className="block text-xs font-medium text-ops-muted mb-1">
             Vulnerability Details / Technical Impact
           </label>
           <textarea
@@ -398,7 +398,7 @@ export default function ThreatIntelFormModal({
 
         {/* Mitigation Action / Patching */}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted mb-1">
+          <label className="block text-xs font-medium text-ops-muted mb-1">
             Patching / Mitigation Action
           </label>
           <textarea
@@ -413,7 +413,7 @@ export default function ThreatIntelFormModal({
         {/* Evidence Attachments Section */}
         <div className="rounded-lg border border-ops-border bg-ops-bg/40 p-3.5 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-ops-text flex items-center gap-1.5">
+            <span className="text-xs font-medium text-ops-text flex items-center gap-1.5">
               <UploadCloud className="size-4 text-ops-accent" />
               Bukti Lampiran (Screenshots / Evidence)
             </span>

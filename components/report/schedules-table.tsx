@@ -121,7 +121,7 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
             {/* Top Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-xl font-bold text-ops-text">Report Schedules</h1>
+                    <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-ops-text">Report schedules</h1>
                     <p className="text-xs text-ops-muted mt-0.5">
                         Kelola jadwal pengiriman laporan otomatis harian, mingguan, dan bulanan via email.
                     </p>
@@ -197,7 +197,7 @@ export default function SchedulesTable({ schedules, canAdminister }: SchedulesTa
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                             <thead>
-                                <tr className="border-b border-ops-border bg-ops-surface/80 font-semibold uppercase tracking-wider text-ops-muted">
+                                <tr className="border-b border-ops-border bg-ops-surface-raised text-xs font-medium text-ops-muted">
                                     <th className="px-5 py-3.5">Nama Jadwal & Tipe</th>
                                     <th className="px-4 py-3.5">Frekuensi & Jam</th>
                                     <th className="px-4 py-3.5">Jadwal Berikutnya</th>

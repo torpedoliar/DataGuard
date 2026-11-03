@@ -80,7 +80,7 @@ type Rack = {
 };
 
 const fieldClass = "ops-input w-full px-3 py-2 text-sm";
-const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
+const labelClass = "mb-1.5 block text-xs font-medium text-ops-muted";
 
 export default function EditDeviceForm({ device, onClose, onSaved, brands, locations }: EditDeviceFormProps) {
   const [facility, setFacility] = useState<FacilityAsset | null>(() => device.assetType === "pac" || device.assetType === "ups" ? facilityAssetSchema.parse({ ...device, floorX: device.floorX ?? null, floorZ: device.floorZ ?? null, floorRotation: device.floorRotation ?? null }) : null);
@@ -132,8 +132,8 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
               <Server className="size-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-ops-text">Edit Device</h2>
-              <p className="text-xs text-ops-muted">{device.name}</p>
+              <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Edit device</h2>
+              <p className="mt-0.5 text-[13px] text-ops-muted">{device.name}</p>
             </div>
           </div>
           <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} title="Close">
@@ -143,14 +143,14 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
 
         <form action={action} className="min-h-0 flex-1 overflow-y-auto">
           <input type="hidden" name="id" value={device.id} />
-          {facility && <><input type="hidden" name="facilityAsset" value={JSON.stringify(facility)} /><div className="p-5"><FacilitySpecFields asset={facility} onChange={setFacility} fixedType /><p className="mt-2 text-xs">Jenis PAC/UPS tetap. Penempatan diubah melalui Layout Ruangan.</p></div></>}
+          {facility && <><input type="hidden" name="facilityAsset" value={JSON.stringify(facility)} /><div className="p-5"><FacilitySpecFields asset={facility} onChange={setFacility} fixedType /><p className="mt-2 text-[13px] text-ops-muted">Jenis PAC/UPS tetap. Penempatan diubah melalui Layout Ruangan.</p></div></>}
 
           <div className="p-5">
             <DeviceHealthTrend deviceId={device.id} />
           </div>
 
           <FormSection
-            title="Device Details"
+            title="Device details"
             description="Update inventory metadata, rack placement, and photo evidence."
             className="rounded-none border-x-0 border-b-0"
             footer={
@@ -228,7 +228,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
               </label>
 
               {!facility && <div className="border-t border-ops-border pt-5 md:col-span-2">
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-ops-text">
+                <h3 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-ops-text">
                   <Server className="size-4 text-ops-accent" />
                   Rack Position
                 </h3>
@@ -292,7 +292,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
               </div>}
 
               <div className="border-t border-ops-border pt-5 md:col-span-2">
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-ops-text">
+                <h3 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-ops-text">
                   <Users className="size-4 text-ops-accent" />
                   PIC Groups
                 </h3>
@@ -305,7 +305,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
                   {picGroups.map((group) => {
                     const checked = selectedGroupIds.has(group.id);
                     return (
-                      <label key={group.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-ops-border bg-ops-bg/40 px-3 py-2 text-sm hover:border-ops-accent/40">
+                      <label key={group.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-ops-border bg-ops-surface-raised px-3 py-2 text-sm hover:border-ops-accent/40">
                         <input
                           type="checkbox"
                           name="groupIds"
@@ -357,7 +357,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
                       event.target.value = "";
                     }
                   }}
-                  className="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ops-text"
+                  className="block w-full text-sm text-ops-muted file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ops-text"
                 />
                 <p className="mt-1 text-xs text-ops-muted">Uploading a new photo will replace the current one.</p>
               </div>
@@ -378,7 +378,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
                 />
               </label>
 
-              <label className="flex cursor-pointer items-center gap-3 rounded-md border border-ops-border bg-ops-bg/40 px-3 py-2.5 md:col-span-2">
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border border-ops-border bg-ops-surface-raised px-3 py-2.5 md:col-span-2">
                 <input
                   type="checkbox"
                   name="excludeChecklist"
@@ -398,7 +398,7 @@ export default function EditDeviceForm({ device, onClose, onSaved, brands, locat
                   type="checkbox"
                   name="isCritical"
                   defaultChecked={device.isCritical ?? false}
-                  className="size-4 accent-amber-400"
+                  className="size-4 accent-ops-warning"
                 />
                 <span className="text-sm font-medium text-ops-text">
                   Perangkat kritikal (SIEM)

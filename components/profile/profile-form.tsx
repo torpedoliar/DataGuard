@@ -133,7 +133,7 @@ export default function ProfileForm({ user }: { user: UserData }) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-5xl mx-auto">
             {/* Foto Profil & Info */}
             <div className="col-span-1 lg:col-span-5 space-y-6">
-                <div className="bg-ops-surface/50 rounded-2xl border border-ops-border/50 p-6 backdrop-blur-sm">
+                <div className="ops-panel p-5">
                     <h2 className="text-lg font-semibold text-ops-text mb-6 flex items-center gap-2">
                         <User className="size-5 text-ops-info" />
                         Profil Anda
@@ -170,7 +170,7 @@ export default function ProfileForm({ user }: { user: UserData }) {
                         </div>
 
                         <div className="text-center w-full">
-                            <h3 className="text-xl font-bold text-ops-text mb-1">{user.username}</h3>
+                            <h3 className="mb-1 text-[17px] font-semibold tracking-[-0.01em] text-ops-text">{user.username}</h3>
                             <p className="text-sm text-ops-info bg-ops-info-soft px-3 py-1 rounded-full inline-block font-medium capitalize mb-2">
                                 {user.role}
                             </p>
@@ -222,7 +222,7 @@ export default function ProfileForm({ user }: { user: UserData }) {
 
             {/* Ganti Password */}
             <div className="col-span-1 lg:col-span-7 space-y-6">
-                <div className="bg-ops-surface/50 rounded-2xl border border-ops-border/50 p-6 backdrop-blur-sm">
+                <div className="ops-panel p-5">
                     <h2 className="text-lg font-semibold text-ops-text mb-6 flex items-center gap-2">
                         <KeyRound className="size-5 text-ops-warning" />
                         Ganti Password

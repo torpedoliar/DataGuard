@@ -1,11 +1,15 @@
 "use client";
 
 import { createUser } from "@/actions/users";
+import ActionButton from "@/components/ui/action-button";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, UserPlus } from "lucide-react";
+import { Plus, UserPlus } from "lucide-react";
 
 type Site = { id: number; name: string; code: string };
+
+const labelClass = "mb-1.5 block text-[13px] font-medium text-ops-muted";
+const fieldClass = "ops-input h-9 w-full px-3 text-sm";
 
 export default function AddUserForm({ sites }: { sites: Site[] }) {
     const [state, action, isPending] = useActionState(createUser, undefined);
@@ -21,60 +25,64 @@ export default function AddUserForm({ sites }: { sites: Site[] }) {
     }, [state?.success, router]);
 
     return (
-        <div className="bg-ops-surface p-6 rounded-lg shadow-sm border border-ops-border mb-8">
-            <div className="flex items-center gap-2 mb-4">
-                <UserPlus className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-semibold text-ops-text">Add New User</h3>
+        <div className="ops-panel p-5">
+            <div className="mb-4 flex items-center gap-2">
+                <UserPlus aria-hidden="true" className="size-4 text-ops-accent" />
+                <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Add new user</h2>
             </div>
 
-            <form ref={formRef} action={action} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <form ref={formRef} action={action} className="space-y-5">
+                <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <div className="lg:col-span-1">
-                        <label className="block text-sm font-medium text-ops-muted mb-1">
+                        <label htmlFor="new-user-username" className={labelClass}>
                             Username *
                         </label>
                         <input
+                            id="new-user-username"
                             name="username"
                             required
                             placeholder="johndoe"
-                            className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                            className={fieldClass}
                         />
                     </div>
 
                     <div className="lg:col-span-1">
-                        <label className="block text-sm font-medium text-ops-muted mb-1">
+                        <label htmlFor="new-user-email" className={labelClass}>
                             Email
                         </label>
                         <input
+                            id="new-user-email"
                             name="email"
                             type="email"
                             placeholder="john@example.com"
-                            className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                            className={fieldClass}
                         />
                     </div>
 
                     <div className="lg:col-span-1">
-                        <label className="block text-sm font-medium text-ops-muted mb-1">
+                        <label htmlFor="new-user-password" className={labelClass}>
                             Password *
                         </label>
                         <input
+                            id="new-user-password"
                             name="password"
                             type="password"
                             required
                             placeholder="••••••••"
-                            className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                            className={fieldClass}
                         />
                     </div>
 
                     <div className="lg:col-span-1">
-                        <label className="block text-sm font-medium text-ops-muted mb-1">
+                        <label htmlFor="new-user-role" className={labelClass}>
                             Role
                         </label>
                         <select
+                            id="new-user-role"
                             name="role"
                             value={role}
                             onChange={(e) => setRole(e.target.value)}
-                            className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                            className={fieldClass}
                         >
                             <option value="staff">Staff</option>
                             <option value="admin">Admin</option>
@@ -84,18 +92,18 @@ export default function AddUserForm({ sites }: { sites: Site[] }) {
                 </div>
 
                 {role !== "superadmin" && (
-                    <div className="border border-ops-border rounded-md p-4 bg-ops-surface/50">
-                        <label className="block text-sm font-medium text-ops-muted mb-3">
+                    <div className="rounded-md border border-ops-border bg-ops-surface-raised/40 p-4">
+                        <p className="mb-3 text-[13px] font-medium text-ops-muted">
                             Data Center Access (Sites)
-                        </label>
-                        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                             {sites.map((site) => (
-                                <label key={site.id} className="flex items-start gap-2 cursor-pointer">
+                                <label key={site.id} className="flex cursor-pointer items-start gap-2">
                                     <input
                                         type="checkbox"
                                         name="siteIds"
                                         value={site.id}
-                                        className="mt-1 shrink-0 rounded border-ops-border-strong text-ops-info focus:ring-ops-accent"
+                                        className="mt-0.5 shrink-0 rounded border-ops-border-strong text-ops-info focus:ring-ops-accent"
                                     />
                                     <span className="text-sm text-ops-muted">
                                         {site.code} - {site.name}
@@ -104,36 +112,35 @@ export default function AddUserForm({ sites }: { sites: Site[] }) {
                             ))}
                         </div>
                         {sites.length === 0 && (
-                            <p className="text-sm text-ops-subtle italic">No sites available. Please create a site first.</p>
+                            <p className="text-sm italic text-ops-subtle">No sites available. Please create a site first.</p>
                         )}
                     </div>
                 )}
 
                 <div className="flex justify-end">
-                    <button
+                    <ActionButton
                         type="submit"
-                        disabled={isPending}
-                        className="bg-ops-accent text-ops-accent-fg px-4 py-2 rounded-md hover:bg-ops-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ops-accent flex items-center justify-center gap-2 disabled:opacity-50"
+                        isPending={isPending}
+                        icon={<Plus aria-hidden="true" className="size-4" />}
                     >
-                        {isPending ? <Loader2 className="animate-spin h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                        Add User
-                    </button>
+                        {isPending ? null : "Add User"}
+                    </ActionButton>
                 </div>
 
             </form>
 
             {state?.errors && (
-                <div className="mt-3 text-ops-danger text-sm">
+                <div className="mt-3 text-sm text-ops-danger">
                     {Object.values(state.errors).flat().map((e, i) => (
                         <p key={i}>{e}</p>
                     ))}
                 </div>
             )}
             {state?.message && !state.success && (
-                <div className="mt-3 text-ops-danger text-sm">{state.message}</div>
+                <div className="mt-3 text-sm text-ops-danger">{state.message}</div>
             )}
             {state?.success && (
-                <div className="mt-3 text-ops-success text-sm">
+                <div className="mt-3 text-sm text-ops-success">
                     {state.message}
                 </div>
             )}

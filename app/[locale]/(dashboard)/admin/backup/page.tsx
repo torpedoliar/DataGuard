@@ -1,4 +1,5 @@
 import BackupForm from "@/components/admin/backup-form";
+import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -14,14 +15,13 @@ export default async function BackupPage() {
     }
 
     return (
-        <div className="py-8 px-6 max-w-4xl mx-auto">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-ops-text tracking-tight">Backup &amp; Restore</h1>
-                <p className="text-sm text-ops-muted mt-1">
-                    Buat ZIP archive berisi pg_dump dan folder uploads, lalu restore ke server tujuan saat migrasi.
-                </p>
-            </div>
+        <main className="mx-auto flex w-full max-w-4xl animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+            <PageHeader
+                eyebrow="Admin / Backup"
+                title="Backup & restore"
+                description="Buat ZIP archive berisi pg_dump dan folder uploads, lalu restore ke server tujuan saat migrasi."
+            />
             <BackupForm />
-        </div>
+        </main>
     );
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { updateBrand } from "@/actions/brands";
+import ActionButton from "@/components/ui/action-button";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, X, Upload } from "lucide-react";
+import { Upload, X } from "lucide-react";
 
 type Brand = {
     id: number;
@@ -16,6 +17,8 @@ interface EditBrandFormProps {
     brand: Brand;
     onClose: () => void;
 }
+
+const labelClass = "mb-1.5 block text-[13px] font-medium text-ops-muted";
 
 export default function EditBrandForm({ brand, onClose }: EditBrandFormProps) {
     const [state, action, isPending] = useActionState(updateBrand, undefined);
@@ -55,38 +58,36 @@ export default function EditBrandForm({ brand, onClose }: EditBrandFormProps) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-ops-surface w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-ops-border">
-                    <h3 className="text-lg font-semibold text-ops-text">Edit Brand</h3>
-                    <button
-                        onClick={onClose}
-                        className="text-ops-muted hover:text-ops-muted dark:hover:text-ops-muted transition-colors"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
+            <div className="w-full max-w-md overflow-hidden rounded-xl border border-ops-border bg-ops-surface shadow-[var(--shadow-overlay)] animate-scale-in">
+                <div className="flex items-center justify-between border-b border-ops-border px-5 py-4">
+                    <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Edit Brand</h3>
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog" title="Close">
+                        <X aria-hidden="true" className="size-4" />
+                    </ActionButton>
                 </div>
 
-                <div className="p-6">
+                <div className="p-5">
                     <form action={action} className="space-y-4">
                         <input type="hidden" name="id" value={brand.id} />
                         <input type="hidden" name="removeLogo" value={removeLogo.toString()} />
 
                         {state?.message && !state?.success && (
-                            <div className="p-3 bg-ops-danger-soft text-ops-danger rounded-md text-sm border border-ops-danger dark:bg-ops-danger-soft dark:text-ops-danger mb-4">
+                            <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
                                 {state.message}
                             </div>
                         )}
 
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">
+                            <label htmlFor="edit-brand-name" className={labelClass}>
                                 Brand Name *
                             </label>
                             <input
+                                id="edit-brand-name"
                                 name="name"
                                 defaultValue={brand.name}
                                 required
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                className="ops-input h-9 w-full px-3 text-sm"
                             />
                             {state?.errors?.name && (
                                 <p className="mt-1 text-sm text-ops-danger">{state.errors.name[0]}</p>
@@ -94,71 +95,64 @@ export default function EditBrandForm({ brand, onClose }: EditBrandFormProps) {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-2">
+                            <label htmlFor="edit-brand-logo" className={labelClass}>
                                 Brand Logo
                             </label>
 
-                            <div className="flex flex-col items-center justify-center border-2 border-dashed border-ops-border-strong rounded-lg p-4 bg-ops-surface/50 hover:bg-ops-surface-raised dark:hover:bg-ops-surface-raised transition-colors group relative">
+                            <div className="group relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-ops-border-strong bg-ops-surface-raised/40 p-4 transition-colors hover:bg-ops-surface-raised">
                                 {preview ? (
-                                    <div className="relative w-full flex flex-col items-center">
-                                        <div className="h-24 px-2 w-full flex items-center justify-center mb-3 bg-white rounded border border-ops-border">
+                                    <div className="relative flex w-full flex-col items-center">
+                                        <div className="mb-3 flex h-24 w-full items-center justify-center rounded border border-ops-border bg-ops-surface px-2">
                                             {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img src={preview} alt="Brand Logo Preview" className="max-h-full max-w-full object-contain" />
                                         </div>
                                         <button
                                             type="button"
                                             onClick={handleRemoveLogo}
-                                            className="absolute -top-2 w-6 h-6 -right-2 bg-ops-danger text-ops-status-fg rounded-full flex items-center justify-center shadow-md hover:bg-ops-danger transition-colors"
+                                            className="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full bg-ops-danger text-ops-status-fg shadow-md transition-colors hover:bg-ops-danger"
                                             title="Remove Image"
+                                            aria-label="Remove image"
                                         >
-                                            <X className="w-3 h-3" />
+                                            <X aria-hidden="true" className="size-3" />
                                         </button>
                                         <span className="text-xs text-ops-subtle">Tap image or cross to change</span>
                                     </div>
                                 ) : (
-                                    <div className="flex flex-col items-center pointer-events-none">
-                                        <div className="p-3 bg-ops-info-soft text-ops-info rounded-full mb-2">
-                                            <Upload className="w-5 h-5" />
+                                    <div className="pointer-events-none flex flex-col items-center">
+                                        <div className="mb-2 rounded-full bg-ops-info-soft p-3 text-ops-info">
+                                            <Upload aria-hidden="true" className="size-5" />
                                         </div>
                                         <p className="text-sm font-medium text-ops-muted">Click to upload logo</p>
-                                        <p className="text-xs text-ops-subtle mt-1">PNG, JPG or SVG up to 2MB</p>
+                                        <p className="mt-1 text-xs text-ops-subtle">PNG, JPG or SVG up to 2MB</p>
                                     </div>
                                 )}
                                 <input
                                     ref={fileInputRef}
                                     type="file"
                                     name="logo"
-                                    id="logo"
+                                    id="edit-brand-logo"
                                     accept="image/*"
                                     onChange={handleFileChange}
-                                    className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer ${preview ? "hidden" : "block"}`}
+                                    className={`absolute inset-0 h-full w-full cursor-pointer opacity-0 ${preview ? "hidden" : "block"}`}
                                 />
                             </div>
                         </div>
 
-                        <div className="pt-4 flex items-center justify-end gap-3 mt-4">
-                            <button
+                        <div className="flex items-center justify-end gap-2 pt-2">
+                            <ActionButton
                                 type="button"
+                                variant="secondary"
                                 onClick={onClose}
                                 disabled={isPending}
-                                className="px-4 py-2 text-sm font-medium text-ops-muted bg-ops-surface border border-ops-border-strong rounded-lg hover:bg-ops-surface dark:hover:bg-ops-surface-raised focus:outline-none focus:ring-2 focus:ring-ops-border-strong transition-colors"
                             >
                                 Cancel
-                            </button>
-                            <button
+                            </ActionButton>
+                            <ActionButton
                                 type="submit"
-                                disabled={isPending}
-                                className="flex items-center justify-center gap-2 px-6 py-2 bg-ops-accent text-ops-accent-fg text-sm font-medium rounded-lg hover:bg-ops-accent-hover focus:outline-none focus:ring-2 focus:ring-ops-accent focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                isPending={isPending}
                             >
-                                {isPending ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    "Save Changes"
-                                )}
-                            </button>
+                                {isPending ? "Saving..." : "Save Changes"}
+                            </ActionButton>
                         </div>
                     </form>
                 </div>

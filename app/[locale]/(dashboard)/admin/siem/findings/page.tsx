@@ -49,52 +49,52 @@ export default async function SiemFindingsPage({
   return (
     <>
       <OfflineBanner />
-      <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6 pb-20">
+      <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 pb-20 lg:px-8">
         <PageHeader
-        eyebrow="SIEM / Findings"
-        title="SIEM Findings"
-        description="Rule-engine findings generated from parsed syslog events. Incident creation remains blocked until source maps to a device."
-        actions={<ActionButton href="/admin/siem/events" variant="secondary">Event Explorer</ActionButton>}
-      />
-
-      <DataToolbar>
-        <form className="flex w-full flex-wrap items-center gap-2" action="/admin/siem/findings">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-ops-muted">
-            <Filter className="size-4" />
-            Filters
-          </div>
-          <select name="status" defaultValue={filters.status ?? ""} className="ops-input h-9 min-w-40 px-3 text-sm">
-            <option value="">All status</option>
-            {siemFindingStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-          </select>
-          <select name="severity" defaultValue={filters.severity ?? ""} className="ops-input h-9 min-w-40 px-3 text-sm">
-            <option value="">All severity</option>
-            {incidentSeverities.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
-          </select>
-          <ActionButton type="submit" size="sm" icon={<ShieldAlert className="size-4" />}>Filter</ActionButton>
-          {(filters.status || filters.severity) && <ActionButton href="/admin/siem/findings" variant="ghost" size="sm">Reset</ActionButton>}
-        </form>
-      </DataToolbar>
-
-      {"message" in data && data.message ? (
-        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
-      ) : data.findings.length === 0 ? (
-        <EmptyState
-          icon={<ShieldCheck className="size-5" />}
-          title="No SIEM findings"
-          description="Rule worker findings appear here after parsed events match enabled rules. Adjust filters or check rule status."
-          action={
-            filters.status || filters.severity ? (
-              <ActionButton href="/admin/siem/findings" variant="secondary" size="sm">
-                Reset filters
-              </ActionButton>
-            ) : undefined
-          }
+          eyebrow="Admin / SIEM"
+          title="SIEM findings"
+          description="Rule-engine findings generated from parsed syslog events. Incident creation remains blocked until source maps to a device."
+          actions={<ActionButton href="/admin/siem/events" variant="secondary">Event Explorer</ActionButton>}
         />
-      ) : (
-        <SiemFindingTable findings={data.findings} highlightId={highlightId} />
-      )}
-    </main>
+
+        <DataToolbar>
+          <form className="flex w-full flex-wrap items-center gap-2" action="/admin/siem/findings">
+            <div className="flex items-center gap-2 text-xs font-medium text-ops-muted">
+              <Filter className="size-4" />
+              Filters
+            </div>
+            <select name="status" defaultValue={filters.status ?? ""} className="ops-input h-9 min-w-40 px-3 text-sm">
+              <option value="">All status</option>
+              {siemFindingStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+            <select name="severity" defaultValue={filters.severity ?? ""} className="ops-input h-9 min-w-40 px-3 text-sm">
+              <option value="">All severity</option>
+              {incidentSeverities.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
+            </select>
+            <ActionButton type="submit" size="sm" icon={<ShieldAlert className="size-4" />}>Filter</ActionButton>
+            {(filters.status || filters.severity) && <ActionButton href="/admin/siem/findings" variant="ghost" size="sm">Reset</ActionButton>}
+          </form>
+        </DataToolbar>
+
+        {"message" in data && data.message ? (
+          <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{data.message}</div>
+        ) : data.findings.length === 0 ? (
+          <EmptyState
+            icon={<ShieldCheck className="size-5" />}
+            title="No SIEM findings"
+            description="Rule worker findings appear here after parsed events match enabled rules. Adjust filters or check rule status."
+            action={
+              filters.status || filters.severity ? (
+                <ActionButton href="/admin/siem/findings" variant="secondary" size="sm">
+                  Reset filters
+                </ActionButton>
+              ) : undefined
+            }
+          />
+        ) : (
+          <SiemFindingTable findings={data.findings} highlightId={highlightId} />
+        )}
+      </main>
     <BottomNav />
     </>
   );

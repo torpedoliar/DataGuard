@@ -70,8 +70,8 @@ function Tile({ label, covered, count, onClick }: { label: string; covered: bool
           : "border-ops-border bg-ops-surface-raised/60 text-ops-subtle hover:text-ops-muted"
       }`}
     >
-      <div className="truncate text-[11px] font-medium leading-tight">{label}</div>
-      <div className="text-[10px] leading-tight opacity-75">{count} rule{count === 1 ? "" : "s"}</div>
+      <div className="truncate text-xs font-medium leading-tight">{label}</div>
+      <div className="text-xs leading-tight opacity-75 tabular-nums">{count} rule{count === 1 ? "" : "s"}</div>
     </button>
   );
 }
@@ -83,7 +83,7 @@ function techniqueChips(techniques: string[] | undefined) {
       {techniques.map((technique) => {
         const info = ATTACK_TECHNIQUE_INFO[technique];
         return (
-          <span key={technique} title={info ? `${technique} — ${info.name}` : technique} className="rounded border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 font-mono text-[10px] text-ops-info">
+          <span key={technique} title={info ? `${technique} — ${info.name}` : technique} className="rounded-sm border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 font-mono text-xs text-ops-info">
             {technique}
           </span>
         );
@@ -115,7 +115,7 @@ function RuleToggleForm({ ruleId, enabled, onToggled }: { ruleId: number; enable
           enabled ? "bg-ops-success" : "bg-ops-surface-sunken"
         }`}
       >
-        <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${enabled ? "left-[18px]" : "left-0.5"}`} />
+        <span className={`absolute top-0.5 size-4 rounded-full bg-ops-text transition-all ${enabled ? "left-[18px]" : "left-0.5"}`} />
       </button>
     </form>
   );
@@ -123,14 +123,14 @@ function RuleToggleForm({ ruleId, enabled, onToggled }: { ruleId: number; enable
 
 function RuleListItem({ rule, enabled, onToggled }: { rule: SiemCoverageRule; enabled: boolean; onToggled: (id: number, enabled: boolean) => void }) {
   return (
-    <li className="rounded border border-ops-border/60 bg-ops-surface/60 p-2.5">
+    <li className="rounded-md border border-ops-border/60 bg-ops-surface/60 p-2.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium text-white">{rule.name}</span>
-          <span className={`shrink-0 rounded-full border px-1.5 py-px text-[10px] ${enabled ? "border-ops-success/40 text-ops-success" : "border-ops-border-strong text-ops-subtle"}`}>
+          <span className="truncate text-sm font-medium text-ops-text">{rule.name}</span>
+          <span className={`shrink-0 rounded-sm border px-1.5 py-px text-xs ${enabled ? "border-ops-success/40 text-ops-success" : "border-ops-border-strong text-ops-subtle"}`}>
             {enabled ? "aktif" : "mati"}
           </span>
-          {rule.category && <span className="shrink-0 text-[10px] uppercase tracking-wide text-ops-subtle">{rule.category}</span>}
+          {rule.category && <span className="shrink-0 text-xs text-ops-subtle">{rule.category}</span>}
         </div>
         <RuleToggleForm ruleId={rule.id} enabled={enabled} onToggled={onToggled} />
       </div>
@@ -181,14 +181,14 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
     : [];
 
   return (
-    <section className="rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
+    <section className="ops-panel p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-white">MITRE ATT&amp;CK &amp; ISO 27001 Coverage</h2>
-        <span className="text-xs text-ops-muted">
+        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">MITRE ATT&amp;CK &amp; ISO 27001 coverage</h2>
+        <span className="text-xs text-ops-muted tabular-nums">
           {stats.tacticsCovered}/{matrix.tactics.length} tactics · {stats.attackMappedEnabled}/{stats.totalRules} rules mapped &amp; enabled
         </span>
       </div>
-      <p className="mt-1 text-xs text-ops-subtle">
+      <p className="mt-1 text-[13px] text-ops-subtle">
         Klik kotak untuk melihat detail tactic/kontrol dan rule yang memetakannya. Ubah pemetaan di halaman Rules (Edit rule).
       </p>
 
@@ -206,7 +206,7 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
 
       {liveMatrix.isoControls.length > 0 && (
         <div className="mt-5">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-ops-muted">ISO 27001 Annex A</h3>
+          <h3 className="text-xs font-medium text-ops-muted">ISO 27001 Annex A</h3>
           <div className="mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-7">
             {liveMatrix.isoControls.map((entry) => (
               <Tile
@@ -224,31 +224,31 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setSelected(null)}>
           <div
-            className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-ops-border bg-ops-surface-raised shadow-xl"
+            className="ops-panel max-h-[80vh] w-full max-w-2xl overflow-y-auto"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 border-b border-ops-border px-5 py-4">
               <div>
                 {selected.kind === "tactic" ? (
                   <>
-                    <p className="font-mono text-[11px] uppercase tracking-wide text-ops-info">
+                    <p className="font-mono text-xs text-ops-info">
                       {tacticInfo?.id ?? "MITRE ATT&CK"} · {selected.tactic}
                     </p>
-                    <h3 className="mt-1 text-lg font-semibold text-ops-text">{selected.tactic}</h3>
+                    <h3 className="mt-1 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">{selected.tactic}</h3>
                   </>
                 ) : (
                   <>
-                    <p className="font-mono text-[11px] uppercase tracking-wide text-ops-info">
+                    <p className="font-mono text-xs text-ops-info">
                       ISO/IEC 27001:2022 Annex A · {selected.control}
                     </p>
-                    <h3 className="mt-1 text-lg font-semibold text-ops-text">
+                    <h3 className="mt-1 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
                       {controlInfo ? `${controlInfo.id} — ${controlInfo.title}` : selected.control}
                     </h3>
                   </>
                 )}
               </div>
-              <button type="button" onClick={() => setSelected(null)} className="rounded-md p-1 text-ops-muted hover:bg-ops-surface hover:text-ops-text">
-                <X className="size-5" />
+              <button type="button" onClick={() => setSelected(null)} className="rounded-md p-1 text-ops-muted hover:bg-ops-surface hover:text-ops-text" aria-label="Close dialog">
+                <X className="size-5" aria-hidden="true" />
               </button>
             </div>
 
@@ -267,7 +267,7 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
 
               {selected.kind === "tactic" && tacticTechniques.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-ops-muted">Teknik yang terpetakan ({tacticTechniques.length})</h4>
+                  <h4 className="text-xs font-medium text-ops-muted">Teknik yang terpetakan (<span className="tabular-nums">{tacticTechniques.length}</span>)</h4>
                   <ul className="mt-2 space-y-1">
                     {tacticTechniques.map((technique) => {
                       const info = ATTACK_TECHNIQUE_INFO[technique];
@@ -285,7 +285,7 @@ export default function SiemCoverageMatrixPanel({ matrix }: { matrix: SiemCovera
               )}
 
               <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-ops-muted">
+                <h4 className="text-xs font-medium text-ops-muted">
                   Rule yang memetakan ({(selected.kind === "tactic" ? tacticEntry?.rules.length : controlEntry?.rules.length) ?? 0})
                 </h4>
                 {(selected.kind === "tactic" ? tacticEntry?.rules : controlEntry?.rules)?.length ? (

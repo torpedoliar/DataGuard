@@ -2,15 +2,17 @@
 
 import { approveSiemResponseAction, cancelSiemResponseAction, listSiemResponseActions, requestSiemResponseAction, type SiemResponseActionRow } from "@/actions/siem-response-actions";
 import ActionButton from "@/components/ui/action-button";
+import StatusBadge from "@/components/ui/status-badge";
+import type { UiTone } from "@/lib/ui/status";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
-const STATUS_TONE: Record<string, string> = {
-  pending_approval: "text-ops-warning border-ops-warning/40 bg-ops-warning-soft",
-  approved: "text-ops-info border-ops-info/40 bg-ops-info-soft",
-  executed: "text-ops-success border-ops-success/40 bg-ops-success-soft",
-  failed: "text-ops-danger border-ops-danger/40 bg-ops-danger-soft",
-  cancelled: "text-ops-muted border-ops-border-strong/40 bg-ops-surface-sunken/10",
+const STATUS_TONE: Record<string, UiTone> = {
+  pending_approval: "warning",
+  approved: "info",
+  executed: "success",
+  failed: "danger",
+  cancelled: "neutral",
 };
 
 export default function SiemResponseActionsPanel({ findingId }: { findingId: number }) {
@@ -56,7 +58,7 @@ export default function SiemResponseActionsPanel({ findingId }: { findingId: num
       </ActionButton>
 
       {open && (
-        <div className="w-full max-w-xl space-y-3 rounded-md border border-ops-border bg-ops-surface p-3">
+        <div className="ops-panel-subtle w-full max-w-xl space-y-3 p-3">
           {actions === null ? (
             <p className="text-xs text-ops-muted">Loading respons…</p>
           ) : actions.length === 0 ? (
@@ -64,13 +66,13 @@ export default function SiemResponseActionsPanel({ findingId }: { findingId: num
           ) : (
             <ul className="space-y-1.5">
               {actions.map((action) => (
-                <li key={action.id} className="flex items-center justify-between gap-2 rounded border border-ops-border/60 p-2">
+                <li key={action.id} className="flex items-center justify-between gap-2 rounded-md border border-ops-border/60 p-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs text-ops-text">{action.actionType}</span>
-                      <span className={`rounded border px-1.5 py-0.5 text-[10px] ${STATUS_TONE[action.status] ?? ""}`}>{action.status}</span>
+                      <StatusBadge tone={STATUS_TONE[action.status] ?? "neutral"}>{action.status}</StatusBadge>
                     </div>
-                    <div className="truncate text-[10px] text-ops-muted">
+                    <div className="truncate text-xs text-ops-muted">
                       {action.webhookUrl} · oleh {action.requestedByName ?? "?"}{action.approvedByName ? ` · disetujui ${action.approvedByName}` : ""}
                       {action.responseStatus ? ` · HTTP ${action.responseStatus}` : ""}{action.error ? ` · ${action.error}` : ""}
                     </div>
@@ -105,9 +107,9 @@ export default function SiemResponseActionsPanel({ findingId }: { findingId: num
               </select>
               <input name="webhookUrl" required placeholder="https://fw-api.example/block" className="ops-input h-9 px-2 font-mono text-xs sm:col-span-2" />
             </div>
-            <textarea name="payload" rows={2} placeholder='{"ip":"203.0.113.9"} (JSON opsional)' className="w-full rounded border border-ops-border bg-ops-surface px-2 py-1.5 font-mono text-xs text-ops-text" />
+            <textarea name="payload" rows={2} placeholder='{"ip":"203.0.113.9"} (JSON opsional)' className="ops-input w-full px-2 py-1.5 font-mono text-xs" />
             <div className="flex items-center justify-between">
-              <p className="text-[10px] text-ops-muted">Eksekusi butuh approval admin lain (two-person rule).</p>
+              <p className="text-xs text-ops-muted">Eksekusi butuh approval admin lain (two-person rule).</p>
               <ActionButton type="submit" size="sm" isPending={requestPending}>Ajukan</ActionButton>
             </div>
           </form>

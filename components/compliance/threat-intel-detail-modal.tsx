@@ -148,7 +148,7 @@ export default function ThreatIntelDetailModal({
             </div>
           </div>
 
-          <h3 className="text-xl font-bold text-ops-text leading-snug">
+          <h3 className="text-[17px] font-semibold leading-snug tracking-[-0.01em] text-ops-text">
             {item.title}
           </h3>
         </div>
@@ -157,7 +157,7 @@ export default function ThreatIntelDetailModal({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Source & CVEs */}
           <div className="rounded-lg border border-ops-border bg-ops-surface/60 p-4 flex flex-col gap-3">
-            <div className="flex items-center gap-2 border-b border-ops-border/60 pb-2 text-xs font-semibold text-ops-muted uppercase tracking-wider">
+            <div className="flex items-center gap-2 border-b border-ops-border pb-2 text-xs font-medium text-ops-muted">
               <Globe className="size-3.5 text-ops-info" />
               <span>Sumber Informasi & CVE</span>
             </div>
@@ -221,7 +221,7 @@ export default function ThreatIntelDetailModal({
 
           {/* Affected Assets & Location */}
           <div className="rounded-lg border border-ops-border bg-ops-surface/60 p-4 flex flex-col gap-3">
-            <div className="flex items-center gap-2 border-b border-ops-border/60 pb-2 text-xs font-semibold text-ops-muted uppercase tracking-wider">
+            <div className="flex items-center gap-2 border-b border-ops-border pb-2 text-xs font-medium text-ops-muted">
               <Server className="size-3.5 text-ops-warning" />
               <span>Asset & Lingkup Infrastruktur</span>
             </div>
@@ -259,7 +259,7 @@ export default function ThreatIntelDetailModal({
 
         {/* Section 2: Technical Description */}
         <div className="rounded-lg border border-ops-border bg-ops-surface/60 p-4 flex flex-col gap-2.5">
-          <div className="flex items-center gap-2 border-b border-ops-border/60 pb-2 text-xs font-semibold text-ops-muted uppercase tracking-wider">
+          <div className="flex items-center gap-2 border-b border-ops-border pb-2 text-xs font-medium text-ops-muted">
             <FileText className="size-3.5 text-ops-accent" />
             <span>Deskripsi & Analisis Kerentanan Teknis</span>
           </div>
@@ -276,7 +276,7 @@ export default function ThreatIntelDetailModal({
             : "border-ops-warning/30 bg-ops-warning-soft"
         }`}>
           <div className="flex items-center justify-between border-b border-ops-border/50 pb-2">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ops-text">
+            <div className="flex items-center gap-2 text-xs font-medium text-ops-text">
               <Wrench className="size-3.5 text-ops-success" />
               <span>Rencana Tindakan / Patching (ISO 27001 Control A.8.8)</span>
             </div>
@@ -297,7 +297,7 @@ export default function ThreatIntelDetailModal({
         {/* Section 4: Evidences & Documentation */}
         <div className="rounded-lg border border-ops-border bg-ops-surface/60 p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between border-b border-ops-border/60 pb-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-ops-muted uppercase tracking-wider">
+            <div className="flex items-center gap-2 text-xs font-medium text-ops-muted">
               <ImageIcon className="size-3.5 text-ops-accent" />
               <span>Bukti Pelaksanaan & Dokumentasi ({item.evidences?.length || 0})</span>
             </div>

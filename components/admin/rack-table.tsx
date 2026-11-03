@@ -53,12 +53,12 @@ export default function RackTable({ racks, onEdit, onDeleteSuccess }: RackTableP
       <DataTable>
         <DataTableHead>
           <tr>
-            <th className="px-5 py-3 text-left">Rack Name</th>
-            <th className="px-5 py-3 text-left">Zone</th>
-            <th className="px-5 py-3 text-left">Capacity</th>
-            <th className="px-5 py-3 text-left">Location</th>
-            <th className="px-5 py-3 text-left">Audit</th>
-            <th className="px-5 py-3 text-right">Actions</th>
+            <th className="px-4 text-left">Rack Name</th>
+            <th className="px-4 text-left">Zone</th>
+            <th className="px-4 text-left">Capacity</th>
+            <th className="px-4 text-left">Location</th>
+            <th className="px-4 text-left">Audit</th>
+            <th className="px-4 text-right">Actions</th>
           </tr>
         </DataTableHead>
         <DataTableBody>
@@ -66,8 +66,8 @@ export default function RackTable({ racks, onEdit, onDeleteSuccess }: RackTableP
             <DataTableEmpty colSpan={6} title="No racks defined" description="Add a rack above to start placing devices." />
           ) : (
             racks.map((rack) => (
-              <tr key={rack.id} className="transition-colors hover:bg-ops-surface">
-                <td className="whitespace-nowrap px-5 py-3">
+              <tr key={rack.id} className="transition-colors">
+                <td className="whitespace-nowrap px-4 py-2.5">
                   <div className="flex items-center gap-3">
                     <div className="flex size-9 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">
                       <Server className="size-4" />
@@ -75,19 +75,19 @@ export default function RackTable({ racks, onEdit, onDeleteSuccess }: RackTableP
                     <span className="text-sm font-semibold text-ops-text">{rack.name}</span>
                   </div>
                 </td>
-                <td className="whitespace-nowrap px-5 py-3 text-ops-muted">{rack.zone || "-"}</td>
-                <td className="whitespace-nowrap px-5 py-3">
-                  <StatusBadge tone="info">{rack.totalU || 42}U</StatusBadge>
+                <td className="whitespace-nowrap px-4 py-2.5 text-[13px] text-ops-muted">{rack.zone || "-"}</td>
+                <td className="whitespace-nowrap px-4 py-2.5">
+                  <StatusBadge tone="info"><span className="tabular-nums">{rack.totalU || 42}U</span></StatusBadge>
                 </td>
-                <td className="whitespace-nowrap px-5 py-3 text-ops-muted">{rack.locationName || "-"}</td>
-                <td className="whitespace-nowrap px-5 py-3">
+                <td className="whitespace-nowrap px-4 py-2.5 text-[13px] text-ops-muted">{rack.locationName || "-"}</td>
+                <td className="whitespace-nowrap px-4 py-2.5">
                   {rack.isAuditable ? (
                     <StatusBadge tone="success">On Audit</StatusBadge>
                   ) : (
                     <StatusBadge tone="neutral">Skipped</StatusBadge>
                   )}
                 </td>
-                <td className="whitespace-nowrap px-5 py-3 text-right">
+                <td className="whitespace-nowrap px-4 py-2.5 text-right">
                   <div className="inline-flex items-center gap-1">
                     <ActionButton type="button" variant="ghost" size="icon" onClick={() => onEdit(rack)} title="Edit rack">
                       <Edit className="size-4 text-ops-info" />

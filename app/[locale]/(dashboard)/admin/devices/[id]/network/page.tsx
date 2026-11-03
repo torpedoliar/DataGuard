@@ -6,13 +6,15 @@ import { and, eq } from "drizzle-orm";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Network, Server, ArrowLeft, GitBranch } from "lucide-react";
+import { ArrowLeft, GitBranch } from "lucide-react";
 import AddPortForm from "@/components/admin/add-port-form";
 import PortTable from "@/components/admin/port-table";
 import ImportPortForm from "@/components/admin/import-port-form";
 import DeviceFaceplate from "@/components/admin/device-faceplate";
 import FaceplateConfigForm from "@/components/admin/faceplate-config-form";
 import FaceplatePdfButton from "@/components/admin/faceplate-pdf-button";
+import ActionButton from "@/components/ui/action-button";
+import PageHeader from "@/components/ui/page-header";
 
 export default async function NetworkDocumentationPage({
     params,
@@ -64,84 +66,60 @@ export default async function NetworkDocumentationPage({
         numbering: device.faceplateNumbering,
     };
 
+    const stats: { label: string; value: number; tone?: "success" }[] = [
+        { label: "Total ports defined", value: ports.length },
+        { label: "Active links", value: ports.filter(p => p.status === 'Active').length, tone: "success" },
+        { label: "Access ports", value: ports.filter(p => p.portMode === 'Access').length },
+        { label: "Trunk links", value: ports.filter(p => p.portMode === 'Trunk').length },
+    ];
+
     return (
-        <div className="px-4 py-6 lg:px-6">
-            <div className="mb-6">
+        <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+            <div className="flex flex-col gap-4">
                 <Link
                     href="/admin"
-                    className="inline-flex items-center gap-2 text-sm text-ops-muted hover:text-ops-text mb-4 transition-colors"
+                    className="inline-flex w-fit items-center gap-1.5 text-[13px] text-ops-muted transition-colors hover:text-ops-text"
                 >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to Devices
+                    <ArrowLeft className="size-3.5" />
+                    Back to devices
                 </Link>
 
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="size-12 rounded-xl bg-ops-accent-soft flex items-center justify-center text-ops-accent border border-ops-accent/20">
-                            <Network className="h-6 w-6" />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-ops-text flex items-center gap-2">
-                                {device.name} Network
-                                <span className="px-2 py-0.5 rounded text-xs font-mono font-medium text-ops-accent bg-ops-accent-soft border border-ops-accent/20">
-                                    {device.ipAddress || "No IP"}
-                                </span>
-                            </h1>
-                            <p className="text-sm text-ops-muted mt-1 flex items-center gap-2">
-                                <Server className="h-3.5 w-3.5" />
-                                {device.brandName || "Unknown Brand"} • {device.locationName || "-"}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <FaceplatePdfButton
-                            deviceName={device.name}
-                            deviceIp={device.ipAddress}
-                            brandName={device.brandName}
-                            locationName={device.locationName}
-                            config={faceplateConfig}
-                            ports={ports}
-                        />
-                        <Link
-                            href={`/admin/network/vlans`}
-                            className="flex items-center gap-2 px-4 py-2 bg-ops-surface-raised text-ops-muted rounded-lg hover:bg-ops-surface-sunken transition-colors"
-                        >
-                            <GitBranch className="size-4" />
-                            VLAN Management
-                        </Link>
-                    </div>
-                </div>
+                <PageHeader
+                    eyebrow="Admin / Network"
+                    title={`${device.name} network`}
+                    description={`${device.brandName || "Unknown brand"} · ${device.locationName || "Unassigned"} · ${device.ipAddress || "No IP documented"}`}
+                    actions={
+                        <>
+                            <FaceplatePdfButton
+                                deviceName={device.name}
+                                deviceIp={device.ipAddress}
+                                brandName={device.brandName}
+                                locationName={device.locationName}
+                                config={faceplateConfig}
+                                ports={ports}
+                            />
+                            <ActionButton href="/admin/network/vlans" variant="secondary" icon={<GitBranch className="size-4" />}>
+                                VLAN management
+                            </ActionButton>
+                        </>
+                    }
+                />
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-4">
-                    <p className="text-sm text-ops-muted mb-1">Total Ports Defined</p>
-                    <p className="text-2xl font-bold text-ops-text">{ports.length}</p>
-                </div>
-                <div className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-4">
-                    <p className="text-sm text-ops-muted mb-1">Active Links</p>
-                    <p className="text-2xl font-bold text-success">
-                        {ports.filter(p => p.status === 'Active').length}
-                    </p>
-                </div>
-                <div className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-4">
-                    <p className="text-sm text-ops-muted mb-1">Access Ports</p>
-                    <p className="text-2xl font-bold text-ops-text">
-                        {ports.filter(p => p.portMode === 'Access').length}
-                    </p>
-                </div>
-                <div className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-4">
-                    <p className="text-sm text-ops-muted mb-1">Trunk Links</p>
-                    <p className="text-2xl font-bold text-ops-text">
-                        {ports.filter(p => p.portMode === 'Trunk').length}
-                    </p>
-                </div>
+            {/* Stats cards */}
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                {stats.map((stat) => (
+                    <div key={stat.label} className="ops-panel p-4">
+                        <p className="text-[13px] text-ops-muted">{stat.label}</p>
+                        <p className={`mt-1 text-2xl font-semibold tabular-nums leading-tight ${stat.tone === "success" ? "text-ops-success" : "text-ops-text"}`}>
+                            {stat.value}
+                        </p>
+                    </div>
+                ))}
             </div>
 
             {/* Faceplate: physical port diagram generated from the port data below */}
-            <div className="mb-6 space-y-4">
+            <div className="space-y-4">
                 <FaceplateConfigForm deviceId={deviceId} config={faceplateConfig} />
                 <DeviceFaceplate
                     deviceId={deviceId}
@@ -157,12 +135,16 @@ export default async function NetworkDocumentationPage({
 
             <ImportPortForm deviceId={deviceId} />
 
-            <div className="mt-8">
-                <h3 className="text-lg font-semibold mb-4 text-ops-text flex items-center gap-2">
-                    Physical & Logical Interfaces
-                </h3>
+            <section className="flex flex-col gap-4">
+                <div className="flex items-end justify-between gap-3">
+                    <div>
+                        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Physical &amp; logical interfaces</h2>
+                        <p className="mt-0.5 text-[13px] text-ops-muted">Port state, VLAN assignment, and documented cabling.</p>
+                    </div>
+                    <span className="shrink-0 text-[13px] tabular-nums text-ops-muted">{ports.length} ports</span>
+                </div>
                 <PortTable ports={ports} vlans={vlans} otherDevices={otherDevices} deviceId={deviceId} faceplateConfig={faceplateConfig} />
-            </div>
-        </div>
+            </section>
+        </main>
     );
 }

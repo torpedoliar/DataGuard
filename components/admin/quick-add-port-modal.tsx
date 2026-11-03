@@ -3,9 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addPort } from "@/actions/network";
-import { Loader2, Plus, X } from "lucide-react";
+import ActionButton from "@/components/ui/action-button";
+import { Plus, X } from "lucide-react";
 
 type Vlan = { id: number; vlanId: number; name: string };
+
+const fieldClass = "ops-input h-9 w-full px-3 text-sm";
+const labelClass = "mb-2 block text-xs font-medium text-ops-muted";
 
 export default function QuickAddPortModal({
     deviceId,
@@ -66,32 +70,27 @@ export default function QuickAddPortModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-ops-surface/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-ops-surface rounded-xl max-w-2xl w-full shadow-xl my-8">
-                <div className="flex items-center justify-between p-6 border-b border-ops-border">
-                    <div>
-                        <h2 className="text-xl font-semibold text-ops-text flex items-center gap-2">
-                            <Plus className="h-5 w-5 text-ops-accent" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm">
+            <div className="my-8 w-full max-w-2xl rounded-lg border border-ops-border bg-ops-surface shadow-xl">
+                <div className="flex items-center justify-between gap-3 border-b border-ops-border p-5">
+                    <div className="min-w-0">
+                        <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                            <Plus className="size-4 text-ops-accent" />
                             Provision {slotLabel}
                         </h2>
-                        <p className="text-xs text-ops-subtle dark:text-ops-muted mt-1">
+                        <p className="mt-1 text-[13px] text-ops-muted">
                             Port ini akan dipasang ke slot fisik {slotNumber} pada faceplate.
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="text-ops-muted hover:text-ops-subtle dark:hover:text-ops-muted transition-colors"
-                        aria-label="Tutup"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Tutup" title="Tutup">
+                        <X aria-hidden="true" className="size-4" />
+                    </ActionButton>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6">
+                <form onSubmit={handleSubmit} className="p-5">
                     <div className="grid gap-6 md:grid-cols-2">
                         <div>
-                            <label htmlFor="quick-port-name" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label htmlFor="quick-port-name" className={labelClass}>
                                 Physical Interface
                             </label>
                             <input
@@ -99,21 +98,21 @@ export default function QuickAddPortModal({
                                 type="text"
                                 value={portName}
                                 onChange={(event) => setPortName(event.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 placeholder="e.g. Gi1/0/13"
                                 required
                                 disabled={isPending}
                             />
                         </div>
                         <div>
-                            <label htmlFor="quick-port-status" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label htmlFor="quick-port-status" className={labelClass}>
                                 Link Status
                             </label>
                             <select
                                 id="quick-port-status"
                                 value={status}
                                 onChange={(event) => setStatus(event.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 <option value="Active">Active (Up)</option>
@@ -122,56 +121,56 @@ export default function QuickAddPortModal({
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="quick-port-speed" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label htmlFor="quick-port-speed" className={labelClass}>
                                 Port Speed
                             </label>
                             <select
                                 id="quick-port-speed"
                                 value={speed}
                                 onChange={(event) => setSpeed(event.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 {["10/100M", "1G", "10G", "25G", "40G", "100G", "Auto"].map((option) => <option key={option} value={option}>{option}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="quick-port-media" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label htmlFor="quick-port-media" className={labelClass}>
                                 Media Type
                             </label>
                             <select
                                 id="quick-port-media"
                                 value={mediaType}
                                 onChange={(event) => setMediaType(event.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 {["Copper (RJ45)", "Fiber (SFP/SFP+)", "Twinax (DAC)"].map((option) => <option key={option} value={option}>{option}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="quick-port-mode" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label htmlFor="quick-port-mode" className={labelClass}>
                                 Logical Config
                             </label>
                             <select
                                 id="quick-port-mode"
                                 value={portMode}
                                 onChange={(event) => setPortMode(event.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 {["Access", "Trunk", "Routed", "LACP"].map((option) => <option key={option} value={option}>{option}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="quick-port-vlan" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label htmlFor="quick-port-vlan" className={labelClass}>
                                 Access / Native VLAN
                             </label>
                             <select
                                 id="quick-port-vlan"
                                 value={vlanId}
                                 onChange={(event) => setVlanId(event.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 <option value="">-- No VLAN --</option>
@@ -179,7 +178,7 @@ export default function QuickAddPortModal({
                             </select>
                         </div>
                         <div className="md:col-span-2">
-                            <label htmlFor="quick-port-description" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label htmlFor="quick-port-description" className={labelClass}>
                                 Description
                             </label>
                             <input
@@ -187,32 +186,22 @@ export default function QuickAddPortModal({
                                 type="text"
                                 value={description}
                                 onChange={(event) => setDescription(event.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 placeholder="Uplink to Core"
                                 disabled={isPending}
                             />
                         </div>
                     </div>
 
-                    {error && <p className="mt-4 text-sm text-ops-danger">{error}</p>}
+                    {error && <p className="mt-4 text-[13px] text-ops-danger">{error}</p>}
 
                     <div className="mt-8 flex justify-end gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={isPending}
-                            className="px-4 py-2 text-ops-muted bg-ops-surface-raised hover:bg-ops-surface-raised dark:text-ops-muted dark:bg-ops-surface-raised dark:hover:bg-ops-surface-sunken rounded-lg transition-colors"
-                        >
+                        <ActionButton type="button" variant="secondary" onClick={onClose} disabled={isPending}>
                             Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isPending}
-                            className="flex items-center gap-2 bg-ops-accent text-ops-accent-fg px-6 py-2 rounded-md hover:bg-ops-accent-hover transition focus:outline-none focus:ring-2 focus:ring-ops-accent focus:ring-offset-2 disabled:opacity-50"
-                        >
-                            {isPending ? <Loader2 className="animate-spin h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                            Add Port
-                        </button>
+                        </ActionButton>
+                        <ActionButton type="submit" isPending={isPending} icon={<Plus className="size-4" />}>
+                            Add port
+                        </ActionButton>
                     </div>
                 </form>
             </div>

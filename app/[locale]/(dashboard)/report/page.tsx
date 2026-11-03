@@ -98,25 +98,25 @@ export default async function ReportPage({
           label="Compliance Rate"
           value={`${stats.kpis.complianceRate}%`}
           tone="success"
-          icon={<CheckCircle2 className="size-5" />}
+          icon={<CheckCircle2 />}
         />
         <StatsCard
           label="Total Audits"
           value={stats.kpis.totalAudits}
           tone="info"
-          icon={<ClipboardList className="size-5" />}
+          icon={<ClipboardList />}
         />
         <StatsCard
           label="Open Issues"
           value={stats.kpis.openIssues}
           tone="orange"
-          icon={<AlertTriangle className="size-5" />}
+          icon={<AlertTriangle />}
         />
         <StatsCard
           label="Avg Resolution"
           value={stats.kpis.avgResolution}
           tone="accent"
-          icon={<Clock3 className="size-5" />}
+          icon={<Clock3 />}
         />
       </section>
 
@@ -124,8 +124,8 @@ export default async function ReportPage({
         <div className="ops-panel flex min-h-[360px] flex-col p-5 xl:col-span-2">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-ops-text">Health Trends</h2>
-              <p className="text-sm text-ops-muted">Healthy checks vs reported faults over the last 12 months.</p>
+              <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Health Trends</h2>
+              <p className="mt-0.5 text-[13px] text-ops-muted">Healthy checks vs reported faults over the last 12 months.</p>
             </div>
             <div className="flex items-center gap-4 text-xs">
               <div className="flex items-center gap-1.5">
@@ -172,7 +172,7 @@ export default async function ReportPage({
         <div className="ops-panel flex flex-col p-5">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-ops-text">Failure Frequency</h2>
+              <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Failure Frequency</h2>
               <p className="text-sm text-ops-muted">Incidents grouped by category.</p>
             </div>
             <TrendingUp className="size-5 text-ops-muted" />
@@ -202,7 +202,7 @@ export default async function ReportPage({
 
       <section className="space-y-3">
         <div>
-          <h2 className="text-lg font-bold text-ops-text">Detailed Compliance Log</h2>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Detailed Compliance Log</h2>
           <p className="text-sm text-ops-muted">Checklist records with linked incidents, notes, and evidence.</p>
         </div>
 

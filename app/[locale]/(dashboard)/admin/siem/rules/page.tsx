@@ -17,16 +17,16 @@ export default async function SiemRulesPage() {
 
   if ("message" in data) {
     return (
-      <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
-        <PageHeader eyebrow="Admin / SIEM" title="SIEM Rules" description="Atur rule mana yang aktif dan mana yang mengirim alert ke Telegram." />
-        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
+      <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+        <PageHeader eyebrow="Admin / SIEM" title="SIEM rules" description="Atur rule mana yang aktif dan mana yang mengirim alert ke Telegram." />
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{data.message}</div>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
-      <PageHeader eyebrow="Admin / SIEM" title="SIEM Rules" description="Atur rule mana yang aktif dan mana yang mengirim alert ke Telegram." />
+    <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+      <PageHeader eyebrow="Admin / SIEM" title="SIEM rules" description="Atur rule mana yang aktif dan mana yang mengirim alert ke Telegram." />
       {"message" in catalog ? null : (
         <SiemTemplateCatalog available={catalog.available} locked={catalog.needsDataSources} />
       )}

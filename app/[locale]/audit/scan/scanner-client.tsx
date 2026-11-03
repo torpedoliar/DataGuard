@@ -73,7 +73,7 @@ export default function QRScannerClient() {
       <section className="ops-panel overflow-hidden">
         <div className="flex items-center justify-between gap-4 border-b border-ops-border bg-ops-surface px-5 py-4">
           <div>
-            <h2 className="text-base font-bold text-ops-text">Camera Feed</h2>
+            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Camera feed</h2>
             <p className="mt-1 text-sm text-ops-muted">Center the QR marker inside the scanner frame.</p>
           </div>
           <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">
@@ -97,8 +97,8 @@ export default function QRScannerClient() {
                 <Camera className="size-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-ops-text">Field Scan</h3>
-                <p className="mt-1 text-sm leading-6 text-ops-muted">
+                <h3 className="text-[13px] font-semibold text-ops-text">Field scan</h3>
+                <p className="mt-1 text-[13px] leading-6 text-ops-muted">
                   Browser camera permission is required. Native phone camera links that open this page still redirect to the audit form.
                 </p>
               </div>

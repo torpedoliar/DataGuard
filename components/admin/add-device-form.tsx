@@ -53,7 +53,7 @@ const EMPTY_FORM = {
 };
 
 const fieldClass = "ops-input w-full px-3 py-2 text-sm";
-const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
+const labelClass = "mb-1.5 block text-xs font-medium text-ops-muted";
 
 export default function AddDeviceForm({
   categories,
@@ -117,10 +117,10 @@ export default function AddDeviceForm({
   return (
     <form action={action}>
       {facility && <input type="hidden" name="facilityAsset" value={JSON.stringify({ ...facility, locationId: Number(form.locationId) || null })} />}
-      <label className="mb-4 block text-sm">Jenis aset<select className="ops-input ml-3 p-2" value={facility?.assetType ?? "standard"} onChange={(e) => { setFacility(e.target.value === "standard" ? null : emptyFacility(e.target.value === "ups" ? "floor-standing" : "in-row")); setForm((f) => ({ ...f, rackName: "", rackPosition: "" })); }}><option value="standard">Standard / rack device</option><option value="pac">PAC</option><option value="ups">UPS</option></select></label>
-      {facility && <div className="mb-4 rounded border border-ops-border p-4"><FacilitySpecFields asset={facility} onChange={setFacility} /><p className="mt-2 text-xs">Aset baru Unplaced; atur posisi melalui Layout Ruangan setelah disimpan.</p></div>}
+      <label className="mb-4 block text-[13px] font-medium text-ops-muted">Jenis aset<select className="ops-input ml-3 h-9 px-2.5 text-sm" value={facility?.assetType ?? "standard"} onChange={(e) => { setFacility(e.target.value === "standard" ? null : emptyFacility(e.target.value === "ups" ? "floor-standing" : "in-row")); setForm((f) => ({ ...f, rackName: "", rackPosition: "" })); }}><option value="standard">Standard / rack device</option><option value="pac">PAC</option><option value="ups">UPS</option></select></label>
+      {facility && <div className="mb-4 rounded-md border border-ops-border bg-ops-surface-raised p-4"><FacilitySpecFields asset={facility} onChange={setFacility} /><p className="mt-2 text-[13px] text-ops-muted">Aset baru Unplaced; atur posisi melalui Layout Ruangan setelah disimpan.</p></div>}
       <FormSection
-        title="Add New Device"
+        title="Add new device"
         description="Register device identity, placement, network address, and optional evidence photo."
         footer={
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -182,7 +182,7 @@ export default function AddDeviceForm({
           </label>
 
           {!facility && <div className="border-t border-ops-border pt-5 md:col-span-2 xl:col-span-3">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-ops-text">
+            <h3 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-ops-text">
               <Server className="size-4 text-ops-accent" />
               Rack Selection
             </h3>
@@ -290,7 +290,7 @@ export default function AddDeviceForm({
                   event.target.value = "";
                 }
               }}
-              className="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ops-text"
+              className="block w-full text-sm text-ops-muted file:mr-3 file:rounded-md file:border-0 file:bg-ops-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ops-text"
             />
           </label>
 
@@ -307,7 +307,7 @@ export default function AddDeviceForm({
           </label>
 
           <label className="flex cursor-pointer items-center gap-3 rounded-md border border-ops-warning/30 bg-ops-warning-soft px-3 py-2.5 md:col-span-2">
-            <input type="checkbox" name="isCritical" className="size-4 accent-amber-400" />
+            <input type="checkbox" name="isCritical" className="size-4 accent-ops-warning" />
             <span className="text-sm font-medium text-ops-text">
               Perangkat kritikal (SIEM)
               <span className="mt-0.5 block text-xs font-normal text-ops-muted">

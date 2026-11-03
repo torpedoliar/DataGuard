@@ -62,19 +62,19 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
                 role="dialog"
                 aria-label="Device details"
                 className={docked
-                    ? "absolute inset-y-0 right-0 z-20 h-full w-full max-w-sm overflow-y-auto border-l border-ops-border bg-ops-surface p-6 shadow-xl"
-                    : "h-full w-full max-w-sm overflow-y-auto border-l border-ops-border bg-ops-surface p-6 shadow-xl"}
+                    ? "absolute inset-y-0 right-0 z-20 h-full w-full max-w-sm overflow-y-auto border-l border-ops-border bg-ops-surface p-5 shadow-xl"
+                    : "h-full w-full max-w-sm overflow-y-auto border-l border-ops-border bg-ops-surface p-5 shadow-xl"}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-ops-text">Device Details</h3>
-                    <button onClick={onClose} aria-label="Close" className="text-ops-muted hover:text-ops-text">
-                        <XCircle className="h-5 w-5" />
+                <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Device details</h3>
+                    <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text">
+                        <XCircle className="size-4" />
                     </button>
                 </div>
                 {device.isCritical && (
-                    <div role="alert" className="mb-4 flex items-start gap-2 rounded-lg border border-ops-danger/50 bg-ops-danger/10 px-3 py-2 text-sm font-medium text-ops-danger">
-                        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
+                        <TriangleAlert className="mt-0.5 size-4 shrink-0" />
                         Critical device. Coordinate with the PIC before any action.
                     </div>
                 )}
@@ -94,7 +94,7 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
                             onClick={() => setPhoto(device.photoPath)}
                             aria-label={`Enlarge photo of ${device.name}`}
                             title="Click to enlarge"
-                            className="block w-full cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ops-accent/40"
+                            className="block w-full cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ops-accent/30"
                         >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={device.photoPath} alt={device.name} className="h-40 w-full rounded-lg border border-ops-border object-cover transition-opacity hover:opacity-90" />
@@ -104,13 +104,13 @@ export default function DeviceDetailPanel({ device, onClose, onSelectPeer, docke
                 {(!docked || tab === "Overview") && <div className="space-y-3">
                     {rows.map(([label, value]) => (
                         <div key={label}>
-                            <label className="text-xs text-ops-muted">{label}</label>
-                            <p className="font-medium text-ops-text">{value}</p>
+                            <span className="block text-xs text-ops-muted">{label}</span>
+                            <p className="text-sm font-medium text-ops-text">{value}</p>
                         </div>
                     ))}
                     <div>
-                        <label className="text-xs text-ops-muted">Status audit</label>
-                        <p className={`font-medium ${
+                        <span className="block text-xs text-ops-muted">Status audit</span>
+                        <p className={`text-sm font-medium ${
                             device.status === "NOT OK" ? "text-ops-danger" :
                             device.status === "OK" ? "text-ops-success" : "text-ops-muted"
                         }`}>

@@ -45,20 +45,20 @@ export default async function SiemSyslogPage({
   const quarantineCount = quarantineStatus.ok ? quarantineStatus.count ?? 0 : 0;
 
   return (
-    <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
+    <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
       <PageHeader
-        eyebrow="SIEM / Syslog"
-        title="Device Syslog Messages"
+        eyebrow="Admin / SIEM"
+        title="Device syslog messages"
         description="View parsed syslog messages, severity, facility, source IP, and device mapping for active-site devices."
         actions={
           <>
             <div
-              className="inline-flex items-center gap-2 rounded-md border border-ops-warning/30 bg-ops-warning-soft px-3 py-1.5 text-xs text-ops-warning"
+              className="inline-flex items-center gap-2 rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-1.5 text-xs text-ops-warning"
               title="Orphan syslog events quarantined for forensics (>24h old). Auto-purged after quarantine retention period."
             >
               <Archive className="size-3.5" />
               <span className="font-medium">Quarantined:</span>
-              <span className="font-mono">{quarantineCount.toLocaleString()}</span>
+              <span className="tabular-nums">{quarantineCount.toLocaleString()}</span>
             </div>
             <ActionButton href="/admin/siem/events" variant="secondary" icon={<FileSearch className="size-4" />}>Event Explorer</ActionButton>
             <ActionButton href="/admin/siem/findings" variant="secondary" icon={<ShieldAlert className="size-4" />}>Findings</ActionButton>
@@ -68,7 +68,7 @@ export default async function SiemSyslogPage({
       />
 
       {"message" in data && data.message ? (
-        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{data.message}</div>
       ) : (
         <SiemSyslogTable data={data} />
       )}

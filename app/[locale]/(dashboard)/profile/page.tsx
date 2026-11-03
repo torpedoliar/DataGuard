@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import ProfileForm from "@/components/profile/profile-form";
+import PageHeader from "@/components/ui/page-header";
 
 export const metadata = {
     title: "Profile | DataGuard",
@@ -40,15 +41,13 @@ export default async function ProfilePage() {
     };
 
     return (
-        <main className="p-6">
-            <div className="max-w-[1600px] mx-auto min-h-[calc(100vh-8rem)]">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold tracking-tight text-ops-text mb-2">Profile Settings</h1>
-                    <p className="text-ops-muted">Kelola foto profil dan keamanan akun Anda.</p>
-                </div>
-
-                <ProfileForm user={userData} />
-            </div>
+        <main className="mx-auto flex w-full max-w-[1200px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+            <PageHeader
+                eyebrow="Account / Profile"
+                title="Profile settings"
+                description="Kelola foto profil dan keamanan akun Anda."
+            />
+            <ProfileForm user={userData} />
         </main>
     );
 }

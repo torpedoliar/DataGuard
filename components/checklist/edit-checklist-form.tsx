@@ -71,16 +71,16 @@ export default function EditChecklistForm({
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-ops-border">
                     <div>
-                        <h2 className="text-xl font-bold text-ops-text ">Edit Checklist Entry</h2>
-                        <p className="text-sm text-ops-muted mt-1">
+                        <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ops-text">Edit checklist entry</h2>
+                        <p className="mt-1 text-[13px] text-ops-muted">
                             {new Date(checkDate).toLocaleDateString("en-GB", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                         </p>
                     </div>
                     <button
                         onClick={() => window.location.href = "/report"}
-                        className="text-ops-muted hover:text-ops-text "
+                        className="flex size-9 items-center justify-center rounded-md text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text"
                     >
-                        <X className="h-6 w-6" />
+                        <X className="size-4" />
                     </button>
                 </div>
 

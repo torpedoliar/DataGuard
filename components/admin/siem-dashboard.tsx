@@ -7,6 +7,7 @@ import {
   DataTableHead,
 } from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
+import EmptyState from "@/components/ui/empty-state";
 import { getIncidentSeverityTone } from "@/lib/ui/status";
 import { AlertTriangle, Bell, FileSearch, RadioTower, ScrollText, ShieldAlert } from "lucide-react";
 
@@ -58,19 +59,22 @@ function formatDate(date: Date) {
 }
 
 function StatCard({ label, value, detail, tone = "neutral" }: { label: string; value: number; detail: string; tone?: "neutral" | "danger" | "warning" | "info" | "success" }) {
-  const toneClass = {
-    neutral: "border-ops-border",
-    danger: "border-ops-danger/30 bg-ops-danger-soft",
-    warning: "border-ops-warning/30 bg-ops-warning-soft",
-    info: "border-ops-info/30 bg-ops-info-soft",
-    success: "border-ops-success/30 bg-ops-success-soft",
+  const dotClass = {
+    neutral: "bg-ops-subtle",
+    danger: "bg-ops-danger",
+    warning: "bg-ops-warning",
+    info: "bg-ops-info",
+    success: "bg-ops-success",
   }[tone];
 
   return (
-    <div className={`rounded-xl border bg-ops-surface p-4 ${toneClass}`}>
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">{label}</p>
-      <p className="mt-3 text-3xl font-bold text-ops-text">{value.toLocaleString("id-ID")}</p>
-      <p className="mt-1 text-sm text-ops-muted">{detail}</p>
+    <div className="ops-panel p-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[13px] font-medium text-ops-muted">{label}</p>
+        <span className={`mt-1 size-1.5 shrink-0 rounded-full ${dotClass}`} aria-hidden="true" />
+      </div>
+      <p className="mt-3 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{value.toLocaleString("id-ID")}</p>
+      <p className="mt-2 text-xs text-ops-muted">{detail}</p>
     </div>
   );
 }
@@ -124,12 +128,12 @@ function TimeseriesChart({
   const hasData = series.some((s) => s.values.length > 0);
 
   return (
-    <div className="ops-panel p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">{title}</p>
+    <div className="ops-panel p-4">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-[13px] font-medium text-ops-text">{title}</p>
         <div className="flex gap-3">
           {series.map((s) => (
-            <span key={s.label} className="flex items-center gap-1 text-[10px] text-ops-muted">
+            <span key={s.label} className="flex items-center gap-1 text-xs text-ops-muted">
               <span className="inline-block h-1.5 w-3 rounded-sm" style={{ backgroundColor: s.color }} />
               {s.label}
             </span>
@@ -206,7 +210,7 @@ function toSeriesValues(
 export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) {
   const ts = stats.timeseries ?? { "24h": [], "7d": [], "30d": [] };
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Raw 24h" value={stats.raw24h} detail="UDP syslog packets received" tone="info" />
         <StatCard label="Parsed 24h" value={stats.parsed24h} detail="Active-site normalized events" tone="success" />
@@ -217,52 +221,52 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
       <section className="grid gap-3 md:grid-cols-3">
         <div className="ops-panel flex items-center justify-between p-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">Unmapped Sources</p>
-            <p className="mt-2 text-2xl font-bold text-ops-text">{stats.unmappedSources.toLocaleString("id-ID")}</p>
+            <p className="text-[13px] font-medium text-ops-muted">Unmapped Sources</p>
+            <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{stats.unmappedSources.toLocaleString("id-ID")}</p>
           </div>
-          <RadioTower className="size-8 text-ops-warning" />
+          <RadioTower className="size-8 text-ops-warning" aria-hidden="true" />
         </div>
         <div className="ops-panel flex items-center justify-between p-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">Pending Alerts</p>
-            <p className="mt-2 text-2xl font-bold text-ops-text">{stats.pendingAlerts.toLocaleString("id-ID")}</p>
+            <p className="text-[13px] font-medium text-ops-muted">Pending Alerts</p>
+            <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{stats.pendingAlerts.toLocaleString("id-ID")}</p>
           </div>
-          <Bell className="size-8 text-ops-info" />
+          <Bell className="size-8 text-ops-info" aria-hidden="true" />
         </div>
         <div className="ops-panel flex items-center justify-between p-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-ops-muted">Failed Alerts</p>
-            <p className="mt-2 text-2xl font-bold text-ops-text">{stats.failedAlerts.toLocaleString("id-ID")}</p>
+            <p className="text-[13px] font-medium text-ops-muted">Failed Alerts</p>
+            <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{stats.failedAlerts.toLocaleString("id-ID")}</p>
           </div>
-          <AlertTriangle className="size-8 text-ops-danger" />
+          <AlertTriangle className="size-8 text-ops-danger" aria-hidden="true" />
         </div>
       </section>
 
-      <section className="space-y-2">
+      <section className="space-y-3">
         <div>
-          <h2 className="text-lg font-bold text-ops-text">Time-Series Trends</h2>
-          <p className="text-sm text-ops-muted">Hourly snapshot history — the three windows share the same x-axis (oldest to newest) and a per-chart y-scale.</p>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Time-series trends</h2>
+          <p className="mt-0.5 text-[13px] text-ops-muted">Hourly snapshot history — the three windows share the same x-axis (oldest to newest) and a per-chart y-scale.</p>
         </div>
         <div className="grid gap-3 lg:grid-cols-3">
           <TimeseriesChart
-            title="Event Volume (24h)"
+            title="Event volume (24h)"
             series={[
-              { label: "Raw", color: "#60a5fa", values: toSeriesValues(ts["24h"], (s) => s.raw24h) },
-              { label: "Parsed", color: "#34d399", values: toSeriesValues(ts["24h"], (s) => s.parsed24h) },
+              { label: "Raw", color: "var(--color-ops-info)", values: toSeriesValues(ts["24h"], (s) => s.raw24h) },
+              { label: "Parsed", color: "var(--color-ops-success)", values: toSeriesValues(ts["24h"], (s) => s.parsed24h) },
             ]}
           />
           <TimeseriesChart
             title="Findings (7d)"
             series={[
-              { label: "Open", color: "#fbbf24", values: toSeriesValues(ts["7d"], (s) => s.openFindings) },
-              { label: "Critical", color: "#f87171", values: toSeriesValues(ts["7d"], (s) => s.criticalFindings) },
+              { label: "Open", color: "var(--color-ops-warning)", values: toSeriesValues(ts["7d"], (s) => s.openFindings) },
+              { label: "Critical", color: "var(--color-ops-danger)", values: toSeriesValues(ts["7d"], (s) => s.criticalFindings) },
             ]}
           />
           <TimeseriesChart
             title="Alerts (30d)"
             series={[
-              { label: "Pending", color: "#60a5fa", values: toSeriesValues(ts["30d"], (s) => s.pendingAlerts) },
-              { label: "Failed", color: "#f87171", values: toSeriesValues(ts["30d"], (s) => s.failedAlerts) },
+              { label: "Pending", color: "var(--color-ops-info)", values: toSeriesValues(ts["30d"], (s) => s.pendingAlerts) },
+              { label: "Failed", color: "var(--color-ops-danger)", values: toSeriesValues(ts["30d"], (s) => s.failedAlerts) },
             ]}
           />
         </div>
@@ -277,11 +281,15 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
 
       <section className="space-y-3">
         <div>
-          <h2 className="text-lg font-bold text-ops-text">Top Sources (24h)</h2>
-          <p className="text-sm text-ops-muted">Sumber paling berisik dalam 24 jam terakhir — kandidat investigasi volume anomali.</p>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Top sources (24h)</h2>
+          <p className="mt-0.5 text-[13px] text-ops-muted">Sumber paling berisik dalam 24 jam terakhir — kandidat investigasi volume anomali.</p>
         </div>
         {stats.topSources.length === 0 ? (
-          <p className="text-sm text-ops-muted">Belum ada event dalam 24 jam terakhir.</p>
+          <EmptyState
+            icon={<RadioTower className="size-5" />}
+            title="Belum ada event dalam 24 jam terakhir."
+            description="Event per sumber akan muncul di sini setelah receiver syslog menulis paket dari source yang terpetakan."
+          />
         ) : (
           <DataTableFrame>
             <DataTable>
@@ -294,13 +302,13 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
               </DataTableHead>
               <DataTableBody>
                 {stats.topSources.map((row) => (
-                  <tr key={row.sourceIp} className="transition-colors hover:bg-ops-surface">
+                  <tr key={row.sourceIp}>
                     <td className="px-4 py-3">
                       <div className="font-medium text-ops-text">{row.displayName ?? "Unmapped"}</div>
                       {row.deviceId && <div className="text-xs text-ops-muted">device #{row.deviceId}</div>}
                     </td>
                     <td className="px-4 py-3 font-mono text-sm text-ops-muted">{row.sourceIp}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-ops-text">{row.eventCount.toLocaleString("id-ID")}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-ops-text tabular-nums">{row.eventCount.toLocaleString("id-ID")}</td>
                   </tr>
                 ))}
               </DataTableBody>
@@ -311,8 +319,8 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
 
       <section className="space-y-3">
         <div>
-          <h2 className="text-lg font-bold text-ops-text">Latest Findings</h2>
-          <p className="text-sm text-ops-muted">Recent detections from active-site syslog events.</p>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Latest findings</h2>
+          <p className="mt-0.5 text-[13px] text-ops-muted">Recent detections from active-site syslog events.</p>
         </div>
         <DataTableFrame>
           <DataTable>
@@ -330,7 +338,7 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
               {stats.latestFindings.length === 0 ? (
                 <DataTableEmpty colSpan={6} title="No SIEM findings" description="Rule worker findings appear here after parsed events match enabled rules." />
               ) : stats.latestFindings.map((finding) => (
-                <tr key={finding.id} className="transition-colors hover:bg-ops-surface">
+                <tr key={finding.id}>
                   <td className="px-4 py-3 font-semibold text-ops-text">#{finding.id} {finding.title}</td>
                   <td className="px-4 py-3 text-sm text-ops-muted">{finding.ruleName ?? "Unknown rule"}</td>
                   <td className="px-4 py-3">
@@ -339,7 +347,7 @@ export default function SiemDashboard({ stats }: { stats: SiemDashboardStats }) 
                   </td>
                   <td className="px-4 py-3"><StatusBadge tone={getIncidentSeverityTone(finding.severity)} dot>{finding.severity}</StatusBadge></td>
                   <td className="px-4 py-3"><StatusBadge tone={finding.status === "Resolved" ? "success" : finding.status === "Acknowledged" ? "warning" : "info"}>{finding.status}</StatusBadge></td>
-                  <td className="whitespace-nowrap px-4 py-3 text-sm text-ops-muted">{formatDate(finding.lastSeenAt)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-sm text-ops-muted tabular-nums">{formatDate(finding.lastSeenAt)}</td>
                 </tr>
               ))}
             </DataTableBody>

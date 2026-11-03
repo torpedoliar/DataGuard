@@ -2,6 +2,8 @@
 
 import { updateSiemRuleDetail, updateSiemRules } from "@/actions/siem-settings";
 import ActionButton from "@/components/ui/action-button";
+import StatusBadge from "@/components/ui/status-badge";
+import { getIncidentSeverityTone } from "@/lib/ui/status";
 import { KNOWN_GROUP_BY_FIELDS, KNOWN_NORMALIZED_TYPES, KNOWN_TAGS } from "@/lib/siem/rule-form-reference";
 import { siemSeverities, type SiemSeverity } from "@/lib/siem/types";
 import { Edit, X } from "lucide-react";
@@ -48,14 +50,14 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-ops-border bg-ops-surface-raised shadow-xl">
+      <div className="ops-panel w-full max-w-2xl overflow-hidden">
         <div className="flex items-center justify-between border-b border-ops-border px-5 py-4">
           <div>
-            <h3 className="text-lg font-semibold text-ops-text">Edit SIEM Rule</h3>
-            <p className="text-sm text-ops-muted">{rule.key}</p>
+            <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Edit SIEM rule</h3>
+            <p className="text-[13px] text-ops-muted">{rule.key}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md p-1 text-ops-muted hover:bg-ops-surface hover:text-ops-text" disabled={isPending}>
-            <X className="size-5" />
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-ops-muted hover:bg-ops-surface hover:text-ops-text" disabled={isPending} aria-label="Close dialog">
+            <X aria-hidden="true" className="size-5" />
           </button>
         </div>
 
@@ -69,7 +71,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 defaultValue={rule.name}
                 required
                 maxLength={200}
-                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+                className="ops-input h-9 w-full px-3 text-sm"
               />
             </label>
             <label className="space-y-1.5 text-sm font-medium text-ops-text md:col-span-2">
@@ -79,7 +81,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 defaultValue={rule.description}
                 maxLength={2000}
                 rows={2}
-                className="w-full rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-sm text-ops-text"
+                className="ops-input w-full px-3 py-2 text-sm"
               />
             </label>
             <label className="space-y-1.5 text-sm font-medium text-ops-text">
@@ -87,7 +89,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
               <select
                 name="severity"
                 defaultValue={rule.severity}
-                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+                className="ops-input h-9 w-full px-3 text-sm"
               >
                 {siemSeverities.map((severity) => (
                   <option key={severity} value={severity}>{severity}</option>
@@ -101,7 +103,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 defaultValue={rule.category}
                 required
                 maxLength={100}
-                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+                className="ops-input h-9 w-full px-3 text-sm"
               />
             </label>
             <label className="space-y-1.5 text-sm font-medium text-ops-text">
@@ -112,7 +114,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 min={1}
                 max={100000}
                 placeholder="(none)"
-                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+                className="ops-input h-9 w-full px-3 text-sm"
               />
               <span className="text-xs text-ops-muted">Used for threshold/sequence rules. Leave blank otherwise.</span>
             </label>
@@ -124,7 +126,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 min={1}
                 max={86400}
                 placeholder="(none)"
-                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+                className="ops-input h-9 w-full px-3 text-sm"
               />
             </label>
             <label className="space-y-1.5 text-sm font-medium text-ops-text">
@@ -134,7 +136,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 name="normalizedTypes"
                 defaultValue={initialTypes}
                 size={6}
-                className="w-full rounded-md border border-ops-border bg-ops-surface px-2 py-1.5 text-xs text-ops-text"
+                className="ops-input w-full px-2 py-1.5 text-xs"
               >
                 {KNOWN_NORMALIZED_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
@@ -151,7 +153,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 name="tags"
                 defaultValue={initialTags}
                 size={6}
-                className="w-full rounded-md border border-ops-border bg-ops-surface px-2 py-1.5 text-xs text-ops-text"
+                className="ops-input w-full px-2 py-1.5 text-xs"
               >
                 {KNOWN_TAGS.map((tag) => (
                   <option key={tag.value} value={tag.value}>{tag.value}</option>
@@ -166,7 +168,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 name="groupBy"
                 defaultValue={rule.groupBy ?? []}
                 size={4}
-                className="w-full rounded-md border border-ops-border bg-ops-surface px-2 py-1.5 text-xs text-ops-text"
+                className="ops-input w-full px-2 py-1.5 text-xs"
               >
                 {KNOWN_GROUP_BY_FIELDS.map((field) => (
                   <option key={field} value={field}>{field}</option>
@@ -180,7 +182,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 name="conditions"
                 rows={3}
                 placeholder="{}"
-                className="w-full rounded-md border border-ops-border bg-ops-surface px-3 py-2 font-mono text-xs text-ops-text"
+                className="ops-input w-full px-3 py-2 font-mono text-xs"
               />
               <span className="text-xs text-ops-muted">Khusus kondisi advanced. Event types, tags, dan groupBy di atas di-merge ke sini saat disimpan.</span>
             </label>
@@ -190,7 +192,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 name="mitreTactics"
                 defaultValue={(rule.mitreTactics ?? []).join(", ")}
                 placeholder="Credential Access, Discovery"
-                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+                className="ops-input h-9 w-full px-3 text-sm"
               />
             </label>
             <label className="space-y-1.5 text-sm font-medium text-ops-text">
@@ -199,7 +201,7 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 name="mitreTechniques"
                 defaultValue={(rule.mitreTechniques ?? []).join(", ")}
                 placeholder="T1110, T1110.001"
-                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+                className="ops-input h-9 w-full px-3 text-sm"
               />
             </label>
             <label className="space-y-1.5 text-sm font-medium text-ops-text md:col-span-2">
@@ -208,19 +210,19 @@ function EditRuleModal({ rule, onClose }: { rule: SiemRuleRow; onClose: () => vo
                 name="isoControls"
                 defaultValue={(rule.isoControls ?? []).join(", ")}
                 placeholder="A.8.15, A.8.16"
-                className="h-9 w-full rounded-md border border-ops-border bg-ops-surface px-3 text-sm text-ops-text"
+                className="ops-input h-9 w-full px-3 text-sm"
               />
               <span className="text-xs text-ops-muted">Comma-separated. Shown in the coverage matrix.</span>
             </label>
           </div>
 
           {state?.errors && (
-            <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">
+            <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
               {Object.values(state.errors).flat().join(" ")}
             </div>
           )}
           {state?.message && !state.success && (
-            <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">{state.message}</div>
+            <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{state.message}</div>
           )}
 
           <div className="flex justify-end gap-3 border-t border-ops-border pt-4">
@@ -264,46 +266,46 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
   const editingRule = editingRuleId !== null ? rules.find((rule) => rule.id === editingRuleId) ?? null : null;
 
   return (
-    <form action={action} className="mt-6 space-y-6">
+    <form action={action} className="space-y-6">
       <input type="hidden" name="ruleIds" value={ruleIds} />
 
-      <div className="max-w-md rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
+      <div className="ops-panel max-w-md p-5">
         <label className="space-y-1.5 text-sm font-medium text-ops-muted">
           Severity Minimum Alert
           <select
             name="alertMinSeverity"
             defaultValue={alertMinSeverity}
-            className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white"
+            className="ops-input h-9 w-full px-3 text-sm"
           >
             {siemSeverities.map((severity) => (
               <option key={severity} value={severity}>{severity}</option>
             ))}
           </select>
-          <span className="text-xs text-ops-subtle">Finding di bawah severity ini tidak masuk antrean alert Telegram.</span>
+          <span className="block text-xs text-ops-subtle">Finding di bawah severity ini tidak masuk antrean alert Telegram.</span>
         </label>
       </div>
 
       {grouped.map(([category, list]) => (
-        <div key={category} className="rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
-          <h2 className="text-sm font-semibold text-white">{category}</h2>
-          <div className="mt-4 divide-y divide-ops-border/40">
+        <div key={category} className="ops-panel p-5">
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">{category}</h2>
+          <div className="mt-4 divide-y divide-ops-border/60">
             {list.map((rule) => {
               const current = toggles[rule.id];
               return (
                 <div key={rule.id} className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-white">{rule.name}</span>
-                      <span className="rounded-full border border-ops-border-strong px-2 py-0.5 text-[10px] uppercase tracking-wide text-ops-muted">{rule.severity}</span>
+                      <span className="text-sm font-medium text-ops-text">{rule.name}</span>
+                      <StatusBadge tone={getIncidentSeverityTone(rule.severity)}>{rule.severity}</StatusBadge>
                     </div>
-                    <p className="mt-0.5 text-xs text-ops-subtle">{rule.description}</p>
+                    <p className="mt-0.5 text-[13px] text-ops-subtle">{rule.description}</p>
                     {(rule.mitreTechniques?.length || rule.isoControls?.length) ? (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(rule.mitreTechniques ?? []).map((technique) => (
-                          <span key={technique} className="rounded border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 font-mono text-[10px] text-ops-info">{technique}</span>
+                          <span key={technique} className="rounded-sm border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 font-mono text-xs text-ops-info">{technique}</span>
                         ))}
                         {(rule.isoControls ?? []).map((control) => (
-                          <span key={control} className="rounded border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 font-mono text-[10px] text-ops-info">{control}</span>
+                          <span key={control} className="rounded-sm border border-ops-info/40 bg-ops-info-soft px-1.5 py-0.5 font-mono text-xs text-ops-info">{control}</span>
                         ))}
                       </div>
                     ) : null}
@@ -315,30 +317,31 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
                         name={`enabled-${rule.id}`}
                         checked={current.enabled}
                         onChange={(event) => setEnabled(rule.id, event.target.checked)}
-                        className="size-4 accent-blue-500"
+                        className="size-4 accent-ops-accent"
                       />
                       Aktif
                     </label>
-                    <label className={`flex items-center gap-2 text-xs ${current.enabled ? "text-ops-muted" : "text-ops-muted"}`}>
+                    <label className="flex items-center gap-2 text-xs text-ops-muted">
                       <input
                         type="checkbox"
                         name={`alert-${rule.id}`}
                         checked={current.alertEnabled}
                         disabled={!current.enabled}
                         onChange={(event) => setAlert(rule.id, event.target.checked)}
-                        className="size-4 accent-emerald-500 disabled:opacity-40"
+                        className="size-4 accent-ops-success disabled:opacity-40"
                       />
                       Kirim ke Telegram
                     </label>
-                    <button
+                    <ActionButton
                       type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => setEditingRuleId(rule.id)}
-                      className="inline-flex items-center gap-1 rounded-md border border-ops-border-strong px-2 py-1 text-xs text-ops-muted transition-colors hover:border-ops-info hover:text-white"
+                      icon={<Edit className="size-3.5" />}
                       title="Edit rule detail (severity, threshold, conditions, ...)"
                     >
-                      <Edit className="size-3.5" />
                       Edit
-                    </button>
+                    </ActionButton>
                   </div>
                 </div>
               );
@@ -348,15 +351,15 @@ export default function SiemRulesForm({ rules, alertMinSeverity }: { rules: Siem
       ))}
 
       {state?.errors && (
-        <div className="rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
           {Object.values(state.errors).flat().join(" ")}
         </div>
       )}
       {state?.message && !state.success && (
-        <div className="rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">{state.message}</div>
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{state.message}</div>
       )}
       {state?.success && (
-        <div className="rounded-lg border border-ops-success/20 bg-ops-success-soft p-3 text-sm text-ops-success">Pengaturan rule tersimpan.</div>
+        <div className="rounded-md border border-ops-success/25 bg-ops-success-soft px-3 py-2.5 text-[13px] text-ops-success">Pengaturan rule tersimpan.</div>
       )}
 
       <div className="flex justify-end">

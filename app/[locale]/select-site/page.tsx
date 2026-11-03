@@ -100,7 +100,7 @@ export default async function SelectSitePage() {
             {sitesWithoutCoords.length > 0 && (
                 <div className="fixed inset-x-4 bottom-4 z-50 md:left-auto md:w-96">
                     <div className="rounded-md border border-ops-border bg-ops-surface-raised p-4 shadow-2xl">
-                        <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em] text-ops-warning">
+                        <p className="mb-2 flex items-center gap-2 text-xs font-medium text-ops-warning">
                             <MapPinOff className="size-4" />
                             Sites without map coordinates
                         </p>

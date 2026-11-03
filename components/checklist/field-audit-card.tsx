@@ -143,7 +143,7 @@ const FieldAuditCard = forwardRef<HTMLDivElement, FieldAuditCardProps>(
 
           <div className="space-y-3">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">
+              <span className="mb-1.5 block text-xs font-medium text-ops-muted">
                 Remarks
               </span>
               <textarea

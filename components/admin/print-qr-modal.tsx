@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { generateDeviceQR } from "@/actions/qr";
+import ActionButton from "@/components/ui/action-button";
 import { X, Printer, Loader2, QrCode } from "lucide-react";
 
 interface PrintQRModalProps {
@@ -100,38 +101,37 @@ export default function PrintQRModal({ deviceId, deviceName, onClose }: PrintQRM
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
-            <div className="bg-ops-surface rounded-lg shadow-xl max-w-sm w-full relative">
-                <button
-                    onClick={onClose}
-                    className="absolute right-4 top-4 text-ops-muted hover:text-ops-muted dark:hover:text-ops-muted"
-                >
-                    <X className="h-5 w-5" />
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+            <div className="relative w-full max-w-sm rounded-lg border border-ops-border bg-ops-surface shadow-xl">
+                <div className="absolute right-3 top-3">
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                        <X aria-hidden="true" className="size-4" />
+                    </ActionButton>
+                </div>
 
-                <div className="p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-ops-info-soft text-ops-info rounded-lg">
-                            <QrCode className="h-6 w-6" />
+                <div className="p-5">
+                    <div className="mb-6 flex items-center gap-3">
+                        <div className="rounded-lg bg-ops-info-soft p-2 text-ops-info">
+                            <QrCode className="size-5" />
                         </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-ops-text">Device QR Code</h3>
-                            <p className="text-sm text-ops-subtle dark:text-ops-muted">{deviceName}</p>
+                        <div className="min-w-0">
+                            <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Device QR code</h3>
+                            <p className="truncate text-[13px] text-ops-muted">{deviceName}</p>
                         </div>
                     </div>
 
-                    <div className="flex flex-col items-center justify-center min-h-[250px] bg-ops-surface/50 rounded-lg border border-ops-border p-6 mb-6">
+                    <div className="mb-6 flex min-h-[250px] flex-col items-center justify-center rounded-md border border-ops-border bg-ops-surface-raised/60 p-6">
                         {loading ? (
                             <Loader2 className="h-8 w-8 animate-spin text-ops-muted" />
                         ) : error ? (
                             <p className="text-ops-danger text-sm text-center">{error}</p>
                         ) : qrData ? (
                             <div className="text-center w-full">
-                                <div className="bg-white p-3 rounded-xl border-2 border-ops-border dark:border-ops-border-strong shadow-sm mx-auto mb-4 inline-block">
+                                <div className="mb-4 inline-block rounded-lg border border-ops-border bg-white p-3 shadow-sm">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src={qrData.url} alt={`QR Code for ${deviceName}`} className="w-48 h-48" />
                                 </div>
-                                <p className="text-xs text-ops-subtle break-all px-2 font-mono bg-ops-surface-raised rounded p-2">
+                                <p className="break-all rounded-md bg-ops-surface-raised p-2 font-mono text-xs text-ops-muted">
                                     {qrData.scanLink}
                                 </p>
                             </div>
@@ -139,20 +139,12 @@ export default function PrintQRModal({ deviceId, deviceName, onClose }: PrintQRM
                     </div>
 
                     <div className="flex justify-end gap-3">
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-ops-muted bg-ops-surface border border-ops-border-strong rounded-md hover:bg-ops-surface dark:hover:bg-ops-surface-raised"
-                        >
+                        <ActionButton type="button" variant="secondary" onClick={onClose}>
                             Cancel
-                        </button>
-                        <button
-                            onClick={handlePrint}
-                            disabled={loading || !!error || !qrData}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-ops-accent-fg bg-ops-accent rounded-md hover:bg-ops-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <Printer className="h-4 w-4" />
-                            Print Label
-                        </button>
+                        </ActionButton>
+                        <ActionButton type="button" onClick={handlePrint} disabled={loading || !!error || !qrData} icon={<Printer className="size-4" />}>
+                            Print label
+                        </ActionButton>
                     </div>
                 </div>
             </div>

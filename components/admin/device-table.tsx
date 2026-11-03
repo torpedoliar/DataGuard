@@ -356,7 +356,7 @@ export default function DeviceTable({
   const startIndex = (currentPage - 1) * racksPerPage;
   const paginatedGroupEntries = groupEntries.slice(startIndex, startIndex + racksPerPage);
 
-  if (selectedId !== null && onSelectDevice) return <section className="space-y-3"><input aria-label="Search device list" className="ops-input w-full p-2" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} placeholder="Search devices…" /><select aria-label="Filter profile list category" value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setCurrentPage(1); }} className="ops-input w-full p-2"><option value="">All Categories</option>{uniqueCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select><select aria-label="Sort profile list" className="ops-input w-full p-2" value={sortConfig ? `${String(sortConfig.key)}:${sortConfig.direction}` : ""} onChange={(event) => { const [key, direction] = event.target.value.split(":"); setSortConfig(key ? { key: key as keyof Device, direction: direction as "asc" | "desc" } : null); setCurrentPage(1); }}><option value="">Inventory order</option><option value="name:asc">Name A–Z</option><option value="name:desc">Name Z–A</option><option value="rackName:asc">Rack A–Z</option><option value="locationName:asc">Room A–Z</option></select><details><summary className="cursor-pointer text-xs text-ops-muted">More filters</summary><div className="mt-2 space-y-2"><select aria-label="Filter profile list brand" className="ops-input w-full p-2" value={selectedBrand} onChange={(e) => { setSelectedBrand(e.target.value); setCurrentPage(1); }}><option value="">All Brands</option>{uniqueBrands.map((brand) => <option key={brand}>{brand}</option>)}</select><select aria-label="Filter profile list rack" className="ops-input w-full p-2" value={selectedRack} onChange={(e) => { setSelectedRack(e.target.value); setCurrentPage(1); }}><option value="">All Racks</option>{uniqueRacks.map((rack) => <option key={rack}>{rack}</option>)}</select><select aria-label="Filter profile list status" className="ops-input w-full p-2" value={selectedStatus} onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}><option value="">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select><select aria-label="Filter profile list asset type" className="ops-input w-full p-2" value={selectedAssetType} onChange={(e) => { setSelectedAssetType(e.target.value); setCurrentPage(1); }}><option value="">All asset types</option><option value="standard">Standard</option><option value="pac">PAC</option><option value="ups">UPS</option></select></div></details>{hasFilters && <ActionButton variant="secondary" size="sm" onClick={resetFilters}>Reset filters</ActionButton>}<div className="max-h-[75vh] overflow-y-auto rounded border border-ops-border">{paginatedGroupEntries.flatMap(([, group]) => group).map((device) => <button type="button" key={device.id} aria-pressed={device.id === selectedId} onClick={() => onSelectDevice(device.id)} className={`block w-full border-b border-ops-border p-3 text-left ${device.id === selectedId ? "bg-ops-accent/10 border-l-2 border-l-ops-accent" : "bg-ops-surface hover:bg-ops-surface-raised"}`}><span className="block font-semibold text-sm text-ops-text">{device.name}</span><span className="block text-xs text-ops-muted">{device.categoryName} · {device.rackName ?? device.locationName ?? "Unplaced"}{device.isCritical ? " · Critical" : ""}{device.excludeChecklist ? " · Excluded" : ""}</span></button>)}</div>{totalPages > 1 && <div className="flex items-center justify-between gap-2"><ActionButton size="sm" variant="secondary" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)}>Previous</ActionButton><span className="text-xs">{currentPage}/{totalPages}</span><ActionButton size="sm" variant="secondary" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)}>Next</ActionButton></div>}</section>;
+  if (selectedId !== null && onSelectDevice) return <section className="space-y-3"><input aria-label="Search device list" className="ops-input h-9 w-full px-3 text-sm" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} placeholder="Search devices…" /><select aria-label="Filter profile list category" value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setCurrentPage(1); }} className="ops-input h-9 w-full px-3 text-sm"><option value="">All Categories</option>{uniqueCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select><select aria-label="Sort profile list" className="ops-input h-9 w-full px-3 text-sm" value={sortConfig ? `${String(sortConfig.key)}:${sortConfig.direction}` : ""} onChange={(event) => { const [key, direction] = event.target.value.split(":"); setSortConfig(key ? { key: key as keyof Device, direction: direction as "asc" | "desc" } : null); setCurrentPage(1); }}><option value="">Inventory order</option><option value="name:asc">Name A–Z</option><option value="name:desc">Name Z–A</option><option value="rackName:asc">Rack A–Z</option><option value="locationName:asc">Room A–Z</option></select><details><summary className="cursor-pointer text-xs text-ops-muted">More filters</summary><div className="mt-2 space-y-2"><select aria-label="Filter profile list brand" className="ops-input h-9 w-full px-3 text-sm" value={selectedBrand} onChange={(e) => { setSelectedBrand(e.target.value); setCurrentPage(1); }}><option value="">All Brands</option>{uniqueBrands.map((brand) => <option key={brand}>{brand}</option>)}</select><select aria-label="Filter profile list rack" className="ops-input h-9 w-full px-3 text-sm" value={selectedRack} onChange={(e) => { setSelectedRack(e.target.value); setCurrentPage(1); }}><option value="">All Racks</option>{uniqueRacks.map((rack) => <option key={rack}>{rack}</option>)}</select><select aria-label="Filter profile list status" className="ops-input h-9 w-full px-3 text-sm" value={selectedStatus} onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}><option value="">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select><select aria-label="Filter profile list asset type" className="ops-input h-9 w-full px-3 text-sm" value={selectedAssetType} onChange={(e) => { setSelectedAssetType(e.target.value); setCurrentPage(1); }}><option value="">All asset types</option><option value="standard">Standard</option><option value="pac">PAC</option><option value="ups">UPS</option></select></div></details>{hasFilters && <ActionButton variant="secondary" size="sm" onClick={resetFilters}>Reset filters</ActionButton>}<div className="max-h-[75vh] overflow-y-auto rounded-md border border-ops-border">{paginatedGroupEntries.flatMap(([, group]) => group).map((device) => <button type="button" key={device.id} aria-pressed={device.id === selectedId} onClick={() => onSelectDevice(device.id)} className={`block w-full border-b border-ops-border p-3 text-left ${device.id === selectedId ? "bg-ops-accent/10 border-l-2 border-l-ops-accent" : "bg-ops-surface hover:bg-ops-surface-raised"}`}><span className="block text-sm font-semibold text-ops-text">{device.name}</span><span className="block text-xs text-ops-muted">{device.categoryName} · {device.rackName ?? device.locationName ?? "Unplaced"}{device.isCritical ? " · Critical" : ""}{device.excludeChecklist ? " · Excluded" : ""}</span></button>)}</div>{totalPages > 1 && <div className="flex items-center justify-between gap-2"><ActionButton size="sm" variant="secondary" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)}>Previous</ActionButton><span className="text-xs tabular-nums text-ops-muted">{currentPage}/{totalPages}</span><ActionButton size="sm" variant="secondary" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)}>Next</ActionButton></div>}</section>;
   return (
     <div className="space-y-4">
       {devices.length > 0 && (
@@ -381,7 +381,7 @@ export default function DeviceTable({
             </div>
 
             <div className="flex w-full items-center gap-2.5 overflow-x-auto pb-1 xl:w-auto xl:pb-0">
-              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-ops-muted">
                 <Filter className="size-3.5" />
                 Filters
               </div>
@@ -433,8 +433,8 @@ export default function DeviceTable({
               <SortableHead label="Location" onClick={() => handleSort("locationName")} icon={getSortIcon("locationName")} />
               <SortableHead label="Rack" onClick={() => handleSort("rackName")} icon={getSortIcon("rackName")} />
               <SortableHead label="IP Address" onClick={() => handleSort("ipAddress")} icon={getSortIcon("ipAddress")} />
-              <th className="px-2.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-ops-muted">Status</th>
-              <th className="sticky right-0 z-20 bg-ops-surface px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-ops-muted border-l border-ops-border/70 shadow-[-4px_0_8px_rgba(0,0,0,0.12)]">Actions</th>
+              <th className="px-2.5 py-2 text-center text-[11px] font-medium text-ops-muted">Status</th>
+              <th className="sticky right-0 z-20 border-l border-ops-border/70 bg-ops-surface px-3 py-2 text-right text-[11px] font-medium text-ops-muted shadow-[-4px_0_8px_rgba(0,0,0,0.12)]">Actions</th>
             </tr>
           </DataTableHead>
           <DataTableBody>
@@ -467,7 +467,7 @@ export default function DeviceTable({
                               {isUnassigned ? <PackageOpen className="size-4" /> : <Boxes className="size-4" />}
                             </span>
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className={clsx("text-xs font-black uppercase tracking-wider", theme.badgeText)}>
+                              <span className={clsx("text-[13px] font-semibold tracking-[-0.01em]", theme.badgeText)}>
                                 {rackName}
                               </span>
                               {rackLocation && (
@@ -489,7 +489,7 @@ export default function DeviceTable({
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={clsx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold shadow-xs", theme.badgeBg, theme.badgeBorder, theme.badgeText)}>
+                            <span className={clsx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold tabular-nums shadow-xs", theme.badgeBg, theme.badgeBorder, theme.badgeText)}>
                               <Server className="size-3" />
                               {rackDevices.length} {rackDevices.length === 1 ? "Perangkat" : "Perangkat"}
                             </span>
@@ -503,9 +503,9 @@ export default function DeviceTable({
                       const showTakeout = !isActive && isInRack;
 
                       return (
-                        <tr key={device.id} className={clsx("group transition-colors hover:bg-ops-surface", !isActive && "opacity-65")}>
+                        <tr key={device.id} className={clsx("group transition-colors", !isActive && "opacity-65")}>
                           <td className={clsx(
-                            "sticky left-0 z-10 bg-ops-surface-raised dark:bg-[#0e1626] group-hover:bg-ops-surface transition-colors border-r border-ops-border/60 shadow-[3px_0_6px_rgba(0,0,0,0.08)] px-3 py-2 font-semibold text-ops-text border-l-4",
+                            "sticky left-0 z-10 bg-ops-surface-raised group-hover:bg-ops-surface transition-colors border-r border-ops-border/60 shadow-[3px_0_6px_rgba(0,0,0,0.08)] px-3 py-2 font-semibold text-ops-text border-l-4",
                             theme.leftBorder
                           )}>
                             <div className="flex items-center gap-2">
@@ -532,16 +532,16 @@ export default function DeviceTable({
                           </td>
                           <td className="px-2.5 py-2">
                             {device.assetCode ? (
-                              <span className="rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted">{device.assetCode}</span>
+                              <span className="rounded-md border border-ops-border bg-ops-surface-raised px-2 py-0.5 font-mono text-xs text-ops-muted">{device.assetCode}</span>
                             ) : (
                               <span className="text-ops-muted">-</span>
                             )}
                           </td>
-                          <td className="px-2.5 py-2 text-xs text-muted">
+                          <td className="px-2.5 py-2 text-xs text-ops-muted">
                             {device.brandLogo ? (
                               <div className="flex items-center gap-1.5">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-4.5 w-auto rounded bg-white p-0.5 object-contain" />
+                                <img src={device.brandLogo} alt={device.brandName || "Brand"} className="h-4.5 w-auto rounded bg-ops-surface p-0.5 object-contain" />
                                 <span>{device.brandName}</span>
                               </div>
                             ) : device.brandName ? (
@@ -583,7 +583,7 @@ export default function DeviceTable({
                                 )}
                               </div>
                             ) : (
-                              <span className="inline-flex items-center gap-1 rounded border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[11px] text-ops-muted italic">
+                              <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-sm border border-ops-border bg-ops-surface-raised px-2 py-0.5 text-[11px] italic text-ops-muted">
                                 {device.assetType === "pac" || device.assetType === "ups" ? device.floorX != null ? `Floor X ${device.floorX} / Z ${device.floorZ} m` : "Unplaced" : "Direct / No Rack"}
                               </span>
                             )}
@@ -593,7 +593,7 @@ export default function DeviceTable({
                             <button
                               type="button"
                               onClick={() => setManageDevice(device)}
-                              className="group/ip inline-flex items-center gap-1.5 rounded-md border border-ops-border bg-ops-bg px-2 py-0.5 font-mono text-xs text-muted transition-colors hover:border-ops-accent/50 hover:bg-ops-accent/10 hover:text-ops-accent focus:outline-none"
+                              className="group/ip inline-flex items-center gap-1.5 rounded-md border border-ops-border bg-ops-surface-raised px-2 py-0.5 font-mono text-xs text-ops-muted transition-colors hover:border-ops-accent/50 hover:bg-ops-accent/10 hover:text-ops-accent focus:outline-none"
                               title="Click to manage device remotely"
                             >
                               <MonitorPlay className="size-3 text-ops-accent transition-transform group-hover/ip:scale-110 shrink-0" />
@@ -611,7 +611,7 @@ export default function DeviceTable({
                             </StatusBadge>
                           </button>
                         </td>
-                        <td className="sticky right-0 z-10 bg-ops-surface-raised dark:bg-[#0e1626] group-hover:bg-ops-surface transition-colors border-l border-ops-border/70 shadow-[-4px_0_8px_rgba(0,0,0,0.12)] px-3 py-2 text-right">
+                        <td className="sticky right-0 z-10 bg-ops-surface-raised group-hover:bg-ops-surface transition-colors border-l border-ops-border/70 shadow-[-4px_0_8px_rgba(0,0,0,0.12)] px-3 py-2 text-right">
                           <div className="inline-flex items-center justify-end gap-1">
                             {canConvert && (!device.assetType || device.assetType === "standard") && <ActionButton type="button" variant="ghost" size="sm" onClick={() => setConversionId(device.id)}>Konversi</ActionButton>}
                             {device.ipAddress && (
@@ -645,9 +645,9 @@ export default function DeviceTable({
       </DataTableFrame>
 
       {totalRacks > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-md border border-ops-border bg-ops-surface px-5 py-3">
-          <div className="flex flex-wrap items-center gap-3 text-sm text-ops-muted">
-            <div>
+        <div className="ops-panel flex flex-col items-center justify-between gap-3 px-5 py-3 sm:flex-row">
+          <div className="flex flex-wrap items-center gap-3 text-[13px] text-ops-muted">
+            <div className="tabular-nums">
               Showing <span className="font-medium text-ops-text">{totalRacks === 0 ? 0 : startIndex + 1}</span> to{" "}
               <span className="font-medium text-ops-text">{Math.min(startIndex + racksPerPage, totalRacks)}</span> of{" "}
               <span className="font-medium text-ops-text">{totalRacks}</span> racks ({filteredDevices.length} devices)
@@ -660,7 +660,7 @@ export default function DeviceTable({
                   setRacksPerPage(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="rounded border border-ops-border bg-ops-surface px-2 py-1 text-xs text-ops-text"
+                className="ops-input h-8 px-2 text-xs"
               >
                 <option value="5">5 racks</option>
                 <option value="10">10 racks</option>
@@ -713,10 +713,10 @@ export default function DeviceTable({
       )}
       {manageDevice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setManageDevice(null); setCustomPort(""); }}>
-          <div className="w-full max-w-sm overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-w-sm overflow-hidden rounded-lg border border-ops-border bg-ops-surface shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-ops-border bg-ops-surface px-5 py-4">
               <div>
-                <h3 className="text-lg font-bold text-ops-text">Manage Device</h3>
+                <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Manage device</h3>
                 <p className="mt-0.5 text-xs text-ops-muted">{manageDevice.name} ({manageDevice.ipAddress})</p>
               </div>
               <ActionButton type="button" variant="ghost" size="icon" onClick={() => { setManageDevice(null); setCustomPort(""); }} aria-label="Close" title="Close">
@@ -725,7 +725,7 @@ export default function DeviceTable({
             </div>
             <div className="space-y-4 p-5">
               <label>
-                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted">Custom Port</span>
+                <span className="mb-1.5 block text-xs font-medium text-ops-muted">Custom port</span>
                 <input
                   type="text"
                   placeholder="e.g. 8080 or 2222"
@@ -760,8 +760,8 @@ function SortableHead({
   className?: string;
 }) {
   return (
-    <th className={clsx("px-2.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-ops-muted", className)}>
-      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5 focus:outline-none hover:text-ops-text">
+    <th className={clsx("px-2.5 py-2 text-left text-[11px] font-medium text-ops-muted", className)}>
+      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5 transition-colors hover:text-ops-text focus:outline-none">
         {label}
         {icon}
       </button>
@@ -775,10 +775,10 @@ function RemoteLink({ href, icon, label }: { href: string; icon: ReactNode; labe
       href={href}
       target={href.startsWith("http") ? "_blank" : undefined}
       rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-      className="flex flex-col items-center justify-center gap-2 rounded-md border border-ops-border bg-ops-bg p-4 text-muted transition-colors hover:border-ops-accent/50 hover:text-ops-accent"
+      className="flex flex-col items-center justify-center gap-2 rounded-md border border-ops-border bg-ops-surface-raised p-4 text-ops-muted transition-colors hover:border-ops-accent/50 hover:text-ops-accent"
     >
       {icon}
-      <span className="text-[11px] font-bold uppercase tracking-[0.08em]">{label}</span>
+      <span className="text-[11px] font-medium">{label}</span>
     </a>
   );
 }

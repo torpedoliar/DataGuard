@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 const fieldClass = "ops-input h-9 px-3 text-sm";
-const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
+const labelClass = "mb-1.5 block text-xs font-medium text-ops-muted";
 
 export default function ReportFilters() {
   const router = useRouter();

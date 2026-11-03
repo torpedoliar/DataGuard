@@ -1,6 +1,7 @@
 import { getThreatIntelligences } from "@/actions/threat-intel";
 import { getDevices } from "@/actions/master-data";
 import ThreatIntelClient from "@/components/compliance/threat-intel-client";
+import PageHeader from "@/components/ui/page-header";
 import { db } from "@/db";
 import { sites } from "@/db/schema";
 import { verifySession } from "@/lib/session";
@@ -49,7 +50,12 @@ export default async function ThreatIntelPage({
   }));
 
   return (
-    <main className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 py-6 lg:px-8">
+    <main className="mx-auto flex w-full max-w-[1680px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+      <PageHeader
+        eyebrow="Compliance / Threat intelligence"
+        title="Threat intelligence"
+        description={`Vulnerability intake dan bukti penanganan untuk ${siteName}.`}
+      />
       <ThreatIntelClient
         initialData={dataResult.success ? dataResult.items : []}
         initialStats={dataResult.stats}

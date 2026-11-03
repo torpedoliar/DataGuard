@@ -1,10 +1,12 @@
 import { getLocations } from "@/actions/locations";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { MapPin, Server } from "lucide-react";
 import AddLocationForm from "@/components/admin/add-location-form";
 import LocationTable from "@/components/admin/location-table";
+import ActionButton from "@/components/ui/action-button";
+import PageHeader from "@/components/ui/page-header";
+import StatsCard from "@/components/ui/stats-card";
 import { hasAdminAccess } from "@/lib/site-access";
 
 export default async function LocationsPage() {
@@ -15,57 +17,33 @@ export default async function LocationsPage() {
     const canEditLayout = await hasAdminAccess();
 
     return (
-        <div className="px-4 py-6 lg:px-6">
-            <div className="mb-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="size-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
-                                <MapPin className="h-6 w-6" />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-ops-text">Location Management</h1>
-                                <p className="text-sm text-ops-muted">
-                                    Manage data center rooms, zones, or specific areas for equipment mapping.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-2 px-4 py-2 bg-ops-surface-raised text-ops-muted rounded-lg hover:bg-ops-surface-sunken transition-colors"
-                        >
-                            <Server className="h-4 w-4" />
-                            Manage Devices
-                        </Link>
-                    </div>
-                </div>
-            </div>
+        <div className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+            <PageHeader
+                eyebrow="Admin / Locations"
+                title="Location management"
+                description="Manage data center rooms, zones, or specific areas for equipment mapping."
+                actions={
+                    <ActionButton href="/admin" variant="secondary" icon={<Server aria-hidden="true" />}>
+                        Manage devices
+                    </ActionButton>
+                }
+            />
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-lg bg-ops-success-soft flex items-center justify-center text-ops-success">
-                            <MapPin className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p className="text-sm text-ops-muted">Total Locations</p>
-                            <p className="text-2xl font-bold text-ops-text">{locations.length}</p>
-                        </div>
-                    </div>
-                </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <StatsCard
+                    label="Total locations"
+                    value={locations.length}
+                    tone="success"
+                    icon={<MapPin aria-hidden="true" className="size-5" />}
+                />
             </div>
 
             <AddLocationForm />
 
-            <div className="mt-8">
-                <h3 className="text-lg font-semibold mb-4 text-ops-text">
-                    Locations List
-                </h3>
+            <section className="flex flex-col gap-3">
+                <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Locations list</h2>
                 <LocationTable locations={locations} canEditLayout={canEditLayout} />
-            </div>
+            </section>
         </div>
     );
 }

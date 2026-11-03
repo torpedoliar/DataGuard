@@ -8,6 +8,8 @@ import RackFilterBar, { type RackView } from "@/components/admin/rack-filter-bar
 import DeviceDetailPanel from "@/components/admin/device-detail-panel";
 import RackView3D from "@/components/rack3d/rack-view-3d";
 import RoomLayoutEditor, { FloorPlacementPreview, type LayoutAsset } from "./room-layout-editor";
+import EmptyState from "@/components/ui/empty-state";
+import ActionButton from "@/components/ui/action-button";
 import { facilityDimensions } from "@/lib/facility-asset";
 import { RACK_W, RACK_D, rackHeight } from "@/components/rack3d/constants";
 import { facilityLabel } from "@/lib/facility-asset";
@@ -62,19 +64,19 @@ export default function RackLayoutShell({ racks, facilities = [], initialDeviceI
 
     if (racks.length === 0 && facilities.length === 0 && Object.keys(rooms).length === 0) {
         return (
-            <div className="text-center py-12 text-ops-muted">
-                <Server className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium text-ops-text">No rack data available</p>
-                <p className="text-sm mt-2">Add devices with rack positions to see the layout</p>
-            </div>
+            <EmptyState
+                icon={<Server />}
+                title="No rack data available"
+                description="Add devices with rack positions to see the layout."
+            />
         );
     }
 
     return (
         <div className="space-y-6">
-            {canEditAppearance && Object.keys(rooms).length > 0 && <div className="flex flex-col gap-2 rounded-lg border border-ops-border bg-ops-surface p-3 sm:flex-row sm:items-end">
-                <label className="min-w-0 flex-1 text-xs text-ops-muted">Ruangan untuk pengaturan layout<select aria-label="Ruangan untuk pengaturan layout" value={layoutRoomId ?? ""} onChange={(event) => setLayoutPick(event.target.value)} className="mt-1 block h-10 w-full rounded border border-ops-border bg-ops-bg px-3 text-sm text-ops-text">{Object.entries(rooms).sort(([, a], [, b]) => (a.name ?? "").localeCompare(b.name ?? "")).map(([id, room]) => <option key={id} value={id}>{room.name ?? `Room ${id}`}</option>)}</select></label>
-                <button type="button" className="h-10 shrink-0 rounded border border-ops-border px-4 text-sm font-semibold text-ops-text hover:bg-ops-surface-raised" disabled={layoutRoomId === null} onClick={() => setLayoutRoom(layoutRoomId)}>Atur Layout</button>
+            {canEditAppearance && Object.keys(rooms).length > 0 && <div className="ops-panel flex flex-col gap-2 p-3 sm:flex-row sm:items-end">
+                <label className="min-w-0 flex-1 text-xs text-ops-muted">Ruangan untuk pengaturan layout<select aria-label="Ruangan untuk pengaturan layout" value={layoutRoomId ?? ""} onChange={(event) => setLayoutPick(event.target.value)} className="ops-input mt-1 block h-9 w-full px-3 text-sm">{Object.entries(rooms).sort(([, a], [, b]) => (a.name ?? "").localeCompare(b.name ?? "")).map(([id, room]) => <option key={id} value={id}>{room.name ?? `Room ${id}`}</option>)}</select></label>
+                <ActionButton type="button" variant="secondary" disabled={layoutRoomId === null} onClick={() => setLayoutRoom(layoutRoomId)}>Atur layout</ActionButton>
             </div>}
             {layoutRoom !== null && <RoomLayoutEditor roomId={layoutRoom} onClose={() => setLayoutRoom(null)} />}
             <RackFilterBar
@@ -88,7 +90,7 @@ export default function RackLayoutShell({ racks, facilities = [], initialDeviceI
                 disable3d={noWebgl}
             />
 
-            <div className="rounded-xl border border-ops-border bg-ops-surface shadow-sm p-4">
+            <div className="ops-panel p-4">
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                     {categories.map((cat) => (
                         <div key={cat.id} className="flex items-center gap-2">
@@ -100,15 +102,15 @@ export default function RackLayoutShell({ racks, facilities = [], initialDeviceI
             </div>
 
             {noWebgl && (
-                <p className="rounded-lg border border-ops-border bg-ops-surface px-4 py-2 text-sm text-ops-muted">
+                <p className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">
                     3D view needs WebGL, which this browser does not provide. Showing the 2D layout.
                 </p>
             )}
 
-            {filteredFacilities.length > 0 && <section className="space-y-2"><h2 className="font-semibold">Cooling / Power</h2><div className="flex flex-wrap gap-2">{filteredFacilities.map((d) => <button type="button" key={d.id} onClick={() => setSelected(d)} className="rounded border border-ops-border bg-ops-surface px-3 py-2 text-left text-sm"><span className="block font-semibold">{d.name}</span><span className="text-xs text-ops-muted">{facilityLabel(d.assetType!, d.facilitySpecs)} · {d.locationName ?? "Unassigned"} · {d.floorX == null ? "Unplaced" : `X ${d.floorX} / Z ${d.floorZ} m`}</span></button>)}</div></section>}
+            {filteredFacilities.length > 0 && <section className="space-y-2"><h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Cooling / Power</h2><div className="flex flex-wrap gap-2">{filteredFacilities.map((d) => <button type="button" key={d.id} onClick={() => setSelected(d)} className="rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-left text-sm transition-colors hover:bg-ops-surface-raised"><span className="block font-semibold">{d.name}</span><span className="text-xs text-ops-muted">{facilityLabel(d.assetType!, d.facilitySpecs)} · {d.locationName ?? "Unassigned"} · {d.floorX == null ? "Unplaced" : `X ${d.floorX} / Z ${d.floorZ} m`}</span></button>)}</div></section>}
             {view !== "3d" && Object.entries(rooms).filter(([, room]) => room.layoutMode === "manual").map(([id, room]) => {
                 const assets: LayoutAsset[] = [...racks.filter((r) => r.locationId === Number(id)).map((r) => ({ key: `rack:${r.id}`, name: r.name, kind: "rack" as const, x: r.floorX ?? null, z: r.floorZ ?? null, rotation: r.floorRotation ?? null, width: RACK_W, depth: RACK_D, height: rackHeight(r.totalU), estimated: true })), ...facilities.filter((d) => d.locationId === Number(id)).map((d) => ({ key: `device:${d.id}`, name: d.name, kind: d.assetType ?? "standard", x: d.floorX ?? null, z: d.floorZ ?? null, rotation: d.floorRotation ?? null, ...facilityDimensions({ assetType: d.assetType!, facilitySpecs: d.facilitySpecs ?? null }) }))];
-                return <section key={id} className="rounded border border-ops-border p-4"><h2 className="mb-2 font-semibold">Denah · {room.name ?? id}</h2><FloorPlacementPreview assets={assets} width={room.roomWidthM ?? 10} depth={room.roomDepthM ?? 8} floorPlanPath={room.floorPlanPath} /></section>;
+                return <section key={id} className="ops-panel p-4"><h2 className="mb-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Denah · {room.name ?? id}</h2><FloorPlacementPreview assets={assets} width={room.roomWidthM ?? 10} depth={room.roomDepthM ?? 8} floorPlanPath={room.floorPlanPath} /></section>;
             })}
             {view !== "3d" && (
                 <DeviceDetailPanel device={selected} onClose={() => setSelected(null)} onSelectPeer={selectPeer} />

@@ -6,7 +6,9 @@ import type { RackDevice } from "@/actions/rack-layout";
 import { reorderRacks } from "@/actions/rack-management";
 import { DndContext, DragEndEvent, DragStartEvent, useSensor, useSensors, PointerSensor, useDraggable, useDroppable } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
-import { Server, Network, Zap, Wind, XCircle, Search, MapPin, GripVertical } from "lucide-react";
+import { Server, Network, Zap, Wind, XCircle, MapPin, GripVertical } from "lucide-react";
+import EmptyState from "@/components/ui/empty-state";
+import ActionButton from "@/components/ui/action-button";
 import type { FilteredRack } from "@/lib/rack-filter";
 import { compareRackOrder, moveRack, type OrderedRack } from "@/lib/rack-order";
 
@@ -133,7 +135,7 @@ function DraggableDevice({ device, categoryName, gridRow, isMuted, onSelect }: {
                     {/* Audit status + U height badge */}
                     <div className="shrink-0 flex items-center gap-1">
                         {device.status === "NOT OK" && (
-                            <div className="flex items-center gap-0.5 text-[9px] font-bold text-ops-danger bg-ops-danger-soft px-1.5 py-0.5 rounded">
+                            <div className="flex items-center gap-0.5 rounded-sm bg-ops-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-ops-danger">
                                 <XCircle className={auditIconSize} />
                                 <span className="hidden xl:inline">NOT OK</span>
                             </div>
@@ -177,7 +179,7 @@ function SortableRack({ name, dragKind, reorderable, children }: {
             ref={setActivatorNodeRef}
             aria-label={`Reorder rack ${name}`}
             title="Drag to change rack order (2D and 3D)"
-            className="shrink-0 -ml-1 rounded p-0.5 text-ops-muted hover:text-ops-text hover:bg-ops-bg cursor-grab active:cursor-grabbing touch-none"
+            className="shrink-0 -ml-1 rounded-sm p-0.5 text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text cursor-grab active:cursor-grabbing touch-none"
             {...attributes}
             {...listeners}
         >
@@ -304,16 +306,16 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {racks.map((rack) => (
-                    <div key={`${rack.name}-${rack.zone || 'no-zone'}`} className="rounded-xl border border-ops-border bg-ops-surface shadow-sm overflow-hidden">
+                    <div key={`${rack.name}-${rack.zone || 'no-zone'}`} className="overflow-hidden rounded-lg border border-ops-border bg-ops-surface">
                         <div className="px-4 py-3 border-b border-ops-border">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <h3 className="font-bold text-base text-ops-text">{rack.name}</h3>
+                                    <h3 className="text-sm font-semibold text-ops-text">{rack.name}</h3>
                                     <p className="text-xs text-ops-muted">{rack.zone || "Unassigned"} • {rack.devices.length} devices</p>
                                 </div>
                                 <div className="text-right text-xs text-ops-muted">
                                     <div>Occupancy</div>
-                                    <div className="font-bold text-ops-text">{rack.occupiedU.length}U / {rack.totalU}U</div>
+                                    <div className="font-semibold tabular-nums text-ops-text">{rack.occupiedU.length}U / {rack.totalU}U</div>
                                 </div>
                             </div>
                         </div>
@@ -333,11 +335,11 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
         >
             <div className="space-y-6">
                 {hasFilters && processedRacks.length === 0 && (
-                    <div className="text-center py-12 text-ops-muted">
-                        <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg font-medium text-ops-text">No racks or devices match your filters</p>
-                        <button onClick={onResetFilters} className="mt-4 text-ops-accent hover:text-ops-text text-sm">Clear all filters</button>
-                    </div>
+                    <EmptyState
+                        title="No racks or devices match your filters"
+                        description="Adjust or clear the filters to see the rack layout."
+                        action={<ActionButton type="button" variant="secondary" size="sm" onClick={onResetFilters}>Clear all filters</ActionButton>}
+                    />
                 )}
 
                 {/* ── Rack Cards ── */}
@@ -346,8 +348,8 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                         <div key={location} className="space-y-4">
                             <div className="flex items-center gap-2.5">
                                 <MapPin className="h-5 w-5 text-ops-accent" />
-                                <h3 className="text-base font-bold text-ops-text uppercase tracking-wider">{location}</h3>
-                                <span className="ml-auto text-xs font-medium text-ops-muted bg-ops-bg px-2.5 py-1 rounded-full border border-ops-border">
+                                <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">{location}</h3>
+                                <span className="ml-auto rounded-full border border-ops-border bg-ops-surface-raised px-2.5 py-1 text-[11px] font-medium tabular-nums text-ops-muted">
                                     {racksInLocation.length} rack{racksInLocation.length > 1 ? "s" : ""}
                                 </span>
                             </div>
@@ -368,8 +370,8 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                                         <SortableRack key={`${rack.name}-${rack.zone || 'no-zone'}`} name={rack.name} dragKind={dragKind} reorderable={reorderable}>
                                         {(grip) => (
                                         <div
-                                            className={`group rounded-xl border overflow-hidden transition-all hover:shadow-lg ${
-                                                isDragging ? "border-dashed border-2 border-ops-accent/40" : "border-ops-border bg-ops-surface shadow-sm"
+                                            className={`group overflow-hidden rounded-lg border transition-all ${
+                                                isDragging ? "border-2 border-dashed border-ops-accent/40" : "border-ops-border bg-ops-surface"
                                             }`}
                                         >
                                             {/* ── Rack Header ── */}
@@ -378,15 +380,15 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                                                     <div className="flex items-center gap-2">
                                                         {grip}
                                                         <Server className="h-4 w-4 text-ops-accent shrink-0" />
-                                                        <h3 className="font-bold text-sm truncate text-ops-text">{rack.name}</h3>
+                                                        <h3 className="truncate text-sm font-semibold text-ops-text">{rack.name}</h3>
                                                     </div>
                                                     <p className="text-xs text-ops-muted mt-0.5 pl-6">
                                                         {rack.zone || "Unassigned"} • {rack.devices.length} devices
                                                     </p>
                                                 </div>
                                                 <div className="text-right shrink-0 ml-3">
-                                                    <div className="text-[10px] font-semibold uppercase tracking-wider text-ops-muted">Occupancy</div>
-                                                    <div className="text-lg font-bold leading-tight text-ops-text">
+                                                    <div className="text-[11px] font-medium text-ops-muted">Occupancy</div>
+                                                    <div className="text-lg font-semibold leading-tight tabular-nums text-ops-text">
                                                         {occupiedCount}<span className="text-xs text-ops-muted font-normal">/{totalU}</span>
                                                     </div>
                                                 </div>
@@ -394,7 +396,7 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
 
                                             {/* ── Occupancy bar ── */}
                                             <div className="px-4 pt-3">
-                                                <div className="h-1.5 bg-ops-bg rounded-full overflow-hidden">
+                                                <div className="h-1.5 overflow-hidden rounded-full bg-ops-surface-sunken">
                                                     <div
                                                         className={`h-full rounded-full bg-gradient-to-r ${barColor} transition-all duration-500`}
                                                         style={{ width: `${pct}%` }}
@@ -435,9 +437,9 @@ export default function RackLayout({ racks, hasFilters, onResetFilters, onSelect
                                             </div>
 
                                             {/* ── Rack Footer ── */}
-                                            <div className="px-4 py-2 border-t border-ops-border bg-ops-bg flex items-center justify-between text-[10px] font-medium text-ops-muted">
+                                            <div className="flex items-center justify-between border-t border-ops-border bg-ops-surface-raised px-4 py-2 text-[11px] font-medium text-ops-muted">
                                                 <span>{freeU}U free</span>
-                                                <span className={`font-bold ${
+                                                <span className={`font-semibold tabular-nums ${
                                                     pct > 90 ? 'text-ops-danger' :
                                                     pct > 70 ? 'text-ops-warning' :
                                                     'text-ops-success'

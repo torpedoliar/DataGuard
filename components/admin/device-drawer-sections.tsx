@@ -29,17 +29,17 @@ export function useDeviceDrawer(deviceId: number | null, supplied?: { loading: b
 function Section({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
     return (
         <section className="mt-5 border-t border-ops-border pt-4" aria-label={title}>
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ops-text">{icon} {title}</h4>
+            <h4 className="mb-2 flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">{icon} {title}</h4>
             {children}
         </section>
     );
 }
 
-const Empty = ({ children }: { children: ReactNode }) => <p className="text-xs text-ops-muted">{children}</p>;
+const Empty = ({ children }: { children: ReactNode }) => <p className="text-[13px] text-ops-muted">{children}</p>;
 
 export function SeverityChip({ severity }: { severity: Severity }) {
     return (
-        <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-white" style={{ backgroundColor: SEVERITY_COLOR[severity] }}>
+        <span className="shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold text-white" style={{ backgroundColor: SEVERITY_COLOR[severity] }}>
             {severity}
         </span>
     );
@@ -59,7 +59,7 @@ export function AuditSection({ drawer, onPhoto }: { drawer: DeviceDrawer; onPhot
                     {a.photoPath && (
                         <button type="button" onClick={() => onPhoto(a.photoPath!)} aria-label="Enlarge finding photo" className="block cursor-zoom-in">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={a.photoPath} alt="Audit finding" className="h-20 w-28 rounded border border-ops-border object-cover" />
+                            <img src={a.photoPath} alt="Audit finding" className="h-20 w-28 rounded-md border border-ops-border object-cover" />
                         </button>
                     )}
                 </div>
@@ -128,7 +128,7 @@ export function ConnectionsSection({ drawer, onSelectPeer, unavailablePeer }: { 
                             <button
                                 type="button"
                                 onClick={() => open(c.peerDeviceId)}
-                                className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs text-ops-text hover:bg-ops-bg"
+                                className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] text-ops-text transition-colors hover:bg-ops-surface-raised/60"
                             >
                                 <span className="w-20 shrink-0 font-mono text-ops-muted">{c.portName}</span>
                                 <span className="truncate font-medium">{c.peerDeviceName}</span>

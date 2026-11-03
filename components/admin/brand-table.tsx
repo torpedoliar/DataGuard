@@ -51,10 +51,10 @@ export default function BrandTable({ brands }: { brands: Brand[] }) {
   };
 
   const renderSortIcon = (column: SortKey) => {
-    if (sortKey !== column) return <ArrowUpDown className="size-3.5 text-ops-muted" />;
+    if (sortKey !== column) return <ArrowUpDown aria-hidden="true" className="size-3.5 text-ops-muted" />;
     return sortDir === "asc"
-      ? <ArrowUp className="size-3.5 text-ops-accent" />
-      : <ArrowDown className="size-3.5 text-ops-accent" />;
+      ? <ArrowUp aria-hidden="true" className="size-3.5 text-ops-accent" />
+      : <ArrowDown aria-hidden="true" className="size-3.5 text-ops-accent" />;
   };
 
   const filtered = useMemo(() => {
@@ -77,11 +77,12 @@ export default function BrandTable({ brands }: { brands: Brand[] }) {
       <DataToolbar>
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:w-72">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search brands..."
+              aria-label="Search brands"
               className={`${fieldClass} w-full pl-9 pr-8`}
             />
             {search && (
@@ -89,10 +90,11 @@ export default function BrandTable({ brands }: { brands: Brand[] }) {
                 icon={<X aria-hidden="true" className="size-3.5" />}
                 label="Clear search"
                 onClick={() => setSearch("")}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2"
               />
             )}
           </div>
-          <span className="text-xs font-medium text-ops-muted">{filtered.length} of {brands.length} Brands</span>
+          <span className="text-xs font-medium tabular-nums text-ops-muted">{filtered.length} of {brands.length} brands</span>
         </div>
       </DataToolbar>
 
@@ -101,7 +103,7 @@ export default function BrandTable({ brands }: { brands: Brand[] }) {
           <DataTableHead>
             <tr>
               <th className="px-5 py-3 text-left">
-                <button type="button" onClick={() => handleSort("name")} className="inline-flex items-center gap-1.5">
+                <button type="button" onClick={() => handleSort("name")} className="inline-flex items-center gap-1.5 transition-colors hover:text-ops-text">
                   Brand Name {renderSortIcon("name")}
                 </button>
               </th>
@@ -114,11 +116,11 @@ export default function BrandTable({ brands }: { brands: Brand[] }) {
               <DataTableEmpty colSpan={3} title={search ? "No brands match your search" : "No brands defined yet"} description="Create a brand from the form on this page." />
             ) : (
               filtered.map((brand) => (
-                <tr key={brand.id} className="transition-colors hover:bg-ops-surface">
+                <tr key={brand.id}>
                   <td className="whitespace-nowrap px-5 py-3 font-semibold text-ops-text">{brand.name}</td>
                   <td className="whitespace-nowrap px-5 py-3">
                     {brand.logoPath ? (
-                      <div className="flex h-8 w-20 items-center justify-center overflow-hidden rounded-md border border-ops-border bg-white p-1">
+                      <div className="flex h-8 w-20 items-center justify-center overflow-hidden rounded-md border border-ops-border bg-ops-surface-raised p-1">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={brand.logoPath} alt={brand.name} className="max-h-full max-w-full object-contain" />
                       </div>

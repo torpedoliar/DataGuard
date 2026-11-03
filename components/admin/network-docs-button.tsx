@@ -11,8 +11,8 @@ function SummaryCard({ label, value, tone }: { label: string; value: number; ton
     tone === "good" ? "text-ops-success" : tone === "warn" ? "text-ops-warning" : "text-ops-text";
   return (
     <div className="rounded-md border border-ops-border bg-ops-surface-raised p-3">
-      <div className={`text-2xl font-bold ${valueClass}`}>{value}</div>
-      <div className="mt-1 text-xs text-ops-muted">{label}</div>
+      <div className={`text-2xl font-semibold tabular-nums ${valueClass}`}>{value}</div>
+      <div className="mt-1 text-[13px] text-ops-muted">{label}</div>
     </div>
   );
 }
@@ -55,7 +55,7 @@ export default function NetworkDocsButton() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
           {error}
         </div>
       )}
@@ -77,9 +77,9 @@ export default function NetworkDocsButton() {
           </div>
 
           {summary.warnings.length > 0 && (
-            <div className="rounded-md border border-ops-warning/30 bg-ops-warning-soft p-3">
-              <div className="text-sm font-semibold text-ops-warning">Warnings</div>
-              <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs text-ops-warning/80">
+            <div className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5">
+              <div className="text-[13px] font-semibold text-ops-warning">Warnings</div>
+              <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs text-ops-warning">
                 {summary.warnings.map((warning, i) => (
                   <li key={i}>• {warning}</li>
                 ))}

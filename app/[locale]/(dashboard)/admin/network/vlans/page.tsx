@@ -1,10 +1,11 @@
 import { getVlans } from "@/actions/network";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { Network, Server } from "lucide-react";
 import AddVlanForm from "@/components/admin/add-vlan-form";
 import VlanTable from "@/components/admin/vlan-table";
+import ActionButton from "@/components/ui/action-button";
+import PageHeader from "@/components/ui/page-header";
 
 export default async function VlansPage() {
     const session = await verifySession();
@@ -13,57 +14,42 @@ export default async function VlansPage() {
     const vlans = await getVlans();
 
     return (
-        <div className="px-4 py-6 lg:px-6">
-            <div className="mb-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="size-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
-                                <Network className="h-6 w-6" />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-ops-text">VLAN Management</h1>
-                                <p className="text-sm text-ops-muted">
-                                    Manage Virtual LAN segments, subnets, and scopes.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-2 px-4 py-2 bg-ops-surface-raised text-ops-muted rounded-lg hover:bg-ops-surface-sunken transition-colors"
-                        >
-                            <Server className="h-4 w-4" />
-                            Device Management
-                        </Link>
-                    </div>
-                </div>
-            </div>
+        <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+            <PageHeader
+                eyebrow="Admin / Network"
+                title="VLAN management"
+                description="Manage Virtual LAN segments, subnets, and scopes."
+                actions={
+                    <ActionButton href="/admin" variant="secondary" icon={<Server className="size-4" />}>
+                        Device management
+                    </ActionButton>
+                }
+            />
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-lg bg-ops-info-soft flex items-center justify-center text-ops-info">
-                            <Network className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p className="text-sm text-ops-muted">Total Provisioned VLANs</p>
-                            <p className="text-2xl font-bold text-ops-text">{vlans.length}</p>
-                        </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="ops-panel flex items-center gap-3 p-4">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-ops-info-soft text-ops-info">
+                        <Network className="size-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-[13px] text-ops-muted">Total provisioned VLANs</p>
+                        <p className="text-2xl font-semibold tabular-nums leading-tight text-ops-text">{vlans.length}</p>
                     </div>
                 </div>
             </div>
 
             <AddVlanForm />
 
-            <div className="mt-8">
-                <h3 className="text-lg font-semibold mb-4 text-ops-text">
-                    VLAN Definitions ({vlans.length})
-                </h3>
+            <section className="flex flex-col gap-4">
+                <div className="flex items-end justify-between gap-3">
+                    <div>
+                        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">VLAN definitions</h2>
+                        <p className="mt-0.5 text-[13px] text-ops-muted">Segments available to access and trunk ports.</p>
+                    </div>
+                    <span className="shrink-0 text-[13px] tabular-nums text-ops-muted">{vlans.length} total</span>
+                </div>
                 <VlanTable vlans={vlans} />
-            </div>
-        </div>
+            </section>
+        </main>
     );
 }

@@ -3,7 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addVlan } from "@/actions/network";
-import { Plus, Loader2 } from "lucide-react";
+import ActionButton from "@/components/ui/action-button";
+import { Plus } from "lucide-react";
+
+const fieldClass = "ops-input h-9 w-full px-3 text-sm";
+const labelClass = "mb-1.5 block text-[13px] font-medium text-ops-muted";
 
 export default function AddVlanForm() {
     const router = useRouter();
@@ -54,15 +58,15 @@ export default function AddVlanForm() {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-6">
-            <h3 className="text-lg font-semibold mb-4 text-ops-text flex items-center gap-2">
-                <Plus className="h-5 w-5 text-primary" />
-                Add New VLAN
+        <form onSubmit={handleSubmit} className="ops-panel p-6">
+            <h3 className="mb-4 flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                <Plus className="size-4 text-ops-accent" />
+                Add new VLAN
             </h3>
 
             <div className="grid gap-6 md:grid-cols-4">
                 <div>
-                    <label htmlFor="vlanId" className="block text-sm font-medium text-ops-muted mb-1">
+                    <label htmlFor="vlanId" className={labelClass}>
                         VLAN ID *
                     </label>
                     <input
@@ -70,7 +74,7 @@ export default function AddVlanForm() {
                         id="vlanId"
                         value={vlanId}
                         onChange={(e) => setVlanId(e.target.value)}
-                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-ops-surface-raised text-ops-text"
+                        className={fieldClass}
                         placeholder="10"
                         min="1"
                         max="4094"
@@ -79,7 +83,7 @@ export default function AddVlanForm() {
                     />
                 </div>
                 <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-ops-muted mb-1">
+                    <label htmlFor="name" className={labelClass}>
                         VLAN Name *
                     </label>
                     <input
@@ -87,14 +91,14 @@ export default function AddVlanForm() {
                         id="name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-ops-surface-raised text-ops-text"
+                        className={fieldClass}
                         placeholder="Management"
                         required
                         disabled={isPending}
                     />
                 </div>
                 <div>
-                    <label htmlFor="subnet" className="block text-sm font-medium text-ops-muted mb-1">
+                    <label htmlFor="subnet" className={labelClass}>
                         Subnet (Optional)
                     </label>
                     <input
@@ -102,13 +106,13 @@ export default function AddVlanForm() {
                         id="subnet"
                         value={subnet}
                         onChange={(e) => setSubnet(e.target.value)}
-                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-ops-surface-raised text-ops-text"
+                        className={fieldClass}
                         placeholder="192.168.10.0/24"
                         disabled={isPending}
                     />
                 </div>
                 <div>
-                    <label htmlFor="description" className="block text-sm font-medium text-ops-muted mb-1">
+                    <label htmlFor="description" className={labelClass}>
                         Description (Optional)
                     </label>
                     <input
@@ -116,25 +120,20 @@ export default function AddVlanForm() {
                         id="description"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-ops-surface-raised text-ops-text"
+                        className={fieldClass}
                         placeholder="Core servers network"
                         disabled={isPending}
                     />
                 </div>
             </div>
 
-            {error && <p className="mt-4 text-sm text-ops-danger">{error}</p>}
-            {success && <p className="mt-4 text-sm text-ops-success">{success}</p>}
+            {error && <p className="mt-4 text-[13px] text-ops-danger">{error}</p>}
+            {success && <p className="mt-4 text-[13px] text-ops-success">{success}</p>}
 
             <div className="mt-6 flex justify-end">
-                <button
-                    type="submit"
-                    disabled={isPending}
-                    className="flex items-center gap-2 bg-primary text-ops-accent-fg px-6 py-2 rounded-md hover:bg-ops-accent-hover transition focus:outline-none focus:ring-2 focus:ring-ops-accent focus:ring-offset-2 disabled:opacity-50"
-                >
-                    {isPending ? <Loader2 className="animate-spin h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                <ActionButton type="submit" isPending={isPending} icon={<Plus className="size-4" />}>
                     Add VLAN
-                </button>
+                </ActionButton>
             </div>
         </form>
     );

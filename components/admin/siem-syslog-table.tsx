@@ -111,7 +111,7 @@ function PaginationControls({ data }: { data: SyslogData }) {
 
   return (
     <div className="flex items-center justify-between border-t border-ops-border px-4 py-3 text-sm text-ops-muted">
-      <span>Page {data.currentPage} of {data.totalPages}</span>
+      <span className="tabular-nums">Page {data.currentPage} of {data.totalPages}</span>
       <div className="flex gap-2">
         <ActionButton href={buildPageHref(searchParams, Math.max(1, data.currentPage - 1))} variant="secondary" disabled={data.currentPage <= 1} icon={<ArrowLeft className="size-4" />}>Previous</ActionButton>
         <ActionButton href={buildPageHref(searchParams, Math.min(data.totalPages, data.currentPage + 1))} variant="secondary" disabled={data.currentPage >= data.totalPages} icon={<ArrowRight className="size-4" />}>Next</ActionButton>
@@ -122,23 +122,23 @@ function PaginationControls({ data }: { data: SyslogData }) {
 
 export default function SiemSyslogTable({ data }: { data: SyslogData }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <DataToolbar>
         <SyslogFilters devices={data.devices} />
       </DataToolbar>
 
       <section className="grid gap-3 md:grid-cols-3">
         <div className="ops-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ops-muted">Messages</p>
-          <p className="mt-2 text-2xl font-bold text-ops-text">{data.totalMessages.toLocaleString("id-ID")}</p>
+          <p className="text-[13px] font-medium text-ops-muted">Messages</p>
+          <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{data.totalMessages.toLocaleString("id-ID")}</p>
         </div>
         <div className="ops-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ops-muted">Devices</p>
-          <p className="mt-2 text-2xl font-bold text-ops-text">{data.devices.length.toLocaleString("id-ID")}</p>
+          <p className="text-[13px] font-medium text-ops-muted">Devices</p>
+          <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{data.devices.length.toLocaleString("id-ID")}</p>
         </div>
         <div className="ops-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ops-muted">Page Size</p>
-          <p className="mt-2 text-2xl font-bold text-ops-text">{data.pageSize.toLocaleString("id-ID")}</p>
+          <p className="text-[13px] font-medium text-ops-muted">Page size</p>
+          <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{data.pageSize.toLocaleString("id-ID")}</p>
         </div>
       </section>
 
@@ -158,8 +158,8 @@ export default function SiemSyslogTable({ data }: { data: SyslogData }) {
             {data.messages.length === 0 ? (
               <DataTableEmpty colSpan={6} title="No syslog messages" description="Parsed syslog appears after receiver and parser workers process device packets." />
             ) : data.messages.map((message) => (
-              <tr key={message.id} className="align-top transition-colors hover:bg-ops-surface">
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-ops-muted">{formatDate(message.receivedAt)}</td>
+              <tr key={message.id} className="align-top">
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-ops-muted tabular-nums">{formatDate(message.receivedAt)}</td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-ops-text">{message.deviceName ?? "Unmapped device"}</div>
                   <div className="text-xs text-ops-muted">{message.siteName ?? "No site"}</div>
@@ -169,10 +169,10 @@ export default function SiemSyslogTable({ data }: { data: SyslogData }) {
                   <div className="text-xs text-ops-muted">{message.hostname || message.sourceDisplayName || message.vendor || "Unknown source"}</div>
                 </td>
                 <td className="px-4 py-3">
-                  <StatusBadge tone={getSyslogSeverityTone(message.severity)} dot>{message.severity ?? "-"} {getSyslogSeverityLabel(message.severity)}</StatusBadge>
+                  <StatusBadge tone={getSyslogSeverityTone(message.severity)} dot className="tabular-nums">{message.severity ?? "-"} {getSyslogSeverityLabel(message.severity)}</StatusBadge>
                 </td>
                 <td className="px-4 py-3">
-                  <StatusBadge tone="neutral">{message.facility ?? "-"} {getSyslogFacilityLabel(message.facility)}</StatusBadge>
+                  <StatusBadge tone="neutral" className="tabular-nums">{message.facility ?? "-"} {getSyslogFacilityLabel(message.facility)}</StatusBadge>
                 </td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-ops-text">{message.normalizedType || message.category || message.program || message.appName || "Syslog"}</div>

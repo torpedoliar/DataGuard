@@ -49,7 +49,7 @@ export default async function AuditGridPage({
     const categoryName = device.categoryName || "Uncategorized";
     if (!acc[categoryName]) {
       acc[categoryName] = {
-        color: device.categoryColor || "#5dd4b4",
+        color: device.categoryColor || "var(--color-ops-accent)",
         devices: [],
       };
     }
@@ -89,7 +89,7 @@ export default async function AuditGridPage({
         <div className="mx-auto max-w-[1600px]">
           <PageHeader
             eyebrow="Operate / Audit Grid"
-            title="Audit Grid"
+            title="Audit grid"
             description={`Sticky matrix for ${rangeLabel}. Drag horizontally to inspect daily device checks.`}
             actions={
               <div className="flex flex-wrap items-center gap-2">
@@ -98,7 +98,7 @@ export default async function AuditGridPage({
               </div>
             }
           />
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="stagger mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <StatsCard label="Devices" value={filteredGridData.length} icon={<Server className="size-4" />} tone="info" />
             <StatsCard label="Total Checks" value={totalChecks} icon={<ClipboardCheck className="size-4" />} tone="neutral" />
             <StatsCard label="OK Checks" value={okChecks} icon={<CheckCircle2 className="size-4" />} tone="success" meta={`${totalChecks > 0 ? Math.round((okChecks / totalChecks) * 100) : 0}% pass`} />
@@ -117,7 +117,7 @@ export default async function AuditGridPage({
       <DraggableScroll className="relative flex-1 overflow-auto px-4 lg:px-6">
         <div className="inline-block min-w-full align-middle">
           <table className="min-w-full border-collapse text-left text-sm">
-            <thead className="bg-ops-surface text-[11px] font-semibold uppercase tracking-[0.08em] text-ops-muted">
+            <thead className="bg-ops-surface-raised text-xs font-medium text-ops-muted">
               <tr>
                 <th className="sticky left-0 top-0 z-40 min-w-[300px] border-b border-r border-ops-border bg-ops-surface py-3 pl-5 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)]">
                   Device Name
@@ -135,7 +135,7 @@ export default async function AuditGridPage({
                       )}
                     >
                       <div className="flex flex-col gap-0.5">
-                        <span className={clsx("text-[10px]", isToday ? "text-ops-accent" : "text-ops-muted")}>
+                        <span className={clsx("text-[11px]", isToday ? "text-ops-accent" : "text-ops-muted")}>
                           {dayName}
                         </span>
                         <span className="font-mono text-ops-muted">{dateMonth}</span>
@@ -164,7 +164,7 @@ export default async function AuditGridPage({
                       >
                         <div className="flex items-center gap-2">
                           <span className="size-2.5 rounded-full" style={{ backgroundColor: color }} />
-                          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-ops-muted">
+                          <span className="text-xs font-medium text-ops-muted">
                             {categoryName}
                           </span>
                           <span className="font-mono text-[11px] text-ops-muted">({devices.length})</span>
@@ -176,7 +176,7 @@ export default async function AuditGridPage({
                       <tr key={device.id} className="group transition-colors hover:bg-ops-surface">
                         <td className="sticky left-0 z-10 whitespace-nowrap border-r border-ops-border bg-ops-bg py-2.5 pl-8 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)] group-hover:bg-ops-surface">
                           <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-ops-text">{device.name}</span>
+                            <span className="text-sm font-medium text-ops-text">{device.name}</span>
                             <span className="font-mono text-[11px] text-ops-muted">{device.locationName || "-"}</span>
                           </div>
                         </td>
@@ -216,7 +216,7 @@ export default async function AuditGridPage({
                   <td className="sticky left-0 z-20 border-r border-ops-border bg-ops-surface-raised py-2 pl-5 pr-3 shadow-[4px_0_16px_rgba(0,0,0,0.32)]">
                     <div className="flex items-center gap-2">
                       <Thermometer className="size-4 text-ops-accent" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-ops-text">Suhu Ruangan</span>
+                      <span className="text-xs font-medium text-ops-text">Suhu ruangan</span>
                     </div>
                   </td>
                   {dates.map((date) => {

@@ -3,10 +3,14 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getPortsByDevice, updatePort } from "@/actions/network";
-import { Loader2, X, Settings2 } from "lucide-react";
+import ActionButton from "@/components/ui/action-button";
+import { X, Settings2 } from "lucide-react";
 
 type Vlan = { id: number; vlanId: number; name: string };
 type Device = { id: number; name: string; locationName: string | null };
+
+const fieldClass = "ops-input h-9 w-full px-3 text-sm";
+const labelClass = "mb-2 block text-xs font-medium text-ops-muted";
 
 type Port = {
     id: number;
@@ -106,25 +110,22 @@ export default function EditPortModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-ops-surface/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-ops-surface rounded-xl max-w-4xl w-full shadow-xl my-8">
-                <div className="flex items-center justify-between p-6 border-b border-ops-border">
-                    <h2 className="text-xl font-semibold text-ops-text flex items-center gap-2">
-                        <Settings2 className="h-5 w-5 text-ops-accent" />
-                        Modify Port {port.portName}
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm">
+            <div className="my-8 w-full max-w-4xl rounded-lg border border-ops-border bg-ops-surface shadow-xl">
+                <div className="flex items-center justify-between border-b border-ops-border p-5">
+                    <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                        <Settings2 className="size-4 text-ops-accent" />
+                        Modify port {port.portName}
                     </h2>
-                    <button
-                        onClick={onClose}
-                        className="text-ops-muted hover:text-ops-subtle dark:hover:text-ops-muted transition-colors"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                        <X aria-hidden="true" className="size-4" />
+                    </ActionButton>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6">
+                <form onSubmit={handleSubmit} className="p-5">
                     <div className="grid gap-6 md:grid-cols-4 border-b border-ops-border pb-6 mb-6">
                         <div>
-                            <label htmlFor="edit-port-slot" className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label htmlFor="edit-port-slot" className={labelClass}>
                                 Slot Faceplate
                             </label>
                             <input
@@ -133,46 +134,46 @@ export default function EditPortModal({
                                 min={1}
                                 value={portIndex}
                                 onChange={(e) => setPortIndex(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 placeholder="Auto dari nama port"
                                 disabled={isPending}
                             />
                             <p className="mt-1 text-[11px] text-ops-muted">Kosongkan untuk mengikuti nomor pada nama interface.</p>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label className={labelClass}>
                                 MAC Address
                             </label>
                             <input
                                 type="text"
                                 value={macAddress}
                                 onChange={(e) => setMacAddress(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 placeholder="00:1A:2B:3C:4D:5E"
                                 disabled={isPending}
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label className={labelClass}>
                                 Port Speed
                             </label>
                             <select
                                 value={speed}
                                 onChange={(e) => setSpeed(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 {["10/100M", "1G", "10G", "25G", "40G", "100G", "Auto"].map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label className={labelClass}>
                                 Media Type
                             </label>
                             <select
                                 value={mediaType}
                                 onChange={(e) => setMediaType(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 {["Copper (RJ45)", "Fiber (SFP/SFP+)", "Twinax (DAC)"].map(m => <option key={m} value={m}>{m}</option>)}
@@ -182,26 +183,26 @@ export default function EditPortModal({
 
                     <div className="grid gap-6 md:grid-cols-4 border-b border-ops-border pb-6 mb-6">
                         <div>
-                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label className={labelClass}>
                                 Logical Config
                             </label>
                             <select
                                 value={portMode}
                                 onChange={(e) => setPortMode(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 {["Access", "Trunk", "Routed", "LACP"].map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label className={labelClass}>
                                 Access / Native VLAN
                             </label>
                             <select
                                 value={vlanId}
                                 onChange={(e) => setVlanId(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 <option value="">-- No VLAN --</option>
@@ -210,14 +211,14 @@ export default function EditPortModal({
                         </div>
                         {portMode === "Trunk" && (
                             <div>
-                                <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                                <label className={labelClass}>
                                     Allowed Trunk VLANs
                                 </label>
                                 <input
                                     type="text"
                                     value={trunkVlans}
                                     onChange={(e) => setTrunkVlans(e.target.value)}
-                                    className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                    className={fieldClass}
                                     placeholder="e.g. 10,20,100-200"
                                     disabled={isPending}
                                 />
@@ -225,14 +226,14 @@ export default function EditPortModal({
                         )}
                         {portMode === "Routed" && (
                             <div>
-                                <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                                <label className={labelClass}>
                                     IP Address
                                 </label>
                                 <input
                                     type="text"
                                     value={ipAddress}
                                     onChange={(e) => setIpAddress(e.target.value)}
-                                    className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                    className={fieldClass}
                                     placeholder="e.g. 10.0.0.1/30"
                                     disabled={isPending}
                                 />
@@ -242,13 +243,13 @@ export default function EditPortModal({
 
                     <div className="grid gap-6 md:grid-cols-3">
                         <div>
-                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label className={labelClass}>
                                 Topology / Target Device
                             </label>
                             <select
                                 value={connectedToDeviceId}
                                 onChange={(e) => pickDevice(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending}
                             >
                                 <option value="">-- No Connection --</option>
@@ -256,13 +257,13 @@ export default function EditPortModal({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label className={labelClass}>
                                 Target Port
                             </label>
                             <select
                                 value={connectedToPortId}
                                 onChange={(e) => setConnectedToPortId(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 disabled={isPending || !connectedToDeviceId}
                             >
                                 <option value="">{connectedToDeviceId ? "-- Select port --" : "-- Pick a device first --"}</option>
@@ -270,54 +271,44 @@ export default function EditPortModal({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label className={labelClass}>
                                 Link Status
                             </label>
                             <select
                                 value={status}
                                 onChange={(e) => setStatus(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text flex items-center"
+                                className={`${fieldClass} flex items-center`}
                                 disabled={isPending}
                             >
-                                <option value="Active">🟢 Active (Up)</option>
-                                <option value="Inactive">⚫ Inactive (Admin Down)</option>
-                                <option value="Down">🔴 Down (No Link)</option>
+                                <option value="Active">Active (Up)</option>
+                                <option value="Inactive">Inactive (Admin Down)</option>
+                                <option value="Down">Down (No Link)</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-ops-subtle uppercase tracking-wider mb-2">
+                            <label className={labelClass}>
                                 Description
                             </label>
                             <input
                                 type="text"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-ops-accent bg-ops-surface-raised text-ops-text"
+                                className={fieldClass}
                                 placeholder="Uplink to Core"
                                 disabled={isPending}
                             />
                         </div>
                     </div>
 
-                    {error && <p className="mt-4 text-sm text-ops-danger">{error}</p>}
+                    {error && <p className="mt-4 text-[13px] text-ops-danger">{error}</p>}
 
                     <div className="mt-8 flex justify-end gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={isPending}
-                            className="px-4 py-2 text-ops-muted bg-ops-surface-raised hover:bg-ops-surface-raised dark:text-ops-muted dark:bg-ops-surface-raised dark:hover:bg-ops-surface-sunken rounded-lg transition-colors"
-                        >
+                        <ActionButton type="button" variant="secondary" onClick={onClose} disabled={isPending}>
                             Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isPending}
-                            className="flex items-center gap-2 bg-ops-accent text-ops-accent-fg px-6 py-2 rounded-md hover:bg-ops-accent-hover transition focus:outline-none focus:ring-2 focus:ring-ops-accent focus:ring-offset-2 disabled:opacity-50"
-                        >
-                            {isPending && <Loader2 className="animate-spin h-5 w-5" />}
-                            Save Configuration
-                        </button>
+                        </ActionButton>
+                        <ActionButton type="submit" isPending={isPending}>
+                            Save configuration
+                        </ActionButton>
                     </div>
                 </form>
             </div>

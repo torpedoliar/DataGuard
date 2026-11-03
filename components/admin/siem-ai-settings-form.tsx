@@ -3,6 +3,7 @@
 import { testSiemAiConnection } from "@/actions/siem-ai";
 import { updateSiemAiSettings } from "@/actions/siem-settings";
 import ActionButton from "@/components/ui/action-button";
+import StatusBadge from "@/components/ui/status-badge";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
@@ -39,19 +40,19 @@ export default function SiemAiSettingsForm({ initialData }: { initialData: SiemA
   );
 
   return (
-    <form action={action} className="mt-6 max-w-5xl space-y-4 rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
+    <form action={action} className="ops-panel max-w-5xl space-y-4 p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-white">SIEM AI Analysis</h2>
-          <p className="mt-1 text-xs text-ops-muted">Konfigurasi OpenAI-compatible untuk 9router/provider /chat/completions. API key opsional bila router memegang kredensial. Environment variables menimpa nilai tersimpan.</p>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">SIEM AI analysis</h2>
+          <p className="mt-0.5 text-[13px] text-ops-muted">Konfigurasi OpenAI-compatible untuk 9router/provider /chat/completions. API key opsional bila router memegang kredensial. Environment variables menimpa nilai tersimpan.</p>
         </div>
-        <span className={`inline-flex h-7 w-fit items-center rounded-full border px-3 text-xs font-medium ${initialData.aiReady ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : "border-ops-warning/25 bg-ops-warning-soft text-ops-warning"}`}>
+        <StatusBadge tone={initialData.aiReady ? "success" : "warning"} dot>
           {initialData.aiReady ? "Siap" : "Belum lengkap"}
-        </span>
+        </StatusBadge>
       </div>
 
       {needsKey && (
-        <div className="rounded-lg border border-ops-warning/25 bg-ops-warning-soft p-3 text-sm text-ops-warning">
+        <div className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">
           Endpoint ini sepertinya membutuhkan API key. Isi kolom API Key lalu coba lagi, atau simpan dulu agar perubahan dipakai oleh test connection.
         </div>
       )}
@@ -59,46 +60,46 @@ export default function SiemAiSettingsForm({ initialData }: { initialData: SiemA
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1.5 text-sm font-medium text-ops-muted">
           Enabled
-          <select name="aiEnabled" value={enabled ? "true" : "false"} onChange={(event) => setEnabled(event.target.value === "true")} className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white">
+          <select name="aiEnabled" value={enabled ? "true" : "false"} onChange={(event) => setEnabled(event.target.value === "true")} className="ops-input h-9 w-full px-3 text-sm">
             <option value="false">Disabled</option>
             <option value="true">Enabled</option>
           </select>
         </label>
         <label className="space-y-1.5 text-sm font-medium text-ops-muted">
           Endpoint URL
-          <input name="aiEndpointUrl" defaultValue={initialData.aiEndpointUrl} required placeholder="https://api.9router.example/v1/chat/completions" className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 font-mono text-sm text-white" />
+          <input name="aiEndpointUrl" defaultValue={initialData.aiEndpointUrl} required placeholder="https://api.9router.example/v1/chat/completions" className="ops-input h-9 w-full px-3 font-mono text-sm" />
         </label>
         <label className="space-y-1.5 text-sm font-medium text-ops-muted">
           API Key <span className="text-xs font-normal text-ops-subtle">(opsional)</span>
-          <input name="aiApiKey" type="password" autoComplete="off" placeholder={initialData.aiApiKeyConfigured ? "Token tersimpan; isi hanya untuk mengganti" : "Kosongkan jika router sudah memegang kredensial"} className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 font-mono text-sm text-white" />
+          <input name="aiApiKey" type="password" autoComplete="off" placeholder={initialData.aiApiKeyConfigured ? "Token tersimpan; isi hanya untuk mengganti" : "Kosongkan jika router sudah memegang kredensial"} className="ops-input h-9 w-full px-3 font-mono text-sm" />
         </label>
         <label className="space-y-1.5 text-sm font-medium text-ops-muted">
           Model
-          <input name="aiDefaultModel" defaultValue={initialData.aiDefaultModel} required placeholder="anthropic/claude-sonnet-4.6" className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 font-mono text-sm text-white" />
+          <input name="aiDefaultModel" defaultValue={initialData.aiDefaultModel} required placeholder="anthropic/claude-sonnet-4.6" className="ops-input h-9 w-full px-3 font-mono text-sm" />
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-1.5 text-sm font-medium text-ops-muted">
             Sample Events
-            <input name="aiMaxSampleEvents" type="number" min="1" max="20" defaultValue={initialData.aiMaxSampleEvents} className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white" />
+            <input name="aiMaxSampleEvents" type="number" min="1" max="20" defaultValue={initialData.aiMaxSampleEvents} className="ops-input h-9 w-full px-3 text-sm" />
           </label>
           <label className="space-y-1.5 text-sm font-medium text-ops-muted">
             Max Raw Length
-            <input name="aiMaxRawLength" type="number" min="200" max="10000" defaultValue={initialData.aiMaxRawLength} className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white" />
+            <input name="aiMaxRawLength" type="number" min="200" max="10000" defaultValue={initialData.aiMaxRawLength} className="ops-input h-9 w-full px-3 text-sm" />
           </label>
         </div>
         <label className="space-y-1.5 text-sm font-medium text-ops-muted">
           Regeneration Cooldown (seconds)
-          <input name="aiRegenerateCooldownSec" type="number" min="0" max="86400" defaultValue={initialData.aiRegenerateCooldownSec} className="h-10 w-full rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white" />
+          <input name="aiRegenerateCooldownSec" type="number" min="0" max="86400" defaultValue={initialData.aiRegenerateCooldownSec} className="ops-input h-9 w-full px-3 text-sm" />
           <span className="block text-xs font-normal text-ops-subtle">0 = selalu izinkan regenerate manual. Default 3600 (1 jam).</span>
         </label>
       </div>
 
-      {state?.errors && <div className="rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">{Object.values(state.errors).flat().join(" ")}</div>}
-      {state?.message && !state.success && <div className="rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">{state.message}</div>}
-      {state?.success && <div className="rounded-lg border border-ops-success/20 bg-ops-success-soft p-3 text-sm text-ops-success">SIEM AI settings saved.</div>}
+      {state?.errors && <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{Object.values(state.errors).flat().join(" ")}</div>}
+      {state?.message && !state.success && <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{state.message}</div>}
+      {state?.success && <div className="rounded-md border border-ops-success/25 bg-ops-success-soft px-3 py-2.5 text-[13px] text-ops-success">SIEM AI settings saved.</div>}
 
       {testState && (
-        <div className={`rounded-lg border p-3 text-sm ${testState.ok ? "border-ops-success/20 bg-ops-success-soft text-ops-success" : "border-ops-danger/20 bg-ops-danger-soft text-ops-danger"}`}>
+        <div className={`rounded-md border px-3 py-2.5 text-[13px] ${testState.ok ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : "border-ops-danger/25 bg-ops-danger-soft text-ops-danger"}`}>
           {testState.message}
         </div>
       )}

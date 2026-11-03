@@ -12,10 +12,10 @@ export default async function SiemIocsPage() {
   const data = await getSiemIocs();
 
   return (
-    <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6">
-      <PageHeader eyebrow="Admin / SIEM" title="IOC Watchlist" description="Indikator kompromi yang dicocokkan otomatis ke event oleh rule indicator_match." />
+    <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+      <PageHeader eyebrow="Admin / SIEM" title="IOC watchlist" description="Indikator kompromi yang dicocokkan otomatis ke event oleh rule indicator_match." />
       {"message" in data && data.message ? (
-        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{data.message}</div>
       ) : (
         <SiemIocsForm iocs={"iocs" in data ? data.iocs : []} />
       )}

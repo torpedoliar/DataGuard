@@ -78,15 +78,15 @@ export default function CategoryTable({ categories }: { categories: Category[] }
       <DataToolbar>
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:w-72">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search categories..." className={`${fieldClass} w-full pl-9 pr-8`} />
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search categories..." aria-label="Search categories" className={`${fieldClass} w-full pl-9 pr-8`} />
             {search && (
-              <button type="button" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text" title="Clear search">
-                <X className="size-3.5" />
+              <button type="button" onClick={() => setSearch("")} aria-label="Clear search" title="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted transition-colors hover:text-ops-text">
+                <X aria-hidden="true" className="size-3.5" />
               </button>
             )}
           </div>
-          <span className="text-xs font-medium text-ops-muted">{filtered.length} of {categories.length} Categories</span>
+          <span className="text-xs font-medium tabular-nums text-ops-muted">{filtered.length} of {categories.length} categories</span>
         </div>
       </DataToolbar>
 
@@ -95,9 +95,9 @@ export default function CategoryTable({ categories }: { categories: Category[] }
           <DataTableHead>
             <tr>
               <th className="px-5 py-3 text-left">
-                <button type="button" onClick={() => setSortDir((direction) => direction === "asc" ? "desc" : "asc")} className="inline-flex items-center gap-1.5">
+                <button type="button" onClick={() => setSortDir((direction) => direction === "asc" ? "desc" : "asc")} className="inline-flex items-center gap-1.5 transition-colors hover:text-ops-text">
                   Category Name
-                  {sortDir === "asc" ? <ArrowUp className="size-3.5 text-ops-accent" /> : <ArrowDown className="size-3.5 text-ops-accent" />}
+                  {sortDir === "asc" ? <ArrowUp aria-hidden="true" className="size-3.5 text-ops-accent" /> : <ArrowDown aria-hidden="true" className="size-3.5 text-ops-accent" />}
                 </button>
               </th>
               <th className="px-5 py-3 text-right">Actions</th>
@@ -108,19 +108,19 @@ export default function CategoryTable({ categories }: { categories: Category[] }
               <DataTableEmpty colSpan={2} title={search ? "No categories match your search" : "No categories defined"} description="Add a category above to classify devices." />
             ) : (
               filtered.map((category) => (
-                <tr key={category.id} className="transition-colors hover:bg-ops-surface">
+                <tr key={category.id}>
                   <td className="whitespace-nowrap px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="flex size-8 items-center justify-center rounded-md text-white" style={{ backgroundColor: category.color || "#5dd4b4" }}>
-                        <Tag className="size-4" />
+                        <Tag aria-hidden="true" className="size-4" />
                       </div>
                       <span className="font-semibold text-ops-text">{category.name}</span>
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
-                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingCategory(category)} title="Edit">
-                        <Edit className="size-4 text-ops-info" />
+                      <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingCategory(category)} aria-label="Edit" title="Edit">
+                        <Edit aria-hidden="true" className="size-4 text-ops-info" />
                       </ActionButton>
                       <ActionButton
                         type="button"
@@ -128,9 +128,10 @@ export default function CategoryTable({ categories }: { categories: Category[] }
                         size="icon"
                         onClick={() => handleDelete(category.id, category.name)}
                         disabled={isPending && deletingId === category.id}
+                        aria-label="Delete"
                         title="Delete"
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 aria-hidden="true" className="size-4" />
                       </ActionButton>
                     </div>
                   </td>

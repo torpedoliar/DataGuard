@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { checkSystemUpdate, VersionInfo } from "@/actions/update";
-import { RefreshCw, Download, CheckCircle, ArrowUpCircle, GitBranch, AlertCircle, Terminal } from "lucide-react";
+import { RefreshCw, Download, CheckCircle, GitBranch, AlertCircle, Terminal } from "lucide-react";
+import PageHeader from "@/components/ui/page-header";
+import ActionButton from "@/components/ui/action-button";
 
 export default function SystemUpdatePage() {
     const [currentVersion, setCurrentVersion] = useState<VersionInfo | null>(null);
@@ -11,19 +13,17 @@ export default function SystemUpdatePage() {
     const [isChecking, setIsChecking] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState("");
+    const [notice, setNotice] = useState("");
 
     const fetchCurrentVersion = useCallback(async () => {
         try {
-            // Karena ini dari server actions, kita bisa langsung panggil fungsi sederhana
-            // Mengambil current version untuk loading state awal.
-            // Namun kita pakai checkSystemUpdate agar tahu apakah internet terhubung
             const data = await checkSystemUpdate();
             setCurrentVersion(data.current);
             setLatestVersion(data.latest);
             setUpdateAvailable(data.updateAvailable);
         } catch (error) {
             console.error("Failed to fetch version:", error);
-            setErrorMsg("Gagal memuat info versi (Mungkin ada masalah pada file version.json lokal).");
+            setErrorMsg("Gagal memuat info versi (mungkin ada masalah pada file version.json lokal).");
         } finally {
             setIsLoading(false);
         }
@@ -32,25 +32,24 @@ export default function SystemUpdatePage() {
     const checkForUpdates = async () => {
         setIsChecking(true);
         setErrorMsg("");
+        setNotice("");
 
         try {
             const data = await checkSystemUpdate();
             if (!data.current) {
                 setErrorMsg("Gagal memuat local version.json.");
             } else if (!data.latest) {
-                // If current exists but latest doesn't, we probably have no internet
                 setCurrentVersion(data.current);
-                setErrorMsg("Tidak dapat menghubungi server GitHub. Pastikan Anda memiliki koneksi internet.");
+                setErrorMsg("Tidak dapat menghubungi server GitHub. Pastikan koneksi internet tersedia.");
             } else {
                 setCurrentVersion(data.current);
                 setLatestVersion(data.latest);
                 setUpdateAvailable(data.updateAvailable);
-                // Kita gunakan HTML dialog native browser atau bisa diganti custom toast di kemudian hari
-                if (data.updateAvailable) {
-                    alert(`Update tersedia: v${data.latest.version}`);
-                } else {
-                    alert('Aplikasi sudah versi terbaru');
-                }
+                setNotice(
+                    data.updateAvailable
+                        ? `Versi v${data.latest.version} tersedia.`
+                        : "Aplikasi sudah memakai versi terbaru.",
+                );
             }
         } catch (error) {
             console.error("Check update error:", error);
@@ -66,99 +65,106 @@ export default function SystemUpdatePage() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center p-12">
-                <RefreshCw className="w-8 h-8 text-ops-info animate-spin" />
-                <span className="ml-3 text-ops-muted">Memuat informasi versi...</span>
-            </div>
+            <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 lg:px-8">
+                <div className="flex items-center gap-3 text-sm text-ops-muted">
+                    <RefreshCw className="size-4 animate-spin text-ops-info" />
+                    Memuat informasi versi…
+                </div>
+                <div className="ops-panel space-y-3 p-5">
+                    <div className="skeleton h-4 w-40" />
+                    <div className="skeleton h-8 w-28" />
+                    <div className="skeleton h-3 w-1/2" />
+                </div>
+            </main>
         );
     }
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-ops-info to-ops-accent flex items-center justify-center shadow-lg shadow-ops-info/20">
-                        <ArrowUpCircle className="w-7 h-7 text-ops-accent-fg" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-ops-text">System Update</h1>
-                        <p className="text-ops-muted">Kelola pembaruan aplikasi OTA (Over-The-Air)</p>
-                    </div>
-                </div>
-
-                <button
-                    onClick={checkForUpdates}
-                    disabled={isChecking}
-                    className="flex h-10 items-center justify-center gap-2 rounded-lg bg-surface px-4 text-sm font-semibold text-ops-text border border-border hover:bg-ops-surface-raised transition-all disabled:opacity-50"
-                >
-                    <RefreshCw className={`w-4 h-4 ${isChecking ? "animate-spin" : ""}`} />
-                    Check for Updates
-                </button>
-            </div>
+        <main className="mx-auto flex w-full max-w-5xl animate-enter flex-col gap-5 px-4 py-6 lg:px-8">
+            <PageHeader
+                eyebrow="Admin / System"
+                title="System update"
+                description="Kelola pembaruan aplikasi OTA (over-the-air)."
+                actions={
+                    <ActionButton
+                        variant="secondary"
+                        onClick={checkForUpdates}
+                        isPending={isChecking}
+                        icon={<RefreshCw />}
+                    >
+                        Check for updates
+                    </ActionButton>
+                }
+            />
 
             {errorMsg && (
-                <div className="bg-ops-danger-soft border border-ops-danger/50 text-ops-danger px-4 py-3 rounded-xl flex items-center gap-3">
-                    <AlertCircle className="size-5 shrink-0" />
-                    <p className="text-sm font-medium">{errorMsg}</p>
+                <div role="alert" className="flex items-center gap-3 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
+                    <AlertCircle className="size-4 shrink-0" aria-hidden />
+                    <p className="font-medium">{errorMsg}</p>
                 </div>
             )}
 
-            {/* Current Version Card */}
-            <div className="bg-surface border border-border/50 rounded-2xl p-6">
-                <h2 className="text-lg font-semibold text-ops-text mb-4 flex items-center gap-2">
-                    <GitBranch className="w-5 h-5 text-ops-info" />
-                    Versi Saat Ini
+            {notice && !errorMsg && (
+                <div aria-live="polite" className="flex items-center gap-3 rounded-md border border-ops-info/25 bg-ops-info-soft px-3 py-2.5 text-[13px] text-ops-info">
+                    <CheckCircle className="size-4 shrink-0" aria-hidden />
+                    <p className="font-medium">{notice}</p>
+                </div>
+            )}
+
+            <section className="ops-panel p-5">
+                <h2 className="mb-4 flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                    <GitBranch className="size-4 text-ops-info" aria-hidden />
+                    Versi saat ini
                 </h2>
 
                 {currentVersion ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <dl className="grid grid-cols-1 gap-5 sm:grid-cols-3">
                         <div>
-                            <p className="text-sm text-muted mb-1">Versi Rilis</p>
-                            <p className="text-3xl font-bold text-ops-info">v{currentVersion.version}</p>
+                            <dt className="text-xs text-ops-muted">Versi rilis</dt>
+                            <dd className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-ops-text tabular-nums">v{currentVersion.version}</dd>
                         </div>
                         <div>
-                            <p className="text-sm text-muted mb-1">Tanggal Rilis</p>
-                            <p className="font-medium text-ops-muted">{currentVersion.releaseDate}</p>
+                            <dt className="text-xs text-ops-muted">Tanggal rilis</dt>
+                            <dd className="mt-1 text-sm font-medium text-ops-text tabular-nums">{currentVersion.releaseDate}</dd>
                         </div>
                         <div>
-                            <p className="text-sm text-muted mb-1">Sumber Branch</p>
-                            <p className="font-medium text-ops-muted">{currentVersion.branch || "main"}</p>
+                            <dt className="text-xs text-ops-muted">Sumber branch</dt>
+                            <dd className="mt-1 font-mono text-sm text-ops-text">{currentVersion.branch || "main"}</dd>
                         </div>
-                    </div>
+                    </dl>
                 ) : (
-                    <p className="text-muted">Tidak dapat membaca informasi versi lokal.</p>
+                    <p className="text-sm text-ops-muted">Tidak dapat membaca informasi versi lokal.</p>
                 )}
 
                 {currentVersion?.changelog && currentVersion.changelog.length > 0 && (
-                    <div className="mt-6 pt-6 border-t border-border/50">
-                        <p className="text-sm font-medium text-ops-muted mb-3">Changelog Sistem:</p>
-                        <ul className="list-disc list-inside text-sm text-ops-muted space-y-1.5 ml-1">
+                    <div className="mt-5 border-t border-ops-border pt-4">
+                        <p className="mb-2 text-xs font-medium text-ops-muted">Changelog sistem</p>
+                        <ul className="list-inside list-disc space-y-1 text-[13px] text-ops-muted">
                             {currentVersion.changelog.map((item, i) => (
                                 <li key={i}>{item}</li>
                             ))}
                         </ul>
                     </div>
                 )}
-            </div>
+            </section>
 
-            {/* Update Available Card */}
             {updateAvailable && latestVersion && (
-                <div className="bg-ops-success-soft border-2 border-ops-success/30 rounded-2xl p-6">
-                    <div className="flex flex-col md:flex-row items-start gap-5">
-                        <div className="w-12 h-12 rounded-xl bg-ops-success-soft border border-ops-success/30 flex items-center justify-center flex-shrink-0">
-                            <Download className="w-6 h-6 text-ops-success" />
+                <section className="ops-panel border-ops-success/25 p-5">
+                    <div className="flex flex-col items-start gap-4 md:flex-row">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-ops-success/25 bg-ops-success-soft text-ops-success">
+                            <Download className="size-5" aria-hidden />
                         </div>
                         <div className="flex-1">
-                            <h3 className="text-xl font-bold text-ops-success">Pembaruan Tersedia!</h3>
-                            <p className="text-ops-text mt-1">
-                                Versi terbaru aplikasi <strong>v{latestVersion.version}</strong> telah dirilis pada {latestVersion.releaseDate}.
+                            <h3 className="text-[15px] font-semibold text-ops-success">Pembaruan tersedia</h3>
+                            <p className="mt-1 text-sm text-ops-text">
+                                Versi <strong className="tabular-nums">v{latestVersion.version}</strong> dirilis pada{" "}
+                                <span className="tabular-nums">{latestVersion.releaseDate}</span>.
                             </p>
 
                             {latestVersion.changelog && latestVersion.changelog.length > 0 && (
                                 <div className="mt-4">
-                                    <p className="text-sm text-ops-success font-semibold mb-2">Apa yang baru:</p>
-                                    <ul className="list-disc list-inside text-sm text-ops-muted space-y-1">
+                                    <p className="mb-2 text-xs font-medium text-ops-muted">Apa yang baru</p>
+                                    <ul className="list-inside list-disc space-y-1 text-[13px] text-ops-muted">
                                         {latestVersion.changelog.map((item, i) => (
                                             <li key={i}>{item}</li>
                                         ))}
@@ -166,61 +172,62 @@ export default function SystemUpdatePage() {
                                 </div>
                             )}
 
-                            <div className="mt-6 p-5 bg-background/60 border border-ops-success/20 rounded-xl">
-                                <p className="text-sm font-semibold text-ops-success mb-3 flex items-center gap-2">
-                                    <Terminal className="size-[18px]" />
-                                    Untuk memperbarui sistem, masuk ke server Anda dan jalankan skrip berikut:
+                            <div className="mt-5 rounded-md border border-ops-border bg-ops-surface-sunken p-4">
+                                <p className="mb-3 flex items-center gap-2 text-[13px] font-medium text-ops-text">
+                                    <Terminal className="size-4 text-ops-muted" aria-hidden />
+                                    Jalankan skrip berikut di server:
                                 </p>
-                                <div className="space-y-2 font-mono text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-muted w-24">OS Windows</span>
-                                        <code className="text-ops-warning bg-ops-surface-sunken px-2 py-1 rounded">.\update.ps1</code>
+                                <div className="space-y-2 font-mono text-[13px]">
+                                    <div className="flex items-center gap-3">
+                                        <span className="w-24 shrink-0 text-ops-muted">OS Windows</span>
+                                        <code className="rounded-sm bg-ops-surface px-2 py-1 text-ops-warning">.\update.ps1</code>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-muted w-24">OS Linux</span>
-                                        <code className="text-ops-success bg-ops-surface-sunken px-2 py-1 rounded">./update.sh</code>
+                                    <div className="flex items-center gap-3">
+                                        <span className="w-24 shrink-0 text-ops-muted">OS Linux</span>
+                                        <code className="rounded-sm bg-ops-surface px-2 py-1 text-ops-success">./update.sh</code>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
             )}
 
-            {/* No Update Card */}
             {!updateAvailable && latestVersion && !isChecking && (
-                <div className="bg-surface border border-border/50 rounded-2xl p-6">
+                <section className="ops-panel p-5">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-ops-info-soft border border-ops-info/20 flex items-center justify-center">
-                            <CheckCircle className="w-6 h-6 text-ops-info" />
+                        <div className="flex size-10 items-center justify-center rounded-lg border border-ops-info/20 bg-ops-info-soft text-ops-info">
+                            <CheckCircle className="size-5" aria-hidden />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-ops-subtle">Aplikasi Sudah Mutakhir</h3>
-                            <p className="text-sm text-ops-muted mt-0.5">
-                                Anda sudah menggunakan versi terbaru (v{currentVersion?.version}). Sistem berjalan dengan aman dan stabil.
+                            <h3 className="text-[15px] font-semibold text-ops-text">Aplikasi sudah mutakhir</h3>
+                            <p className="mt-0.5 text-sm text-ops-muted">
+                                Menggunakan versi terbaru (v{currentVersion?.version}). Sistem berjalan aman dan stabil.
                             </p>
                         </div>
                     </div>
-                </div>
+                </section>
             )}
 
-            {/* Instructions */}
-            <div className="bg-surface/50 border border-border/30 rounded-2xl p-6">
-                <h2 className="text-lg font-semibold text-ops-text mb-4">Cara Kerja Pembaruan OTA (Over-The-Air)</h2>
-                <div className="space-y-3 text-sm text-ops-muted">
+            <section className="ops-panel p-5">
+                <h2 className="mb-3 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                    Cara kerja pembaruan OTA
+                </h2>
+                <div className="space-y-3 text-[13px] leading-relaxed text-ops-muted">
                     <p>
-                        DC-Check dilengkapi skrip otomatisasi yang sangat aman dan dapat diandalkan untuk mengambil pembaharuan versi terbaru (OTA) langsung dari repositori Git proyek Anda tanpa memberhentikan sistem secara mendadak.
+                        Skrip otomatisasi mengambil pembaruan versi terbaru langsung dari repositori Git proyek tanpa
+                        memberhentikan sistem secara mendadak.
                     </p>
-                    <p className="mt-4 text-ops-muted font-medium">Skrip akan bekerja secara berurutan:</p>
-                    <ol className="list-decimal list-inside space-y-2 pl-2 text-ops-muted">
-                        <li>Melakukan Backup Database otomatis (via <code className="text-ops-info">pg_dump</code>).</li>
-                        <li>Memastikan kode terbaru tertarik dari <code className="text-ops-info">git pull origin main</code>.</li>
-                        <li>Melakukan *Build* container secara transparan di belakang layar (*Zero-downtime saat build*).</li>
-                        <li>Mereset *Container Web* lama, dan menggantinya dengan yang baru dalam waktu &lt; 2 detik.</li>
-                        <li>Menggunakan <code className="text-ops-warning">drizzle push</code> untuk menerapkan jika ada skema tabel database terbaru.</li>
+                    <p className="font-medium text-ops-text">Urutan kerja skrip:</p>
+                    <ol className="list-inside list-decimal space-y-1.5 pl-1">
+                        <li>Backup database otomatis via <code className="text-ops-info">pg_dump</code>.</li>
+                        <li>Menarik kode terbaru dengan <code className="text-ops-info">git pull origin main</code>.</li>
+                        <li>Build container di belakang layar (zero-downtime saat build).</li>
+                        <li>Mengganti container web lama dalam waktu kurang dari 2 detik.</li>
+                        <li>Menerapkan skema baru dengan <code className="text-ops-warning">drizzle push</code> bila ada.</li>
                     </ol>
                 </div>
-            </div>
-        </div>
+            </section>
+        </main>
     );
 }

@@ -4,6 +4,11 @@ import { useEffect, useState, useMemo, useTransition } from "react";
 import { getSites, addSite, updateSite, deleteSite, getSiteUsers, getUnassignedUsers, assignUserToSite, updateUserSiteRole, removeUserFromSite } from "@/actions/sites";
 import { migrateToMultiSite } from "@/actions/migrate-multisite";
 import SiteTelegramChats from "@/components/admin/site-telegram-chats";
+import ActionButton from "@/components/ui/action-button";
+import { DataTable, DataTableBody, DataTableFrame, DataTableHead } from "@/components/ui/data-table";
+import EmptyState from "@/components/ui/empty-state";
+import PageHeader from "@/components/ui/page-header";
+import StatusBadge from "@/components/ui/status-badge";
 import { Building2, Plus, Pencil, Trash2, Users, Loader2, UserPlus, ShieldCheck, X, Send, Search, ArrowUp, ArrowDown } from "lucide-react";
 
 type Site = {
@@ -17,6 +22,10 @@ type SiteUser = {
     globalRole: string; roleInSite: string; isActive: boolean | null;
 };
 type UnassignedUser = { id: number; username: string; email: string | null; role: string };
+
+const fieldClass = "ops-input h-9 w-full px-3 text-sm";
+const labelClass = "mb-1.5 block text-[13px] font-medium text-ops-muted";
+const hintClass = "mt-1 text-xs text-ops-muted";
 
 export default function SiteManagementPage() {
     const [sites, setSites] = useState<Site[]>([]);
@@ -162,211 +171,226 @@ export default function SiteManagementPage() {
     };
 
     return (
-        <main className="mx-auto max-w-6xl px-6 py-8">
-            <div className="flex items-center justify-between mb-8">
-                <div>
-                    <h1 className="text-2xl font-bold text-ops-text flex items-center gap-3">
-                        <Building2 className="h-7 w-7 text-primary" />
-                        Site Management
-                    </h1>
-                    <p className="text-sm text-muted mt-1">Kelola data center / lokasi site dan user yang ditugaskan.</p>
-                </div>
-                <button onClick={startAdd} className="flex items-center gap-2 bg-ops-accent text-ops-accent-fg px-5 py-2.5 rounded-lg hover:bg-ops-accent-hover transition font-medium text-sm">
-                    <Plus className="h-4 w-4" /> Tambah Site
-                </button>
-            </div>
+        <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+            <PageHeader
+                eyebrow="Admin / Sites"
+                title="Site management"
+                description="Kelola data center / lokasi site dan user yang ditugaskan."
+                actions={
+                    <ActionButton type="button" onClick={startAdd} icon={<Plus aria-hidden="true" className="size-4" />}>
+                        Tambah Site
+                    </ActionButton>
+                }
+            />
 
-            {error && <div className="mb-4 p-3 bg-ops-danger-soft border border-ops-danger/30 rounded-lg text-ops-danger text-sm">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-ops-success-soft border border-ops-success/30 rounded-lg text-ops-success text-sm">{success}</div>}
+            {error && (
+                <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger" role="alert">
+                    {error}
+                </div>
+            )}
+            {success && (
+                <div className="rounded-md border border-ops-success/25 bg-ops-success-soft px-3 py-2.5 text-[13px] text-ops-success" role="status">
+                    {success}
+                </div>
+            )}
 
             {/* Add / Edit Form */}
             {(showAddForm || editSite) && (
-                <div className="mb-6 bg-ops-surface rounded-xl shadow-sm border border-ops-border p-6">
-                    <h3 className="text-lg font-semibold mb-4 text-ops-text">
+                <div className="ops-panel p-5">
+                    <h2 className="mb-4 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
                         {editSite ? "Edit Site" : "Tambah Site Baru"}
-                    </h3>
+                    </h2>
                     <div className="grid gap-4 md:grid-cols-2">
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">Nama Site *</label>
-                            <input value={formName} onChange={e => setFormName(e.target.value)} className="w-full px-3 py-2 border border-ops-border rounded-lg bg-ops-surface text-ops-text focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Data Center Jakarta" />
+                            <label htmlFor="site-name" className={labelClass}>Nama Site *</label>
+                            <input id="site-name" value={formName} onChange={e => setFormName(e.target.value)} className={fieldClass} placeholder="Data Center Jakarta" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">Kode Site *</label>
-                            <input value={formCode} onChange={e => setFormCode(e.target.value)} className="w-full px-3 py-2 border border-ops-border rounded-lg bg-ops-surface text-ops-text focus:ring-2 focus:ring-primary outline-none text-sm uppercase" placeholder="DC-JKT" />
+                            <label htmlFor="site-code" className={labelClass}>Kode Site *</label>
+                            <input id="site-code" value={formCode} onChange={e => setFormCode(e.target.value)} className={`${fieldClass} font-mono uppercase`} placeholder="DC-JKT" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">Alamat</label>
-                            <input value={formAddress} onChange={e => setFormAddress(e.target.value)} className="w-full px-3 py-2 border border-ops-border rounded-lg bg-ops-surface text-ops-text focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Jl. Sudirman No.1" />
+                            <label htmlFor="site-address" className={labelClass}>Alamat</label>
+                            <input id="site-address" value={formAddress} onChange={e => setFormAddress(e.target.value)} className={fieldClass} placeholder="Jl. Sudirman No.1" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">Deskripsi</label>
-                            <input value={formDescription} onChange={e => setFormDescription(e.target.value)} className="w-full px-3 py-2 border border-ops-border rounded-lg bg-ops-surface text-ops-text focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Main production DC" />
+                            <label htmlFor="site-description" className={labelClass}>Deskripsi</label>
+                            <input id="site-description" value={formDescription} onChange={e => setFormDescription(e.target.value)} className={fieldClass} placeholder="Main production DC" />
                         </div>
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-ops-muted mb-1">Telegram Chat ID (Optional)</label>
-                            <input value={formTelegramChatId} onChange={e => setFormTelegramChatId(e.target.value)} className="w-full px-3 py-2 border border-ops-border rounded-lg bg-ops-surface text-ops-text focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="-100123456789" />
-                            <p className="text-xs text-muted mt-1">If set, critical audit alerts (Error/Warning) will be sent to this group or user.</p>
+                            <label htmlFor="site-telegram" className={labelClass}>Telegram Chat ID (Optional)</label>
+                            <input id="site-telegram" value={formTelegramChatId} onChange={e => setFormTelegramChatId(e.target.value)} className={`${fieldClass} font-mono`} placeholder="-100123456789" />
+                            <p className={hintClass}>If set, critical audit alerts (Error/Warning) will be sent to this group or user.</p>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">Latitude (Peta)</label>
-                            <input value={formLatitude} onChange={e => setFormLatitude(e.target.value)} className="w-full px-3 py-2 border border-ops-border rounded-lg bg-ops-surface text-ops-text focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="-6.2088" />
-                            <p className="text-xs text-muted mt-1">Gunakan format desimal, contoh: -6.2088</p>
+                            <label htmlFor="site-latitude" className={labelClass}>Latitude (Peta)</label>
+                            <input id="site-latitude" value={formLatitude} onChange={e => setFormLatitude(e.target.value)} className={`${fieldClass} font-mono tabular-nums`} placeholder="-6.2088" />
+                            <p className={hintClass}>Gunakan format desimal, contoh: -6.2088</p>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">Longitude (Peta)</label>
-                            <input value={formLongitude} onChange={e => setFormLongitude(e.target.value)} className="w-full px-3 py-2 border border-ops-border rounded-lg bg-ops-surface text-ops-text focus:ring-2 focus:ring-primary outline-none text-sm font-mono" placeholder="106.8456" />
-                            <p className="text-xs text-muted mt-1">Gunakan format desimal, contoh: 106.8456</p>
+                            <label htmlFor="site-longitude" className={labelClass}>Longitude (Peta)</label>
+                            <input id="site-longitude" value={formLongitude} onChange={e => setFormLongitude(e.target.value)} className={`${fieldClass} font-mono tabular-nums`} placeholder="106.8456" />
+                            <p className={hintClass}>Gunakan format desimal, contoh: 106.8456</p>
                         </div>
                     </div>
-                    <div className="mt-4 flex gap-3">
-                        <button onClick={editSite ? handleUpdate : handleAdd} disabled={isPending} className="bg-ops-accent text-ops-accent-fg px-5 py-2 rounded-lg hover:bg-ops-accent-hover transition text-sm font-medium disabled:opacity-50">
-                            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editSite ? "Simpan" : "Tambah"}
-                        </button>
-                        <button onClick={() => { setShowAddForm(false); setEditSite(null); }} className="px-5 py-2 rounded-lg border border-ops-border text-ops-muted hover:bg-ops-surface-raised transition text-sm">
+                    <div className="mt-4 flex gap-2">
+                        <ActionButton type="button" onClick={editSite ? handleUpdate : handleAdd} isPending={isPending} icon={editSite ? undefined : <Plus aria-hidden="true" className="size-4" />}>
+                            {isPending ? null : editSite ? "Simpan" : "Tambah"}
+                        </ActionButton>
+                        <ActionButton type="button" variant="secondary" onClick={() => { setShowAddForm(false); setEditSite(null); }}>
                             Batal
-                        </button>
+                        </ActionButton>
                     </div>
                 </div>
             )}
 
             {/* Sites Table */}
-            <div className="ops-panel overflow-hidden">
-                {/* Toolbar */}
-                <div className="p-4 border-b border-border/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
                         <div className="relative w-full sm:w-64">
-                            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+                            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
                             <input
                                 value={siteSearch}
                                 onChange={e => setSiteSearch(e.target.value)}
                                 placeholder="Search sites..."
-                                className="w-full h-9 pl-9 pr-8 rounded-lg bg-ops-surface border border-ops-border text-sm text-ops-text placeholder-ops-muted focus:ring-1 focus:ring-ops-info focus:border-ops-info outline-none transition-all"
+                                aria-label="Search sites"
+                                className="ops-input h-9 w-full pl-9 pr-8 text-sm"
                             />
                             {siteSearch && (
-                                <button onClick={() => setSiteSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text">
-                                    <X className="h-3.5 w-3.5" />
+                                <button type="button" onClick={() => setSiteSearch("")} aria-label="Clear search" title="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted transition-colors hover:text-ops-text">
+                                    <X aria-hidden="true" className="size-3.5" />
                                 </button>
                             )}
                         </div>
-                        <select value={siteStatusFilter} onChange={e => setSiteStatusFilter(e.target.value)} className="h-9 px-3 rounded-lg bg-ops-surface border border-ops-border text-sm text-ops-text outline-none focus:ring-1 focus:ring-ops-info">
+                        <select value={siteStatusFilter} onChange={e => setSiteStatusFilter(e.target.value)} aria-label="Filter status" className="ops-input h-9 px-3 text-sm">
                             <option value="All">All Status</option>
                             <option value="Active">Active</option>
                             <option value="Inactive">Inactive</option>
                         </select>
                     </div>
-                    <span className="text-xs text-muted font-medium shrink-0">{filteredSites.length} of {sites.length} Sites</span>
+                    <span className="shrink-0 text-xs font-medium tabular-nums text-ops-muted">{filteredSites.length} of {sites.length} sites</span>
                 </div>
 
-                <table className="w-full text-sm">
-                    <thead>
-                        <tr className="bg-surface/60 text-[11px] uppercase tracking-wider text-muted">
-                            <th className="text-left px-5 py-3 cursor-pointer select-none" onClick={() => setSiteSortDir(d => d === "asc" ? "desc" : "asc")}>
-                                <span className="inline-flex items-center gap-1.5">
-                                    Nama
-                                    {siteSortDir === "asc" ? <ArrowUp className="size-3.5 text-ops-info" /> : <ArrowDown className="size-3.5 text-ops-info" />}
-                                </span>
-                            </th>
-                            <th className="text-left px-5 py-3">Kode</th>
-                            <th className="text-left px-5 py-3 hidden md:table-cell">Alamat</th>
-                            <th className="text-center px-5 py-3">Status</th>
-                            <th className="text-right px-5 py-3">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-ops-border-strong">
-                        {filteredSites.length === 0 && (
-                            <tr>
-                                <td colSpan={5} className="text-center py-12">
-                                    <div className="flex flex-col items-center gap-4">
-                                        <div className="text-muted">
-                                            Belum ada site terdaftar. Anda bisa klik &quot;Tambah Site&quot; di atas, atau mengaktifkan mode Multi-Site dengan memigrasi data lama Anda.
-                                        </div>
-                                        <button onClick={handleMigrate} disabled={isPending} className="flex items-center gap-2 border border-ops-warning/30 bg-ops-warning-soft text-ops-warning px-5 py-2.5 rounded-lg hover:bg-ops-warning/20 transition font-medium text-sm disabled:opacity-50">
-                                            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                                            Migrasi Data Lama
+                {filteredSites.length === 0 ? (
+                    <EmptyState
+                        icon={<Building2 aria-hidden="true" />}
+                        title="Belum ada site terdaftar"
+                        description={'Anda bisa klik "Tambah Site" di atas, atau mengaktifkan mode Multi-Site dengan memigrasi data lama Anda.'}
+                        action={
+                            <button
+                                type="button"
+                                onClick={handleMigrate}
+                                disabled={isPending}
+                                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3.5 text-sm font-medium text-ops-warning transition-colors hover:border-ops-warning/45 hover:bg-ops-warning/15 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ops-accent/30 disabled:pointer-events-none disabled:opacity-55"
+                            >
+                                {isPending ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-4" />}
+                                Migrasi Data Lama
+                            </button>
+                        }
+                    />
+                ) : (
+                    <DataTableFrame>
+                        <DataTable className="whitespace-nowrap">
+                            <DataTableHead>
+                                <tr>
+                                    <th className="px-5 py-3 text-left">
+                                        <button type="button" onClick={() => setSiteSortDir(d => d === "asc" ? "desc" : "asc")} className="inline-flex items-center gap-1.5 transition-colors hover:text-ops-text">
+                                            Nama
+                                            {siteSortDir === "asc" ? <ArrowUp aria-hidden="true" className="size-3.5 text-ops-accent" /> : <ArrowDown aria-hidden="true" className="size-3.5 text-ops-accent" />}
                                         </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        )}
-                        {filteredSites.map(site => (
-                            <tr key={site.id} className="border-b border-ops-border hover:bg-ops-surface-raised transition">
-                                <td className="px-6 py-4 font-medium text-ops-text">{site.name}</td>
-                                <td className="px-6 py-4"><span className="px-2 py-0.5 bg-ops-info-soft text-ops-info rounded text-xs font-mono font-bold">{site.code}</span></td>
-                                <td className="px-6 py-4 text-muted hidden md:table-cell">{site.address || "-"}</td>
-                                <td className="px-6 py-4 text-center">
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${site.isActive ? "bg-ops-success-soft text-ops-success" : "bg-ops-danger-soft text-ops-danger"}`}>
-                                        {site.isActive ? "Aktif" : "Nonaktif"}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center justify-end gap-2">
-                                        <button onClick={() => setTelegramSite(site)} className="p-2 text-ops-info hover:bg-ops-info-soft rounded-lg transition" title="Telegram Recipients">
-                                            <Send className="h-4 w-4" />
-                                        </button>
-                                        <button onClick={() => openUserManager(site)} className="p-2 text-ops-accent hover:bg-ops-accent-soft rounded-lg transition" title="Kelola User">
-                                            <Users className="h-4 w-4" />
-                                        </button>
-                                        <button onClick={() => startEdit(site)} className="p-2 text-ops-info hover:bg-ops-info-soft rounded-lg transition" title="Edit">
-                                            <Pencil className="h-4 w-4" />
-                                        </button>
-                                        <button onClick={() => handleDelete(site.id)} className="p-2 text-ops-danger hover:bg-ops-danger-soft rounded-lg transition" title="Hapus">
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                                    </th>
+                                    <th className="px-5 py-3 text-left">Kode</th>
+                                    <th className="hidden px-5 py-3 text-left md:table-cell">Alamat</th>
+                                    <th className="px-5 py-3 text-center">Status</th>
+                                    <th className="px-5 py-3 text-right">Aksi</th>
+                                </tr>
+                            </DataTableHead>
+                            <DataTableBody>
+                                {filteredSites.map(site => (
+                                    <tr key={site.id}>
+                                        <td className="px-5 py-3 font-medium text-ops-text">{site.name}</td>
+                                        <td className="px-5 py-3">
+                                            <span className="rounded-sm bg-ops-info-soft px-2 py-0.5 font-mono text-xs font-medium tabular-nums text-ops-info">{site.code}</span>
+                                        </td>
+                                        <td className="hidden px-5 py-3 text-ops-muted md:table-cell">{site.address || "-"}</td>
+                                        <td className="px-5 py-3 text-center">
+                                            <StatusBadge tone={site.isActive ? "success" : "danger"} dot>
+                                                {site.isActive ? "Aktif" : "Nonaktif"}
+                                            </StatusBadge>
+                                        </td>
+                                        <td className="px-5 py-3">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <ActionButton type="button" variant="ghost" size="icon" onClick={() => setTelegramSite(site)} aria-label="Telegram recipients" title="Telegram Recipients">
+                                                    <Send aria-hidden="true" className="size-4 text-ops-info" />
+                                                </ActionButton>
+                                                <ActionButton type="button" variant="ghost" size="icon" onClick={() => openUserManager(site)} aria-label="Kelola user" title="Kelola User">
+                                                    <Users aria-hidden="true" className="size-4 text-ops-accent" />
+                                                </ActionButton>
+                                                <ActionButton type="button" variant="ghost" size="icon" onClick={() => startEdit(site)} aria-label="Edit site" title="Edit">
+                                                    <Pencil aria-hidden="true" className="size-4 text-ops-info" />
+                                                </ActionButton>
+                                                <ActionButton type="button" variant="danger" size="icon" onClick={() => handleDelete(site.id)} aria-label="Hapus site" title="Hapus">
+                                                    <Trash2 aria-hidden="true" className="size-4" />
+                                                </ActionButton>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </DataTableBody>
+                        </DataTable>
+                    </DataTableFrame>
+                )}
             </div>
 
             {/* User Assignment Modal */}
             {manageSite && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setManageSite(null)}>
-                    <div className="bg-ops-surface rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        <div className="p-6 border-b border-ops-border flex items-center justify-between">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" onClick={() => setManageSite(null)}>
+                    <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-ops-border bg-ops-surface shadow-[var(--shadow-overlay)]" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between border-b border-ops-border px-5 py-4">
                             <div>
-                                <h3 className="text-lg font-bold text-ops-text flex items-center gap-2">
-                                    <Users className="h-5 w-5 text-ops-accent" />
+                                <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                                    <Users aria-hidden="true" className="size-4 text-ops-accent" />
                                     User di {manageSite.name}
                                 </h3>
-                                <p className="text-sm text-muted mt-0.5">Atur siapa yang bisa mengakses site ini.</p>
+                                <p className="mt-0.5 text-[13px] text-ops-muted">Atur siapa yang bisa mengakses site ini.</p>
                             </div>
-                            <button onClick={() => setManageSite(null)} className="p-2 hover:bg-ops-surface-raised rounded-lg transition">
-                                <X className="h-5 w-5 text-ops-muted" />
-                            </button>
+                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setManageSite(null)} aria-label="Close dialog" title="Close">
+                                <X aria-hidden="true" className="size-4" />
+                            </ActionButton>
                         </div>
 
                         {/* Current Users */}
-                        <div className="p-6">
-                            <h4 className="text-sm font-semibold text-ops-muted mb-3">User Terdaftar ({siteUsers.length})</h4>
+                        <div className="p-5">
+                            <h4 className="mb-3 text-xs font-medium text-ops-muted">User terdaftar <span className="tabular-nums">({siteUsers.length})</span></h4>
                             {siteUsers.length === 0 ? (
-                                <p className="text-sm text-ops-muted py-4 text-center">Belum ada user yang ditugaskan ke site ini.</p>
+                                <p className="py-4 text-center text-sm text-ops-muted">Belum ada user yang ditugaskan ke site ini.</p>
                             ) : (
                                 <div className="space-y-2">
                                     {siteUsers.map(u => (
-                                        <div key={u.assignmentId} className="flex items-center justify-between p-3 bg-ops-surface-raised rounded-lg">
+                                        <div key={u.assignmentId} className="ops-panel-subtle flex items-center justify-between p-3">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-ops-surface-sunken flex items-center justify-center text-xs font-bold text-ops-text">
+                                                <div className="flex size-8 items-center justify-center rounded-full bg-ops-surface-sunken text-xs font-semibold text-ops-text">
                                                     {u.username.substring(0, 2).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <span className="font-medium text-ops-text text-sm">{u.username}</span>
-                                                    {u.email && <span className="text-xs text-ops-muted ml-2">{u.email}</span>}
+                                                    <span className="text-sm font-medium text-ops-text">{u.username}</span>
+                                                    {u.email && <span className="ml-2 text-xs text-ops-muted">{u.email}</span>}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <select
                                                     value={u.roleInSite}
                                                     onChange={e => handleRoleChange(u.assignmentId, e.target.value as "admin" | "staff")}
-                                                    className="text-xs px-2 py-1 border border-ops-border rounded-md bg-ops-surface text-ops-muted"
+                                                    aria-label={`Role ${u.username}`}
+                                                    className="ops-input h-8 px-2 text-xs"
                                                 >
                                                     <option value="staff">Staff</option>
                                                     <option value="admin">Admin</option>
                                                 </select>
-                                                <button onClick={() => handleRemove(u.assignmentId)} className="p-1.5 text-ops-danger hover:bg-ops-danger-soft rounded transition">
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </button>
+                                                <ActionButton type="button" variant="danger" size="icon" onClick={() => handleRemove(u.assignmentId)} aria-label={`Hapus ${u.username}`} title="Hapus" className="size-8">
+                                                    <Trash2 aria-hidden="true" className="size-3.5" />
+                                                </ActionButton>
                                             </div>
                                         </div>
                                     ))}
@@ -376,24 +400,24 @@ export default function SiteManagementPage() {
                             {/* Add User */}
                             {unassigned.length > 0 && (
                                 <div className="mt-6">
-                                    <h4 className="text-sm font-semibold text-ops-muted mb-3 flex items-center gap-2">
-                                        <UserPlus className="h-4 w-4" /> Tambahkan User
+                                    <h4 className="mb-3 flex items-center gap-2 text-xs font-medium text-ops-muted">
+                                        <UserPlus aria-hidden="true" className="size-4" /> Tambahkan user
                                     </h4>
                                     <div className="space-y-2">
                                         {unassigned.map(u => (
-                                            <div key={u.id} className="flex items-center justify-between p-3 border border-dashed border-ops-border rounded-lg">
+                                            <div key={u.id} className="flex items-center justify-between rounded-lg border border-dashed border-ops-border p-3">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-ops-info-soft flex items-center justify-center text-xs font-bold text-ops-info">
+                                                    <div className="flex size-8 items-center justify-center rounded-full bg-ops-info-soft text-xs font-semibold text-ops-info">
                                                         {u.username.substring(0, 2).toUpperCase()}
                                                     </div>
                                                     <div>
                                                         <span className="text-sm text-ops-muted">{u.username}</span>
-                                                        <span className="text-xs text-ops-muted ml-2">({u.role})</span>
+                                                        <span className="ml-2 text-xs text-ops-muted">({u.role})</span>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => handleAssign(u.id)} disabled={isPending} className="text-xs bg-ops-accent text-ops-accent-fg px-3 py-1.5 rounded-md hover:bg-ops-accent-hover transition disabled:opacity-50">
-                                                    {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Assign"}
-                                                </button>
+                                                <ActionButton type="button" size="sm" onClick={() => handleAssign(u.id)} isPending={isPending}>
+                                                    Assign
+                                                </ActionButton>
                                             </div>
                                         ))}
                                     </div>
@@ -406,21 +430,21 @@ export default function SiteManagementPage() {
 
             {/* Telegram Recipients Modal (N23) */}
             {telegramSite && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setTelegramSite(null)}>
-                    <div className="bg-ops-surface rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        <div className="p-6 border-b border-ops-border flex items-center justify-between">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" onClick={() => setTelegramSite(null)}>
+                    <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-ops-border bg-ops-surface shadow-[var(--shadow-overlay)]" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between border-b border-ops-border px-5 py-4">
                             <div>
-                                <h3 className="text-lg font-bold text-ops-text flex items-center gap-2">
-                                    <Send className="h-5 w-5 text-ops-info" />
+                                <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                                    <Send aria-hidden="true" className="size-4 text-ops-info" />
                                     Telegram Recipients &mdash; {telegramSite.name}
                                 </h3>
-                                <p className="text-sm text-muted mt-0.5">Kelola multi-recipient telegram untuk site ini.</p>
+                                <p className="mt-0.5 text-[13px] text-ops-muted">Kelola multi-recipient telegram untuk site ini.</p>
                             </div>
-                            <button onClick={() => setTelegramSite(null)} className="p-2 hover:bg-ops-surface-raised rounded-lg transition">
-                                <X className="h-5 w-5 text-ops-muted" />
-                            </button>
+                            <ActionButton type="button" variant="ghost" size="icon" onClick={() => setTelegramSite(null)} aria-label="Close dialog" title="Close">
+                                <X aria-hidden="true" className="size-4" />
+                            </ActionButton>
                         </div>
-                        <div className="p-6">
+                        <div className="p-5">
                             <SiteTelegramChats siteId={telegramSite.id} />
                         </div>
                     </div>

@@ -4,7 +4,16 @@ import { useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Search, X, Filter, Mail, MailCheck, MailX, Clock, ChevronLeft, ChevronRight } from "lucide-react";
-import clsx from "clsx";
+import ActionButton from "@/components/ui/action-button";
+import {
+    DataTable,
+    DataTableBody,
+    DataTableFrame,
+    DataTableHead,
+} from "@/components/ui/data-table";
+import EmptyState from "@/components/ui/empty-state";
+import StatusBadge from "@/components/ui/status-badge";
+import type { UiTone } from "@/lib/ui/status";
 
 type EmailAlertLog = {
     id: number;
@@ -29,10 +38,10 @@ function formatDate(date: Date | null) {
     });
 }
 
-const STATUS_META: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
-    sent: { label: "Sent", className: "bg-ops-success-soft text-ops-success border-ops-success/30", icon: <MailCheck className="h-3 w-3" /> },
-    failed: { label: "Failed", className: "bg-ops-danger-soft text-ops-danger border-ops-danger/30", icon: <MailX className="h-3 w-3" /> },
-    pending: { label: "Pending", className: "bg-ops-warning-soft text-ops-warning border-ops-warning/30", icon: <Mail className="h-3 w-3" /> },
+const STATUS_META: Record<string, { label: string; tone: UiTone; icon: React.ReactNode }> = {
+    sent: { label: "Sent", tone: "success", icon: <MailCheck aria-hidden="true" className="size-3" /> },
+    failed: { label: "Failed", tone: "danger", icon: <MailX aria-hidden="true" className="size-3" /> },
+    pending: { label: "Pending", tone: "warning", icon: <Mail aria-hidden="true" className="size-3" /> },
 };
 
 export default function EmailLogClient({
@@ -68,36 +77,38 @@ export default function EmailLogClient({
     };
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-4">
             {/* Filters */}
-            <div className="ops-panel p-4 flex flex-col sm:flex-row gap-3">
+            <div className="ops-panel flex flex-col gap-3 p-4 sm:flex-row">
                 <form onSubmit={handleSearch} className="flex flex-1 gap-2">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ops-muted" />
+                        <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
                         <input
                             value={searchInput}
                             onChange={e => setSearchInput(e.target.value)}
                             placeholder="Cari email penerima, subject, nama device, atau #incident..."
-                            className="ops-input w-full h-9 pl-9 pr-8 text-sm"
+                            aria-label="Cari email log"
+                            className="ops-input h-9 w-full pl-9 pr-8 text-sm"
                         />
                         {searchInput && (
-                            <button type="button" onClick={() => { setSearchInput(""); navigate({ status: statusFilter }); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text" aria-label="Clear search">
-                                <X className="h-3.5 w-3.5" />
+                            <button type="button" onClick={() => { setSearchInput(""); navigate({ status: statusFilter }); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted transition-colors hover:text-ops-text" aria-label="Clear search">
+                                <X aria-hidden="true" className="size-3.5" />
                             </button>
                         )}
                     </div>
-                    <button type="submit" className="h-9 px-4 rounded-md bg-ops-accent text-ops-accent-fg text-sm font-semibold hover:bg-ops-accent-hover flex items-center gap-1.5">
-                        <Search className="h-3.5 w-3.5" /> Cari
-                    </button>
+                    <ActionButton type="submit" icon={<Search aria-hidden="true" className="size-4" />}>
+                        Cari
+                    </ActionButton>
                 </form>
 
                 <div className="flex gap-2">
                     <div className="relative">
-                        <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ops-muted pointer-events-none" />
+                        <Filter aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ops-muted" />
                         <select
                             value={statusFilter}
                             onChange={e => navigate({ search, status: e.target.value, page: "1" })}
-                            className="ops-input h-9 pl-8 pr-3 text-sm appearance-none cursor-pointer"
+                            aria-label="Filter status"
+                            className="ops-input h-9 cursor-pointer appearance-none pl-8 pr-3 text-sm"
                         >
                             <option value="">Semua Status</option>
                             <option value="sent">Sent</option>
@@ -106,18 +117,24 @@ export default function EmailLogClient({
                     </div>
 
                     {(search || statusFilter) && (
-                        <button onClick={() => { setSearchInput(""); navigate({}); }} className="h-9 px-3 rounded-md bg-ops-danger-soft text-ops-danger border border-ops-danger/20 text-sm hover:bg-ops-danger-soft flex items-center gap-1.5">
-                            <X className="h-3.5 w-3.5" /> Reset
-                        </button>
+                        <ActionButton type="button" variant="danger" onClick={() => { setSearchInput(""); navigate({}); }} icon={<X aria-hidden="true" className="size-4" />}>
+                            Reset
+                        </ActionButton>
                     )}
                 </div>
             </div>
 
             {/* Table */}
-            <div className="ops-panel overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead className="text-[11px] uppercase tracking-wider text-ops-muted border-b border-ops-border">
+            {logs.length === 0 ? (
+                <EmptyState
+                    icon={<Mail aria-hidden="true" />}
+                    title="Belum ada email PIC yang terkirim"
+                    description="Email terkirim otomatis saat audit menemukan device NOT OK milik PIC group atau saat progress incident di-update."
+                />
+            ) : (
+                <DataTableFrame>
+                    <DataTable>
+                        <DataTableHead>
                             <tr>
                                 <th className="px-4 py-3 text-left">Waktu</th>
                                 <th className="px-4 py-3 text-left">Incident</th>
@@ -127,105 +144,97 @@ export default function EmailLogClient({
                                 <th className="px-4 py-3 text-left">Status</th>
                                 <th className="px-4 py-3 text-left">Error</th>
                             </tr>
-                        </thead>
-                        <tbody className="divide-y divide-ops-border/40">
-                            {logs.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="px-4 py-12 text-center text-ops-muted">
-                                        <Mail className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                                        <p>Belum ada email PIC yang terkirim</p>
-                                        <p className="mt-1 text-xs">Email terkirim otomatis saat audit menemukan device NOT OK milik PIC group atau saat progress incident di-update.</p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                logs.map((log) => {
-                                    const status = STATUS_META[log.status] ?? STATUS_META.pending;
-                                    const detectedIncidentId = log.incidentId ?? (() => {
-                                        const match = /#(\d+)/.exec(log.subject);
-                                        return match ? parseInt(match[1], 10) : null;
-                                    })();
+                        </DataTableHead>
+                        <DataTableBody>
+                            {logs.map((log) => {
+                                const status = STATUS_META[log.status] ?? STATUS_META.pending;
+                                const detectedIncidentId = log.incidentId ?? (() => {
+                                    const match = /#(\d+)/.exec(log.subject);
+                                    return match ? parseInt(match[1], 10) : null;
+                                })();
 
-                                    return (
-                                        <tr key={log.id} className="hover:bg-ops-surface/60 transition-colors align-top">
-                                            <td className="px-4 py-3 whitespace-nowrap text-xs text-ops-muted">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Clock className="h-3 w-3 shrink-0" />
-                                                    {formatDate(log.sentAt ?? log.createdAt)}
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                                {detectedIncidentId ? (
-                                                    <Link
-                                                        href={`/admin/incidents/${detectedIncidentId}`}
-                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-ops-info-soft text-ops-info border border-ops-info/30 hover:bg-ops-info-soft transition-colors"
-                                                        title={`Lihat Detail Incident #${detectedIncidentId}`}
-                                                    >
-                                                        <span>#{detectedIncidentId}</span>
-                                                    </Link>
-                                                ) : (
-                                                    <span className="text-ops-muted text-xs">-</span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                                <p className="text-ops-text font-medium text-xs">{log.recipient}</p>
-                                                {log.recipientName && <p className="text-ops-muted text-[10px]">{log.recipientName}</p>}
-                                            </td>
-                                            <td className="px-4 py-3 max-w-[260px]">
-                                                <p className="text-ops-text text-xs truncate" title={log.subject}>{log.subject}</p>
-                                            </td>
-                                            <td className="px-4 py-3 max-w-[280px]">
-                                                <span className="inline-flex items-center rounded-full bg-ops-accent/15 px-2 py-0.5 text-[10px] font-bold text-ops-accent">
-                                                    {log.deviceCount} device{log.deviceCount === 1 ? "" : "s"}
-                                                </span>
-                                                {log.deviceSummary && (
-                                                    <p className="mt-1 text-ops-muted text-[10px] line-clamp-2" title={log.deviceSummary}>{log.deviceSummary}</p>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                                <span className={clsx("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border", status.className)}>
-                                                    {status.icon}
-                                                    {status.label}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 max-w-[180px]">
-                                                <p className="text-ops-danger/80 text-xs truncate" title={log.error ?? ""}>{log.error ?? "-"}</p>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                return (
+                                    <tr key={log.id} className="align-top">
+                                        <td className="whitespace-nowrap px-4 py-3 text-xs tabular-nums text-ops-muted">
+                                            <div className="flex items-center gap-1.5">
+                                                <Clock aria-hidden="true" className="size-3 shrink-0" />
+                                                {formatDate(log.sentAt ?? log.createdAt)}
+                                            </div>
+                                        </td>
+                                        <td className="whitespace-nowrap px-4 py-3">
+                                            {detectedIncidentId ? (
+                                                <Link
+                                                    href={`/admin/incidents/${detectedIncidentId}`}
+                                                    className="inline-flex items-center gap-1 rounded-sm border border-ops-info/30 bg-ops-info-soft px-2 py-0.5 text-xs font-medium tabular-nums text-ops-info transition-colors hover:border-ops-info/45"
+                                                    title={`Lihat Detail Incident #${detectedIncidentId}`}
+                                                >
+                                                    <span>#{detectedIncidentId}</span>
+                                                </Link>
+                                            ) : (
+                                                <span className="text-xs text-ops-muted">-</span>
+                                            )}
+                                        </td>
+                                        <td className="whitespace-nowrap px-4 py-3">
+                                            <p className="text-xs font-medium text-ops-text">{log.recipient}</p>
+                                            {log.recipientName && <p className="text-[11px] text-ops-muted">{log.recipientName}</p>}
+                                        </td>
+                                        <td className="max-w-[260px] px-4 py-3">
+                                            <p className="truncate text-xs text-ops-text" title={log.subject}>{log.subject}</p>
+                                        </td>
+                                        <td className="max-w-[280px] px-4 py-3">
+                                            <span className="inline-flex items-center rounded-sm bg-ops-accent/10 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ops-accent">
+                                                {log.deviceCount} device{log.deviceCount === 1 ? "" : "s"}
+                                            </span>
+                                            {log.deviceSummary && (
+                                                <p className="mt-1 line-clamp-2 text-[11px] text-ops-muted" title={log.deviceSummary}>{log.deviceSummary}</p>
+                                            )}
+                                        </td>
+                                        <td className="whitespace-nowrap px-4 py-3">
+                                            <StatusBadge tone={status.tone}>
+                                                {status.icon}
+                                                {status.label}
+                                            </StatusBadge>
+                                        </td>
+                                        <td className="max-w-[180px] px-4 py-3">
+                                            <p className="truncate text-xs text-ops-danger/80" title={log.error ?? ""}>{log.error ?? "-"}</p>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </DataTableBody>
+                    </DataTable>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="px-4 py-3 border-t border-ops-border flex items-center justify-between">
-                        <p className="text-xs text-ops-muted">
-                            Menampilkan {((page - 1) * 50) + 1}–{Math.min(page * 50, total)} dari {total.toLocaleString()} email
-                        </p>
-                        <div className="flex items-center gap-1">
-                            <button
-                                disabled={page <= 1}
-                                onClick={() => navigate({ search, status: statusFilter, page: String(page - 1) })}
-                                className="p-1.5 rounded-md hover:bg-ops-surface disabled:opacity-30 disabled:pointer-events-none"
-                                aria-label="Previous page"
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                            </button>
-                            <span className="px-2 text-xs text-ops-muted">{page} / {totalPages}</span>
-                            <button
-                                disabled={page >= totalPages}
-                                onClick={() => navigate({ search, status: statusFilter, page: String(page + 1) })}
-                                className="p-1.5 rounded-md hover:bg-ops-surface disabled:opacity-30 disabled:pointer-events-none"
-                                aria-label="Next page"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between border-t border-ops-border px-4 py-3">
+                            <p className="text-xs tabular-nums text-ops-muted">
+                                Menampilkan {((page - 1) * 50) + 1}–{Math.min(page * 50, total)} dari {total.toLocaleString()} email
+                            </p>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    disabled={page <= 1}
+                                    onClick={() => navigate({ search, status: statusFilter, page: String(page - 1) })}
+                                    className="rounded-md p-1.5 text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text disabled:pointer-events-none disabled:opacity-30"
+                                    aria-label="Previous page"
+                                >
+                                    <ChevronLeft aria-hidden="true" className="size-4" />
+                                </button>
+                                <span className="px-2 text-xs tabular-nums text-ops-muted">{page} / {totalPages}</span>
+                                <button
+                                    type="button"
+                                    disabled={page >= totalPages}
+                                    onClick={() => navigate({ search, status: statusFilter, page: String(page + 1) })}
+                                    className="rounded-md p-1.5 text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text disabled:pointer-events-none disabled:opacity-30"
+                                    aria-label="Next page"
+                                >
+                                    <ChevronRight aria-hidden="true" className="size-4" />
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                )}
-            </div>
+                    )}
+                </DataTableFrame>
+            )}
         </div>
     );
 }

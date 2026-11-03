@@ -1,9 +1,10 @@
 import { getSiemSources } from "@/actions/siem-sources";
 import SiemSourceTable from "@/components/admin/siem-source-table";
+import ActionButton from "@/components/ui/action-button";
 import EmptyState from "@/components/ui/empty-state";
+import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
-import { RadioTower, Radio, ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { Radio, ArrowLeft } from "lucide-react";
 import { redirect } from "next/navigation";
 
 export default async function SiemSourcesPage() {
@@ -14,25 +15,16 @@ export default async function SiemSourcesPage() {
   const data = await getSiemSources();
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-ops-info-soft text-ops-info">
-            <RadioTower className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-ops-text">SIEM Source Management</h1>
-            <p className="text-sm text-ops-muted">Map syslog sources to active-site devices and parser profiles.</p>
-          </div>
-        </div>
-        <Link href="/admin" className="flex items-center gap-1 text-sm font-medium text-ops-info hover:text-ops-info">
-          <ArrowLeft className="size-[18px]" />
-          Back to Admin
-        </Link>
-      </div>
+    <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+      <PageHeader
+        eyebrow="Admin / SIEM"
+        title="SIEM source management"
+        description="Map syslog sources to active-site devices and parser profiles."
+        actions={<ActionButton href="/admin" variant="ghost" icon={<ArrowLeft className="size-4" />}>Back to Admin</ActionButton>}
+      />
 
       {"message" in data && data.message ? (
-        <div className="rounded-lg border border-ops-danger/30 bg-ops-danger-soft p-4 text-sm text-ops-danger">{data.message}</div>
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{data.message}</div>
       ) : data.sources.length === 0 ? (
         <EmptyState
           icon={<Radio className="size-5" />}
@@ -40,19 +32,19 @@ export default async function SiemSourcesPage() {
           description="Unknown syslog sources appear here after packets arrive and unknown-source handling is enabled. Add a source mapping once an unknown source is detected."
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-ops-border bg-ops-surface shadow-sm">
-          <div className="flex items-center justify-between border-b border-ops-border px-6 py-4">
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
-              <h3 className="text-lg font-semibold text-ops-text">Known Syslog Sources</h3>
-              <p className="text-sm text-ops-muted">Unmapped sources will not create incidents until linked to a device.</p>
+              <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Known syslog sources</h2>
+              <p className="mt-0.5 text-[13px] text-ops-muted">Unmapped sources will not create incidents until linked to a device.</p>
             </div>
-            <span className="rounded-full bg-ops-surface-raised px-3 py-1 text-xs font-medium text-ops-muted">
-              {data.sources.length} Sources
+            <span className="text-xs font-medium tabular-nums text-ops-muted">
+              {data.sources.length.toLocaleString()} sources
             </span>
           </div>
           <SiemSourceTable sources={data.sources} devices={data.devices} />
-        </div>
+        </section>
       )}
-    </div>
+    </main>
   );
 }

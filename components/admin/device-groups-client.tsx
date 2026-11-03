@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState, useActionState } from "react";
 import { addDeviceGroup, deleteDeviceGroup, getGroupDevices, getGroupUsers, updateDeviceGroup, type DeviceGroupWithPics } from "@/actions/device-groups";
 import ActionButton from "@/components/ui/action-button";
+import DataToolbar from "@/components/ui/data-toolbar";
 import StatusBadge from "@/components/ui/status-badge";
 import { DataTable, DataTableBody, DataTableEmpty, DataTableFrame, DataTableHead } from "@/components/ui/data-table";
-import { Edit, Plus, Search, Trash2, Users } from "lucide-react";
+import { Edit, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import clsx from "clsx";
@@ -14,7 +15,7 @@ type DeviceOpt = { id: number; name: string; rackName: string | null };
 type UserOpt = { id: number; username: string };
 
 const fieldClass = "ops-input w-full px-3 py-2 text-sm";
-const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
+const labelClass = "mb-1.5 block text-xs font-medium text-ops-muted";
 
 export default function DeviceGroupsClient({ initialGroups }: { initialGroups: DeviceGroupWithPics[] }) {
   const t = useTranslations("DeviceGroups");
@@ -57,25 +58,26 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
   return (
     <div className="space-y-5">
       {deleteError && (
-        <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft px-4 py-3 text-sm text-ops-danger">
+        <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger" role="alert">
           {deleteError}
         </div>
       )}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+      <DataToolbar>
+        <div className="relative w-full sm:w-64">
+          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
           <input
             type="search"
             placeholder={t("filterGroups")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-64 bg-transparent text-sm text-ops-text outline-none placeholder:text-ops-muted"
+            aria-label={t("filterGroups")}
+            className="ops-input h-9 w-full pl-9 pr-3 text-sm"
           />
         </div>
-        <ActionButton type="button" icon={<Plus className="size-4" />} onClick={() => { setEditing(null); setCreating(true); setDeleteError(null); }}>
+        <ActionButton type="button" icon={<Plus aria-hidden="true" className="size-4" />} onClick={() => { setEditing(null); setCreating(true); setDeleteError(null); }}>
           {t("newGroup")}
         </ActionButton>
-      </div>
+      </DataToolbar>
 
       <DataTableFrame>
         <DataTable>
@@ -93,7 +95,7 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
               <DataTableEmpty colSpan={5} title={t("emptyTitle")} description={t("emptyDescription")} />
             ) : (
               filtered.map((group) => (
-                <tr key={group.id} className="transition-colors hover:bg-ops-surface">
+                <tr key={group.id}>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: group.color ?? "#3b82f6" }} />
@@ -122,11 +124,11 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
-                      <ActionButton type="button" variant="ghost" size="icon" title={t("editGroup")}
+                      <ActionButton type="button" variant="ghost" size="icon" title={t("editGroup")} aria-label={t("editGroup")}
                         onClick={() => { setEditing(group); setCreating(false); setDeleteError(null); }}>
-                        <Edit className="size-4 text-ops-info" />
+                        <Edit aria-hidden="true" className="size-4 text-ops-info" />
                       </ActionButton>
-                      <ActionButton type="button" variant="danger" size="icon" title={t("deleteGroup")}
+                      <ActionButton type="button" variant="danger" size="icon" title={t("deleteGroup")} aria-label={t("deleteGroup")}
                         onClick={() => {
                           if (confirm(t("deleteConfirm", { name: group.name }))) {
                             deleteDeviceGroup(group.id)
@@ -142,7 +144,7 @@ export default function DeviceGroupsClient({ initialGroups }: { initialGroups: D
                               .catch(() => setDeleteError(t("deleteFailed")));
                           }
                         }}>
-                        <Trash2 className="size-4" />
+                        <Trash2 aria-hidden="true" className="size-4" />
                       </ActionButton>
                     </div>
                   </td>
@@ -195,19 +197,21 @@ function GroupModal({
   const filteredUsers = users.filter((u) => !userFilter || u.username.toLowerCase().includes(userFilter.toLowerCase()));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
-      <div className="my-8 flex max-h-[calc(100vh-4rem)] w-full max-w-3xl flex-col overflow-hidden rounded-md border border-ops-border bg-ops-bg shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/45 p-4 backdrop-blur-[2px]">
+      <div className="my-8 flex max-h-[calc(100vh-4rem)] w-full max-w-3xl animate-scale-in flex-col overflow-hidden rounded-xl border border-ops-border bg-ops-surface shadow-[var(--shadow-overlay)]">
         <div className="flex items-center justify-between border-b border-ops-border bg-ops-surface px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="flex size-9 items-center justify-center rounded-md bg-ops-accent/12 text-ops-accent">
-              <Users className="size-5" />
+              <Users aria-hidden="true" className="size-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-ops-text">{group ? t("editTitle") : t("newTitle")}</h2>
+              <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">{group ? t("editTitle") : t("newTitle")}</h2>
               <p className="text-xs text-ops-muted">{t("modalDescription")}</p>
             </div>
           </div>
-          <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} title={t("close")}>✕</ActionButton>
+          <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label={t("close")} title={t("close")}>
+            <X aria-hidden="true" className="size-4" />
+          </ActionButton>
         </div>
 
         <form action={action} className="min-h-0 flex-1 overflow-y-auto">
@@ -226,12 +230,12 @@ function GroupModal({
               <span className={labelClass}>{t("description")}</span>
               <textarea name="description" rows={2} defaultValue={group?.description ?? ""} className={fieldClass} placeholder={t("descriptionPlaceholder")} />
             </label>
-            <label className="md:col-span-2 flex cursor-pointer items-center gap-2 rounded-md border border-ops-border bg-ops-bg/40 px-3 py-2">
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-ops-border bg-ops-surface-raised/40 px-3 py-2 md:col-span-2">
               <input
                 type="checkbox"
                 name="isActive"
                 defaultChecked={group?.isActive ?? true}
-                className="accent-ops-accent"
+                className="size-4 rounded border-ops-border-strong accent-ops-accent"
               />
               <span className="text-sm font-medium text-ops-text">{t("isActiveLabel")}</span>
             </label>
@@ -240,26 +244,27 @@ function GroupModal({
             <div className="md:col-span-2">
               <span className={labelClass}>{t("boundDevicesLabel", { count: selectedDevices.size })}</span>
               <div className="relative mb-2">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
                 <input
                   type="search"
                   placeholder={t("filterDevices")}
                   value={deviceFilter}
                   onChange={(e) => setDeviceFilter(e.target.value)}
+                  aria-label={t("filterDevices")}
                   className={clsx(fieldClass, "pl-9")}
                 />
               </div>
-              <div className="max-h-52 overflow-y-auto rounded-md border border-ops-border bg-ops-bg/40 p-2">
+              <div className="max-h-52 overflow-y-auto rounded-md border border-ops-border bg-ops-surface-raised/40 p-2">
                 {filteredDevices.length === 0 && <p className="p-2 text-sm text-ops-muted">{t("noDevicesMatch")}</p>}
                 {filteredDevices.map((device) => (
-                  <label key={device.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-ops-surface">
+                  <label key={device.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors hover:bg-ops-surface-raised">
                     <input
                       type="checkbox"
                       name="deviceIds"
                       value={device.id}
                       checked={selectedDevices.has(device.id)}
                       onChange={() => toggle(selectedDevices, device.id, setSelectedDevices)}
-                      className="accent-ops-accent"
+                      className="size-4 rounded border-ops-border-strong accent-ops-accent"
                     />
                     <span className="truncate font-medium text-ops-text">{device.name}</span>
                     {device.rackName && <span className="ml-auto shrink-0 text-xs text-ops-muted">{device.rackName}</span>}
@@ -272,26 +277,27 @@ function GroupModal({
             <div className="md:col-span-2">
               <span className={labelClass}>{t("picOwnersLabel", { count: selectedOwners.size })}</span>
               <div className="relative mb-2">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
                 <input
                   type="search"
                   placeholder={t("filterUsers")}
                   value={userFilter}
                   onChange={(e) => setUserFilter(e.target.value)}
+                  aria-label={t("filterUsers")}
                   className={clsx(fieldClass, "pl-9")}
                 />
               </div>
-              <div className="max-h-44 overflow-y-auto rounded-md border border-ops-border bg-ops-bg/40 p-2">
+              <div className="max-h-44 overflow-y-auto rounded-md border border-ops-border bg-ops-surface-raised/40 p-2">
                 {filteredUsers.length === 0 && <p className="p-2 text-sm text-ops-muted">{t("noUsersMatch")}</p>}
                 {filteredUsers.map((user) => (
-                  <label key={user.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-ops-surface">
+                  <label key={user.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors hover:bg-ops-surface-raised">
                     <input
                       type="checkbox"
                       name="ownerIds"
                       value={user.id}
                       checked={selectedOwners.has(user.id)}
                       onChange={() => toggle(selectedOwners, user.id, setSelectedOwners)}
-                      className="accent-ops-accent"
+                      className="size-4 rounded border-ops-border-strong accent-ops-accent"
                     />
                     <span className="truncate font-medium text-ops-text">{user.username}</span>
                   </label>

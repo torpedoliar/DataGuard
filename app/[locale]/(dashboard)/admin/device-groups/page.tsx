@@ -23,13 +23,13 @@ export default async function DeviceGroupsPage() {
   const groups = await getDeviceGroups();
 
   return (
-    <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 py-5 lg:px-6">
+    <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
       <PageHeader
         eyebrow={t("pageEyebrow")}
         title={t("pageTitle")}
         description={t("pageDescription")}
         actions={
-          <div className="inline-flex items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-sm text-ops-muted">
+          <div className="inline-flex items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-sm tabular-nums text-ops-muted">
             <Users className="size-4 text-ops-accent" />
             {t("groupCount", { count: groups.length })}
           </div>

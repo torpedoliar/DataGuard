@@ -168,7 +168,7 @@ function PaginationControls({ data }: { data: ExplorerData }) {
 
   return (
     <div className="flex items-center justify-between border-t border-ops-border px-4 py-3 text-sm text-ops-muted">
-      <span>Page {data.currentPage} of {data.totalPages}</span>
+      <span className="tabular-nums">Page {data.currentPage} of {data.totalPages}</span>
       <div className="flex gap-2">
         <ActionButton href={buildPageHref(searchParams, Math.max(1, data.currentPage - 1))} variant="secondary" disabled={data.currentPage <= 1} icon={<ArrowLeft className="size-4" />}>Previous</ActionButton>
         <ActionButton href={buildPageHref(searchParams, Math.min(data.totalPages, data.currentPage + 1))} variant="secondary" disabled={data.currentPage >= data.totalPages} icon={<ArrowRight className="size-4" />}>Next</ActionButton>
@@ -184,30 +184,30 @@ export default function SiemEventExplorer({ data }: { data: ExplorerData }) {
   ), [data.events, data.rawEvents]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <DataToolbar>
         <EventFilters />
       </DataToolbar>
 
       <section className="grid gap-3 md:grid-cols-3">
         <div className="ops-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ops-muted">Parsed Events</p>
-          <p className="mt-2 text-2xl font-bold text-ops-text">{data.totalEvents.toLocaleString("id-ID")}</p>
+          <p className="text-[13px] font-medium text-ops-muted">Parsed events</p>
+          <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{data.totalEvents.toLocaleString("id-ID")}</p>
         </div>
         <div className="ops-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ops-muted">Raw Events</p>
-          <p className="mt-2 text-2xl font-bold text-ops-text">{data.totalRawEvents.toLocaleString("id-ID")}</p>
+          <p className="text-[13px] font-medium text-ops-muted">Raw events</p>
+          <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{data.totalRawEvents.toLocaleString("id-ID")}</p>
         </div>
         <div className="ops-panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ops-muted">High-Risk Injection Indicators</p>
-          <p className="mt-2 text-2xl font-bold text-ops-text">{highRiskCount.toLocaleString("id-ID")}</p>
+          <p className="text-[13px] font-medium text-ops-muted">High-risk injection indicators</p>
+          <p className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.03em] text-ops-text tabular-nums">{highRiskCount.toLocaleString("id-ID")}</p>
         </div>
       </section>
 
       <section className="space-y-3">
         <div>
-          <h2 className="text-lg font-bold text-ops-text">Parsed SIEM Events</h2>
-          <p className="text-sm text-ops-muted">Normalized events with safe raw-log preview and Injection Inspector labels.</p>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Parsed SIEM events</h2>
+          <p className="mt-0.5 text-[13px] text-ops-muted">Normalized events with safe raw-log preview and Injection Inspector labels.</p>
         </div>
         <DataTableFrame>
           <DataTable>
@@ -224,14 +224,14 @@ export default function SiemEventExplorer({ data }: { data: ExplorerData }) {
               {data.events.length === 0 ? (
                 <DataTableEmpty colSpan={5} title="No parsed SIEM events" description="Adjust filters or wait for parser worker output." />
               ) : data.events.map((event) => (
-                <tr key={event.id} className="align-top transition-colors hover:bg-ops-surface">
-                  <td className="whitespace-nowrap px-4 py-3 text-sm text-ops-muted">{formatDate(event.receivedAt)}</td>
+                <tr key={event.id} className="align-top">
+                  <td className="whitespace-nowrap px-4 py-3 text-sm text-ops-muted tabular-nums">{formatDate(event.receivedAt)}</td>
                   <td className="px-4 py-3">
                     <div className="font-mono text-sm text-ops-text">{event.sourceIp}</div>
                     <div className="text-xs text-ops-muted">{event.hostname || event.sourceDisplayName || "Unknown host"}</div>
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       <StatusBadge tone="info">{event.vendor || "generic"}</StatusBadge>
-                      <StatusBadge tone={severityTone(event.severity)}>sev {event.severity ?? "-"}</StatusBadge>
+                      <StatusBadge tone={severityTone(event.severity)} className="tabular-nums">sev {event.severity ?? "-"}</StatusBadge>
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -262,8 +262,8 @@ export default function SiemEventExplorer({ data }: { data: ExplorerData }) {
 
       <section className="space-y-3">
         <div>
-          <h2 className="text-lg font-bold text-ops-text">Recent Raw Ingest</h2>
-          <p className="text-sm text-ops-muted">Raw rows remain escaped and non-executable in browser.</p>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Recent raw ingest</h2>
+          <p className="mt-0.5 text-[13px] text-ops-muted">Raw rows remain escaped and non-executable in browser.</p>
         </div>
         <DataTableFrame>
           <DataTable>
@@ -279,11 +279,11 @@ export default function SiemEventExplorer({ data }: { data: ExplorerData }) {
               {data.rawEvents.length === 0 ? (
                 <DataTableEmpty colSpan={4} title="No raw syslog events" description="Raw rows appear after receiver writes packets for mapped site sources." />
               ) : data.rawEvents.map((event) => (
-                <tr key={event.id} className="align-top transition-colors hover:bg-ops-surface">
-                  <td className="whitespace-nowrap px-4 py-3 text-sm text-ops-muted">{formatDate(event.receivedAt)}</td>
+                <tr key={event.id} className="align-top">
+                  <td className="whitespace-nowrap px-4 py-3 text-sm text-ops-muted tabular-nums">{formatDate(event.receivedAt)}</td>
                   <td className="whitespace-nowrap px-4 py-3">
                     <div className="font-mono text-sm text-ops-text">{event.sourceIp}:{event.sourcePort}</div>
-                    <div className="text-xs text-ops-muted">{event.transport} · {event.rawSize} bytes</div>
+                    <div className="text-xs text-ops-muted tabular-nums">{event.transport} · {event.rawSize} bytes</div>
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge tone={statusTone(event.ingestStatus)} dot>{event.ingestStatus}</StatusBadge>

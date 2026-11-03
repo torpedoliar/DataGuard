@@ -3,7 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateVlan } from "@/actions/network";
-import { Loader2, X } from "lucide-react";
+import ActionButton from "@/components/ui/action-button";
+import { X } from "lucide-react";
+
+const fieldClass = "ops-input h-9 w-full px-3 text-sm";
 
 type Vlan = {
     id: number;
@@ -47,37 +50,34 @@ export default function EditVlanModal({ vlan, onClose }: { vlan: Vlan; onClose: 
     };
 
     return (
-        <div className="fixed inset-0 bg-ops-surface/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-ops-surface rounded-xl max-w-md w-full shadow-xl">
-                <div className="flex items-center justify-between p-6 border-b border-ops-border">
-                    <h2 className="text-xl font-semibold text-ops-text">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-lg border border-ops-border bg-ops-surface shadow-xl">
+                <div className="flex items-center justify-between border-b border-ops-border p-5">
+                    <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
                         Edit VLAN {vlan.vlanId}
                     </h2>
-                    <button
-                        onClick={onClose}
-                        className="text-ops-muted hover:text-ops-subtle dark:hover:text-ops-muted transition-colors"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                        <X aria-hidden="true" className="size-4" />
+                    </ActionButton>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6">
+                <form onSubmit={handleSubmit} className="p-5">
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted flex items-center gap-2">
+                            <label className="flex items-center gap-2 text-[13px] font-medium text-ops-muted">
                                 VLAN ID
-                                <span className="text-xs text-ops-subtle font-normal">(Immutable)</span>
+                                <span className="text-xs font-normal text-ops-subtle">(Immutable)</span>
                             </label>
                             <input
                                 type="text"
                                 value={vlan.vlanId}
                                 disabled
-                                className="mt-1 w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface-raised/50 text-ops-subtle cursor-not-allowed"
+                                className="mt-1 w-full cursor-not-allowed rounded-md border border-ops-border-strong bg-ops-surface-sunken px-3 py-2 text-sm text-ops-muted"
                             />
                         </div>
 
                         <div>
-                            <label htmlFor="edit_name" className="block text-sm font-medium text-ops-muted">
+                            <label htmlFor="edit_name" className="block text-[13px] font-medium text-ops-muted">
                                 Name *
                             </label>
                             <input
@@ -85,14 +85,14 @@ export default function EditVlanModal({ vlan, onClose }: { vlan: Vlan; onClose: 
                                 id="edit_name"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="mt-1 w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-ops-surface-raised text-ops-text"
+                                className={`${fieldClass} mt-1`}
                                 required
                                 disabled={isPending}
                             />
                         </div>
 
                         <div>
-                            <label htmlFor="edit_subnet" className="block text-sm font-medium text-ops-muted">
+                            <label htmlFor="edit_subnet" className="block text-[13px] font-medium text-ops-muted">
                                 Subnet
                             </label>
                             <input
@@ -100,13 +100,13 @@ export default function EditVlanModal({ vlan, onClose }: { vlan: Vlan; onClose: 
                                 id="edit_subnet"
                                 value={subnet}
                                 onChange={(e) => setSubnet(e.target.value)}
-                                className="mt-1 w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-ops-surface-raised text-ops-text"
+                                className={`${fieldClass} mt-1`}
                                 disabled={isPending}
                             />
                         </div>
 
                         <div>
-                            <label htmlFor="edit_description" className="block text-sm font-medium text-ops-muted">
+                            <label htmlFor="edit_description" className="block text-[13px] font-medium text-ops-muted">
                                 Description
                             </label>
                             <textarea
@@ -114,31 +114,21 @@ export default function EditVlanModal({ vlan, onClose }: { vlan: Vlan; onClose: 
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={3}
-                                className="mt-1 w-full px-3 py-2 border border-ops-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-ops-surface-raised text-ops-text custom-scrollbar"
+                                className="ops-input mt-1 w-full px-3 py-2 text-sm custom-scrollbar"
                                 disabled={isPending}
                             />
                         </div>
                     </div>
 
-                    {error && <p className="mt-4 text-sm text-ops-danger">{error}</p>}
+                    {error && <p className="mt-4 text-[13px] text-ops-danger">{error}</p>}
 
                     <div className="mt-6 flex justify-end gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={isPending}
-                            className="px-4 py-2 text-ops-muted bg-ops-surface-raised hover:bg-ops-surface-raised dark:text-ops-muted dark:bg-ops-surface-raised dark:hover:bg-ops-surface-sunken rounded-lg transition-colors"
-                        >
+                        <ActionButton type="button" variant="secondary" onClick={onClose} disabled={isPending}>
                             Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isPending}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-ops-accent-fg hover:bg-ops-accent-hover rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                            Save Changes
-                        </button>
+                        </ActionButton>
+                        <ActionButton type="submit" isPending={isPending}>
+                            Save changes
+                        </ActionButton>
                     </div>
                 </form>
             </div>

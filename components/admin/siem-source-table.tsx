@@ -77,11 +77,11 @@ function EditSourceModal({ source, devices, onClose }: { source: SiemSourceRow; 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-ops-border bg-ops-surface-raised shadow-xl">
+      <div className="ops-panel w-full max-w-2xl overflow-hidden">
         <div className="flex items-center justify-between border-b border-ops-border px-5 py-4">
           <div>
-            <h3 className="text-lg font-semibold text-ops-text">Map SIEM Source</h3>
-            <p className="text-sm text-ops-muted">{source.sourceIp}</p>
+            <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Map SIEM source</h3>
+            <p className="text-[13px] text-ops-muted">{source.sourceIp}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-ops-muted hover:bg-ops-surface hover:text-ops-text" disabled={isPending} aria-label="Close dialog">
             <X aria-hidden="true" className="size-5" />
@@ -157,8 +157,8 @@ function EditSourceModal({ source, devices, onClose }: { source: SiemSourceRow; 
             </label>
           </div>
 
-          {state?.errors && <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">{Object.values(state.errors).flat().join(" ")}</div>}
-          {state?.message && !state.success && <div className="rounded-md border border-ops-danger/30 bg-ops-danger-soft p-3 text-sm text-ops-danger">{state.message}</div>}
+          {state?.errors && <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{Object.values(state.errors).flat().join(" ")}</div>}
+          {state?.message && !state.success && <div className="rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{state.message}</div>}
 
           <div className="flex justify-end gap-3 border-t border-ops-border pt-4">
             <ActionButton type="button" variant="secondary" onClick={onClose} disabled={isPending}>Cancel</ActionButton>
@@ -229,8 +229,8 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
             </select>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-ops-muted">
-            <span>{filtered.length} of {sources.length} Sources</span>
-            <StatusBadge tone={unmapped > 0 ? "warning" : "success"}>{unmapped} unmapped</StatusBadge>
+            <span className="tabular-nums">{filtered.length.toLocaleString()} of {sources.length.toLocaleString()} sources</span>
+            <StatusBadge tone={unmapped > 0 ? "warning" : "success"} className="tabular-nums">{unmapped} unmapped</StatusBadge>
           </div>
         </div>
       </DataToolbar>
@@ -254,7 +254,7 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
             {filtered.length === 0 ? (
               <DataTableEmpty colSpan={9} title={search || trustFilter ? "No SIEM sources match filters" : "No SIEM sources yet"} description="Unknown sources appear here after syslog packets arrive and unknown-source handling is enabled." />
             ) : filtered.map((source) => (
-              <tr key={source.id} className="transition-colors hover:bg-ops-surface">
+              <tr key={source.id}>
                 <td className="px-5 py-3">
                   <div className="font-semibold text-ops-text">{source.displayName}</div>
                   <div className="text-xs text-ops-muted">{source.hostname || "No hostname"}</div>
@@ -270,9 +270,9 @@ export default function SiemSourceTable({ sources, devices }: { sources: SiemSou
                 </td>
                 <td className="whitespace-nowrap px-5 py-3 text-sm text-ops-text">{source.vendor}</td>
                 <td className="whitespace-nowrap px-5 py-3"><StatusBadge tone={trustTone(source.trustLevel)} dot>{source.trustLevel}</StatusBadge></td>
-                <td className="whitespace-nowrap px-5 py-3 text-sm text-ops-muted">{formatDate(source.lastSeenAt)}</td>
-                <td className="whitespace-nowrap px-5 py-3 text-right font-mono text-sm text-ops-text">{source.eventCount.toLocaleString("id-ID")}</td>
-                <td className="whitespace-nowrap px-5 py-3 text-right text-sm text-ops-muted">
+                <td className="whitespace-nowrap px-5 py-3 text-sm text-ops-muted tabular-nums">{formatDate(source.lastSeenAt)}</td>
+                <td className="whitespace-nowrap px-5 py-3 text-right text-sm text-ops-text tabular-nums">{source.eventCount.toLocaleString("id-ID")}</td>
+                <td className="whitespace-nowrap px-5 py-3 text-right text-sm text-ops-muted tabular-nums">
                   {source.eventRetentionDays ? `${source.eventRetentionDays}d` : "Global"}
                 </td>
                 <td className="whitespace-nowrap px-5 py-3 text-right">

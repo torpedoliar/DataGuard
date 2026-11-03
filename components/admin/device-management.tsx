@@ -49,8 +49,14 @@ export default function DeviceManagement({ devices, categories, brands, location
         router.push(`${pathname}${query.size ? `?${query}` : ""}`, { scroll: false });
         setEditing(false);
     };
-    return <section className="space-y-4">
-        <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Device List ({devices.length})</h2>{canEdit && <ActionButton onClick={() => setAdding(true)}>Tambah Device</ActionButton>}</div>
+    return <section className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+                <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Device list</h2>
+                <p className="mt-0.5 text-[13px] tabular-nums text-ops-muted">{devices.length} devices in this site</p>
+            </div>
+            {canEdit && <ActionButton onClick={() => setAdding(true)}>Tambah Device</ActionButton>}
+        </div>
         <div className={selectedId !== null ? "grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]" : ""}>
             <div className={selectedId !== null ? "hidden min-w-0 lg:block" : "min-w-0"}><DeviceTable devices={devices} brands={brands} locations={locations} canConvert={canEdit} selectedId={selectedId} onSelectDevice={(id) => select(id)} /></div>
             {selectedId !== null && <DeviceProfile key={`${selectedId}:${revision}`} deviceId={selectedId} revision={revision} canEdit={canEdit} onClose={() => { select(null); router.refresh(); }} onEdit={() => setEditing(true)} onSelectPeer={(id) => { if (!devices.some((d) => d.id === id)) return false; select(id); return true; }} />}

@@ -17,7 +17,7 @@ interface RackFilterBarProps {
     disable3d?: boolean;
 }
 
-const selectClass = "h-9 px-3 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text outline-none focus:ring-1 focus:ring-ops-accent min-w-[120px]";
+const selectClass = "ops-input h-9 min-w-[120px] px-3 text-sm";
 
 export default function RackFilterBar({ racks, facilities = [], categories, filters, onChange, view, onViewChange, disable3d }: RackFilterBarProps) {
     const zones = Array.from(new Set([...racks, ...facilities].map((r) => r.zone).filter((z): z is string => !!z))).sort();
@@ -25,18 +25,18 @@ export default function RackFilterBar({ racks, facilities = [], categories, filt
     const set = (patch: Partial<RackFilters>) => onChange({ ...filters, ...patch });
 
     return (
-        <div className="rounded-xl border border-ops-border bg-ops-surface shadow-sm p-4 flex flex-col xl:flex-row gap-3 items-start xl:items-center">
+        <div className="ops-panel flex flex-col items-start gap-3 p-3 xl:flex-row xl:items-center">
             <div className="relative flex-1 w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ops-muted" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
                 <input
                     type="text"
                     placeholder="Search device, brand, or rack…"
                     value={filters.search}
                     onChange={(e) => set({ search: e.target.value })}
-                    className="w-full h-9 pl-9 pr-8 text-sm rounded-lg bg-ops-bg border border-ops-border text-ops-text placeholder:text-ops-muted focus:ring-1 focus:ring-ops-accent focus:border-ops-accent outline-none transition-all"
+                    className={`${selectClass} w-full pl-9 pr-8`}
                 />
                 {filters.search && (
-                    <button onClick={() => set({ search: "" })} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text">
+                    <button onClick={() => set({ search: "" })} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-sm text-ops-muted transition-colors hover:text-ops-text">
                         <X className="h-3.5 w-3.5" />
                     </button>
                 )}
@@ -65,12 +65,12 @@ export default function RackFilterBar({ racks, facilities = [], categories, filt
                     <option value="Pending">Pending</option>
                 </select>
                 {hasActiveFilters(filters) && (
-                    <button onClick={() => onChange(EMPTY_FILTERS)} className="h-9 px-3 text-sm text-ops-muted hover:text-ops-text flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-ops-border hover:border-ops-muted transition-colors">
+                    <button onClick={() => onChange(EMPTY_FILTERS)} className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-ops-border-strong bg-ops-surface px-3 text-[13px] font-medium text-ops-muted transition-colors hover:bg-ops-surface-raised hover:text-ops-text">
                         <X className="h-3 w-3" /> Reset
                     </button>
                 )}
                 {view && onViewChange && (
-                    <div role="group" aria-label="Layout view" className="flex shrink-0 rounded-lg border border-ops-border bg-ops-bg p-0.5">
+                    <div role="group" aria-label="Layout view" className="flex shrink-0 rounded-md border border-ops-border bg-ops-surface-raised p-0.5">
                         {(["2d", "3d"] as const).map((v) => (
                             <button
                                 key={v}
@@ -79,7 +79,7 @@ export default function RackFilterBar({ racks, facilities = [], categories, filt
                                 disabled={v === "3d" && disable3d}
                                 title={v === "3d" && disable3d ? "WebGL is not available in this browser" : undefined}
                                 onClick={() => onViewChange(v)}
-                                className={`flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:opacity-40 ${
+                                className={`flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium transition-colors disabled:opacity-40 ${
                                     view === v ? "bg-ops-accent/15 text-ops-accent" : "text-ops-muted hover:text-ops-text"
                                 }`}
                             >

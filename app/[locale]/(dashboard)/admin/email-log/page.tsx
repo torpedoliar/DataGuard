@@ -30,14 +30,14 @@ export default async function EmailLogPage({
     const totalPages = Math.ceil(total / limit);
 
     return (
-        <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 py-5 lg:px-6">
+        <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
             <PageHeader
                 eyebrow="Admin / Governance"
-                title="Email Log"
+                title="Email log"
                 description="History of PIC alert emails sent when a field audit reports devices NOT OK."
                 actions={
-                    <div className="inline-flex items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-sm text-ops-muted">
-                        <Mail className="size-4 text-ops-accent" />
+                    <div className="inline-flex items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-3 py-2 text-sm tabular-nums text-ops-muted">
+                        <Mail aria-hidden="true" className="size-4 text-ops-accent" />
                         {total} emails
                     </div>
                 }

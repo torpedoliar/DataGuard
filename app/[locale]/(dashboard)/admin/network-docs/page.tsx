@@ -13,10 +13,10 @@ export default async function NetworkDocsPage() {
   return (
     <>
       <OfflineBanner />
-      <main className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-5 lg:px-6 pb-20">
+      <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 pb-20 lg:px-8">
         <PageHeader
           eyebrow="Admin / Network"
-          title="Network Docs"
+          title="Network docs"
           description="Sinkronkan perangkat switch, tabel VLAN, dan konfigurasi port dari aplikasi Dokumentasi Jaringan (network-doc API). Switch dicocokkan dengan device berdasarkan IP, lalu nama. Field yang tidak tersedia di API (cabling, MAC, speed) tidak disentuh. Catatan: jumlah port faceplate mengikuti dokumen — layout yang diatur manual di halaman Network device akan ditimpa saat sinkron."
         />
         <NetworkDocsButton />

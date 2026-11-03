@@ -67,7 +67,7 @@ export default function DeviceNetworkSummary({ device, supplied, expanded = fals
     return (
         <section className="mt-6 min-w-0 border-t border-ops-border pt-4" aria-label="Network docs">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h4 className="flex items-center gap-2 text-sm font-semibold text-ops-text"><Cable className="h-4 w-4 text-ops-accent" /> Network docs</h4>
+                <h4 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text"><Cable className="size-4 text-ops-accent" /> Network docs</h4>
                 <Link href={`/admin/devices/${device.id}/network`} className="flex items-center gap-1 text-xs font-medium text-ops-accent hover:underline">Open network docs <ArrowUpRight className="h-3.5 w-3.5" /></Link>
             </div>
             {(supplied?.error || (loaded?.id === device.id && loaded.error)) ? <p role="alert" className="text-xs text-ops-danger">Unable to load network ports.</p> : ports === null ? (
@@ -76,9 +76,9 @@ export default function DeviceNetworkSummary({ device, supplied, expanded = fals
                 <p className="text-xs text-ops-muted">No network ports documented for this device.</p>
             ) : (
                 <>
-                    <dl className="grid grid-cols-4 gap-2">{stats.map(([label, value]) => <div key={label} className="rounded-lg border border-ops-border bg-ops-bg px-2 py-1.5 text-center"><dt className="text-[10px] uppercase tracking-wider text-ops-muted">{label}</dt><dd className="text-base font-bold tabular-nums text-ops-text">{value}</dd></div>)}</dl>
+                    <dl className="grid grid-cols-4 gap-2">{stats.map(([label, value]) => <div key={label} className="rounded-md border border-ops-border bg-ops-surface-raised px-2 py-1.5 text-center"><dt className="text-[11px] font-medium text-ops-muted">{label}</dt><dd className="text-base font-semibold tabular-nums text-ops-text">{value}</dd></div>)}</dl>
                     {plate && <>
-                        <div className="mt-3 overflow-x-auto rounded border border-ops-border">
+                        <div className="mt-3 overflow-x-auto rounded-md border border-ops-border">
                             <svg viewBox={`0 0 ${plate.width} ${plate.height}`} className="h-auto w-full" style={{ minWidth: plate.width * 2 }} role="group" aria-label={`${device.name} faceplate: ${stats[1][1]} active of ${plate.slots.length} ports`}>
                                 <rect width={plate.width} height={plate.height} rx={3} fill={FACEPLATE_PALETTE.chassis.fill} stroke={FACEPLATE_PALETTE.chassis.stroke} strokeWidth={0.8} />
                                 {plate.blocks.map((block) => <text key={block.block} x={block.x} y={block.labelY} fontSize={6} fill={FACEPLATE_PALETTE.empty.label}>{block.label}</text>)}

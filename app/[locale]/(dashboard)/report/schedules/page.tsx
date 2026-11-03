@@ -14,8 +14,8 @@ export default async function ReportSchedulesPage() {
     ]);
 
     return (
-        <div className="flex flex-col gap-6 p-4 sm:p-6">
+        <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
             <SchedulesTable schedules={schedules} canAdminister={canAdminister} />
-        </div>
+        </main>
     );
 }

@@ -22,10 +22,10 @@ export default async function AboutPage() {
     ];
 
     return (
-        <div className="max-w-4xl mx-auto px-5 py-12">
+        <main className="mx-auto flex w-full max-w-3xl animate-enter flex-col gap-5 px-4 py-8 lg:px-6">
 
             {/* Hero */}
-            <div className="text-center mb-12">
+            <div className="flex flex-col items-center text-center">
 
                 {/* ASCII Art Logo */}
                 <div className="mb-8 overflow-x-auto">
@@ -53,14 +53,14 @@ export default async function AboutPage() {
                     {appSettings.logoPath ? (
                         <img src={appSettings.logoPath} alt="Logo" className="h-20 w-auto object-contain" />
                     ) : (
-                        <div className="size-20 rounded-2xl bg-gradient-to-br from-ops-info/30 to-ops-accent/30 border border-ops-info/30 flex items-center justify-center">
-                            <Shield className="h-10 w-10 text-ops-info" />
+                        <div className="flex size-14 items-center justify-center rounded-xl border border-ops-border bg-ops-surface-raised text-ops-info">
+                            <Shield className="size-7" />
                         </div>
                     )}
                 </div>
-                <h1 className="text-4xl font-bold text-ops-text mb-2">{appSettings.appName}</h1>
-                <p className="text-ops-muted text-lg mb-4">Data Center Monitoring &amp; Audit System</p>
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-ops-info-soft border border-ops-info/20 text-ops-info text-sm">
+                <h1 className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-ops-text">About {appSettings.appName}</h1>
+                <p className="mt-1 text-sm text-ops-muted">Data center monitoring &amp; audit system</p>
+                <div className="mt-4 inline-flex items-center gap-2 rounded-sm border border-ops-border bg-ops-surface px-2.5 py-1 text-[13px] text-ops-muted">
                     <Star className="h-3.5 w-3.5" />
                     Version {versionData.version} — Released {versionData.releaseDate}
                 </div>
@@ -68,10 +68,8 @@ export default async function AboutPage() {
 
 
             {/* Credits Card */}
-            <div className="bg-gradient-to-br from-ops-surface to-ops-bg border border-ops-border rounded-2xl p-8 mb-8 relative overflow-hidden ">
-                <div className="absolute inset-0 bg-gradient-to-br from-ops-info/5 to-ops-accent/5 pointer-events-none" />
-
-                <div className="relative">
+            <div className="ops-panel p-5">
+                <div>
                     <h2 className="text-xl font-bold text-ops-text mb-6 flex items-center gap-2">
                         <Heart className="h-5 w-5 text-ops-danger" />
                         Credits
@@ -79,30 +77,30 @@ export default async function AboutPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {/* Created By */}
-                        <div className="bg-ops-surface rounded-xl p-5 border border-ops-border">
-                            <p className="text-xs text-muted uppercase tracking-wider mb-1">Created by</p>
-                            <p className="text-ops-text font-semibold text-lg">Team Operational Support</p>
+                        <div className="ops-panel-subtle p-5">
+                            <p className="mb-1 text-xs text-ops-muted">Created by</p>
+                            <p className="text-base font-medium text-ops-text">Team Operational Support</p>
                             <p className="text-ops-info font-medium">SJA</p>
-                            <p className="text-ops-muted text-sm mt-2">
+                            <p className="mt-2 text-[13px] text-ops-muted">
                                 Tim yang berdedikasi membangun dan memelihara infrastruktur data center yang handal dan terdokumentasi dengan baik.
                             </p>
                         </div>
 
                         {/* Licensed By */}
-                        <div className="bg-ops-surface rounded-xl p-5 border border-ops-border">
-                            <p className="text-xs text-muted uppercase tracking-wider mb-1">Licensed by</p>
-                            <p className="text-ops-text font-semibold text-lg flex items-center gap-2">
-                                <Github className="h-5 w-5" />
+                        <div className="ops-panel-subtle p-5">
+                            <p className="mb-1 text-xs text-ops-muted">Licensed by</p>
+                            <p className="flex items-center gap-2 text-base font-medium text-ops-text">
+                                <Github className="size-4" aria-hidden />
                                 Torpedoliar
                             </p>
-                            <p className="text-ops-muted text-sm mt-2 mb-3">
+                            <p className="mt-2 text-[13px] text-ops-muted">
                                 Dikembangkan dan dirilis secara open-source untuk komunitas pengelola data center Indonesia.
                             </p>
                             <Link
                                 href="https://github.com/torpedoliar"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ops-border hover:bg-ops-surface-raised text-ops-text text-sm transition-colors"
+                                className="mt-3 inline-flex items-center gap-2 rounded-md border border-ops-border bg-ops-surface px-2.5 py-1.5 text-[13px] text-ops-text transition-colors hover:bg-ops-surface-raised"
                             >
                                 <Github className="h-3.5 w-3.5" />
                                 github.com/torpedoliar
@@ -114,9 +112,9 @@ export default async function AboutPage() {
             </div>
 
             {/* Repository */}
-            <div className="bg-surface border border-border rounded-xl p-6 mb-8">
-                <h2 className="text-lg font-bold text-ops-text mb-4 flex items-center gap-2">
-                    <Code2 className="h-5 w-5 text-ops-info" />
+            <div className="ops-panel p-5">
+                <h2 className="mb-3 flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                    <Code2 className="size-4 text-ops-info" aria-hidden />
                     Repository
                 </h2>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -145,20 +143,20 @@ export default async function AboutPage() {
             </div>
 
             {/* Features */}
-            <div className="bg-surface border border-border rounded-xl p-6 mb-8">
-                <h2 className="text-lg font-bold text-ops-text mb-4 flex items-center gap-2">
-                    <Star className="h-5 w-5 text-ops-warning" />
+            <div className="ops-panel p-5">
+                <h2 className="mb-3 flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                    <Star className="size-4 text-ops-warning" aria-hidden />
                     Fitur Utama
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {features.map((f, i) => (
-                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-surface border border-border">
-                            <div className="p-2 rounded-lg bg-ops-info-soft text-ops-info shrink-0">
+                        <div key={i} className="flex items-start gap-3 rounded-md border border-ops-border bg-ops-surface-raised/60 p-3">
+                            <div className="shrink-0 rounded-md bg-ops-info-soft p-2 text-ops-info [&_svg]:size-4">
                                 {f.icon}
                             </div>
                             <div>
-                                <p className="text-ops-text text-sm font-medium">{f.label}</p>
-                                <p className="text-ops-muted text-xs mt-0.5">{f.desc}</p>
+                                <p className="text-[13px] font-medium text-ops-text">{f.label}</p>
+                                <p className="mt-0.5 text-xs text-ops-muted">{f.desc}</p>
                             </div>
                         </div>
                     ))}
@@ -166,8 +164,8 @@ export default async function AboutPage() {
             </div>
 
             {/* Changelog */}
-            <div className="bg-surface border border-border rounded-xl p-6">
-                <h2 className="text-lg font-bold text-ops-text mb-4">
+            <div className="ops-panel p-5">
+                <h2 className="mb-3 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
                     Changelog v{versionData.version}
                 </h2>
                 <ul className="space-y-2">
@@ -179,10 +177,10 @@ export default async function AboutPage() {
                     ))}
                 </ul>
 
-                <div className="mt-6 pt-4 border-t border-border text-center text-xs text-ops-muted">
+                <div className="mt-4 border-t border-ops-border pt-3 text-center text-xs text-ops-muted">
                     Dibuat dengan <span className="text-ops-danger">♥</span> oleh Team Operational Support SJA · Licensed by Torpedoliar
                 </div>
             </div>
-        </div>
+        </main>
     );
 }

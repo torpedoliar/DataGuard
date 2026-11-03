@@ -26,7 +26,7 @@ export default function IncidentDetail({
   isAssignee: boolean;
 }) {
   return (
-    <main className="mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-5 px-4 py-5 lg:px-6 xl:grid-cols-3">
+    <main className="mx-auto grid w-full max-w-[1600px] animate-enter grid-cols-1 gap-5 px-4 py-6 lg:px-8 xl:grid-cols-3">
       <section className="space-y-5 xl:col-span-2">
         <PageHeader
           eyebrow={`Resolve / Incident #${incident.id}`}
@@ -48,7 +48,7 @@ export default function IncidentDetail({
         <section className="ops-panel p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-ops-text">Incident Summary</h2>
+              <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Incident Summary</h2>
               <p className="text-sm text-ops-muted">Current workflow state and severity.</p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -65,7 +65,7 @@ export default function IncidentDetail({
 
         <section className="ops-panel p-5">
           <div className="mb-5">
-            <h2 className="text-lg font-bold text-ops-text">Timeline</h2>
+            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Timeline</h2>
             <p className="text-sm text-ops-muted">Evidence and workflow updates.</p>
           </div>
           <div className="space-y-4">

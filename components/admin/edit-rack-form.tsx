@@ -3,7 +3,10 @@
 import { updateRack } from "@/actions/rack-management";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, X, Server } from "lucide-react";
+import ActionButton from "@/components/ui/action-button";
+import { X, Server } from "lucide-react";
+
+const fieldClass = "ops-input h-9 w-full px-3 text-sm";
 
 type Rack = {
     id: number;
@@ -47,58 +50,55 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
     }, [state, onClose, router]);
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-ops-surface rounded-lg shadow-xl max-w-2xl w-full">
-                <div className="flex items-center justify-between p-6 border-b border-ops-border">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-lg border border-ops-border bg-ops-surface shadow-xl">
+                <div className="flex items-center justify-between border-b border-ops-border p-5">
                     <div className="flex items-center gap-2">
-                        <Server className="h-5 w-5 text-primary" />
-                        <h2 className="text-xl font-bold text-ops-text">Edit Rack</h2>
+                        <Server className="size-4 text-ops-accent" />
+                        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Edit rack</h2>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="text-ops-muted hover:text-ops-muted dark:hover:text-ops-muted"
-                    >
-                        <X className="h-6 w-6" />
-                    </button>
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close">
+                        <X aria-hidden="true" className="size-4" />
+                    </ActionButton>
                 </div>
 
-                <form action={action} className="p-6">
+                <form action={action} className="p-5">
                     <input type="hidden" name="id" value={rack.id} />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-ops-muted mb-1">
+                            <label className="mb-1 block text-[13px] font-medium text-ops-muted">
                                 Rack Name *
                             </label>
                             <input
                                 name="name"
                                 defaultValue={rack.name}
                                 required
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                className={fieldClass}
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">
+                            <label className="mb-1 block text-[13px] font-medium text-ops-muted">
                                 Zone
                             </label>
                             <input
                                 name="zone"
                                 defaultValue={rack.zone || ""}
                                 placeholder="e.g. Zone A"
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                className={fieldClass}
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-ops-muted mb-1">
+                            <label className="mb-1 block text-[13px] font-medium text-ops-muted">
                                 Total U
                             </label>
                             <select
                                 name={customU ? undefined : "totalU"}
                                 defaultValue={isPresetU ? (rack.totalU || 42) : "custom"}
                                 onChange={(event) => setCustomU(event.target.value === "custom")}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                className={fieldClass}
                             >
                                 <option value="42">42U (Standard)</option>
                                 <option value="45">45U</option>
@@ -120,24 +120,24 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
                                     max={60}
                                     required
                                     placeholder="Jumlah U (1-60)"
-                                    className="mt-2 w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                    className={`${fieldClass} mt-2`}
                                 />
                             )}
                         </div>
 
 <div className="md:col-span-2 grid grid-cols-3 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-ops-muted mb-1">Floor Row</label>
+                                <label className="mb-1 block text-[13px] font-medium text-ops-muted">Floor Row</label>
                                 <input
                                     name="floorRow"
                                     defaultValue={rack.floorRow ?? ""}
                                     maxLength={4}
                                     placeholder="A"
-                                    className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                    className={fieldClass}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-ops-muted mb-1">Slot</label>
+                                <label className="mb-1 block text-[13px] font-medium text-ops-muted">Slot</label>
                                 <input
                                     type="number"
                                     name="floorSlot"
@@ -145,33 +145,33 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
                                     max={99}
                                     defaultValue={rack.floorSlot ?? ""}
                                     placeholder="1"
-                                    className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                    className={fieldClass}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-ops-muted mb-1">Facing</label>
+                                <label className="mb-1 block text-[13px] font-medium text-ops-muted">Facing</label>
                                 <select
                                     name="facing"
                                     defaultValue={rack.facing ?? "front"}
-                                    className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                    className={fieldClass}
                                 >
                                     <option value="front">Front</option>
                                     <option value="back">Back</option>
                                 </select>
                             </div>
-                            <p className="col-span-3 text-xs text-ops-subtle">
+                            <p className="col-span-3 text-xs text-ops-muted">
                                 Posisi fisik di ruangan untuk tampilan 3D (baris, urutan, arah pintu depan). Kosongkan jika belum diketahui.
                             </p>
                         </div>
 
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-ops-muted mb-1">
+                            <label className="mb-1 block text-[13px] font-medium text-ops-muted">
                                 Location
                             </label>
                             <select
                                 name="locationId"
                                 defaultValue={rack.locationId?.toString() || ""}
-                                className="w-full px-3 py-2 border border-ops-border-strong rounded-md bg-ops-surface text-ops-text focus:outline-none focus:ring-2 focus:ring-ops-accent"
+                                className={fieldClass}
                             >
                                 <option value="">-- No Location --</option>
                                 {locations.map(loc => (
@@ -192,36 +192,27 @@ export default function EditRackForm({ rack, onClose, locations }: EditRackFormP
                             defaultChecked={rack.isAuditable ?? true}
                             value="on"
                         />
-                        <label className="text-sm font-medium text-ops-muted">Include in audit</label>
+                        <label className="text-[13px] font-medium text-ops-muted">Include in audit</label>
                     </div>
 
                     {state?.errors && (
-                        <div className="mt-3 text-ops-danger text-sm">
+                        <div className="mt-3 text-[13px] text-ops-danger">
                             {Object.values(state.errors as Record<string, string[]>).flat().map((e, i) => (
                                 <p key={i}>{e}</p>
                             ))}
                         </div>
                     )}
                     {state?.message && !state.success && (
-                        <div className="mt-3 text-ops-danger text-sm">{state.message}</div>
+                        <div className="mt-3 text-[13px] text-ops-danger">{state.message}</div>
                     )}
 
-                    <div className="flex gap-3 mt-6">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 px-4 py-2 border border-ops-border-strong rounded-md text-ops-muted hover:bg-ops-surface dark:hover:bg-ops-surface-raised"
-                        >
+                    <div className="mt-6 flex gap-3">
+                        <ActionButton type="button" variant="secondary" onClick={onClose} className="flex-1">
                             Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isPending}
-                            className="flex-1 bg-ops-accent text-ops-accent-fg px-4 py-2 rounded-md hover:bg-ops-accent-hover flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {isPending && <Loader2 className="animate-spin h-4 w-4" />}
-                            Save Changes
-                        </button>
+                        </ActionButton>
+                        <ActionButton type="submit" isPending={isPending} className="flex-1">
+                            Save changes
+                        </ActionButton>
                     </div>
                 </form>
             </div>

@@ -77,12 +77,12 @@ export default function VlanTable({ vlans }: { vlans: Vlan[] }) {
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ops-muted" />
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search VLANs..." className={`${fieldClass} w-full pl-9 pr-8`} />
             {search && (
-              <button type="button" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text" title="Clear search">
+              <button type="button" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-sm text-ops-muted transition-colors hover:text-ops-text" title="Clear search" aria-label="Clear search">
                 <X className="size-3.5" />
               </button>
             )}
           </div>
-          <span className="text-xs font-medium text-ops-muted">{filtered.length} of {vlans.length} VLANs</span>
+          <span className="text-[13px] tabular-nums text-ops-muted">{filtered.length} of {vlans.length} VLANs</span>
         </div>
       </DataToolbar>
 
@@ -93,8 +93,8 @@ export default function VlanTable({ vlans }: { vlans: Vlan[] }) {
               <SortableHead label="VLAN ID" onClick={() => handleSort("vlanId")} icon={renderSortIcon("vlanId")} />
               <SortableHead label="Name" onClick={() => handleSort("name")} icon={renderSortIcon("name")} />
               <SortableHead label="Subnet" onClick={() => handleSort("subnet")} icon={renderSortIcon("subnet")} />
-              <th className="px-5 py-3 text-left">Description</th>
-              <th className="px-5 py-3 text-right">Actions</th>
+              <th className="px-4 text-left">Description</th>
+              <th className="px-4 text-right">Actions</th>
             </tr>
           </DataTableHead>
           <DataTableBody>
@@ -102,14 +102,14 @@ export default function VlanTable({ vlans }: { vlans: Vlan[] }) {
               <DataTableEmpty colSpan={5} title={search ? "No VLANs match your search" : "No VLANs defined"} description="Create a VLAN from the form above." />
             ) : (
               filtered.map((vlan) => (
-                <tr key={vlan.id} className="transition-colors hover:bg-ops-surface">
-                  <td className="whitespace-nowrap px-5 py-3">
-                    <StatusBadge tone="info">VLAN {vlan.vlanId}</StatusBadge>
+                <tr key={vlan.id} className="transition-colors">
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    <StatusBadge tone="info">VLAN <span className="tabular-nums">{vlan.vlanId}</span></StatusBadge>
                   </td>
-                  <td className="whitespace-nowrap px-5 py-3 font-semibold text-ops-text">{vlan.name}</td>
-                  <td className="whitespace-nowrap px-5 py-3 font-mono text-xs text-ops-muted">{vlan.subnet || "-"}</td>
-                  <td className="max-w-[300px] truncate px-5 py-3 text-ops-muted">{vlan.description || "-"}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-right">
+                  <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-ops-text">{vlan.name}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-ops-muted">{vlan.subnet || "-"}</td>
+                  <td className="max-w-[300px] truncate px-4 py-2.5 text-[13px] text-ops-muted">{vlan.description || "-"}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
                     <div className="inline-flex items-center gap-1">
                       <ActionButton type="button" variant="ghost" size="icon" onClick={() => setEditingVlan(vlan)} title="Edit">
                         <Edit className="size-4 text-ops-info" />
@@ -134,7 +134,7 @@ export default function VlanTable({ vlans }: { vlans: Vlan[] }) {
 
 function SortableHead({ label, onClick, icon }: { label: string; onClick: () => void; icon: ReactNode }) {
   return (
-    <th className="px-5 py-3 text-left">
+    <th className="px-4 text-left">
       <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5">
         {label}
         {icon}

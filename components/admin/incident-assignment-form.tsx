@@ -16,7 +16,7 @@ function formatDateTimeLocal(date: Date | null) {
 }
 
 const fieldClass = "ops-input w-full px-3 py-2 text-sm";
-const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-ops-muted";
+const labelClass = "mb-1.5 block text-xs font-medium text-ops-muted";
 
 export default function IncidentAssignmentForm({
   incidentId,

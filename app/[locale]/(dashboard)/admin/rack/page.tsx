@@ -1,10 +1,11 @@
 import { getSiteLayout, getRackStats, getRoomSettings } from "@/actions/rack-layout";
 import RackLayoutShell from "@/components/admin/rack-layout-shell";
+import PageHeader from "@/components/ui/page-header";
+import ActionButton from "@/components/ui/action-button";
 import { verifySession } from "@/lib/session";
 import { hasAdminAccess } from "@/lib/site-access";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Server, PieChart, MapPin } from "lucide-react";
+import { Network, PieChart, Server } from "lucide-react";
 import { OfflineBanner } from "@/components/mobile/offline-banner";
 import { BottomNav } from "@/components/mobile/bottom-nav";
 
@@ -21,77 +22,53 @@ export default async function RackPage({ searchParams }: { searchParams: Promise
     const { getCategories } = await import("@/actions/master-data");
     const categories = await getCategories();
 
+    const kpis: { label: string; value: number; icon: typeof Server; tone: "info" | "success" | "accent" }[] = stats ? [
+        { label: "Total devices", value: stats.totalDevices, icon: Server, tone: "info" },
+        { label: "In rack positions", value: stats.devicesWithRack, icon: Network, tone: "success" },
+        { label: "Zones", value: stats.devicesByZone.length, icon: PieChart, tone: "accent" },
+    ] : [];
+    const toneClass: Record<"info" | "success" | "accent", string> = {
+        info: "bg-ops-info-soft text-ops-info",
+        success: "bg-ops-success-soft text-ops-success",
+        accent: "bg-ops-accent-soft text-ops-accent",
+    };
+
     return (
         <>
         <OfflineBanner />
-        <main className="px-4 py-6 lg:px-6 pb-20">
-            <div className="mb-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="size-10 rounded-lg bg-ops-accent/20 flex items-center justify-center text-ops-accent">
-                                <Server className="h-6 w-6" />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-ops-text">Rack Layout</h1>
-                                <p className="text-sm text-ops-muted">
-                                    Visual overview of device positions in racks.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-2 px-4 py-2 bg-ops-surface-raised text-ops-text rounded-lg hover:bg-ops-surface transition-colors"
-                        >
-                            <Server className="h-4 w-4" />
-                            Manage Devices
-                        </Link>
-                    </div>
-                </div>
-            </div>
+        <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 pb-20 lg:px-8">
+            <PageHeader
+                eyebrow="Admin / Infrastructure"
+                title="Rack layout"
+                description={session.activeSiteName ? `Visual overview of device positions in ${session.activeSiteName}.` : "Visual overview of device positions in racks."}
+                actions={
+                    <ActionButton href="/admin" variant="secondary" icon={<Server className="size-4" />}>
+                        Manage devices
+                    </ActionButton>
+                }
+            />
 
-            {/* Stats Cards */}
-            {stats && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="size-10 rounded-lg bg-ops-info/10 flex items-center justify-center text-ops-info">
-                                <Server className="h-5 w-5" />
+            {/* KPI cards */}
+            {kpis.length > 0 && (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    {kpis.map((kpi) => {
+                        const Icon = kpi.icon;
+                        return (
+                            <div key={kpi.label} className="ops-panel flex items-center gap-3 p-4">
+                                <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${toneClass[kpi.tone]}`}>
+                                    <Icon className="size-5" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[13px] text-ops-muted">{kpi.label}</p>
+                                    <p className="text-2xl font-semibold tabular-nums leading-tight text-ops-text">{kpi.value}</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-sm text-ops-muted">Total Devices</p>
-                                <p className="text-2xl font-bold text-ops-text">{stats.totalDevices}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="size-10 rounded-lg bg-ops-success/10 flex items-center justify-center text-ops-success">
-                                <MapPin className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-ops-muted">In Rack Positions</p>
-                                <p className="text-2xl font-bold text-ops-text">{stats.devicesWithRack}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-ops-surface rounded-lg shadow-sm border border-ops-border p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="size-10 rounded-lg bg-ops-accent/10 flex items-center justify-center text-ops-accent">
-                                <PieChart className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <p className="text-sm text-ops-muted">Zones</p>
-                                <p className="text-2xl font-bold text-ops-text">{stats.devicesByZone.length}</p>
-                            </div>
-                        </div>
-                    </div>
+                        );
+                    })}
                 </div>
             )}
 
-            {/* Rack Layout Visualization */}
+            {/* Rack layout visualization */}
             <RackLayoutShell initialDeviceId={initialDeviceId} facilities={facilities} racks={racks} categories={categories} rooms={rooms} canEditAppearance={canEditAppearance} siteName={session.activeSiteName ?? ""} />
         </main>
         <BottomNav />

@@ -9,7 +9,7 @@ import NcmSettingsForm from "@/components/admin/ncm-settings-form";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { Settings } from "lucide-react";
+import PageHeader from "@/components/ui/page-header";
 
 export const metadata = {
     title: "Global Settings | DataGuard Admin",
@@ -39,25 +39,12 @@ export default async function SettingsPage() {
     ]);
 
     return (
-        <div className="py-8 px-6 max-w-[1600px] mx-auto min-h-[calc(100vh-56px)]">
-            <div className="mb-8">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="size-10 rounded-xl bg-ops-info-soft flex items-center justify-center text-ops-info">
-                        <Settings className="size-5" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-ops-text tracking-tight">{t("title")}</h1>
-                        <p className="text-sm text-ops-muted mt-1">
-                            {t("description")}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
+        <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
+            <PageHeader eyebrow="Admin / Settings" title={t("title")} description={t("description")} />
             <SettingsForm initialData={settings} />
             {!("message" in siemIngestSettings) && <SiemIngestSettingsForm initialData={siemIngestSettings} />}
             {!("message" in siemAiSettings) && <SiemAiSettingsForm initialData={siemAiSettings} />}
             {!("message" in ncmSettings) && <NcmSettingsForm initialData={ncmSettings} networkDoc={"message" in networkDocSettings ? undefined : networkDocSettings} />}
-        </div>
+        </main>
     );
 }

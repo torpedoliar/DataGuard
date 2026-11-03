@@ -78,7 +78,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
 
                     {/* Schedule Name */}
                     <div>
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ops-muted">
+                        <label className="mb-1.5 block text-xs font-medium text-ops-muted">
                             Nama Jadwal Laporan *
                         </label>
                         <input
@@ -94,7 +94,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                     {/* Report Type & Frequency */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ops-muted">
+                            <label className="mb-1.5 block text-xs font-medium text-ops-muted">
                                 Jenis Report *
                             </label>
                             <select
@@ -109,7 +109,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                         </div>
 
                         <div>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ops-muted">
+                            <label className="mb-1.5 block text-xs font-medium text-ops-muted">
                                 Frekuensi Pengiriman *
                             </label>
                             <select
@@ -129,7 +129,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg border border-ops-border bg-ops-panel/50 p-3.5">
                         {frequency === "weekly" && (
                             <div>
-                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ops-muted">
+                                <label className="mb-1.5 block text-xs font-medium text-ops-muted">
                                     Hari Eksekusi
                                 </label>
                                 <select
@@ -148,7 +148,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
 
                         {frequency === "monthly" && (
                             <div>
-                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ops-muted">
+                                <label className="mb-1.5 block text-xs font-medium text-ops-muted">
                                     Tanggal Eksekusi
                                 </label>
                                 <select
@@ -166,7 +166,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                         )}
 
                         <div className={frequency === "daily" ? "sm:col-span-2" : ""}>
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ops-muted">
+                            <label className="mb-1.5 block text-xs font-medium text-ops-muted">
                                 Jam Eksekusi (WIB) *
                             </label>
                             <input
@@ -182,7 +182,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
                     {/* Target Email Recipients */}
                     <div>
                         <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-xs font-semibold uppercase tracking-wider text-ops-muted">
+                            <label className="text-xs font-medium text-ops-muted">
                                 Target Alamat Email Penerima *
                             </label>
                             <span className="text-[11px] text-ops-muted">Pisahkan dengan koma / baris baru</span>
@@ -199,7 +199,7 @@ export default function ScheduleDialog({ isOpen, onClose, schedule }: ScheduleDi
 
                     {/* Custom Email Subject */}
                     <div>
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ops-muted">
+                        <label className="mb-1.5 block text-xs font-medium text-ops-muted">
                             Custom Subject Email (Opsional)
                         </label>
                         <input

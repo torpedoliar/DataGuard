@@ -30,11 +30,11 @@ function SiteRow({ site, envHasUrl, envHasKey }: { site: NetworkDocSiteConfig; e
     const envDefaultActive = site.usesEnvDefault;
 
     return (
-        <form action={saveAction} className="rounded-lg border border-ops-border/50 bg-ops-surface/40 p-4">
+        <form action={saveAction} className="ops-panel-subtle p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <input type="hidden" name="networkDocSiteId" value={site.siteId} />
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-white">{site.siteName}</span>
+                    <span className="text-sm font-semibold text-ops-text">{site.siteName}</span>
                     {site.apiKeyConfigured && (
                         <span className="inline-flex h-6 items-center rounded-full border border-ops-success/25 bg-ops-success-soft px-2 text-[11px] font-medium text-ops-success">
                             Terkonfigurasi
@@ -55,7 +55,7 @@ function SiteRow({ site, envHasUrl, envHasKey }: { site: NetworkDocSiteConfig; e
                         name="networkDocUrl"
                         defaultValue={site.url}
                         placeholder={envHasUrl ? "Pakai default dari env" : "http://10.10.6.9:8443"}
-                        className="h-9 w-full rounded-lg border border-ops-border bg-ops-surface px-3 font-mono text-sm text-white"
+                        className="ops-input h-9 w-full px-3 font-mono text-sm"
                     />
                 </label>
                 <label className="space-y-1 text-sm font-medium text-ops-muted">
@@ -65,21 +65,21 @@ function SiteRow({ site, envHasUrl, envHasKey }: { site: NetworkDocSiteConfig; e
                         type="password"
                         autoComplete="off"
                         placeholder={site.apiKeyConfigured ? "Key tersimpan; isi hanya untuk mengganti" : envHasKey ? "Pakai default dari env" : "X-API-Key aplikasi dokumentasi"}
-                        className="h-9 w-full rounded-lg border border-ops-border bg-ops-surface px-3 font-mono text-sm text-white"
+                        className="ops-input h-9 w-full px-3 font-mono text-sm"
                     />
                 </label>
             </div>
 
             {saveState?.errors && (
-                <div className="mt-3 rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">
+                <div className="mt-3 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
                     {Object.values(saveState.errors as Record<string, string[]>).flat().join(" ")}
                 </div>
             )}
             {saveState?.message && !saveState.success && (
-                <div className="mt-3 rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-3 text-sm text-ops-danger">{saveState.message}</div>
+                <div className="mt-3 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">{saveState.message}</div>
             )}
             {testState && (
-                <div className={`mt-3 rounded-lg border p-3 text-sm ${testState.ok ? "border-ops-success/20 bg-ops-success-soft text-ops-success" : "border-ops-danger/20 bg-ops-danger-soft text-ops-danger"}`}>
+                <div className={`mt-3 rounded-md border px-3 py-2.5 text-[13px] ${testState.ok ? "border-ops-success/25 bg-ops-success-soft text-ops-success" : "border-ops-danger/25 bg-ops-danger-soft text-ops-danger"}`}>
                     {testState.message}
                 </div>
             )}
@@ -113,22 +113,22 @@ export default function NetworkDocSettingsForm({ initialData }: { initialData: N
         ];
 
     return (
-        <div className="mt-6 max-w-5xl space-y-4 rounded-2xl border border-ops-border/50 bg-ops-surface-raised/40 p-6">
+        <div className="ops-panel mt-6 max-w-5xl space-y-4 p-6">
             <div>
-                <h2 className="text-sm font-semibold text-white">Network Docs Sync</h2>
+                <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ops-text">Network Docs sync</h2>
                 <p className="mt-1 text-xs text-ops-muted">
                     Konfigurasi per site — setiap site bisa memakai API network-doc sendiri. Worker terjadwal menyinkronkan
                     semua site yang terkonfigurasi; tombol sync di <span className="font-mono">/admin/network-docs</span> memakai
                     config site aktif. API key disimpan terenkripsi.
                 </p>
-                <p className="mt-1 text-xs text-ops-subtle">
+                <p className="mt-1 text-xs text-ops-muted">
                     Catatan Docker: <span className="font-mono">localhost</span> dari dalam container menunjuk ke container itu
                     sendiri — pakai IP LAN host atau <span className="font-mono">http://host.docker.internal:8443</span>.
                 </p>
             </div>
 
             {(initialData.envHasUrl || initialData.envHasKey) && (
-                <div className="rounded-lg border border-ops-warning/25 bg-ops-warning-soft p-3 text-sm text-ops-warning">
+                <div className="rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">
                     Environment menyediakan default global (NETWORK_DOC_URL{initialData.envHasKey ? " + NETWORK_DOC_API_KEY" : ""}) — dipakai untuk site yang kolom URL/Key-nya kosong.
                 </div>
             )}
@@ -139,14 +139,14 @@ export default function NetworkDocSettingsForm({ initialData }: { initialData: N
                 ))}
             </div>
 
-            <div className="rounded-lg border border-ops-border/50 bg-ops-surface/40 p-4">
+            <div className="ops-panel-subtle p-4">
                 <form action={intervalAction} className="flex flex-wrap items-end gap-3">
                     <label className="space-y-1 text-sm font-medium text-ops-muted">
                         Interval worker terjadwal (semua site)
                         <select
                             name="networkDocIntervalMs"
                             defaultValue={initialData.workerIntervalMs?.toString() ?? ""}
-                            className="h-9 w-full min-w-44 rounded-lg border border-ops-border bg-ops-surface px-3 text-sm text-white"
+                            className="ops-input h-9 w-full min-w-44 px-3 text-sm"
                         >
                             {intervalOptions.map((option) => (
                                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -159,10 +159,10 @@ export default function NetworkDocSettingsForm({ initialData }: { initialData: N
                     )}
                 </form>
                 {intervalState?.message && !intervalState.success && (
-                    <div className="mt-2 rounded-lg border border-ops-danger/20 bg-ops-danger-soft p-2 text-sm text-ops-danger">{intervalState.message}</div>
+                    <div className="mt-2 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2 text-[13px] text-ops-danger">{intervalState.message}</div>
                 )}
                 {intervalState?.success && (
-                    <div className="mt-2 rounded-lg border border-ops-success/20 bg-ops-success-soft p-2 text-sm text-ops-success">Interval disimpan.</div>
+                    <div className="mt-2 rounded-md border border-ops-success/25 bg-ops-success-soft px-3 py-2 text-[13px] text-ops-success">Interval disimpan.</div>
                 )}
             </div>
         </div>

@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deletePort } from "@/actions/network";
-import { AlertTriangle, Loader2, X } from "lucide-react";
+import ActionButton from "@/components/ui/action-button";
+import { AlertTriangle, X } from "lucide-react";
 
 type Port = { id: number; portName: string };
 
@@ -26,51 +27,37 @@ export default function DeletePortModal({ port, onClose }: { port: Port; onClose
     };
 
     return (
-        <div className="fixed inset-0 bg-ops-surface/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-ops-surface rounded-xl max-w-sm w-full shadow-xl">
-                <div className="flex items-center justify-between p-4 border-b border-ops-border">
-                    <h2 className="text-lg font-semibold text-ops-text flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-ops-danger" />
-                        Delete Port
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-lg border border-ops-border bg-ops-surface shadow-xl">
+                <div className="flex items-center justify-between border-b border-ops-border p-4">
+                    <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ops-text">
+                        <AlertTriangle className="size-4 text-ops-danger" />
+                        Delete port
                     </h2>
-                    <button
-                        onClick={onClose}
-                        disabled={isPending}
-                        className="text-ops-muted hover:text-ops-subtle dark:hover:text-ops-muted transition-colors"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+                    <ActionButton type="button" variant="ghost" size="icon" onClick={onClose} disabled={isPending} aria-label="Close" title="Close">
+                        <X aria-hidden="true" className="size-4" />
+                    </ActionButton>
                 </div>
 
-                <div className="p-6">
-                    <p className="text-sm text-ops-muted">
+                <div className="p-5">
+                    <p className="text-[13px] text-ops-muted">
                         Are you sure you want to completely remove the configuration for physical port <span className="font-semibold text-ops-text">{port.portName}</span>?
                         Any topology links terminating at this port will be severed automatically.
                     </p>
 
                     {error && (
-                        <div className="mt-3 p-2 text-xs rounded bg-ops-danger-soft text-ops-danger border border-ops-danger">
+                        <div className="mt-3 rounded-md border border-ops-danger/25 bg-ops-danger-soft px-3 py-2.5 text-[13px] text-ops-danger">
                             {error}
                         </div>
                     )}
 
                     <div className="mt-6 flex justify-end gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={isPending}
-                            className="px-4 py-2 text-ops-muted bg-ops-surface-raised hover:bg-ops-surface-raised dark:text-ops-muted dark:bg-ops-surface-raised dark:hover:bg-ops-surface-sunken rounded-lg transition-colors"
-                        >
+                        <ActionButton type="button" variant="secondary" onClick={onClose} disabled={isPending}>
                             Cancel
-                        </button>
-                        <button
-                            onClick={handleDelete}
-                            disabled={isPending}
-                            className="flex items-center gap-2 px-4 py-2 bg-ops-danger text-ops-status-fg hover:bg-ops-danger rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                        </ActionButton>
+                        <ActionButton type="button" variant="danger" onClick={handleDelete} isPending={isPending}>
                             Delete
-                        </button>
+                        </ActionButton>
                     </div>
                 </div>
             </div>
