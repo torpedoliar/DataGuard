@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -8,9 +8,21 @@ import { routing } from "@/i18n/routing";
 import { cookies } from "next/headers";
 import { getSettings } from "@/actions/settings";
 
-// Self-hosted at build time by next/font: no runtime CDN request, no FOUT.
-const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans", display: "swap" });
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
+// Fonts are committed as variable WOFF2 (SIL OFL 1.1, see app/fonts/OFL.txt) and
+// loaded by next/font/local. The Docker builder has no outbound internet access,
+// so a Google Fonts fetch at build time would fail the image build.
+const geistSans = localFont({
+  src: "./fonts/Geist-Variable.woff2",
+  weight: "100 900",
+  variable: "--font-geist-sans",
+  display: "swap",
+});
+const geistMono = localFont({
+  src: "./fonts/GeistMono-Variable.woff2",
+  weight: "100 900",
+  variable: "--font-geist-mono",
+  display: "swap",
+});
 
 // viewportFit cover enables env(safe-area-inset-*) on iOS so the fixed
 // bottom nav clears the home indicator and the top bar clears the notch.
