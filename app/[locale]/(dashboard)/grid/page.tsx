@@ -84,7 +84,7 @@ export default async function AuditGridPage({
   return (
     <>
       <OfflineBanner />
-      <main className="flex h-[calc(100vh-56px)] w-full flex-col overflow-x-auto overflow-y-hidden bg-ops-bg pb-20">
+      <main className="flex h-[calc(100vh-56px)] w-full flex-col overflow-x-auto overflow-y-hidden pb-20">
         <header className="flex-none border-b border-ops-border bg-ops-surface px-4 py-4 lg:px-6">
         <div className="mx-auto max-w-[1600px]">
           <PageHeader

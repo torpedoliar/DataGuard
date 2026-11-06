@@ -430,7 +430,7 @@ export default function AppShell({
   );
 
   return (
-    <div className="min-h-dvh bg-ops-bg text-ops-text">
+    <div className="min-h-dvh text-ops-text">
       <div
         className={clsx(
           "hidden transition-[width] duration-200 ease-out lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:block",

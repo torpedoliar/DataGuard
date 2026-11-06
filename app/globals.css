@@ -208,6 +208,11 @@ body {
   font-family: var(--font-body);
   font-feature-settings: "cv11", "ss01";
   background-color: var(--color-ops-bg);
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--color-ops-border) 32%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-ops-border) 32%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-attachment: fixed;
   color: var(--color-ops-text);
   text-rendering: optimizeLegibility;
 }
