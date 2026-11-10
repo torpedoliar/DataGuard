@@ -156,6 +156,16 @@
   from { transform: translateX(-100%); }
   to { transform: none; }
 }
+/* Proportional bars fill in from their left edge (fleet posture). */
+@keyframes ops-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+/* The endpoint drawer slides in from the right edge of a full-screen overlay. */
+@keyframes ops-slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
 @keyframes ops-shimmer {
   from { background-position: 200% 0; }
   to { background-position: -200% 0; }

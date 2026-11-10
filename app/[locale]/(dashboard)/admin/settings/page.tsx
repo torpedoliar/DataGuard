@@ -7,7 +7,7 @@ import SettingsForm from "@/components/admin/settings-form";
 import SiemAiSettingsForm from "@/components/admin/siem-ai-settings-form";
 import SiemIngestSettingsForm from "@/components/admin/siem-ingest-settings-form";
 import NcmSettingsForm from "@/components/admin/ncm-settings-form";
-import WatchGuardSettingsForm from "@/components/admin/epdr/watchguard-settings-form";
+import WatchGuardSettingsCard from "@/components/admin/epdr/watchguard-settings-card";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -48,7 +48,7 @@ export default async function SettingsPage() {
             {!("message" in siemIngestSettings) && <SiemIngestSettingsForm initialData={siemIngestSettings} />}
             {!("message" in siemAiSettings) && <SiemAiSettingsForm initialData={siemAiSettings} />}
             {!("message" in ncmSettings) && <NcmSettingsForm initialData={ncmSettings} networkDoc={"message" in networkDocSettings ? undefined : networkDocSettings} />}
-            {!("message" in watchGuardSettings) && <WatchGuardSettingsForm initialData={watchGuardSettings} />}
+            {!("message" in watchGuardSettings) && <WatchGuardSettingsCard data={watchGuardSettings} />}
         </main>
     );
 }

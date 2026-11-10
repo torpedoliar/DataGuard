@@ -60,7 +60,13 @@ describe("epdr-settings authorization", () => {
 
 describe("epdr-settings validation", () => {
   it("rejects min score greater than max score", async () => {
-    const result = await saveEpdrSettings(undefined, form({ ingestEnabled: true, threatsyncMinScore: 9, threatsyncMaxScore: 7 }));
+    const result = await saveEpdrSettings(undefined, form({
+      ingestEnabled: true,
+      eventTypes: "1,2,4,6,18",
+      threatsyncCategories: "malware,exploit",
+      threatsyncMinScore: 9,
+      threatsyncMaxScore: 7,
+    }));
     expect(result).toMatchObject({ message: expect.stringContaining("tidak boleh melebihi") });
     expect(mocks.inserts).toHaveLength(0);
   });

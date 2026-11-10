@@ -41,8 +41,8 @@ const complianceItems: NavItem[] = [
 // EPDR monitor items are read-only and visible to site staff, admin and
 // superadmin alike (C8); the rest of the Security group stays admin-only.
 const epdrItems: NavItem[] = [
-  { href: "/admin/epdr", label: "Endpoint Security", icon: "server-cog" },
-  { href: "/admin/epdr/threats", label: "Threats", icon: "radar" },
+  { href: "/admin/epdr", label: "Endpoint Security", labelKey: "endpointSecurity", ns: "Nav", icon: "server-cog" },
+  { href: "/admin/epdr/threats", label: "Threats", labelKey: "threats", ns: "Nav", icon: "radar" },
 ];
 
 const infrastructureItems: NavItem[] = [

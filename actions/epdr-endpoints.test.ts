@@ -15,6 +15,7 @@ vi.mock("@/lib/action-auth", () => ({
 }));
 
 vi.mock("@/lib/audit", () => ({ logAudit: () => mocks.logAudit() }));
+vi.mock("@/lib/site-access", () => ({ hasAdminAccess: async () => true }));
 vi.mock("next/cache", () => ({ revalidatePath: () => mocks.revalidatePath() }));
 
 vi.mock("@/db", () => {
