@@ -5,7 +5,7 @@ import { siemFindings, siemResponseActions, users } from "@/db/schema";
 import { alias } from "drizzle-orm/pg-core";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -119,12 +119,18 @@ export async function approveSiemResponseAction(prevState: unknown, formData: Fo
     return { message: "Approval harus dari admin lain (two-person rule)." };
   }
 
-  await db.update(siemResponseActions).set({
+  const approved = await db.update(siemResponseActions).set({
     status: "approved",
     approvedById: auth.session.userId,
     approvedAt: new Date(),
     updatedAt: new Date(),
-  }).where(eq(siemResponseActions.id, action.id));
+  }).where(and(eq(siemResponseActions.id, action.id), eq(siemResponseActions.status, "pending_approval"))).returning({ id: siemResponseActions.id });
+
+  // Conditional-update race guard: zero rows means another admin already
+  // approved/cancelled before this write — report instead of overwriting.
+  if (approved.length === 0) {
+    return { message: "Action is no longer pending approval — reload." };
+  }
 
   await logAudit({
     action: "UPDATE",
@@ -150,9 +156,16 @@ export async function cancelSiemResponseAction(prevState: unknown, formData: For
   if (action.status === "executed") return { message: "Executed actions cannot be cancelled." };
   if (action.status === "executing") return { message: "Action is being executed right now." };
   // Cancel of an approved-but-not-yet-claimed row races the worker's claim;
-  // the worker's atomic status check makes whichever write lands first win.
+  // the conditional update below makes whichever write lands first win.
+  const cancelled = await db.update(siemResponseActions)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(and(eq(siemResponseActions.id, action.id), inArray(siemResponseActions.status, ["pending_approval", "approved"])))
+    .returning({ id: siemResponseActions.id });
 
-  await db.update(siemResponseActions).set({ status: "cancelled", updatedAt: new Date() }).where(eq(siemResponseActions.id, action.id));
+  if (cancelled.length === 0) {
+    return { message: "Action cannot be cancelled (already executing/executed/cancelled)." };
+  }
+
   await logAudit({ action: "UPDATE", entity: "siem_response_action", entityId: action.id, entityName: action.actionType, detail: `cancelled (${action.status})` });
   revalidatePath("/admin/siem/findings");
   return { success: true };

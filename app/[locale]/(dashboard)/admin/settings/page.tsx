@@ -2,10 +2,12 @@ import { getSettings } from "@/actions/settings";
 import { getSiemAiSettings, getSiemIngestSettings } from "@/actions/siem-settings";
 import { getNetworkDocSettings } from "@/actions/network-doc-settings";
 import { getNcmSettings } from "@/actions/ncm-settings";
+import { getWatchGuardSettings } from "@/actions/watchguard-settings";
 import SettingsForm from "@/components/admin/settings-form";
 import SiemAiSettingsForm from "@/components/admin/siem-ai-settings-form";
 import SiemIngestSettingsForm from "@/components/admin/siem-ingest-settings-form";
 import NcmSettingsForm from "@/components/admin/ncm-settings-form";
+import WatchGuardSettingsForm from "@/components/admin/epdr/watchguard-settings-form";
 import { verifySession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -30,12 +32,13 @@ export default async function SettingsPage() {
 
     const t = await getTranslations("Settings");
 
-    const [settings, siemAiSettings, siemIngestSettings, networkDocSettings, ncmSettings] = await Promise.all([
+    const [settings, siemAiSettings, siemIngestSettings, networkDocSettings, ncmSettings, watchGuardSettings] = await Promise.all([
         getSettings(),
         getSiemAiSettings(),
         getSiemIngestSettings(),
         getNetworkDocSettings(),
         getNcmSettings(),
+        getWatchGuardSettings(),
     ]);
 
     return (
@@ -45,6 +48,7 @@ export default async function SettingsPage() {
             {!("message" in siemIngestSettings) && <SiemIngestSettingsForm initialData={siemIngestSettings} />}
             {!("message" in siemAiSettings) && <SiemAiSettingsForm initialData={siemAiSettings} />}
             {!("message" in ncmSettings) && <NcmSettingsForm initialData={ncmSettings} networkDoc={"message" in networkDocSettings ? undefined : networkDocSettings} />}
+            {!("message" in watchGuardSettings) && <WatchGuardSettingsForm initialData={watchGuardSettings} />}
         </main>
     );
 }

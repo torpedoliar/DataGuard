@@ -8,7 +8,8 @@ export type ResolutionCategory =
   | "Environment"
   | "Human Error"
   | "False Alarm"
-  | "Other";
+  | "Other"
+  | "Security";
 export type ResolutionAction =
   | "Replaced"
   | "Reconfigured"
@@ -27,6 +28,7 @@ export const resolutionCategories: ResolutionCategory[] = [
   "Human Error",
   "False Alarm",
   "Other",
+  "Security",
 ];
 export const resolutionActions: ResolutionAction[] = [
   "Replaced",
@@ -115,4 +117,26 @@ export function allowedNextStatuses(input: {
 
 export function isRecurringIncident(recentDeviceIncidentCount: number): boolean {
   return recentDeviceIncidentCount >= 2;
+}
+
+/** Target label inputs for {@link getIncidentTargetLabel}. */
+export type IncidentTarget = {
+  deviceName?: string | null;
+  epdrHostName?: string | null;
+  deviceId?: number | null;
+  epdrEndpointId?: number | null;
+};
+
+/**
+ * Human-readable incident target label. Prefers an endpoint hostname, then an
+ * asset name, then falls back to the numeric reference. Used everywhere a
+ * device-null endpoint incident must still render a target without throwing
+ * (T04).
+ */
+export function getIncidentTargetLabel(target: IncidentTarget): string {
+  if (target.epdrHostName) return target.epdrHostName;
+  if (target.deviceName) return target.deviceName;
+  if (target.deviceId) return `Device #${target.deviceId}`;
+  if (target.epdrEndpointId) return `Endpoint #${target.epdrEndpointId}`;
+  return "Unassigned";
 }

@@ -196,15 +196,19 @@ async function loadSiteLayout(siteId: number, scope?: { rackName: string | null;
 
     // Open incidents per device, worst severity first (site-scoped).
     const incidentsByDevice = deviceIds.length > 0
-        ? foldIncidents(await db
-            .select({ deviceId: incidents.deviceId, severity: incidents.severity, count: sql<number>`count(*)::int` })
-            .from(incidents)
-            .where(and(
+        ? foldIncidents(
+            (await db
+              .select({ deviceId: incidents.deviceId, severity: incidents.severity, count: sql<number>`count(*)::int` })
+              .from(incidents)
+              .where(and(
                 eq(incidents.siteId, siteId),
                 inArray(incidents.status, ["Open", "In Progress"]),
+                isNotNull(incidents.deviceId),
                 inArray(incidents.deviceId, deviceIds),
-            ))
-            .groupBy(incidents.deviceId, incidents.severity))
+              ))
+              .groupBy(incidents.deviceId, incidents.severity))
+              .map((r) => ({ deviceId: r.deviceId as number, severity: r.severity, count: r.count })),
+          )
         : new Map<number, OpenIncidents>();
 
     // Fetch all predefined racks for this site with location names

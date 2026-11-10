@@ -1,0 +1,7 @@
+{
+  "id": "action-0001",
+  "action_id": "action-0001",
+  "status": "completed",
+  "command": "quarantineFile",
+  "entity_id": "550e8400-e29b-41d4-a716-446655440001"
+}

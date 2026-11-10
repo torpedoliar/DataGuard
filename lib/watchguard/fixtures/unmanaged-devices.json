@@ -1,0 +1,14 @@
+{
+  "data": [
+    {
+      "unmanaged_device_id": "um-0001",
+      "device_id": "550e8400-e29b-41d4-a716-446655440099",
+      "host_name": "LAPTOP-FIN-01",
+      "ip_address": "10.0.2.15",
+      "status": 2,
+      "installation_error": null,
+      "last_seen": "2026-11-09T06:00:00Z"
+    }
+  ],
+  "total_items": 1
+}

@@ -442,6 +442,62 @@
       "when": 1791205200000,
       "tag": "0063_facility_room_layout",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791216000000,
+      "tag": "0064_epdr_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1791226800000,
+      "tag": "0065_epdr_endpoints",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1791237600000,
+      "tag": "0066_incident_epdr_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1791248400000,
+      "tag": "0067_epdr_detections",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1791259200000,
+      "tag": "0068_epdr_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1791270000000,
+      "tag": "0069_epdr_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1791280800000,
+      "tag": "0070_epdr_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1791291600000,
+      "tag": "0071_epdr_health_cases",
+      "breakpoints": true
     }
   ]
 }

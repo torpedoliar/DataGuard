@@ -1,0 +1,27 @@
+{
+  "data": [
+    {
+      "device_id": "550e8400-e29b-41d4-a716-446655440000",
+      "host_name": "SRV-DC-01",
+      "ip_address": "10.0.0.10",
+      "platform_id": 1,
+      "operating_system": "Windows Server 2022",
+      "device_type": 3,
+      "agent_version": "8.1.2",
+      "group_path": "Production/Servers",
+      "last_connection": "2026-11-09T08:00:00Z"
+    },
+    {
+      "device_id": "550e8400-e29b-41d4-a716-446655440001",
+      "host_name": "WS-ENG-07",
+      "ip_address": "10.0.1.77",
+      "platform_id": 1,
+      "operating_system": "Windows 11",
+      "device_type": 1,
+      "agent_version": "8.1.2",
+      "group_path": "Production/Workstations",
+      "last_connection": "2026-11-09T08:05:00Z"
+    }
+  ],
+  "total_items": 613
+}

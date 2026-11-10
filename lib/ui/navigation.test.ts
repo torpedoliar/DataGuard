@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import { getAppNavigation } from "./navigation";
 
 describe("app navigation", () => {
-  it("shows operator and resolve groups to staff", () => {
+  it("shows operator, resolve and read-only EPDR security groups to staff", () => {
     const groups = getAppNavigation("staff");
-    expect(groups.map((group) => group.label)).toEqual(["Operate", "Resolve"]);
-    expect(groups.flatMap((group) => group.items.map((item) => item.href))).toContain("/audit/new");
-    expect(groups.flatMap((group) => group.items.map((item) => item.href))).not.toContain("/admin/users");
+    expect(groups.map((group) => group.label)).toEqual(["Operate", "Resolve", "Security"]);
+    const hrefs = groups.flatMap((group) => group.items.map((item) => item.href));
+    expect(hrefs).toContain("/audit/new");
+    expect(hrefs).toContain("/admin/epdr");
+    expect(hrefs).toContain("/admin/epdr/threats");
+    expect(hrefs).not.toContain("/admin/users");
+    expect(hrefs).not.toContain("/admin/siem"); // SIEM stays admin-only
   });
 
   it("shows admin management items to admins", () => {

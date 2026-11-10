@@ -1,0 +1,29 @@
+{
+  "data": [
+    {
+      "device_id": "550e8400-e29b-41d4-a716-446655440000",
+      "accumulated_protection_status": 1,
+      "adaptive_defense_status": 1,
+      "file_antivirus_status": 1,
+      "firewall_status": 1,
+      "protection_engine_update_status": 0,
+      "knowledge_catalog_update_status": 0,
+      "reboot_requested": false,
+      "reinstall_protection_requested": false,
+      "reinstall_agent_requested": false
+    },
+    {
+      "device_id": "550e8400-e29b-41d4-a716-446655440001",
+      "accumulated_protection_status": 3,
+      "adaptive_defense_status": 3,
+      "file_antivirus_status": 3,
+      "firewall_status": 3,
+      "protection_engine_update_status": 1,
+      "knowledge_catalog_update_status": 0,
+      "reboot_requested": false,
+      "reinstall_protection_requested": false,
+      "reinstall_agent_requested": false
+    }
+  ],
+  "total_items": 613
+}

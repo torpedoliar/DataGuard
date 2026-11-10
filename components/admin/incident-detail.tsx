@@ -4,6 +4,7 @@ import PageHeader from "@/components/ui/page-header";
 import StatsCard from "@/components/ui/stats-card";
 import StatusBadge from "@/components/ui/status-badge";
 import { getIncidentSeverityTone, getIncidentStatusTone } from "@/lib/ui/status";
+import { getIncidentTargetLabel } from "@/lib/incidents";
 import IncidentAssignmentForm from "./incident-assignment-form";
 import IncidentStatusForm from "./incident-status-form";
 import IncidentUpdateForm from "./incident-update-form";
@@ -40,7 +41,7 @@ export default function IncidentDetail({
         />
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <StatsCard label="Device" value={incident.device.name} tone="neutral" meta="Affected asset" />
+          <StatsCard label="Device" value={getIncidentTargetLabel({ deviceName: incident.device?.name, epdrHostName: (incident as { epdrHostName?: string | null }).epdrHostName, deviceId: incident.deviceId, epdrEndpointId: incident.epdrEndpointId })} tone="neutral" meta="Affected asset" />
           <StatsCard label="Assignee" value={incident.assignedTo?.username ?? "Unassigned"} tone="accent" meta="Current owner" />
           <StatsCard label="Due" value={formatDate(incident.dueDate)} tone="warning" meta="Resolution target" />
         </div>

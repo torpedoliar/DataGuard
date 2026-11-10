@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "id": "ts-incident-0001",
+      "category": "malware",
+      "type": "ransomware",
+      "threat_score": 9,
+      "severity": "Critical",
+      "status": "new",
+      "entities": [
+        { "entityId": "550e8400-e29b-41d4-a716-446655440001", "type": "endpoint", "md5": "9f8e7d6c5b4a3210fedcba9876543210" }
+      ],
+      "recommended_actions": [{ "command": "quarantineFile", "entityId": "550e8400-e29b-41d4-a716-446655440001", "parameters": { "md5": "9f8e7d6c5b4a3210fedcba9876543210" } }],
+      "remediated": false
+    },
+    {
+      "id": "ts-incident-0002",
+      "category": "ioa",
+      "type": "credential-theft",
+      "threat_score": 7,
+      "severity": "High",
+      "status": "read",
+      "entities": [
+        { "entityId": "550e8400-e29b-41d4-a716-446655440001", "type": "endpoint" }
+      ],
+      "recommended_actions": [],
+      "remediated": false
+    }
+  ],
+  "count": 2
+}

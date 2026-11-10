@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "license_type": "EPDR", "total": 500, "used": 480 },
+    { "license_type": "EDR Core", "total": 200, "used": 133 }
+  ],
+  "total_items": 2
+}

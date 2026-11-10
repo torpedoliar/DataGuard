@@ -1,0 +1,8 @@
+{
+  "data": [
+    { "event_type": 1, "count": 12 },
+    { "event_type": 2, "count": 4 },
+    { "event_type": 4, "count": 1 }
+  ],
+  "total_items": 3
+}

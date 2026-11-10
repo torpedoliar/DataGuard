@@ -7,6 +7,7 @@ import {
   DataTableHead,
 } from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
+import { getIncidentTargetLabel } from "@/lib/incidents";
 import { getIncidentSeverityTone, getIncidentStatusTone, type UiTone } from "@/lib/ui/status";
 
 type IncidentRow = {
@@ -15,7 +16,8 @@ type IncidentRow = {
   severity: string;
   status: string;
   dueDate: Date | null;
-  deviceName: string;
+  deviceName: string | null;
+  epdrHostName: string | null;
   assignee: string | null;
   isRecurring: boolean;
 };
@@ -69,7 +71,7 @@ export default function IncidentTable({ incidents }: { incidents: IncidentRow[] 
                   <div className="mt-1 text-xs font-medium text-ops-danger">Recurring issue</div>
                 )}
               </td>
-              <td className="px-4 py-3 text-muted">{incident.deviceName}</td>
+              <td className="px-4 py-3 text-muted">{getIncidentTargetLabel({ deviceName: incident.deviceName, epdrHostName: incident.epdrHostName })}</td>
               <td className="px-4 py-3">
                 <StatusBadge tone={getIncidentSeverityTone(incident.severity)} dot>
                   {incident.severity}

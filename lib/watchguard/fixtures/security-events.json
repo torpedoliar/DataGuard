@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "device_id": "550e8400-e29b-41d4-a716-446655440001",
+      "host_name": "WS-ENG-07",
+      "event_type": 1,
+      "threat_name": "Trojan.GenericKD.12345",
+      "file_path": "C:\\Users\\eng\\Downloads\\invoice.exe",
+      "md5": "9f8e7d6c5b4a3210fedcba9876543210",
+      "detected_at": "2026-11-09T07:30:00Z"
+    },
+    {
+      "device_id": "550e8400-e29b-41d4-a716-446655440001",
+      "host_name": "WS-ENG-07",
+      "event_type": 2,
+      "threat_name": "PUP.Optional.BrowserToolbar",
+      "file_path": "C:\\Users\\eng\\AppData\\Local\\toolbar.dll",
+      "md5": "11111111111111111111111111111111",
+      "detected_at": "2026-11-09T07:31:00Z"
+    }
+  ],
+  "total_items": 2
+}

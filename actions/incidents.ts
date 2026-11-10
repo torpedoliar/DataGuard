@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { devices, emailAlerts, incidentUpdates, incidents, sites, siteTelegramChatIds, userSites, users } from "@/db/schema";
+import { devices, emailAlerts, epdrEndpoints, incidentUpdates, incidents, sites, siteTelegramChatIds, userSites, users } from "@/db/schema";
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit, logAuditManual } from "@/lib/audit";
 import {
@@ -23,7 +23,7 @@ import { hasAdminAccess } from "@/lib/site-access";
 import { resolveNotificationBaseUrl } from "@/lib/notification-url";
 import { escapeTelegramHtml, sendTelegramAlert } from "@/lib/telegram";
 import { saveUploadFile, UploadValidationError } from "@/lib/upload";
-import { resolveChecklistPicRecipients, sendChecklistPicEmail, renderIncidentProgressEmailHtml } from "@/lib/email";
+import { resolveChecklistPicRecipients, sendChecklistPicEmail, renderIncidentProgressEmailHtml, type PicGroupRecipient } from "@/lib/email";
 import { and, desc, eq, gte, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -79,8 +79,9 @@ function revalidateIncidentPaths(incidentId?: number) {
   revalidatePath("/report");
 }
 
-async function getRecurringDeviceCounts(siteId: number, deviceIds: number[]) {
-  if (deviceIds.length === 0) return new Map<number, number>();
+async function getRecurringDeviceCounts(siteId: number, deviceIds: (number | null)[]) {
+  const nonNull = deviceIds.filter((id): id is number => id !== null);
+  if (nonNull.length === 0) return new Map<number, number>();
 
   const since = new Date();
   since.setDate(since.getDate() - 30);
@@ -92,12 +93,12 @@ async function getRecurringDeviceCounts(siteId: number, deviceIds: number[]) {
     .from(incidents)
     .where(and(
       eq(incidents.siteId, siteId),
-      inArray(incidents.deviceId, deviceIds),
+      inArray(incidents.deviceId, nonNull),
       gte(incidents.createdAt, since),
     ))
     .groupBy(incidents.deviceId);
 
-  return new Map(rows.map((row) => [row.deviceId, Number(row.count)]));
+  return new Map(rows.map((row) => [row.deviceId ?? 0, Number(row.count)]));
 }
 
 async function resolveIncidentRecipients(siteId: number, severity: IncidentSeverity, legacyChatId: string | null | undefined) {
@@ -230,25 +231,29 @@ async function notifyIncidentProgressToPic(input: {
   newStatus?: string;
   updateType: "status_changed" | "comment" | "evidence";
   note?: string | null;
-  deviceId: number;
+  deviceId: number | null;
   updatedBy: string;
 }) {
   try {
     const [picMap, site, device, baseUrl] = await Promise.all([
-      resolveChecklistPicRecipients([input.deviceId], input.siteId),
+      input.deviceId !== null
+        ? resolveChecklistPicRecipients([input.deviceId], input.siteId)
+        : Promise.resolve(new Map<number, PicGroupRecipient>()),
       db.query.sites.findFirst({
         where: eq(sites.id, input.siteId),
         columns: { name: true, code: true, telegramChatId: true },
       }),
-      db.query.devices.findFirst({
-        where: eq(devices.id, input.deviceId),
-        with: { location: true, category: true },
-      }),
+      input.deviceId !== null
+        ? db.query.devices.findFirst({
+            where: eq(devices.id, input.deviceId),
+            with: { location: true, category: true },
+          })
+        : Promise.resolve(null),
       resolveNotificationBaseUrl(),
     ]);
 
     const siteName = site?.name ?? "Data Center";
-    const deviceName = device?.name ?? "Device";
+    const deviceName = device?.name ?? (input.deviceId === null ? "WatchGuard endpoint" : "Device");
     const locationName = device?.location?.name ?? device?.rackName ?? "-";
     const incidentUrl = `${baseUrl}/admin/incidents/${input.incidentId}`;
     const isStatusChange = input.updateType === "status_changed";
@@ -392,10 +397,12 @@ export async function getIncidents(filters: IncidentListFilters = {}) {
     createdAt: incidents.createdAt,
     deviceId: incidents.deviceId,
     deviceName: devices.name,
+    epdrHostName: epdrEndpoints.hostName,
     assignee: users.username,
   })
     .from(incidents)
-    .innerJoin(devices, eq(incidents.deviceId, devices.id))
+    .leftJoin(devices, eq(incidents.deviceId, devices.id))
+    .leftJoin(epdrEndpoints, eq(incidents.epdrEndpointId, epdrEndpoints.id))
     .leftJoin(users, eq(incidents.assignedToId, users.id))
     .where(and(...conditions))
     .orderBy(desc(incidents.createdAt));
@@ -403,7 +410,7 @@ export async function getIncidents(filters: IncidentListFilters = {}) {
   const recurringCounts = await getRecurringDeviceCounts(auth.activeSiteId, rows.map((row) => row.deviceId));
   return rows.map((row) => ({
     ...row,
-    isRecurring: isRecurringIncident(recurringCounts.get(row.deviceId) ?? 0),
+    isRecurring: isRecurringIncident(recurringCounts.get(row.deviceId ?? 0) ?? 0),
   }));
 }
 
@@ -432,9 +439,18 @@ export async function getIncidentDetail(incidentId: number) {
   if (!canView) return null;
 
   const recurringCounts = await getRecurringDeviceCounts(auth.activeSiteId, [incident.deviceId]);
+  let epdrHostName: string | null = null;
+  if (incident.epdrEndpointId) {
+    const ep = await db.query.epdrEndpoints.findFirst({
+      where: eq(epdrEndpoints.id, incident.epdrEndpointId),
+      columns: { hostName: true },
+    });
+    epdrHostName = ep?.hostName ?? null;
+  }
   return {
     ...incident,
-    isRecurring: isRecurringIncident(recurringCounts.get(incident.deviceId) ?? 0),
+    epdrHostName,
+    isRecurring: isRecurringIncident(recurringCounts.get(incident.deviceId ?? 0) ?? 0),
   };
 }
 

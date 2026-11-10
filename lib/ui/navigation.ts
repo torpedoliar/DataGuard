@@ -38,6 +38,13 @@ const complianceItems: NavItem[] = [
   { href: "/compliance/threat-intel", label: "Threat Intelligence", icon: "shield-check" },
 ];
 
+// EPDR monitor items are read-only and visible to site staff, admin and
+// superadmin alike (C8); the rest of the Security group stays admin-only.
+const epdrItems: NavItem[] = [
+  { href: "/admin/epdr", label: "Endpoint Security", icon: "server-cog" },
+  { href: "/admin/epdr/threats", label: "Threats", icon: "radar" },
+];
+
 const infrastructureItems: NavItem[] = [
   { href: "/admin", label: "Devices", labelKey: "devices", ns: "AdminMenu", icon: "server" },
   { href: "/admin/rack-manage", label: "Racks", labelKey: "racks", ns: "AdminMenu", icon: "boxes" },
@@ -76,9 +83,14 @@ export function getAppNavigation(role: UserRole): NavGroup[] {
     { label: "Resolve", labelKey: "resolve", items: resolveItems },
   ];
 
+  const securityItems: NavItem[] = [...epdrItems];
+  if (role === "admin" || role === "superadmin") {
+    securityItems.unshift(...siemItems, ...complianceItems);
+  }
+  groups.push({ label: "Security", labelKey: "security", items: securityItems });
+
   if (role === "admin" || role === "superadmin") {
     groups.push(
-      { label: "Security", labelKey: "security", items: [...siemItems, ...complianceItems] },
       { label: "Infrastructure", labelKey: "infrastructure", items: infrastructureItems },
       { label: "Network", labelKey: "network", items: networkItems },
       { label: "Records", labelKey: "records", items: catalogItems },

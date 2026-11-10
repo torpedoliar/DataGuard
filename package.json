@@ -31,6 +31,8 @@
     "siem:ai": "tsx scripts/siem-ai-worker.ts",
     "siem:snapshot": "tsx scripts/siem-snapshot-worker.ts",
     "siem:response": "tsx scripts/siem-response-worker.ts",
+    "watchguard:worker": "tsx scripts/watchguard-worker.ts",
+    "watchguard:worker:run-once": "tsx scripts/watchguard-worker.ts --run-once",
     "backup:scheduler": "tsx scripts/scheduled-backup.ts",
     "backup:restore": "tsx scripts/restore-from-file.ts",
     "reports:scheduler": "tsx scripts/report-scheduler-worker.ts",

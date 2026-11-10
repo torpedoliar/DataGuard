@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, jsonb, index, real } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, jsonb, index, real, uuid } from "drizzle-orm/pg-core";
 import { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { AssetType, FacilitySpecs } from "@/lib/facility-asset";
 
@@ -16,7 +16,7 @@ export const faceplateNumberingEnum = pgEnum("faceplate_numbering", ["zigzag", "
 export const incidentSeverityEnum = pgEnum("incident_severity", ["Low", "Medium", "High", "Critical"]);
 export const incidentStatusEnum = pgEnum("incident_status", ["Open", "In Progress", "Resolved", "Verified"]);
 export const incidentUpdateTypeEnum = pgEnum("incident_update_type", ["created", "assigned", "status_changed", "comment", "evidence"]);
-export const resolutionCategoryEnum = pgEnum("resolution_category", ["Hardware", "Power", "Network", "Environment", "Human Error", "False Alarm", "Other"]);
+export const resolutionCategoryEnum = pgEnum("resolution_category", ["Hardware", "Power", "Network", "Environment", "Human Error", "False Alarm", "Other", "Security"]);
 export const resolutionActionEnum = pgEnum("resolution_action", ["Replaced", "Reconfigured", "Restarted", "Cleaned", "Escalated", "No Action Needed"]);
 export const syslogTransportEnum = pgEnum("syslog_transport", ["udp", "tcp", "tls"]);
 export const syslogIngestStatusEnum = pgEnum("syslog_ingest_status", ["received", "parsed", "parse_failed", "dropped"]);
@@ -282,12 +282,16 @@ export const checklistItems = pgTable("checklist_items", {
 export const incidents = pgTable("incidents", {
   id: serial("id").primaryKey(),
   siteId: integer("site_id").references(() => sites.id).notNull(),
-  deviceId: integer("device_id").references(() => devices.id).notNull(),
+  deviceId: integer("device_id").references(() => devices.id),
   checklistItemId: integer("checklist_item_id").references(() => checklistItems.id, { onDelete: "set null" }),
+  epdrEndpointId: integer("epdr_endpoint_id").references(() => epdrEndpoints.id, { onDelete: "restrict" }),
   title: text("title").notNull(),
   description: text("description"),
   severity: incidentSeverityEnum("severity").notNull().default("Medium"),
   status: incidentStatusEnum("status").notNull().default("Open"),
+  source: text("source").notNull().default("manual"),
+  externalRef: text("external_ref"),
+  automationHold: boolean("automation_hold").notNull().default(false),
   createdById: integer("created_by_id").references(() => users.id),
   assignedToId: integer("assigned_to_id").references(() => users.id),
   dueDate: timestamp("due_date"),
@@ -1351,3 +1355,456 @@ export const threatIntelligenceEvidencesRelations = relations(threatIntelligence
 }));
 
 
+
+// ==================== WATCHGUARD EPDR (T02) ====================
+// Per-site WatchGuard Cloud connection. Secrets (api_key, rw/ro_password) are
+// encrypted at rest (lib/crypto.ts); access ids are not secrets. One row per
+// site (site_id UNIQUE) and one binding per (region, account_id).
+export const watchguardConnections = pgTable(
+  "watchguard_connections",
+  {
+    id: serial("id").primaryKey(),
+    siteId: integer("site_id").notNull().unique().references(() => sites.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(false),
+    region: text("region").notNull(),
+    accountId: text("account_id").notNull(),
+    apiKey: text("api_key"),
+    rwAccessId: text("rw_access_id"),
+    rwPassword: text("rw_password"),
+    roAccessId: text("ro_access_id"),
+    roPassword: text("ro_password"),
+    endpointSyncMinutes: integer("endpoint_sync_minutes").notNull().default(15),
+    detectionSyncMinutes: integer("detection_sync_minutes").notNull().default(5),
+    credentialRevision: integer("credential_revision").notNull().default(0),
+    accountRevision: integer("account_revision").notNull().default(0),
+    lastTestAt: timestamp("last_test_at"),
+    lastTestResult: jsonb("last_test_result"),
+    lastEndpointSyncAt: timestamp("last_endpoint_sync_at"),
+    lastDetectionSyncAt: timestamp("last_detection_sync_at"),
+    lastSyncError: text("last_sync_error"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    regionAccountIdx: uniqueIndex("watchguard_connections_region_account_idx").on(table.region, table.accountId),
+  }),
+);
+
+// Singleton (id=1) superadmin-global EPDR controls. allowed_actions is the
+// ceiling for every site (values from lib/epdr/action-types.ts).
+export const watchguardGlobalSettings = pgTable("watchguard_global_settings", {
+  id: integer("id").primaryKey().default(1),
+  killSwitch: boolean("kill_switch").notNull().default(false),
+  allowedActions: text("allowed_actions").array().notNull().default(sql`ARRAY['scan']::text[]`),
+  maxActionsPerHourPerSite: integer("max_actions_per_hour_per_site").notNull().default(30),
+  simulationMinDays: integer("simulation_min_days").notNull().default(7),
+  autoCloseCategories: text("auto_close_categories").array().notNull().default(sql`ARRAY['malware', 'pup']::text[]`),
+  autoCloseMaxScore: integer("auto_close_max_score").notNull().default(6),
+  approvalExpiryHours: integer("approval_expiry_hours").notNull().default(24),
+  exclusionMaxDays: integer("exclusion_max_days").notNull().default(90),
+  updatedBy: integer("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ==================== WATCHGUARD EPDR ENDPOINTS (T03) ====================
+export const epdrEndpoints = pgTable(
+  "epdr_endpoints",
+  {
+    id: serial("id").primaryKey(),
+    connectionId: integer("connection_id").notNull().references(() => watchguardConnections.id, { onDelete: "cascade" }),
+    siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    wgDeviceId: text("wg_device_id").notNull(),
+    hostName: text("host_name").notNull(),
+    ipAddress: text("ip_address"),
+    macAddresses: jsonb("mac_addresses"),
+    platformId: integer("platform_id"),
+    operatingSystem: text("operating_system"),
+    deviceType: integer("device_type"),
+    agentVersion: text("agent_version"),
+    wgSiteName: text("wg_site_name"),
+    groupPath: text("group_path"),
+    securityConfigurationId: text("security_configuration_id"),
+    securityConfigurationName: text("security_configuration_name"),
+    isolationState: integer("isolation_state"),
+    licenseStatus: integer("license_status"),
+    encryption: jsonb("encryption"),
+    lastConnectionAt: timestamp("last_connection_at"),
+    accumulatedProtectionStatus: integer("accumulated_protection_status"),
+    adaptiveDefenseStatus: integer("adaptive_defense_status"),
+    fileAntivirusStatus: integer("file_antivirus_status"),
+    firewallStatus: integer("firewall_status"),
+    protectionEngineUpdateStatus: integer("protection_engine_update_status"),
+    protectionEngineVersion: text("protection_engine_version"),
+    knowledgeCatalogUpdateStatus: integer("knowledge_catalog_update_status"),
+    knowledgeCatalogDate: timestamp("knowledge_catalog_date"),
+    rebootRequested: boolean("reboot_requested"),
+    reinstallProtectionRequested: boolean("reinstall_protection_requested"),
+    reinstallAgentRequested: boolean("reinstall_agent_requested"),
+    reinstallProtectionError: jsonb("reinstall_protection_error"),
+    reinstallAgentError: jsonb("reinstall_agent_error"),
+    deviceId: integer("device_id").references(() => devices.id, { onDelete: "set null" }),
+    isCritical: boolean("is_critical").notNull().default(false),
+    noAuto: boolean("no_auto").notNull().default(false),
+    firstSeenAt: timestamp("first_seen_at").notNull().defaultNow(),
+    lastSyncedAt: timestamp("last_synced_at").notNull(),
+    removedAt: timestamp("removed_at"),
+    raw: jsonb("raw"),
+  },
+  (table) => ({
+    connectionDeviceIdx: uniqueIndex("epdr_endpoints_connection_device_unique").on(table.connectionId, table.wgDeviceId),
+    siteProtectionIdx: index("epdr_endpoints_site_protection_idx").on(table.siteId, table.accumulatedProtectionStatus),
+    siteHostIdx: index("epdr_endpoints_site_host_idx").on(table.siteId, table.hostName),
+  }),
+);
+
+export const epdrSyncRuns = pgTable("epdr_sync_runs", {
+  id: serial("id").primaryKey(),
+  connectionId: integer("connection_id").notNull().references(() => watchguardConnections.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  startedAt: timestamp("started_at").notNull(),
+  finishedAt: timestamp("finished_at"),
+  status: text("status").notNull(),
+  stats: jsonb("stats"),
+  error: text("error"),
+});
+
+export const epdrUnmanagedDevices = pgTable(
+  "epdr_unmanaged_devices",
+  {
+    id: serial("id").primaryKey(),
+    connectionId: integer("connection_id").notNull().references(() => watchguardConnections.id, { onDelete: "cascade" }),
+    siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    wgUnmanagedId: text("wg_unmanaged_id").notNull(),
+    hostName: text("host_name"),
+    ipAddress: text("ip_address"),
+    macAddress: text("mac_address"),
+    status: integer("status"),
+    installationError: text("installation_error"),
+    lastSeenAt: timestamp("last_seen_at"),
+    lastSyncedAt: timestamp("last_synced_at").notNull(),
+    raw: jsonb("raw"),
+  },
+  (table) => ({
+    connectionUnmanagedIdx: uniqueIndex("epdr_unmanaged_connection_device_unique").on(table.connectionId, table.wgUnmanagedId),
+  }),
+);
+
+// ==================== WATCHGUARD EPDR DETECTIONS (T05) ====================
+export const epdrSiteSettings = pgTable("epdr_site_settings", {
+  siteId: integer("site_id").primaryKey().references(() => sites.id, { onDelete: "cascade" }),
+  ingestEnabled: boolean("ingest_enabled").notNull().default(false),
+  eventTypes: integer("event_types").array().notNull().default(sql`ARRAY[1,2,4,6,18]`),
+  threatsyncEnabled: boolean("threatsync_enabled").notNull().default(true),
+  threatsyncCategories: text("threatsync_categories").array().notNull().default(sql`ARRAY['malware','pup','virus','exploit','ioa']`),
+  threatsyncMinScore: integer("threatsync_min_score").notNull().default(7),
+  threatsyncMaxScore: integer("threatsync_max_score").notNull().default(10),
+  defaultSeverity: jsonb("default_severity").notNull().default(sql`'{"1":"High","2":"Medium","4":"High","6":"High","18":"High"}'::jsonb`),
+  correlationWindowMinutes: integer("correlation_window_minutes").notNull().default(1440),
+  reopenWindowDays: integer("reopen_window_days").notNull().default(7),
+  defaultAssigneeId: integer("default_assignee_id").references(() => users.id, { onDelete: "set null" }),
+  siteKillSwitch: boolean("site_kill_switch").notNull().default(false),
+  automationPausedAt: timestamp("automation_paused_at"),
+  automationPausedReason: text("automation_paused_reason"),
+  breakerMaxActions: integer("breaker_max_actions").notNull().default(20),
+  breakerWindowMinutes: integer("breaker_window_minutes").notNull().default(15),
+  breakerSameThreatEndpoints: integer("breaker_same_threat_endpoints").notNull().default(5),
+  healthEnabled: boolean("health_enabled").notNull().default(false),
+  healthGraceMinutes: integer("health_grace_minutes").notNull().default(30),
+  healthStageWaitHours: integer("health_stage_wait_hours").notNull().default(24),
+  healthRebootMode: text("health_reboot_mode").notNull().default("approval"),
+  healthRebootCountdown: integer("health_reboot_countdown").notNull().default(7),
+  healthStableMinutes: integer("health_stable_minutes").notNull().default(60),
+  updatedBy: integer("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const epdrDetections = pgTable(
+  "epdr_detections",
+  {
+    id: serial("id").primaryKey(),
+    connectionId: integer("connection_id").notNull().references(() => watchguardConnections.id, { onDelete: "cascade" }),
+    siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    sourceKey: text("source_key").notNull(),
+    endpointId: integer("endpoint_id").references(() => epdrEndpoints.id, { onDelete: "set null" }),
+    category: text("category").notNull(),
+    providerType: text("provider_type"),
+    threatName: text("threat_name"),
+    filePath: text("file_path"),
+    md5: text("md5"),
+    threatScore: integer("threat_score"),
+    severity: text("severity").notNull(),
+    detectedAt: timestamp("detected_at").notNull(),
+    tsIncidentId: text("ts_incident_id"),
+    tsStatus: text("ts_status"),
+    tsRemediated: boolean("ts_remediated"),
+    tsLastUpdateAt: timestamp("ts_last_update_at"),
+    incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "set null" }),
+    ignoredReason: text("ignored_reason"),
+    raw: jsonb("raw").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    connectionSourceKeyIdx: uniqueIndex("epdr_detections_connection_source_key_unique").on(table.connectionId, table.source, table.sourceKey),
+    endpointTimeIdx: index("epdr_detections_endpoint_time_idx").on(table.endpointId, table.detectedAt),
+    incidentIdx: index("epdr_detections_incident_idx").on(table.incidentId),
+  }),
+);
+
+export const epdrWorkflows = pgTable("epdr_workflows", {
+  incidentId: integer("incident_id").primaryKey().references(() => incidents.id, { onDelete: "cascade" }),
+  siteId: integer("site_id").notNull().references(() => sites.id),
+  endpointId: integer("endpoint_id").references(() => epdrEndpoints.id, { onDelete: "set null" }),
+  state: text("state").notNull().default("detected"),
+  kind: text("kind").notNull().default("threat"),
+  threatKey: text("threat_key").notNull(),
+  evidenceGeneration: integer("evidence_generation").notNull().default(0),
+  lastDetectionAt: timestamp("last_detection_at").notNull(),
+  reopenCount: integer("reopen_count").notNull().default(0),
+  verificationStartedAt: timestamp("verification_started_at"),
+  rescanCount: integer("rescan_count").notNull().default(0),
+  closeDecision: jsonb("close_decision"),
+  tsSyncState: text("ts_sync_state"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const epdrProviderIncidents = pgTable(
+  "epdr_provider_incidents",
+  {
+    id: serial("id").primaryKey(),
+    connectionId: integer("connection_id").notNull().references(() => watchguardConnections.id, { onDelete: "cascade" }),
+    tsIncidentId: text("ts_incident_id").notNull(),
+    providerStatus: text("provider_status"),
+    evidenceFingerprint: text("evidence_fingerprint"),
+    completeSyncRevision: integer("complete_sync_revision").notNull().default(0),
+    raw: jsonb("raw"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    connectionTsIncidentIdx: uniqueIndex("epdr_provider_incidents_connection_ts_idx").on(table.connectionId, table.tsIncidentId),
+  }),
+);
+
+export const epdrProviderIncidentTargets = pgTable(
+  "epdr_provider_incident_targets",
+  {
+    id: serial("id").primaryKey(),
+    providerIncidentId: integer("provider_incident_id").notNull().references(() => epdrProviderIncidents.id, { onDelete: "cascade" }),
+    entityId: text("entity_id").notNull(),
+    endpointId: integer("endpoint_id").references(() => epdrEndpoints.id, { onDelete: "set null" }),
+    incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "set null" }),
+    classification: text("classification").notNull().default("unreviewed"),
+    reviewState: text("review_state").notNull().default("unreviewed"),
+    raw: jsonb("raw"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    providerIncidentEntityIdx: uniqueIndex("epdr_provider_incident_targets_entity_unique").on(table.providerIncidentId, table.entityId),
+  }),
+);
+
+// ==================== WATCHGUARD EPDR RULES (T06) ====================
+export const epdrRules = pgTable(
+  "epdr_rules",
+  {
+    id: serial("id").primaryKey(),
+    siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    ruleKey: uuid("rule_key").notNull(),
+    version: integer("version").notNull(),
+    isCurrent: boolean("is_current").notNull().default(true),
+    name: text("name").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    trigger: text("trigger").notNull().default("detection"),
+    categories: text("categories").array().notNull().default(sql`'{}'::text[]`),
+    minScore: integer("min_score"),
+    maxScore: integer("max_score"),
+    deviceTypes: integer("device_types").array().notNull().default(sql`ARRAY[1,2]`),
+    actionType: text("action_type").notNull(),
+    actionParams: jsonb("action_params").notNull().default(sql`'{}'::jsonb`),
+    executionMode: text("execution_mode").notNull().default("simulate"),
+    closeMode: text("close_mode").notNull().default("manual"),
+    observationMinutes: integer("observation_minutes").notNull().default(30),
+    cooldownMinutes: integer("cooldown_minutes").notNull().default(240),
+    priority: integer("priority").notNull().default(100),
+    simulateSince: timestamp("simulate_since"),
+    pendingMode: text("pending_mode"),
+    pendingModeRequestedBy: integer("pending_mode_requested_by").references(() => users.id),
+    pendingModeRequestedAt: timestamp("pending_mode_requested_at"),
+    createdBy: integer("created_by").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    ruleKeyVersionIdx: uniqueIndex("epdr_rules_rule_key_version_unique").on(table.ruleKey, table.version),
+    currentRuleKeyIdx: uniqueIndex("epdr_rules_current_idx").on(table.ruleKey).where(sql`${table.isCurrent}`),
+  }),
+);
+
+export const epdrRuleEvaluations = pgTable(
+  "epdr_rule_evaluations",
+  {
+    id: serial("id").primaryKey(),
+    siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    incidentId: integer("incident_id").notNull().references(() => incidents.id, { onDelete: "cascade" }),
+    endpointId: integer("endpoint_id").references(() => epdrEndpoints.id, { onDelete: "set null" }),
+    ruleId: integer("rule_id").references(() => epdrRules.id),
+    triggerDetectionId: integer("trigger_detection_id").references(() => epdrDetections.id),
+    decision: text("decision").notNull(),
+    effectiveMode: text("effective_mode"),
+    reasons: jsonb("reasons").notNull(),
+    actionId: integer("action_id"),
+    nextEvaluateAt: timestamp("next_evaluate_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueEvalIdx: uniqueIndex("epdr_rule_evaluations_unique").on(table.incidentId, table.ruleId, table.triggerDetectionId),
+  }),
+);
+
+// ==================== WATCHGUARD EPDR ACTIONS (T07) ====================
+export const epdrActions = pgTable(
+  "epdr_actions",
+  {
+    id: serial("id").primaryKey(),
+    siteId: integer("site_id").notNull().references(() => sites.id),
+    connectionId: integer("connection_id").notNull().references(() => watchguardConnections.id),
+    incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "set null" }),
+    endpointId: integer("endpoint_id").notNull().references(() => epdrEndpoints.id),
+    evaluationId: integer("evaluation_id").references(() => epdrRuleEvaluations.id),
+    ruleId: integer("rule_id").references(() => epdrRules.id),
+    actionType: text("action_type").notNull(),
+    params: jsonb("params").notNull(),
+    mode: text("mode").notNull(),
+    state: text("state").notNull(),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    requestedBy: integer("requested_by").references(() => users.id),
+    approvedBy: integer("approved_by").references(() => users.id),
+    approvedAt: timestamp("approved_at"),
+    approvalExpiresAt: timestamp("approval_expires_at"),
+    cancelledBy: integer("cancelled_by").references(() => users.id),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at"),
+    attempt: integer("attempt").notNull().default(0),
+    dispatchedAt: timestamp("dispatched_at"),
+    providerRef: text("provider_ref"),
+    providerJobId: text("provider_job_id"),
+    providerStatus: integer("provider_status"),
+    providerStatusAt: timestamp("provider_status_at"),
+    affectedItems: integer("affected_items"),
+    result: jsonb("result"),
+    error: text("error"),
+    deadlineAt: timestamp("deadline_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    stateIdx: index("epdr_actions_state_idx").on(table.state, table.leaseExpiresAt),
+    endpointIdx: index("epdr_actions_endpoint_idx").on(table.endpointId, table.actionType, table.createdAt),
+  }),
+);
+
+export const epdrActionIncidentLinks = pgTable(
+  "epdr_action_incident_links",
+  {
+    id: serial("id").primaryKey(),
+    actionId: integer("action_id").notNull().references(() => epdrActions.id, { onDelete: "cascade" }),
+    incidentId: integer("incident_id").notNull().references(() => incidents.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueIdx: uniqueIndex("epdr_action_incident_links_unique").on(table.actionId, table.incidentId),
+  }),
+);
+
+export const epdrAttempts = pgTable(
+  "epdr_attempts",
+  {
+    id: serial("id").primaryKey(),
+    actionId: integer("action_id").notNull().references(() => epdrActions.id, { onDelete: "cascade" }),
+    attempt: integer("attempt").notNull(),
+    startedAt: timestamp("started_at").notNull(),
+    status: text("status").notNull(),
+    request: jsonb("request"),
+    response: jsonb("response"),
+    error: text("error"),
+  },
+  (table) => ({
+    uniqueIdx: uniqueIndex("epdr_attempts_action_attempt_unique").on(table.actionId, table.attempt),
+  }),
+);
+
+export const epdrProviderSyncOutbox = pgTable("epdr_provider_sync_outbox", {
+  id: serial("id").primaryKey(),
+  connectionId: integer("connection_id").notNull().references(() => watchguardConnections.id, { onDelete: "cascade" }),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  providerIncidentId: text("provider_incident_id"),
+  dedupKey: text("dedup_key").notNull().unique(),
+  accountRevision: integer("account_revision").notNull().default(0),
+  evidenceGeneration: integer("evidence_generation").notNull().default(0),
+  payload: jsonb("payload").notNull(),
+  state: text("state").notNull().default("pending"),
+  retries: integer("retries").notNull().default(0),
+  error: text("error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ==================== WATCHGUARD EPDR VERIFICATION / HEALTH (T08/T09) ==========
+export const epdrExclusions = pgTable(
+  "epdr_exclusions",
+  {
+    id: serial("id").primaryKey(),
+    siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    matchMd5: text("match_md5"),
+    matchThreatName: text("match_threat_name"),
+    endpointId: integer("endpoint_id").references(() => epdrEndpoints.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdBy: integer("created_by").notNull().references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    md5Idx: index("epdr_exclusions_md5_idx").on(table.siteId, table.matchMd5),
+    nameIdx: index("epdr_exclusions_name_idx").on(table.siteId, table.matchThreatName),
+  }),
+);
+
+export const epdrCampaigns = pgTable(
+  "epdr_campaigns",
+  {
+    id: serial("id").primaryKey(),
+    siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    threatKey: text("threat_key").notNull(),
+    windowKey: text("window_key").notNull(),
+    startedAt: timestamp("started_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueCampaignIdx: uniqueIndex("epdr_campaigns_unique").on(table.siteId, table.threatKey, table.windowKey),
+  }),
+);
+
+export const epdrHealthCases = pgTable(
+  "epdr_health_cases",
+  {
+    id: serial("id").primaryKey(),
+    siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    endpointId: integer("endpoint_id").notNull().references(() => epdrEndpoints.id, { onDelete: "cascade" }),
+    problem: text("problem").notNull(),
+    stage: integer("stage").notNull().default(0),
+    openedAt: timestamp("opened_at").notNull(),
+    stageChangedAt: timestamp("stage_changed_at").notNull(),
+    lastStatus: jsonb("last_status").notNull(),
+    incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "set null" }),
+    rebootActionId: integer("reboot_action_id").references(() => epdrActions.id),
+    healthySince: timestamp("healthy_since"),
+    closedAt: timestamp("closed_at"),
+    closeReason: text("close_reason"),
+  },
+  (table) => ({
+    openIdx: uniqueIndex("epdr_health_cases_open_idx").on(table.endpointId).where(sql`${table.closedAt} IS NULL`),
+  }),
+);

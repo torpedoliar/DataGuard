@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "config_id": "cfg-workstation", "type": 2, "name": "Standard Workstation" },
+    { "config_id": "cfg-server", "type": 2, "name": "Standard Server" }
+  ],
+  "total_items": 2
+}

@@ -1,0 +1,13 @@
+{
+  "data": [
+    {
+      "job_id": "job-0001",
+      "device_id": "550e8400-e29b-41d4-a716-446655440001",
+      "status": 2,
+      "affected_items": 0,
+      "start_time": "2026-11-09T08:11:00Z",
+      "finish_time": "2026-11-09T08:31:00Z"
+    }
+  ],
+  "total_items": 1
+}
