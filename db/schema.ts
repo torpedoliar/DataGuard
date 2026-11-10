@@ -1637,8 +1637,9 @@ export const epdrRules = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
-    ruleKeyVersionIdx: uniqueIndex("epdr_rules_rule_key_version_unique").on(table.ruleKey, table.version),
-    currentRuleKeyIdx: uniqueIndex("epdr_rules_current_idx").on(table.ruleKey).where(sql`${table.isCurrent}`),
+    // Scoped per site: seeded templates share a fixed rule_key across sites.
+    siteRuleKeyVersionIdx: uniqueIndex("epdr_rules_site_rule_key_version_key").on(table.siteId, table.ruleKey, table.version),
+    currentRuleKeyIdx: uniqueIndex("epdr_rules_current_idx").on(table.siteId, table.ruleKey).where(sql`${table.isCurrent}`),
   }),
 );
 

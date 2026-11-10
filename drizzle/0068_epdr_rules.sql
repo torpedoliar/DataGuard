@@ -1,6 +1,10 @@
 -- Response rules + simulation (T06). A rule is versioned (rule_key stable, one
 -- is_current); editing inserts a new version. Evaluations record the decision
 -- per incident + rule version + trigger detection exactly once.
+--
+-- Rule identity is scoped per site: the seeded templates below reuse the same
+-- fixed rule_key on every site, so (rule_key, version) and the is_current
+-- index must include site_id or the second site's seed row collides.
 
 CREATE TABLE IF NOT EXISTS "epdr_rules" (
     "id" serial PRIMARY KEY,
@@ -28,10 +32,10 @@ CREATE TABLE IF NOT EXISTS "epdr_rules" (
     "pending_mode_requested_at" timestamp,
     "created_by" integer REFERENCES "users"("id"),
     "created_at" timestamp DEFAULT now(),
-    UNIQUE ("rule_key", "version")
+    CONSTRAINT "epdr_rules_site_rule_key_version_key" UNIQUE ("site_id", "rule_key", "version")
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "epdr_rules_current_idx" ON "epdr_rules" ("rule_key") WHERE "is_current";
+CREATE UNIQUE INDEX IF NOT EXISTS "epdr_rules_current_idx" ON "epdr_rules" ("site_id", "rule_key") WHERE "is_current";
 
 CREATE TABLE IF NOT EXISTS "epdr_rule_evaluations" (
     "id" serial PRIMARY KEY,
