@@ -30,8 +30,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit Tests (Backup & Core)
-        run: npx vitest run lib/backup
+      - name: Unit Tests (Backup & Deployment)
+        run: npx vitest run lib/backup scripts/watchguard-deployment.test.ts scripts/watchguard-worker.test.ts
 
   deploy:
     name: Deploy to Local Server (Self-Hosted)
@@ -40,9 +40,35 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Run Update Script
+        shell: bash
         run: |
+          set -euo pipefail
           echo "==> Masuk ke direktori dc-check..."
           cd /home/administrator/dc-check
+          if [ "$(git branch --show-current)" != "main" ]; then
+            echo "ERROR: Deployment checkout must be on main. No files were discarded."
+            exit 1
+          fi
+          echo "==> Memperbarui source sebelum menjalankan script deployment..."
+          git pull --ff-only origin main
+          git log -1 --format='Deployment source: %h %s'
           echo "==> Menjalankan update.sh..."
           chmod +x update.sh
           ./update.sh
+
+      - name: Verify WatchGuard Worker Container
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Inspect state only; never print environment or start an extra sync.
+          worker=dccheck_watchguard_worker
+          for attempt in {1..6}; do
+            state="$(docker inspect --format '{{.State.Status}}' "$worker" 2>/dev/null || true)"
+            restarts="$(docker inspect --format '{{.RestartCount}}' "$worker" 2>/dev/null || true)"
+            if [ "$state" != "running" ] || [ "$restarts" != "0" ]; then
+              echo "ERROR: WatchGuard worker is missing, stopped, or restarting. Inspect worker logs on the server."
+              exit 1
+            fi
+            if [ "$attempt" -lt 6 ]; then sleep 5; fi
+          done
+          echo "OK: WatchGuard worker remained running during the startup check (sync success is verified separately)."
