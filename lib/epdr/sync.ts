@@ -8,6 +8,12 @@
  * complete successful fetch when a previously-synced device id is absent.
  */
 
+import { WatchGuardError } from "../watchguard/errors";
+
+function syncErrorCode(error: unknown): string {
+  return error instanceof WatchGuardError ? error.kind : "internal_error";
+}
+
 export type EndpointSourceDevice = {
   device_id?: string;
   host_name?: string;
@@ -169,26 +175,29 @@ export type EndpointSyncDeps = {
 };
 
 export async function syncEndpoints(deps: EndpointSyncDeps): Promise<SyncSummary> {
-  const acquired = await deps.tryAcquireLock(deps.connectionId);
-  if (!acquired) {
-    return { status: "skipped_locked", seen: 0, upserted: 0, removed: 0, unmanaged: 0 };
-  }
-
+  let acquired = false;
   try {
+    acquired = await deps.tryAcquireLock(deps.connectionId);
+    if (!acquired) {
+      return { status: "skipped_locked", seen: 0, upserted: 0, removed: 0, unmanaged: 0 };
+    }
     const devices: EndpointSourceDevice[] = [];
     const protections: EndpointSourceProtection[] = [];
     let unmanaged: EndpointSourceUnmanaged[] = [];
     let partial = false;
+    const errors: string[] = [];
 
     try {
       for await (const d of deps.iterateDevices()) devices.push(d);
-    } catch {
+    } catch (error) {
       partial = true;
+      errors.push(`devices:${syncErrorCode(error)}`);
     }
     try {
       for await (const p of deps.iterateProtectionStatus()) protections.push(p);
-    } catch {
+    } catch (error) {
       partial = true;
+      errors.push(`protection:${syncErrorCode(error)}`);
     }
 
     const merged = mergeEndpoints(devices, protections);
@@ -214,21 +223,23 @@ export async function syncEndpoints(deps: EndpointSyncDeps): Promise<SyncSummary
     try {
       unmanaged = await deps.listUnmanagedDevices();
       unmanagedCount = await deps.upsertUnmanaged(deps.connectionId, deps.siteId, unmanaged);
-    } catch {
+    } catch (error) {
       partial = true;
+      errors.push(`unmanaged:${syncErrorCode(error)}`);
     }
 
     const status = partial ? "partial" : "ok";
-    await deps.recordSyncRun("endpoints", status, { seen: upserted, removed, unmanaged: unmanagedCount });
-    await deps.touchConnection(deps.connectionId, partial ? "partial fetch" : undefined);
+    const message = partial ? errors.join("; ") : undefined;
+    await deps.recordSyncRun("endpoints", status, { seen: upserted, removed, unmanaged: unmanagedCount }, message);
+    await deps.touchConnection(deps.connectionId, message);
 
-    return { status, seen: merged.length, upserted, removed, unmanaged: unmanagedCount };
+    return { status, seen: merged.length, upserted, removed, unmanaged: unmanagedCount, ...(message ? { error: message } : {}) };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = `endpoint_sync:${syncErrorCode(error)}`;
     await deps.recordSyncRun("endpoints", "failed", {}, message).catch(() => undefined);
     await deps.touchConnection(deps.connectionId, message).catch(() => undefined);
     return { status: "failed", seen: 0, upserted: 0, removed: 0, unmanaged: 0, error: message };
   } finally {
-    await deps.releaseLock(deps.connectionId);
+    if (acquired) await deps.releaseLock(deps.connectionId);
   }
 }

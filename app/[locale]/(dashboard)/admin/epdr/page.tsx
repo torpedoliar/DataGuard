@@ -1,5 +1,6 @@
 import { getEpdrEndpoints } from "@/actions/epdr-endpoints";
 import EndpointFleet from "@/components/admin/epdr/endpoint-fleet";
+import SyncRefresh from "@/components/admin/epdr/sync-refresh";
 import { ConnectionGate, FreshnessWarning, SecurityStatusPills } from "@/components/admin/epdr/security-chrome";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
@@ -36,8 +37,12 @@ export default async function EpdrEndpointsPage() {
       />
 
       <ConnectionGate context={data} />
-      {hasData && <FreshnessWarning context={data} locale={locale} />}
+      <FreshnessWarning context={data} locale={locale} />
+      {(data.connection === "syncing_first" || data.connection === "error" || data.connection === "stale") && (
+        <SyncRefresh key={data.siteName} waiting={data.connection === "syncing_first"} />
+      )}
       {hasData && <EndpointFleet posture={data.posture} endpoints={data.endpoints} isAdmin={data.isAdmin} locale={locale} />}
+      {!hasData && data.connection === "live" && <p className="ops-panel p-6 text-sm text-ops-muted">{t("setup.emptyInventory")}</p>}
     </main>
   );
 }

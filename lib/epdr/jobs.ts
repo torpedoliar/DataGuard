@@ -46,7 +46,7 @@ async function acquireAdvisoryLock(key: number): Promise<(() => Promise<void>) |
     };
   } catch {
     await client?.end().catch(() => undefined);
-    return null;
+    throw new Error("advisory_lock_unavailable");
   }
 }
 
@@ -223,7 +223,7 @@ function endpointSyncDeps(
     async touchConnection(id, error) {
       await db
         .update(watchguardConnections)
-        .set({ lastEndpointSyncAt: new Date(), lastSyncError: error ?? null, updatedAt: new Date() })
+        .set({ ...(error ? {} : { lastEndpointSyncAt: new Date() }), lastSyncError: error ?? null, updatedAt: new Date() })
         .where(eq(watchguardConnections.id, id));
     },
   };
@@ -234,12 +234,25 @@ async function runEndpointsJob(connectionId: number): Promise<void> {
   const conn = row[0];
   if (!conn || !conn.enabled) return;
 
-  const resolved = await resolveWatchGuardConnection(conn.siteId, { mode: "read" });
-  if (!resolved.ok) return;
+  try {
+    const resolved = await resolveWatchGuardConnection(conn.siteId, { mode: "read" });
+    if (!resolved.ok) {
+      await db.update(watchguardConnections)
+        .set({ lastSyncError: `connection_${resolved.reason}`, updatedAt: new Date() })
+        .where(eq(watchguardConnections.id, connectionId));
+      throw new Error("endpoint_connection_unavailable");
+    }
 
-  const summary = await syncEndpoints(endpointSyncDeps(connectionId, conn.siteId, resolved.credentials, resolved.credentialRevision));
-  if (summary.status === "failed") {
-    console.error(`[epdr] endpoints sync failed for connection ${connectionId}: ${summary.error}`);
+    const summary = await syncEndpoints(endpointSyncDeps(connectionId, conn.siteId, resolved.credentials, resolved.credentialRevision));
+    if (summary.status === "failed" || summary.status === "partial") {
+      throw new Error("endpoint_sync_incomplete");
+    }
+  } catch {
+    // syncEndpoints records safe stream errors; retain those diagnostics.
+    await db.update(watchguardConnections)
+      .set({ lastSyncError: sql`coalesce(${watchguardConnections.lastSyncError}, 'endpoint_sync_failed')`, updatedAt: new Date() })
+      .where(eq(watchguardConnections.id, connectionId));
+    throw new Error("endpoint_sync_failed");
   }
 }
 

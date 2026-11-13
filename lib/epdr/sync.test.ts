@@ -99,6 +99,35 @@ describe("syncEndpoints", () => {
     expect(deps.upsertEndpoint).not.toHaveBeenCalled();
   });
 
+  it("records a successful empty inventory rather than remaining in first sync", async () => {
+    const { deps } = makeDeps({ iterateDevices: async function* () {}, iterateProtectionStatus: async function* () {} });
+    expect((await syncEndpoints(deps)).status).toBe("ok");
+    expect(deps.touchConnection).toHaveBeenCalledWith(1, undefined);
+  });
+
+  it("records safe partial errors rather than advancing successful freshness", async () => {
+    const { deps } = makeDeps({ iterateDevices: async function* () { throw new Error("private-password"); } });
+    const result = await syncEndpoints(deps);
+    expect(result.status).toBe("partial");
+    expect(result.error).toBe("devices:internal_error");
+    expect(deps.touchConnection).toHaveBeenCalledWith(1, "devices:internal_error");
+    expect(JSON.stringify(result)).not.toContain("private-password");
+  });
+
+  it("distinguishes lock infrastructure failures from contention", async () => {
+    const { deps } = makeDeps({ tryAcquireLock: vi.fn(async () => { throw new Error("private-database-url"); }) });
+    expect(await syncEndpoints(deps)).toMatchObject({ status: "failed", error: "endpoint_sync:internal_error" });
+    expect(deps.touchConnection).toHaveBeenCalledWith(1, "endpoint_sync:internal_error");
+    expect(deps.releaseLock).not.toHaveBeenCalled();
+  });
+
+  it("records safe persistence failures and releases an acquired lock", async () => {
+    const { deps } = makeDeps({ upsertEndpoint: vi.fn(async () => { throw new Error("private-query"); }) });
+    expect((await syncEndpoints(deps)).status).toBe("failed");
+    expect(deps.touchConnection).toHaveBeenCalledWith(1, "endpoint_sync:internal_error");
+    expect(deps.releaseLock).toHaveBeenCalledWith(1);
+  });
+
   it("is idempotent: a rerun upserts the same rows without duplicates", async () => {
     const { deps, upserted } = makeDeps();
     await syncEndpoints(deps);

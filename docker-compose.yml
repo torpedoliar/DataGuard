@@ -228,6 +228,22 @@ services:
     networks:
       - dccheck_net
 
+  watchguard-worker:
+    image: dc-check-app:latest
+    container_name: dccheck_watchguard_worker
+    restart: unless-stopped
+    command: npm run watchguard:worker
+    env_file:
+      - .env
+    depends_on:
+      app:
+        condition: service_healthy
+    # The image healthcheck probes the web server; this process is a worker.
+    healthcheck:
+      disable: true
+    networks:
+      - dccheck_net
+
   db:
     image: postgres:15-alpine
     container_name: dccheck_postgres

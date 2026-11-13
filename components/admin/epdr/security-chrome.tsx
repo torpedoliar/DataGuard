@@ -101,7 +101,8 @@ export async function ConnectionGate({ context }: { context: EpdrSecurityContext
   }
 
   if (state === "syncing_first") {
-    return <GateBanner tone="info" icon={<RefreshCw className="motion-safe:animate-spin" />} title={t("setup.firstSyncTitle")} body={t("setup.firstSyncBody", { minutes: 15 })} />;
+    return <GateBanner tone="info" icon={<RefreshCw />} title={t("setup.firstSyncTitle")} body={t("setup.firstSyncBody")}
+      action={context.isSuperadmin ? <ActionButton href={SETTINGS_HREF} variant="secondary" size="sm">{t("setup.fix")}</ActionButton> : null} />;
   }
 
   return null;

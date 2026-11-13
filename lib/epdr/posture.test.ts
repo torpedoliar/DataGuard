@@ -20,10 +20,11 @@ describe("resolveConnectionState", () => {
     expect(resolveConnectionState(base)).toBe("live");
   });
 
-  it("flags stale data after three missed intervals and errors over partial fetches", () => {
+  it("flags stale data and never treats partial or failed first fetches as live", () => {
     expect(resolveConnectionState({ ...base, lastSyncAt: new Date(NOW - 46 * 60_000) })).toBe("stale");
     expect(resolveConnectionState({ ...base, lastSyncError: "WatchGuard API responded 401" })).toBe("error");
-    expect(resolveConnectionState({ ...base, lastSyncError: "partial fetch" })).toBe("live");
+    expect(resolveConnectionState({ ...base, lastSyncError: "partial fetch" })).toBe("error");
+    expect(resolveConnectionState({ ...base, lastSyncAt: null, lastSyncError: "auth" })).toBe("error");
   });
 });
 

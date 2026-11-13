@@ -26,9 +26,46 @@ change.
 1. Rotate WatchGuard credentials in Console; enter them in `/admin/settings` (write-only fields).
 2. Save connection as **disabled draft**, then **Test connection** — verify Auth, Account, Endpoint Security, ThreatSync separately.
 3. Confirm account/site ownership in the UI (never from screenshots).
-4. Enable connection; run `npm run watchguard:worker:run-once` to baseline endpoints.
+4. After operator approval for read-only ingestion, enable the connection and follow the worker startup checks below to baseline endpoints. Test connection checks access; it does not populate inventory. A disabled draft is never polled.
 5. Review the two disabled simulation templates before enabling any rule.
-6. Simulation → review → request automatic (min simulation days) → independent admin confirms.
+6. Simulation → review → request automatic (min simulation days) → independent admin confirms. These modes do not unlock real provider writes.
+
+### Worker startup and first-sync checks (operator only)
+
+The commands below are instructions for an authorized operator, not development
+verification steps. Do not run workers, migrations, live API probes or credential
+checks as part of automated code review. Never paste credentials or raw provider
+errors into logs, tickets or chat.
+
+- The `watchguard-worker` Compose service reuses `dc-check-app:latest`, the image's
+  archived `scripts/`, `lib/` and dependencies, and the existing `.env` runtime
+  convention. No separate image, entrypoint or credentials are needed. Confirm
+  the deployed runtime env file is operator-managed; do not print its contents.
+- Confirm committed migrations have already been applied by the approved release
+  procedure and the app is healthy. Both update scripts include the worker in
+  their post-migration service restart list. The service depends on app health;
+  its inherited HTTP healthcheck is disabled because it is not a web server.
+- Check service presence/status with `docker compose ps watchguard-worker`.
+  After approving read-only ingestion, start it with
+  `docker compose up -d watchguard-worker`. Use the same Compose/env-file options
+  as the existing deployment. This starts real scheduled reads for enabled
+  connections; it does not authorize any provider mutation.
+- For an operator-approved endpoint-only baseline instead of starting the loop,
+  use `docker compose run --rm --no-deps watchguard-worker npm run watchguard:worker:run-once -- --only=endpoints`
+  after the app/schema are ready. Avoid concurrent baseline/loop workers.
+  `--only` restricts execution to the named registered job; unknown/empty names
+  fail. Exit status is nonzero if any job or connection query fails.
+- Review `docker compose logs --tail=100 watchguard-worker` for pass counts, then
+  check inventory and last-sync status in `/admin/epdr`. Zero rows alone is not
+  proof of successful sync. A `0 ran, 0 failed` pass can mean no enabled
+  connections or jobs not yet due. Failed jobs do not block other connections.
+- The loop checks every minute; endpoint/detection cadences are per connection.
+  Successful job timestamps survive passes in memory; failed jobs retry next
+  pass. Restarting the worker intentionally resets cadence and makes all jobs
+  due. Do not use repeated restarts as a sync health check.
+- Stop ingestion with `docker compose stop watchguard-worker` if required.
+  The read-only transport lock remains mandatory in every startup mode; there
+  is no environment flag or CLI option that permits scans, repair or writes.
 
 ## 4. Kill switch / rollback
 

@@ -41,9 +41,10 @@ export async function runWorkerPass(
         await runJob(job.name, connection.id);
         lastRun.set(key, nowMs);
         ran++;
-      } catch (error) {
+      } catch {
         failed++;
-        console.error(`[watchguard-worker] job "${job.name}" failed for connection ${connection.id}:`, error);
+        // Raw errors may contain provider payloads, URLs or credentials.
+        console.error(`[watchguard-worker] job "${job.name}" failed for connection ${connection.id}`);
       }
     }
   }

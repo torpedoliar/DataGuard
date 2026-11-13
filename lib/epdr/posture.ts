@@ -17,7 +17,7 @@ export function resolveConnectionState(input: {
 }): ConnectionState {
   if (!input.configured) return "not_configured";
   if (!input.enabled) return "disabled";
-  if (input.lastSyncError && input.lastSyncError !== "partial fetch") return "error";
+  if (input.lastSyncError) return "error";
   if (!input.lastSyncAt) return "syncing_first";
   const staleAfterMs = Math.max(input.syncIntervalMinutes, 1) * 3 * 60 * 1000;
   if (input.nowMs - input.lastSyncAt.getTime() > staleAfterMs) return "stale";
