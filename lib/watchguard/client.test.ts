@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createWatchGuardClient } from "./client";
-import { clearTokenCache } from "./auth";
+import { clearTokenCache, getToken } from "./auth";
+import { runServiceChecks } from "./connection";
 import { WatchGuardError } from "./errors";
 import { READ_ONLY_BLOCKED } from "./guard";
 import type { WatchGuardCredentials } from "./types";
@@ -114,6 +115,64 @@ describe("client reads", () => {
     }
     expect(collected).toEqual(["ts-incident-0001", "ts-incident-0002", "ts-incident-0003"]);
     expect(apiCalls(calls).length).toBe(2);
+  });
+});
+
+describe("documented ThreatSync responses", () => {
+  const incident = {
+    id: "synthetic-incident", category: "av", type: "Malware", threatScore: 9,
+    severity: "High", status: "new", remediated: false,
+    entities: { "synthetic-entity": { type: "computer", recommendedActions: [{ command: "isolate" }] } },
+  };
+
+  it.each(["items", "groups"])("normalizes the %s envelope and entity map", async (envelope) => {
+    const body = envelope === "items" ? { items: [incident], count: 1 } : { groups: { _default: [incident] }, count: 1 };
+    const { fetchImpl, calls } = routedFetch((url) => url.pathname === TOKEN_PATH ? tokenResponse() : json(body));
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl });
+    const page = await client.listIncidents({ limit: 1 });
+    expect(page.data[0]?.threat_score).toBe(9);
+    expect(page.data[0]?.entities).toEqual([{ entityId: "synthetic-entity", type: "computer", recommendedActions: [{ command: "isolate" }] }]);
+    expect(page.startAfter).toBe(incident.id);
+    expect(apiCalls(calls).every((call) => call.method === "GET")).toBe(true);
+  });
+
+  it.each([{ items: [], count: 0 }, { groups: { _default: [] }, count: 0 }])("accepts documented empty lists", async (body) => {
+    const { fetchImpl } = routedFetch((url) => url.pathname === TOKEN_PATH ? tokenResponse() : json(body));
+    expect((await createWatchGuardClient(creds, { fetch: fetchImpl }).listIncidents()).data).toEqual([]);
+  });
+
+  it.each([{ data: [] }, { items: null }, { groups: {} }, { items: [incident], count: "1" }])("rejects malformed envelopes", async (body) => {
+    const { fetchImpl } = routedFetch((url) => url.pathname === TOKEN_PATH ? tokenResponse() : json(body));
+    await expect(createWatchGuardClient(creds, { fetch: fetchImpl }).listIncidents()).rejects.toMatchObject({ kind: "invalid_response" });
+  });
+
+  it.each([true, false])("runs real client service checks with valid=%s ThreatSync payload", async (valid) => {
+    const { fetchImpl } = routedFetch((url) => {
+      if (url.pathname === TOKEN_PATH) return tokenResponse();
+      if (url.pathname.endsWith("/incidents")) return json(valid ? { groups: { _default: [incident] }, count: 1 } : { groups: {} });
+      return json({});
+    });
+    const options = { fetch: fetchImpl };
+    const client = createWatchGuardClient(creds, options);
+    const result = await runServiceChecks({
+      getToken: () => getToken(creds, options),
+      getAccount: () => client.getAccount(),
+      getLicenses: () => client.getLicenses(),
+      listIncidents: () => client.listIncidents({ limit: 1 }),
+    });
+    expect(result.auth.ok).toBe(true);
+    expect(result.account.ok).toBe(true);
+    expect(result.endpointSecurity.ok).toBe(true);
+    expect(result.threatSync.ok).toBe(valid);
+    if (!valid) expect(result.threatSync.kind).toBe("invalid_response");
+  });
+
+  it("reports a safe field name without leaking response values or entity IDs", async () => {
+    const body = { items: [{ ...incident, entities: { "private-host-identity": "private-value" } }] };
+    const { fetchImpl } = routedFetch((url) => url.pathname === TOKEN_PATH ? tokenResponse() : json(body));
+    await expect(createWatchGuardClient(creds, { fetch: fetchImpl }).listIncidents()).rejects.toMatchObject({
+      kind: "invalid_response", message: "WatchGuard incidents: invalid field type (entities)",
+    });
   });
 });
 

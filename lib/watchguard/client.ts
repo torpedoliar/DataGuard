@@ -109,7 +109,10 @@ function parseItem<T>(schema: z.ZodType<T>, item: unknown, context: string): T {
     // An item in an otherwise-paged list failed to parse — neither zero rows
     // nor silently dropped; mark the stream invalid so callers never treat it
     // as clean evidence.
-    throw new WatchGuardError("invalid_response", `WatchGuard ${context}: unexpected item shape`);
+    const fields = new Set(["id", "category", "type", "threatScore", "threat_score", "severity", "status", "entities", "recommended_actions", "remediated"]);
+    const field = parsed.error.issues[0]?.path[0];
+    const location = typeof field === "string" && fields.has(field) ? field : "item";
+    throw new WatchGuardError("invalid_response", `WatchGuard ${context}: invalid field type (${location})`);
   }
   return parsed.data;
 }
@@ -355,12 +358,18 @@ export function createWatchGuardClient(creds: WatchGuardCredentials, options: Wa
           if (raw === null || typeof raw !== "object") {
             throw new WatchGuardError("invalid_response", "WatchGuard incidents: unexpected shape");
           }
-          const envelope = raw as { items?: unknown; count?: unknown };
-          if (!Array.isArray(envelope.items)) {
-            throw new WatchGuardError("invalid_response", "WatchGuard incidents: missing items array");
+          const envelope = raw as { items?: unknown; groups?: { _default?: unknown }; count?: unknown };
+          // The published list example uses groups._default; the field reference
+          // also documents items. Never turn an unknown envelope into zero rows.
+          const rows = Object.hasOwn(envelope, "items") ? envelope.items : envelope.groups?._default;
+          if (!Array.isArray(rows)) {
+            throw new WatchGuardError("invalid_response", "WatchGuard incidents: missing items or groups._default array");
+          }
+          if (envelope.count != null && (typeof envelope.count !== "number" || !Number.isInteger(envelope.count) || envelope.count < 0)) {
+            throw new WatchGuardError("invalid_response", "WatchGuard incidents: invalid field type (count)");
           }
           const total = typeof envelope.count === "number" ? envelope.count : null;
-          const items = envelope.items.map((item) => parseItem(threatSyncIncidentSchema, item, "incidents"));
+          const items = rows.map((item) => parseItem(threatSyncIncidentSchema, item, "incidents"));
           const startAfter = items.length > 0 ? String(items[items.length - 1]!.id ?? "") || null : null;
           return { data: items, totalItems: total, startAfter };
         },
@@ -372,9 +381,7 @@ export function createWatchGuardClient(creds: WatchGuardCredentials, options: Wa
         `${threatSyncBase}/incidents/${encode(id)}`,
         { includeActions: params.includeActions, includeComments: params.includeComments },
         (raw) => {
-          const parsed = threatSyncIncidentSchema.safeParse(raw);
-          if (!parsed.success) throw new WatchGuardError("invalid_response", "WatchGuard incident: unexpected shape");
-          return parsed.data;
+          return parseItem(threatSyncIncidentSchema, raw, "incident");
         },
       );
     },

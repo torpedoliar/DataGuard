@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { threatSyncIncidentSchema } from "../watchguard/schemas";
 import {
   buildSecurityEventDetections,
   buildThreatSyncDetections,
@@ -28,6 +29,17 @@ describe("classifyThreatSync", () => {
 });
 
 describe("buildThreatSyncDetections", () => {
+  it("retains documented camelCase score through wire normalization", () => {
+    const incident = threatSyncIncidentSchema.parse({
+      id: "synthetic-ts", category: "malware", threatScore: 9,
+      entities: { "synthetic-entity": { type: "computer", recommendedActions: [] } },
+    });
+    const result = buildThreatSyncDetections(incident, settings);
+    expect(result.detections).toHaveLength(1);
+    expect(result.detections[0]?.threatScore).toBe(9);
+    expect(result.detections[0]?.sourceKey).toBe("ts:synthetic-ts:synthetic-entity");
+    expect(result.unmatched).toEqual([]);
+  });
   it("builds one detection per entity and keeps unmatched/below-threshold separate", () => {
     const result = buildThreatSyncDetections({
       id: "ts-1",

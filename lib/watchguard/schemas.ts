@@ -121,14 +121,24 @@ export const threatSyncIncidentSchema = z
     id: z.string().optional(),
     category: z.string().optional(),
     type: z.string().optional(),
+    threatScore: z.number().int().optional(),
     threat_score: z.number().int().optional(),
     severity: z.string().optional(),
     status: z.string().optional(),
-    entities: z.array(z.unknown()).optional(),
+    entities: z.union([
+      z.array(z.unknown()),
+      z.record(z.string(), z.object({}).passthrough()).transform((entities) =>
+        Object.entries(entities).map(([entityId, entity]) => ({ ...entity, entityId })),
+      ),
+    ]).optional(),
     recommended_actions: z.array(z.unknown()).optional(),
     remediated: z.boolean().optional(),
   })
-  .passthrough();
+  .passthrough()
+  .transform((incident) => ({
+    ...incident,
+    threat_score: incident.threatScore ?? incident.threat_score,
+  }));
 
 export const threatSyncActionSchema = z
   .object({
@@ -150,13 +160,17 @@ export const dataEnvelopeSchema = z
   })
   .passthrough();
 
-/** ThreatSync cursor list envelope `{ items: [...], count: n }`. */
-export const threatSyncListEnvelopeSchema = z
-  .object({
+/** ThreatSync field reference uses items; the published example uses groups._default. */
+export const threatSyncListEnvelopeSchema = z.union([
+  z.object({
     items: z.array(z.unknown()),
-    count: z.number().int().nullable().optional(),
-  })
-  .passthrough();
+    count: z.number().int().nonnegative().nullable().optional(),
+  }).passthrough(),
+  z.object({
+    groups: z.object({ _default: z.array(z.unknown()) }).passthrough(),
+    count: z.number().int().nonnegative().nullable().optional(),
+  }).passthrough(),
+]);
 
 export type DeviceRecord = z.infer<typeof deviceSchema>;
 export type ProtectionStatusRecord = z.infer<typeof protectionStatusSchema>;

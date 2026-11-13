@@ -84,6 +84,10 @@ function Checklist({ checks }: { checks: Checks }) {
             <span className="flex-1 text-[13px] text-ops-text">{t(`service.${s}`)}</span>
             <span className={clsx("text-[12.5px]", check.ok ? "text-ops-success" : "text-ops-danger")}>
               {check.ok ? "OK" : (check.kind ?? "failed")}
+              {!check.ok && check.kind === "invalid_response" &&
+                /^WatchGuard incidents?: (invalid field type \((?:id|category|type|threatScore|threat_score|severity|status|entities|recommended_actions|remediated|item|count)\)|missing items or groups\._default array)$/.test(check.message) && (
+                  <span className="mt-1 block max-w-72 text-xs">{check.message}</span>
+                )}
             </span>
           </li>
         );
