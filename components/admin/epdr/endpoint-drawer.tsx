@@ -58,12 +58,13 @@ function SettingToggle({
   label: string;
   hint: string;
   checked: boolean;
-  onToggle: (next: boolean) => Promise<{ message?: string } | undefined>;
+  onToggle: (next: boolean) => Promise<{ message?: string; success?: boolean } | undefined>;
   disabled: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const t = useTranslations("Epdr");
 
   return (
     <div className="flex items-start justify-between gap-4 py-3">
@@ -81,9 +82,11 @@ function SettingToggle({
         onClick={() =>
           startTransition(async () => {
             setError(null);
-            const res = await onToggle(!checked);
-            if (res && "message" in res && res.message) setError(res.message);
-            else router.refresh();
+            try {
+              const res = await onToggle(!checked);
+              if (res?.success) router.refresh();
+              else setError(res?.message || t("syncV2.unavailable"));
+            } catch { setError(t("syncV2.unavailable")); }
           })
         }
         className={clsx(
@@ -216,6 +219,29 @@ export default function EndpointDrawer({
 }) {
   const t = useTranslations("Epdr");
   useModalDismiss(() => onClose(), endpoint !== null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const isOpen = endpoint !== null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href], [tabindex="0"]') ?? []);
+    (focusable()[0] ?? dialog)?.focus();
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const nodes = focusable();
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (!first) { event.preventDefault(); dialog?.focus(); return; }
+      if (event.shiftKey && (document.activeElement === first || !dialog?.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog?.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    dialog?.addEventListener("keydown", trap);
+    return () => { dialog?.removeEventListener("keydown", trap); previous?.focus(); };
+  }, [isOpen]);
 
   if (!endpoint) return null;
 
@@ -226,13 +252,15 @@ export default function EndpointDrawer({
     const form = new FormData();
     form.set("endpointId", String(endpoint.id));
     form.set("value", String(value));
-    return (await action(null, form)) as { message?: string };
+    return await action(null, form);
   };
 
   return (
     <div className="fixed inset-0 z-50" role="presentation">
       <div className="absolute inset-0 animate-fade-in bg-black/50 backdrop-blur-[2px]" onClick={onClose} role="presentation" />
       <aside
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={t("drawer.details")}

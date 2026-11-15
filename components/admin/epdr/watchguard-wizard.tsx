@@ -244,7 +244,7 @@ function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () =
             <p className="mb-3 text-[12px] text-ops-muted">{t("settings.roHint")}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={t("settings.accessIdLabel")}>
-                <input name="watchguardRoAccessId" defaultValue={site.roConfigured ? "********" : ""} autoComplete="off" className="ops-input h-9 w-full px-3 font-mono text-sm" />
+                <input name="watchguardRoAccessId" placeholder={site.roConfigured ? "••••••••" : undefined} autoComplete="off" className="ops-input h-9 w-full px-3 font-mono text-sm" />
               </Field>
               <Field label={t("settings.passwordLabel")} hint={site.roConfigured ? t("settings.stored") : undefined}>
                 <input name="watchguardRoPassword" type="password" autoComplete="off" className="ops-input h-9 w-full px-3 font-mono text-sm" />
@@ -257,7 +257,7 @@ function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () =
             <p className="mb-3 mt-2 text-[12px] text-ops-muted">{t("settings.rwHint")}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={t("settings.accessIdLabel")}>
-                <input name="watchguardRwAccessId" defaultValue={site.rwConfigured ? "********" : ""} autoComplete="off" className="ops-input h-9 w-full px-3 font-mono text-sm" />
+                <input name="watchguardRwAccessId" placeholder={site.rwConfigured ? "••••••••" : undefined} autoComplete="off" className="ops-input h-9 w-full px-3 font-mono text-sm" />
               </Field>
               <Field label={t("settings.passwordLabel")} hint={site.rwConfigured ? t("settings.stored") : undefined}>
                 <input name="watchguardRwPassword" type="password" autoComplete="off" className="ops-input h-9 w-full px-3 font-mono text-sm" />

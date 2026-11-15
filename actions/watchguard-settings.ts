@@ -147,6 +147,12 @@ export async function saveWatchGuardConnection(prevState: unknown, formData: For
 
   const d = parsed.data;
 
+  // Display masks are never credentials, including submissions from older clients.
+  if ([d.apiKey, d.rwAccessId, d.rwPassword, d.roAccessId, d.roPassword]
+    .some((value) => /^[*•●]+$/u.test(value.trim()))) {
+    return { message: "Masukkan kredensial baru atau kosongkan untuk mempertahankan nilai tersimpan." };
+  }
+
   // Reject out-of-range intervals with a clear message (never silently clamp).
   if (d.endpointSyncMinutes < 5 || d.endpointSyncMinutes > 1440) {
     return { message: "Interval sinkronisasi endpoint harus 5–1440 menit." };
@@ -168,14 +174,24 @@ export async function saveWatchGuardConnection(prevState: unknown, formData: For
 
     const [existing] = await db.select().from(watchguardConnections).where(eq(watchguardConnections.siteId, d.siteId)).limit(1);
 
+    // Blank fields preserve stored values; validate each effective pair so a
+    // partial RO pair cannot accidentally fall back to an unrelated RW secret.
+    const rwAccessId = d.rwAccessId !== "" ? d.rwAccessId : existing?.rwAccessId ?? null;
+    const roAccessId = d.roAccessId !== "" ? d.roAccessId : existing?.roAccessId ?? null;
+    const rwPasswordPresent = Boolean(d.rwPassword || existing?.rwPassword);
+    const roPasswordPresent = Boolean(d.roPassword || existing?.roPassword);
+    if (Boolean(rwAccessId) !== rwPasswordPresent || Boolean(roAccessId) !== roPasswordPresent) {
+      return { message: "Access ID dan password harus diisi berpasangan untuk kredensial RO/RW." };
+    }
+
     const accountChanged = !existing || existing.region !== d.region || existing.accountId !== d.accountId;
     const credentialChanged =
       !existing ||
       (d.apiKey !== "") ||
       (d.rwPassword !== "") ||
       (d.roPassword !== "") ||
-      (d.rwAccessId !== (existing.rwAccessId ?? "")) ||
-      (d.roAccessId !== (existing.roAccessId ?? ""));
+      (rwAccessId !== (existing.rwAccessId ?? null)) ||
+      (roAccessId !== (existing.roAccessId ?? null));
 
     const values = {
       enabled: d.enabled,
@@ -183,8 +199,8 @@ export async function saveWatchGuardConnection(prevState: unknown, formData: For
       accountId: d.accountId,
       endpointSyncMinutes: d.endpointSyncMinutes,
       detectionSyncMinutes: d.detectionSyncMinutes,
-      rwAccessId: d.rwAccessId !== "" ? d.rwAccessId : existing?.rwAccessId ?? null,
-      roAccessId: d.roAccessId !== "" ? d.roAccessId : existing?.roAccessId ?? null,
+      rwAccessId,
+      roAccessId,
       apiKey: d.apiKey !== "" ? encryptString(d.apiKey) : existing?.apiKey ?? null,
       rwPassword: d.rwPassword !== "" ? encryptString(d.rwPassword) : existing?.rwPassword ?? null,
       roPassword: d.roPassword !== "" ? encryptString(d.roPassword) : existing?.roPassword ?? null,

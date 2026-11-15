@@ -78,55 +78,47 @@ function matches(rule: RuleInput, category: string, threatScore: number | null, 
 export function evaluate(input: EvaluateInput): EvaluateResult {
   const { rule, endpoint, incident, site, global } = input;
   const reasons: { code: EpdrReasonCode; detail: string }[] = [];
+  // READ_ONLY_SAFEGUARD: requested modes are configuration, never permission
+  // to dispatch. There is deliberately no caller/config/environment unlock.
+  const effectiveMode = "simulate" as const;
 
   if (!matches(rule, input.detection.category, input.detection.threatScore, endpoint.deviceType)) {
-    return { decision: "no_match", effectiveMode: rule.executionMode, reasons: [{ code: "no_match", detail: "rule does not match" }] };
+    return { decision: "no_match", effectiveMode, reasons: [{ code: "no_match", detail: "rule does not match" }] };
   }
 
-  if (global.killSwitch) return { decision: "blocked", effectiveMode: rule.executionMode, reasons: [{ code: "block_kill_switch_global", detail: "global kill switch" }] };
-  if (site.killSwitch) return { decision: "blocked", effectiveMode: rule.executionMode, reasons: [{ code: "block_kill_switch_site", detail: "site kill switch" }] };
-  if (!global.allowedActions.includes(rule.actionType)) return { decision: "blocked", effectiveMode: rule.executionMode, reasons: [{ code: "block_action_not_allowed", detail: rule.actionType }] };
-  if (incident.automationHold) return { decision: "blocked", effectiveMode: rule.executionMode, reasons: [{ code: "block_automation_hold", detail: "incident held" }] };
+  if (global.killSwitch) return { decision: "blocked", effectiveMode, reasons: [{ code: "block_kill_switch_global", detail: "global kill switch" }] };
+  if (site.killSwitch) return { decision: "blocked", effectiveMode, reasons: [{ code: "block_kill_switch_site", detail: "site kill switch" }] };
+  if (!global.allowedActions.includes(rule.actionType)) return { decision: "blocked", effectiveMode, reasons: [{ code: "block_action_not_allowed", detail: rule.actionType }] };
+  if (incident.automationHold) return { decision: "blocked", effectiveMode, reasons: [{ code: "block_automation_hold", detail: "incident held" }] };
 
   const blocking: { code: EpdrReasonCode; detail: string }[] = [];
   if (endpoint.removedAt !== null) blocking.push({ code: "block_endpoint_removed", detail: "endpoint removed" });
-  if (endpoint.lastConnectionAt !== null && input.nowMs - endpoint.lastConnectionAt.getTime() > OFFLINE_THRESHOLD_MS) {
+  // Keep the legacy reason code for typed consumers; unresolved identity is a
+  // hard block, not an approvable exception (including in simulation).
+  if (!endpoint.resolvedTarget) blocking.push({ code: "approval_unresolved_target", detail: "blocked until target identity and site are validated; approval cannot bypass" });
+  const lastConnectionMs = endpoint.lastConnectionAt?.getTime();
+  if (lastConnectionMs === undefined) {
+    blocking.push({ code: "block_endpoint_offline", detail: "last contact unknown" });
+  } else if (!Number.isFinite(lastConnectionMs) || !Number.isFinite(input.nowMs) || lastConnectionMs > input.nowMs) {
+    blocking.push({ code: "block_data_stale", detail: "invalid or future last contact timestamp" });
+  } else if (input.nowMs - lastConnectionMs > OFFLINE_THRESHOLD_MS) {
     blocking.push({ code: "block_endpoint_offline", detail: "offline > 7 days" });
   }
   if (site.dataStale) blocking.push({ code: "block_data_stale", detail: "sync data stale" });
   if (input.cooldownActive) blocking.push({ code: "block_cooldown", detail: "within cooldown" });
   if (incident.exclusionActive) blocking.push({ code: "block_exclusion", detail: "active exclusion" });
   if (blocking.length > 0) {
-    return { decision: "blocked", effectiveMode: rule.executionMode, reasons: blocking };
+    return { decision: "blocked", effectiveMode, reasons: blocking };
   }
 
-  const protectedTarget = endpoint.deviceType === SERVER_TYPE || endpoint.isCritical || endpoint.assetCritical || endpoint.noAuto || endpoint.deviceType === null || !endpoint.resolvedTarget;
-
-  // Simulation always stays simulation and records the would-be guardrail.
-  if (rule.executionMode === "simulate") {
-    if (protectedTarget) reasons.push({ code: "approval_server", detail: "would require approval" });
-    reasons.push({ code: "simulated", detail: "simulation mode" });
-    return { decision: "simulated", effectiveMode: "simulate", reasons };
-  }
-
-  if (rule.executionMode === "approval") {
-    reasons.push({ code: "approval_no_auto", detail: "approval mode" });
-    return { decision: "needs_approval", effectiveMode: "approval", reasons };
-  }
-
-  // automatic — downgraded by protection or circuit breaker.
-  if (site.breakerPaused) {
-    reasons.push({ code: "breaker_paused", detail: "circuit breaker paused" });
-    return { decision: "needs_approval", effectiveMode: "automatic", reasons };
-  }
-  if (protectedTarget) {
-    if (endpoint.deviceType === SERVER_TYPE) reasons.push({ code: "approval_server", detail: "server" });
-    else if (endpoint.isCritical || endpoint.assetCritical) reasons.push({ code: "approval_critical", detail: "critical" });
-    else if (endpoint.noAuto) reasons.push({ code: "approval_no_auto", detail: "no_auto" });
-    else if (endpoint.deviceType === null) reasons.push({ code: "approval_unknown_type", detail: "unknown type" });
-    else if (!endpoint.resolvedTarget) reasons.push({ code: "approval_unresolved_target", detail: "unresolved target" });
-    return { decision: "needs_approval", effectiveMode: "automatic", reasons };
-  }
-
-  return { decision: "automatic", effectiveMode: "automatic", reasons };
+  // Preserve would-be approval guardrails as provenance, not dispatchable
+  // proposals. Read-only applies to every requested mode and action type.
+  if (endpoint.deviceType === SERVER_TYPE) reasons.push({ code: "approval_server", detail: "server would require approval" });
+  if (endpoint.isCritical || endpoint.assetCritical) reasons.push({ code: "approval_critical", detail: "critical target would require approval" });
+  if (endpoint.noAuto) reasons.push({ code: "approval_no_auto", detail: "no_auto would require approval" });
+  if (endpoint.deviceType === null) reasons.push({ code: "approval_unknown_type", detail: "unknown type would require approval" });
+  if (rule.executionMode === "approval") reasons.push({ code: "approval_no_auto", detail: "requested approval mode; approval cannot lift read-only restriction" });
+  if (site.breakerPaused) reasons.push({ code: "breaker_paused", detail: "circuit breaker paused" });
+  reasons.push({ code: "simulated", detail: `WatchGuard READ-ONLY; requested ${rule.executionMode}; no provider dispatch or replay authorization` });
+  return { decision: "simulated", effectiveMode, reasons };
 }

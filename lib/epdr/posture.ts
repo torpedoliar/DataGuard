@@ -87,6 +87,21 @@ function attentionRank(e: PostureEndpoint): [number, number, number] {
   return [bucketRank, important, lastSeen];
 }
 
+/** Build the posture DTO from server-side aggregate counts plus a bounded attention sample. */
+export function postureFromCounts(
+  aggregate: { total: number; counts: Record<PostureBucket, number>; offline: number },
+  attention: PostureEndpoint[],
+): FleetPosture {
+  const protectedCount = aggregate.counts.protected + aggregate.counts.outdated;
+  return {
+    total: aggregate.total,
+    counts: aggregate.counts,
+    offline: aggregate.offline,
+    protectedPct: aggregate.total === 0 ? null : Math.floor((protectedCount / aggregate.total) * 1000) / 10,
+    attention,
+  };
+}
+
 export function summarizeFleet(endpoints: PostureEndpoint[]): FleetPosture {
   const counts = Object.fromEntries(POSTURE_BUCKETS.map((b) => [b, 0])) as Record<PostureBucket, number>;
   let offline = 0;

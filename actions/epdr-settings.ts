@@ -1,12 +1,13 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { epdrSiteSettings } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
+import { assertReadSyncActor } from "@/lib/epdr/read-sync-queue";
 import { THREAT_CATEGORIES } from "@/lib/epdr/posture";
 
 export type EpdrSiteSettingsData = {
@@ -78,16 +79,19 @@ function listValues(form: FormData, key: string): string[] {
     .filter(Boolean);
 }
 
-function intValues(form: FormData, key: string): number[] {
-  return listValues(form, key).map(Number).filter((n) => Number.isInteger(n));
+/** Tokens that are not exact integers stay strings so validation rejects them. */
+function intValues(form: FormData, key: string): unknown[] {
+  return listValues(form, key).map((value) => /^-?\d+$/.test(value) ? Number(value) : value);
 }
+
+const ALLOWED_EVENT_TYPES = [1, 2, 4, 6, 18] as const;
 
 const schema = z
   .object({
     ingestEnabled: z.boolean(),
-    eventTypes: z.array(z.number().int()).min(1, "Pilih minimal satu jenis event."),
+    eventTypes: z.array(z.number().int().refine((value) => (ALLOWED_EVENT_TYPES as readonly number[]).includes(value), "Jenis event tidak didukung.")).min(1, "Pilih minimal satu jenis event."),
     threatsyncEnabled: z.boolean(),
-    threatsyncCategories: z.array(z.string()).min(1, "Pilih minimal satu kategori."),
+    threatsyncCategories: z.array(z.enum(THREAT_CATEGORIES)).min(1, "Pilih minimal satu kategori."),
     threatsyncMinScore: z.coerce.number().int().min(1).max(10),
     threatsyncMaxScore: z.coerce.number().int().min(1).max(10),
     correlationWindowMinutes: z.coerce.number().int().min(5).max(10_000),
@@ -166,10 +170,22 @@ export async function saveEpdrSettings(prevState: unknown, formData: FormData) {
   };
 
   try {
-    await db
-      .insert(epdrSiteSettings)
-      .values({ siteId: guard.activeSiteId, ...values })
-      .onConflictDoUpdate({ target: epdrSiteSettings.siteId, set: values });
+    await db.transaction(async (tx) => {
+      // Serialize with membership revocation and validate the chosen default
+      // assignee against the current active same-site population.
+      await assertReadSyncActor(tx, guard.activeSiteId, guard.session.userId);
+      if (values.defaultAssigneeId !== null) {
+        const { rows } = await tx.execute(sql`SELECT u.id FROM users u
+          JOIN user_sites m ON m.user_id = u.id AND m.site_id = ${guard.activeSiteId}
+          JOIN sites s ON s.id = m.site_id AND s.is_active = true
+          WHERE u.id = ${values.defaultAssigneeId} AND u.is_active = true FOR SHARE OF u, m, s`);
+        if (!rows[0]) throw new Error("default_assignee_unavailable");
+      }
+      await tx
+        .insert(epdrSiteSettings)
+        .values({ siteId: guard.activeSiteId, ...values })
+        .onConflictDoUpdate({ target: epdrSiteSettings.siteId, set: values });
+    });
 
     revalidatePath("/admin/epdr/settings");
     await logAudit({ action: "UPDATE", entity: "settings", entityName: "WatchGuard EPDR Detection Settings", detail: "Site detection settings saved" });

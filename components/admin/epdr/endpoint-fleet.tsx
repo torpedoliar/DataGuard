@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronRight, Search, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
-import type { EpdrEndpointRow } from "@/actions/epdr-endpoints";
-import { ATTENTION_BUCKETS, POSTURE_BUCKETS, SERVER_DEVICE_TYPE, type FleetPosture, type PostureBucket } from "@/lib/epdr/posture";
+import { getEpdrEndpointPage, type EpdrEndpointPage, type EpdrEndpointRow, type EpdrFleetSummary } from "@/actions/epdr-endpoints";
+import type { FleetQuery } from "@/lib/epdr/fleet-query";
+import { POSTURE_BUCKETS, SERVER_DEVICE_TYPE, type FleetPosture, type PostureBucket } from "@/lib/epdr/posture";
 import EndpointDrawer from "./endpoint-drawer";
 
 /** Fill colour per bucket — shared by the posture bar, the fleet map and the legends. */
@@ -29,7 +30,7 @@ const bucketText: Record<PostureBucket, string> = {
   unknown: "text-ops-muted",
 };
 
-type Filter = "all" | "attention" | "offline" | "servers" | "unlinked";
+type Filter = FleetQuery["filter"];
 
 function useRelative(locale: string) {
   return (date: Date | null) => {
@@ -46,11 +47,14 @@ function useRelative(locale: string) {
 export default function EndpointFleet({
   posture,
   endpoints,
+  summary,
   isAdmin,
   locale,
 }: {
   posture: FleetPosture;
+  /** Bounded map sample; table rows are fetched separately per page. */
   endpoints: EpdrEndpointRow[];
+  summary?: EpdrFleetSummary;
   isAdmin: boolean;
   locale: string;
 }) {
@@ -58,9 +62,38 @@ export default function EndpointFleet({
   const relative = useRelative(locale);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const v = useTranslations("Epdr.fleetV2");
   const [openId, setOpenId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [group, setGroup] = useState("");
+  const [os, setOs] = useState("");
+  const [sort, setSort] = useState<FleetQuery["sort"]>("name");
+  const [result, setResult] = useState<EpdrEndpointPage | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        const data = await getEpdrEndpointPage({ page, query, filter, group, os, sort });
+        if (!active) return;
+        if ("message" in data) { setError(true); setResult(null); }
+        else { setError(false); setResult(data); }
+      } catch { if (active) { setError(true); setResult(null); } }
+      finally { if (active) setLoading(false); }
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [page, query, filter, group, os, sort, retry, endpoints]);
+  function changeFilter(next: Filter) {
+    if (next === filter && page === 1) return;
+    setLoading(true); setFilter(next); setPage(1);
+  }
+  const filtered = loading || error ? [] : result?.rows ?? [];
+  const groupOptions = summary?.groups ?? [...new Set(endpoints.flatMap((e) => e.groupPath ? [e.groupPath] : []))].sort();
+  const osOptions = summary?.operatingSystems ?? [...new Set(endpoints.flatMap((e) => e.operatingSystem ? [e.operatingSystem] : []))].sort();
 
-  const byId = useMemo(() => new Map(endpoints.map((e) => [e.id, e])), [endpoints]);
+  const byId = useMemo(() => new Map([...endpoints, ...(result?.rows ?? [])].map((e) => [e.id, e])), [endpoints, result]);
   const open = openId !== null ? byId.get(openId) ?? null : null;
 
   const groups = useMemo(() => {
@@ -74,19 +107,7 @@ export default function EndpointFleet({
     ].filter((g) => g.items.length > 0);
   }, [endpoints, t]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return endpoints.filter((e) => {
-      if (filter === "attention" && !ATTENTION_BUCKETS.includes(e.bucket)) return false;
-      if (filter === "offline" && !e.offline) return false;
-      if (filter === "servers" && e.deviceType !== SERVER_DEVICE_TYPE) return false;
-      if (filter === "unlinked" && e.deviceId !== null) return false;
-      if (!q) return true;
-      return e.hostName.toLowerCase().includes(q) || (e.ipAddress ?? "").toLowerCase().includes(q);
-    });
-  }, [endpoints, filter, query]);
-
-  const attentionCount = posture.attention.length;
+  const attentionCount = posture.counts.disabled + posture.counts.error + posture.counts.install_error + posture.counts.unknown;
   const pct = posture.protectedPct ?? 0;
   const segments = POSTURE_BUCKETS.filter((b) => posture.counts[b] > 0);
 
@@ -94,8 +115,9 @@ export default function EndpointFleet({
     { key: "all", count: posture.total },
     { key: "attention", count: attentionCount },
     { key: "offline", count: posture.offline },
-    { key: "servers", count: endpoints.filter((e) => e.deviceType === SERVER_DEVICE_TYPE).length },
-    { key: "unlinked", count: endpoints.filter((e) => e.deviceId === null).length },
+    { key: "outdated", count: posture.counts.outdated },
+    { key: "unknown_contact", count: summary?.unknownContact ?? endpoints.filter((e) => e.lastConnectionAt === null).length },
+    { key: "unlinked", count: summary?.unlinked ?? endpoints.filter((e) => e.deviceId === null).length },
   ];
 
   return (
@@ -116,7 +138,7 @@ export default function EndpointFleet({
             </p>
             <p className={clsx("mt-2 flex items-center gap-1.5 text-sm font-medium", attentionCount > 0 ? "text-ops-orange" : "text-ops-success")}>
               {attentionCount > 0 ? (
-                <button type="button" onClick={() => setFilter("attention")} className="underline-offset-4 hover:underline">
+                <button type="button" onClick={() => changeFilter("attention")} className="underline-offset-4 hover:underline">
                   {t("endpoints.needsAttention", { count: attentionCount })}
                 </button>
               ) : (
@@ -156,13 +178,16 @@ export default function EndpointFleet({
         </ul>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      <p className="text-sm text-ops-muted">{v("connectivityNote")}</p>
+      <div className="grid gap-6">
         {/* Fleet map: every device as one square, grouped by role. */}
-        <section aria-labelledby="fleet-heading" className="ops-panel p-5">
+        <details className="ops-panel p-5">
+          <summary className="cursor-pointer text-sm font-medium text-ops-text">{t("endpoints.fleetMap")}</summary>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="fleet-heading" className="text-[15px] font-semibold text-ops-text">{t("endpoints.fleetMap")}</h2>
             <p className="text-[12px] text-ops-muted">{t("endpoints.fleetMapHint")}</p>
           </div>
+          {summary?.mapTruncated && <p className="mt-1 text-[12px] text-ops-warning">{t("endpoints.mapSample", { count: summary.mapLimit })}</p>}
           <div className="mt-4 space-y-5">
             {groups.map((group) => (
               <div key={group.key}>
@@ -188,13 +213,13 @@ export default function EndpointFleet({
               </div>
             ))}
           </div>
-        </section>
+        </details>
 
         {/* Attention queue: worst first, servers and critical devices before the rest. */}
         <section aria-labelledby="attention-heading" className="ops-panel flex flex-col">
           <div className="flex items-baseline justify-between gap-2 border-b border-ops-border px-5 py-4">
             <h2 id="attention-heading" className="text-[15px] font-semibold text-ops-text">{t("endpoints.attention")}</h2>
-            <span className="text-[13px] font-medium tabular-nums text-ops-muted">{attentionCount}</span>
+            <button type="button" onClick={() => changeFilter("attention")} className="text-sm text-ops-accent">{v("seeAll", { count: attentionCount })}</button>
           </div>
           {attentionCount === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 px-5 py-10 text-center">
@@ -202,7 +227,7 @@ export default function EndpointFleet({
               <p className="text-sm text-ops-muted">{t("endpoints.attentionEmpty")}</p>
             </div>
           ) : (
-            <ul className="max-h-[22rem] divide-y divide-ops-border overflow-y-auto">
+            <ul aria-label={v("prioritySample", { count: Math.min(50, attentionCount) })} className="max-h-[22rem] divide-y divide-ops-border overflow-y-auto">
               {posture.attention.slice(0, 50).map((a) => {
                 const e = byId.get(a.id);
                 if (!e) return null;
@@ -237,20 +262,19 @@ export default function EndpointFleet({
         <div className="flex flex-col gap-3 border-b border-ops-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <h2 id="all-heading" className="text-[15px] font-semibold text-ops-text">{t("endpoints.allDevices")}</h2>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="flex flex-wrap gap-1" role="tablist" aria-label={t("endpoints.allDevices")}>
+            <div className="flex flex-wrap gap-1" role="group" aria-label={t("endpoints.allDevices")}>
               {filters.map((f) => (
                 <button
                   key={f.key}
                   type="button"
-                  role="tab"
-                  aria-selected={filter === f.key}
-                  onClick={() => setFilter(f.key)}
+                  aria-pressed={filter === f.key}
+                  onClick={() => changeFilter(f.key)}
                   className={clsx(
                     "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors",
                     filter === f.key ? "bg-ops-accent-soft text-ops-accent" : "text-ops-muted hover:bg-ops-surface-raised hover:text-ops-text",
                   )}
                 >
-                  {t(`endpoints.filters.${f.key}`)}
+                  {v(`filters.${f.key}`)}
                   <span className="tabular-nums opacity-75">{f.count}</span>
                 </button>
               ))}
@@ -261,7 +285,8 @@ export default function EndpointFleet({
               <input
                 type="search"
                 value={query}
-                onChange={(ev) => setQuery(ev.target.value)}
+                maxLength={80}
+                onChange={(ev) => { setLoading(true); setQuery(ev.target.value); setPage(1); }}
                 placeholder={t("endpoints.search")}
                 className="ops-input h-8 w-full pl-8 pr-3 text-[13px] sm:w-56"
               />
@@ -269,7 +294,12 @@ export default function EndpointFleet({
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        <div className="flex flex-wrap gap-3 border-b border-ops-border px-5 py-3 text-sm">
+          <label>{v("group")} <select value={group} className="ops-input" onChange={(e) => { setLoading(true); setGroup(e.target.value); setPage(1); }}><option value="">{v("any")}</option>{groupOptions.map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label>{v("os")} <select value={os} className="ops-input" onChange={(e) => { setLoading(true); setOs(e.target.value); setPage(1); }}><option value="">{v("any")}</option>{osOptions.map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label>{v("sort")} <select value={sort} className="ops-input" onChange={(e) => { setLoading(true); setSort(e.target.value as FleetQuery["sort"]); setPage(1); }}><option value="name">{v("name")}</option><option value="contact">{v("contact")}</option></select></label>
+        </div>
+        {loading ? <p role="status" className="p-5 text-sm text-ops-muted">{v("loading")}</p> : error ? <div role="alert" className="p-5 text-sm text-ops-danger">{v("error")} <button type="button" onClick={() => { setLoading(true); setRetry((n) => n + 1); }}>{v("retry")}</button></div> : filtered.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm text-ops-muted">{t("endpoints.noResults")}</p>
         ) : (
           <div className="overflow-x-auto">
@@ -285,7 +315,7 @@ export default function EndpointFleet({
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(0, 300).map((e) => (
+                {filtered.map((e) => (
                   <tr key={e.id} onClick={() => setOpenId(e.id)} className="cursor-pointer border-b border-ops-border/60 hover:bg-ops-surface-raised">
                     <td className="px-5 py-2.5">
                       <span className="font-medium text-ops-text">{e.hostName}</span>
@@ -311,6 +341,13 @@ export default function EndpointFleet({
             </table>
           </div>
         )}
+        {!loading && !error && result && <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 text-sm text-ops-muted">
+          <p role="status">{v("page", { page: result.page, pages: Math.max(1, Math.ceil(result.total / result.pageSize)), total: result.total })}</p>
+          <div className="flex gap-3">
+            <button type="button" disabled={result.page <= 1} onClick={() => { setLoading(true); setPage(result.page - 1); }} className="disabled:opacity-40">{v("previous")}</button>
+            <button type="button" disabled={result.page * result.pageSize >= result.total} onClick={() => { setLoading(true); setPage(result.page + 1); }} className="disabled:opacity-40">{v("next")}</button>
+          </div>
+        </div>}
       </section>
 
       <EndpointDrawer endpoint={open} isAdmin={isAdmin} locale={locale} onClose={() => setOpenId(null)} />

@@ -80,6 +80,11 @@ export function threatKeyFor(category: NormalizedCategory, md5?: string | null, 
   return `${category}:${md5 ?? threatName ?? "unknown"}`;
 }
 
+/** LIKE suffix for MD5-based cross-category correlation; only a 32-hex hash qualifies. */
+export function md5ThreatKeySuffix(md5?: string | null): string | null {
+  return md5 && /^[a-f0-9]{32}$/i.test(md5) ? `%:${md5}` : null;
+}
+
 /** Classify a normalized detection — score/category threshold (ThreatSync path). */
 export function classifyThreatSync(
   category: NormalizedCategory,

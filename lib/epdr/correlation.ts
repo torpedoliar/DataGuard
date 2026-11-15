@@ -54,7 +54,9 @@ export function correlate(ctx: CorrelationContext): CorrelateDecision {
   }
 
   const closed = ctx.closedWorkflow;
-  if (closed && ctx.detectedAtMs - closed.closedAtMs <= ctx.reopenWindowMs) {
+  if (closed && Number.isFinite(ctx.detectedAtMs) && Number.isFinite(closed.closedAtMs)
+      && ctx.detectedAtMs >= closed.closedAtMs && Number.isFinite(ctx.reopenWindowMs)
+      && ctx.reopenWindowMs >= 0 && ctx.detectedAtMs - closed.closedAtMs <= ctx.reopenWindowMs) {
     return {
       kind: "reopen",
       incidentId: closed.incidentId,

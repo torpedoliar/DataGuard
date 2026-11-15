@@ -1,16 +1,16 @@
 "use server";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db } from "@/db";
-import { epdrRules, watchguardGlobalSettings } from "@/db/schema";
+import { epdrRules } from "@/db/schema";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
 import { isEpdrActionType } from "@/lib/epdr/action-types";
+import { THREAT_CATEGORIES } from "@/lib/epdr/posture";
 
-const EXECUTION_MODES = ["simulate", "approval", "automatic"] as const;
 const CLOSE_MODES = ["auto", "approval", "manual"] as const;
 
 export type EpdrRuleRow = {
@@ -71,10 +71,10 @@ function parseBool(value: string | null): boolean {
 }
 
 const ruleSchema = z.object({
-  ruleKey: z.string().max(64),
+  ruleKey: z.string().trim().max(64),
   name: z.string().trim().min(1).max(200),
   enabled: z.boolean(),
-  categories: z.array(z.string()).min(1),
+  categories: z.array(z.enum(THREAT_CATEGORIES)).min(1),
   minScore: z.coerce.number().int().min(1).max(10).nullable().optional(),
   maxScore: z.coerce.number().int().min(1).max(10).nullable().optional(),
   deviceTypes: z.array(z.number().int()).min(1),
@@ -120,44 +120,20 @@ export async function saveEpdrRule(prevState: unknown, formData: FormData) {
     const siteId = guard.activeSiteId;
     const ruleKey = d.ruleKey || randomUUID();
 
-    // Flip the previous current version for this rule key.
-    if (d.ruleKey) {
-      await db.update(epdrRules).set({ isCurrent: false }).where(and(eq(epdrRules.siteId, siteId), eq(epdrRules.ruleKey, ruleKey), eq(epdrRules.isCurrent, true)));
-      const latest = await db
-        .select({ version: epdrRules.version })
-        .from(epdrRules)
+    await db.transaction(async (tx) => {
+      await lockRuleActor(tx, siteId, guard.session.userId);
+      const latest = await tx.select({ version: epdrRules.version }).from(epdrRules)
         .where(and(eq(epdrRules.siteId, siteId), eq(epdrRules.ruleKey, ruleKey)))
-        .orderBy(desc(epdrRules.version))
-        .limit(1);
-      const version = (latest[0]?.version ?? 0) + 1;
-
-      await db.insert(epdrRules).values({
+        .orderBy(desc(epdrRules.version)).limit(1);
+      // An edit must target a rule owned by this site, never create a foreign key here.
+      if (d.ruleKey && !latest[0]) throw new Error("rule_unavailable");
+      await tx.update(epdrRules).set({ isCurrent: false }).where(and(
+        eq(epdrRules.siteId, siteId), eq(epdrRules.ruleKey, ruleKey), eq(epdrRules.isCurrent, true),
+      ));
+      await tx.insert(epdrRules).values({
         siteId,
         ruleKey,
-        version,
-        isCurrent: true,
-        name: d.name,
-        enabled: d.enabled,
-        trigger: "detection",
-        categories: d.categories,
-        minScore: d.minScore,
-        maxScore: d.maxScore,
-        deviceTypes: d.deviceTypes,
-        actionType: d.actionType,
-        actionParams: { scanScope: 0, windowHours: 24 },
-        executionMode: "simulate", // edits reset to simulate (material change invalidates qualification)
-        closeMode: d.closeMode,
-        observationMinutes: d.observationMinutes,
-        cooldownMinutes: d.cooldownMinutes,
-        priority: d.priority,
-        createdBy: guard.session.userId,
-        createdAt: new Date(),
-      });
-    } else {
-      await db.insert(epdrRules).values({
-        siteId,
-        ruleKey,
-        version: 1,
+        version: (latest[0]?.version ?? 0) + 1,
         isCurrent: true,
         name: d.name,
         enabled: d.enabled,
@@ -177,7 +153,7 @@ export async function saveEpdrRule(prevState: unknown, formData: FormData) {
         createdBy: guard.session.userId,
         createdAt: new Date(),
       });
-    }
+    });
 
     revalidatePath("/admin/epdr/settings");
     await logAudit({ action: "UPDATE", entity: "settings", entityName: "WatchGuard EPDR Rule", detail: "Rule saved" });
@@ -187,80 +163,42 @@ export async function saveEpdrRule(prevState: unknown, formData: FormData) {
   }
 }
 
-const modeSchema = z.object({ ruleKey: z.string().min(1).max(64), rulesVersion: z.coerce.number().int().positive() });
+type RuleTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Serialize all rule publications for a site, including first versions. */
+async function lockRuleActor(tx: RuleTransaction, siteId: number, actorId: number) {
+  const { rows: sites } = await tx.execute(sql`SELECT id FROM sites
+    WHERE id = ${siteId} AND is_active = true FOR UPDATE`);
+  if (!sites[0]) throw new Error("site_unavailable");
+  const { rows: actors } = await tx.execute<{ role: string }>(sql`SELECT role FROM users
+    WHERE id = ${actorId} AND is_active = true FOR SHARE`);
+  if (!actors[0]) throw new Error("actor_unavailable");
+  if (actors[0].role === "superadmin") return;
+  const { rows: memberships } = await tx.execute(sql`SELECT id FROM user_sites
+    WHERE user_id = ${actorId} AND site_id = ${siteId} AND role_in_site = 'admin' FOR SHARE`);
+  if (!memberships[0]) throw new Error("membership_revoked");
+}
+
+const modeSchema = z.object({ ruleKey: z.string().trim().min(1).max(64), rulesVersion: z.coerce.number().int().positive() });
+
+async function blockAutomaticMode(formData: FormData) {
+  const guard = await requireActiveSiteAdminAction();
+  if (!guard.ok) return { message: guard.message };
+  const parsed = modeSchema.safeParse({ ruleKey: String(formData.get("ruleKey") ?? ""), rulesVersion: String(formData.get("rulesVersion") ?? "") });
+  if (!parsed.success) return { message: "Input tidak valid." };
+  // READ_ONLY is binding: neither simulation qualification nor another admin's
+  // approval can unlock provider writes. Do not persist a misleading mode/request.
+  return { status: "blocked_read_only" as const, message: "Mode otomatis diblokir oleh kebijakan READ_ONLY. Persetujuan admin tidak dapat mengaktifkannya; aturan tetap dalam mode simulasi." };
+}
 
 export async function requestAutomaticMode(prevState: unknown, formData: FormData) {
   void prevState;
-  const guard = await requireActiveSiteAdminAction();
-  if (!guard.ok) return { message: guard.message };
-
-  const parsed = modeSchema.safeParse({ ruleKey: String(formData.get("ruleKey") ?? ""), rulesVersion: String(formData.get("rulesVersion") ?? "") });
-  if (!parsed.success) return { message: "Input tidak valid." };
-
-  const [global] = await db.select({ simulationMinDays: watchguardGlobalSettings.simulationMinDays }).from(watchguardGlobalSettings).limit(1);
-  const minDays = global?.simulationMinDays ?? 7;
-
-  const [rule] = await db.select().from(epdrRules)
-    .where(and(eq(epdrRules.siteId, guard.activeSiteId), eq(epdrRules.ruleKey, parsed.data.ruleKey), eq(epdrRules.isCurrent, true)))
-    .limit(1);
-
-  if (!rule || rule.version !== parsed.data.rulesVersion) return { message: "Versi aturan berubah; muat ulang dan coba lagi." };
-  if (rule.executionMode !== "simulate") return { message: "Hanya aturan simulasi yang bisa meminta mode otomatis." };
-  if (!rule.simulateSince) return { message: "Aturan belum memulai simulasi." };
-
-  const qualifiedForMs = Date.now() - rule.simulateSince.getTime() >= minDays * 24 * 60 * 60 * 1000;
-  if (!qualifiedForMs) return { message: `Simulasi minimum ${minDays} hari belum terpenuhi.` };
-
-  await db.update(epdrRules).set({ pendingMode: "automatic", pendingModeRequestedBy: guard.session.userId, pendingModeRequestedAt: new Date() }).where(eq(epdrRules.id, rule.id));
-  revalidatePath("/admin/epdr/settings");
-  return { success: true, message: "Permintaan mode otomatis diajukan; admin lain harus mengonfirmasi." };
+  return blockAutomaticMode(formData);
 }
 
 export async function confirmAutomaticMode(prevState: unknown, formData: FormData) {
   void prevState;
-  const guard = await requireActiveSiteAdminAction();
-  if (!guard.ok) return { message: guard.message };
-
-  const parsed = modeSchema.safeParse({ ruleKey: String(formData.get("ruleKey") ?? ""), rulesVersion: String(formData.get("rulesVersion") ?? "") });
-  if (!parsed.success) return { message: "Input tidak valid." };
-
-  const [rule] = await db.select().from(epdrRules)
-    .where(and(eq(epdrRules.siteId, guard.activeSiteId), eq(epdrRules.ruleKey, parsed.data.ruleKey), eq(epdrRules.isCurrent, true)))
-    .limit(1);
-
-  if (!rule || rule.version !== parsed.data.rulesVersion) return { message: "Versi aturan berubah; muat ulang dan coba lagi." };
-  if (rule.pendingMode !== "automatic") return { message: "Tidak ada permintaan mode otomatis yang tertunda." };
-  if (rule.pendingModeRequestedBy === guard.session.userId) return { message: "Anda tidak dapat mengonfirmasi permintaan sendiri." };
-
-  // New version flips execution_mode to automatic and clears pending (CAS on version).
-  await db.update(epdrRules).set({ isCurrent: false }).where(and(eq(epdrRules.siteId, guard.activeSiteId), eq(epdrRules.ruleKey, parsed.data.ruleKey), eq(epdrRules.isCurrent, true)));
-  await db.insert(epdrRules).values({
-    siteId: guard.activeSiteId,
-    ruleKey: parsed.data.ruleKey,
-    version: rule.version + 1,
-    isCurrent: true,
-    name: rule.name,
-    enabled: rule.enabled,
-    trigger: rule.trigger,
-    categories: rule.categories,
-    minScore: rule.minScore,
-    maxScore: rule.maxScore,
-    deviceTypes: rule.deviceTypes,
-    actionType: rule.actionType,
-    actionParams: rule.actionParams,
-    executionMode: "automatic",
-    closeMode: rule.closeMode,
-    observationMinutes: rule.observationMinutes,
-    cooldownMinutes: rule.cooldownMinutes,
-    priority: rule.priority,
-    simulateSince: rule.simulateSince,
-    createdBy: rule.createdBy,
-    createdAt: new Date(),
-  });
-
-  revalidatePath("/admin/epdr/settings");
-  await logAudit({ action: "UPDATE", entity: "settings", entityName: "WatchGuard EPDR Rule", detail: "Automatic mode confirmed" });
-  return { success: true, message: "Mode otomatis diaktifkan." };
+  return blockAutomaticMode(formData);
 }
 
 export async function rejectAutomaticMode(prevState: unknown, formData: FormData) {
@@ -271,12 +209,21 @@ export async function rejectAutomaticMode(prevState: unknown, formData: FormData
   const parsed = modeSchema.safeParse({ ruleKey: String(formData.get("ruleKey") ?? ""), rulesVersion: String(formData.get("rulesVersion") ?? "") });
   if (!parsed.success) return { message: "Input tidak valid." };
 
-  const [rule] = await db.select().from(epdrRules)
-    .where(and(eq(epdrRules.siteId, guard.activeSiteId), eq(epdrRules.ruleKey, parsed.data.ruleKey), eq(epdrRules.isCurrent, true)))
-    .limit(1);
-
-  if (!rule || rule.pendingMode !== "automatic") return { message: "Tidak ada permintaan tertunda." };
-  await db.update(epdrRules).set({ pendingMode: null, pendingModeRequestedBy: null, pendingModeRequestedAt: null }).where(eq(epdrRules.id, rule.id));
-  revalidatePath("/admin/epdr/settings");
-  return { success: true, message: "Permintaan mode otomatis ditolak." };
+  try {
+    const rejected = await db.transaction(async (tx) => {
+      await lockRuleActor(tx, guard.activeSiteId, guard.session.userId);
+      const [rule] = await tx.select().from(epdrRules)
+        .where(and(eq(epdrRules.siteId, guard.activeSiteId), eq(epdrRules.ruleKey, parsed.data.ruleKey), eq(epdrRules.isCurrent, true)))
+        .limit(1);
+      if (!rule || rule.version !== parsed.data.rulesVersion || rule.pendingMode !== "automatic") return false;
+      await tx.update(epdrRules).set({ pendingMode: null, pendingModeRequestedBy: null, pendingModeRequestedAt: null })
+        .where(and(eq(epdrRules.siteId, guard.activeSiteId), eq(epdrRules.id, rule.id), eq(epdrRules.version, parsed.data.rulesVersion), eq(epdrRules.isCurrent, true)));
+      return true;
+    });
+    if (!rejected) return { message: "Tidak ada permintaan tertunda atau versi aturan berubah." };
+    revalidatePath("/admin/epdr/settings");
+    return { success: true, message: "Permintaan mode otomatis ditolak." };
+  } catch {
+    return { message: "Terjadi kesalahan saat menolak permintaan." };
+  }
 }

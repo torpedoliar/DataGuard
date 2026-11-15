@@ -5,6 +5,8 @@ type WorkerJob = { name: string; run: (connectionId: number) => Promise<void> };
 type WorkerDependencies = {
   jobs: WorkerJob[];
   getConnections: () => Promise<WorkerConnection[]>;
+  processReadSyncRequests?: () => Promise<void>;
+  processNotifications?: () => Promise<void>;
 };
 
 const LOOP_MS = 60_000;
@@ -28,9 +30,27 @@ export async function runWorker(args: string[], dependencies: WorkerDependencies
   const runOnce = args.includes("--run-once");
   do {
     try {
+      let auxiliaryFailed = false;
+      if (!onlyArg || onlyArg === "--only=endpoints") {
+        try {
+          await dependencies.processReadSyncRequests?.();
+        } catch {
+          auxiliaryFailed = true;
+          console.error("[watchguard-worker] read-sync queue pass failed");
+        }
+      }
+      if (!onlyArg) {
+        try {
+          await dependencies.processNotifications?.();
+        } catch {
+          // Local notifications must not starve scheduled provider reads.
+          auxiliaryFailed = true;
+          console.error("[watchguard-worker] notification pass failed");
+        }
+      }
       const result = await runPass();
       console.log(`[watchguard-worker] pass complete: ${result.ran} ran, ${result.failed} failed`);
-      if (runOnce) return result.failed > 0 ? 1 : 0;
+      if (runOnce) return result.failed > 0 || auxiliaryFailed ? 1 : 0;
     } catch {
       // Never emit raw provider/DB errors: they may contain credentials or URLs.
       console.error("[watchguard-worker] pass failed");
@@ -42,11 +62,13 @@ export async function runWorker(args: string[], dependencies: WorkerDependencies
 
 async function main(): Promise<number> {
   await import("dotenv/config");
-  const [{ eq }, { db }, { watchguardConnections }, { EPDR_JOBS }] = await Promise.all([
+  const [{ eq }, { db }, { watchguardConnections }, { EPDR_JOBS, runPendingReadSyncRequests, runLocalNotificationPass }] = await Promise.all([
     import("drizzle-orm"), import("@/db"), import("@/db/schema"), import("@/lib/epdr/jobs"),
   ]);
   return runWorker(process.argv.slice(2), {
     jobs: EPDR_JOBS,
+    processReadSyncRequests: runPendingReadSyncRequests,
+    processNotifications: runLocalNotificationPass,
     getConnections: () => db
       .select({ id: watchguardConnections.id, endpointSyncMinutes: watchguardConnections.endpointSyncMinutes, detectionSyncMinutes: watchguardConnections.detectionSyncMinutes })
       .from(watchguardConnections)

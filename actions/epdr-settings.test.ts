@@ -12,6 +12,7 @@ vi.mock("@/lib/action-auth", () => ({
   requireActiveSiteAdminAction: () => mocks.requireActiveSiteAdminAction(),
 }));
 vi.mock("@/lib/audit", () => ({ logAudit: () => mocks.logAudit() }));
+vi.mock("@/lib/epdr/read-sync-queue", () => ({ assertReadSyncActor: async () => undefined }));
 vi.mock("next/cache", () => ({ revalidatePath: () => mocks.revalidatePath() }));
 
 vi.mock("@/db", () => {
@@ -20,12 +21,14 @@ vi.mock("@/db", () => {
     for (const m of ["where", "limit"] as const) t[m] = () => t;
     return t;
   }
+  const insert = () => ({
+    values: (v: Record<string, unknown>) => { mocks.inserts.push(v); return { onConflictDoUpdate: () => Promise.resolve(undefined) }; },
+  });
   return {
     db: {
       select: (..._a: unknown[]) => ({ from: () => thenable(() => mocks.selectQueue.shift() ?? []) }),
-      insert: () => ({
-        values: (v: Record<string, unknown>) => { mocks.inserts.push(v); return { onConflictDoUpdate: () => Promise.resolve(undefined) }; },
-      }),
+      insert,
+      transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ execute: async () => ({ rows: [{ id: 3 }] }), insert }),
     },
   };
 });
@@ -68,6 +71,24 @@ describe("epdr-settings validation", () => {
       threatsyncMaxScore: 7,
     }));
     expect(result).toMatchObject({ message: expect.stringContaining("tidak boleh melebihi") });
+    expect(mocks.inserts).toHaveLength(0);
+  });
+
+  it.each([["9"], ["1,99"]])("rejects unsupported event types %s", async (eventTypes) => {
+    const result = await saveEpdrSettings(undefined, form({ ingestEnabled: true, eventTypes, threatsyncCategories: "malware" }));
+    expect(result).toMatchObject({ message: expect.stringContaining("event") });
+    expect(mocks.inserts).toHaveLength(0);
+  });
+
+  it("rejects non-integer event tokens instead of silently dropping them", async () => {
+    const result = await saveEpdrSettings(undefined, form({ ingestEnabled: true, eventTypes: "1,x", threatsyncCategories: "malware" }));
+    expect(result).toMatchObject({ message: expect.any(String) });
+    expect(mocks.inserts).toHaveLength(0);
+  });
+
+  it.each([["malware,unknown"], ["malware,\"\""]])("rejects unsupported categories %s", async (categories) => {
+    const result = await saveEpdrSettings(undefined, form({ ingestEnabled: true, eventTypes: "1", threatsyncCategories: categories }));
+    expect(result).toMatchObject({ message: expect.any(String) });
     expect(mocks.inserts).toHaveLength(0);
   });
 

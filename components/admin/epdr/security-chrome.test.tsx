@@ -7,7 +7,7 @@ import { ConnectionGate, FreshnessWarning } from "./security-chrome";
 
 const context: EpdrSecurityContext = {
   siteName: "Test site", connection: "syncing_first", lastSyncAt: null,
-  lastSyncError: null, isAdmin: true, isSuperadmin: true,
+  lastSyncError: null, isAdmin: true, isSuperadmin: true, accountRevision: null,
 };
 
 describe("first sync messaging", () => {

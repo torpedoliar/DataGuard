@@ -498,6 +498,90 @@
       "when": 1791291600000,
       "tag": "0071_epdr_health_cases",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1791302400000,
+      "tag": "0072_epdr_read_sync_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1791313200000,
+      "tag": "0073_epdr_playbook_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1791324000000,
+      "tag": "0074_epdr_incident_handoffs",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1791334800000,
+      "tag": "0075_epdr_local_playbook_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1791345600000,
+      "tag": "0076_epdr_local_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1791356400000,
+      "tag": "0077_epdr_evidence_account_revision",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1791367200000,
+      "tag": "0078_incident_manual_epdr_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1791378000000,
+      "tag": "0079_epdr_detection_revision_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1791388800000,
+      "tag": "0080_epdr_detection_read_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1791399600000,
+      "tag": "0081_epdr_local_notification_quiet_windows",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1791410400000,
+      "tag": "0082_epdr_local_approvals_and_escalation",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1791421200000,
+      "tag": "0083_epdr_local_digest",
+      "breakpoints": true
     }
   ]
 }

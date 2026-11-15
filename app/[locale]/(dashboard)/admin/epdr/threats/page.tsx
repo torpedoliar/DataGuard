@@ -1,6 +1,7 @@
 import { getEpdrThreats } from "@/actions/epdr-threats";
 import { ConnectionGate, FreshnessWarning, SecurityStatusPills } from "@/components/admin/epdr/security-chrome";
 import ThreatPanel from "@/components/admin/epdr/threat-panel";
+import EpdrNav from "@/components/admin/epdr/epdr-nav";
 import SyncRefresh from "@/components/admin/epdr/sync-refresh";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
@@ -36,6 +37,7 @@ export default async function EpdrThreatsPage() {
         actions={<SecurityStatusPills context={data} locale={locale} />}
       />
 
+      <EpdrNav isAdmin={data.isAdmin} />
       <ConnectionGate context={data} />
       <FreshnessWarning context={data} locale={locale} />
       {(data.connection === "syncing_first" || data.connection === "error" || data.connection === "stale") && (

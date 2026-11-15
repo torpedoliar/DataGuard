@@ -49,6 +49,16 @@ describe("WatchGuard worker orchestration (mock only)", () => {
     expect(detections).not.toHaveBeenCalled();
   });
 
+  it.each([undefined, "endpoints", "detections"])("drains endpoint read requests only for matching worker selection %s", async (only) => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const processReadSyncRequests = vi.fn(async () => undefined);
+    await runWorker(["--run-once", ...(only ? [`--only=${only}`] : [])], {
+      jobs: [{ name: "endpoints", run: async () => undefined }, { name: "detections", run: async () => undefined }],
+      getConnections: async () => [], processReadSyncRequests,
+    });
+    expect(processReadSyncRequests).toHaveBeenCalledTimes(only === "detections" ? 0 : 1);
+  });
+
   it.each(["missing", ""])("rejects unknown/empty job %s before loading connections", async (only) => {
     const getConnections = vi.fn(async () => [connection]);
     await expect(runWorker(["--run-once", `--only=${only}`], {
@@ -72,6 +82,22 @@ describe("WatchGuard worker orchestration (mock only)", () => {
     expect(JSON.stringify(error.mock.calls)).not.toContain("private-provider-payload");
   });
 
+  it.each(["processReadSyncRequests", "processNotifications"] as const)("isolates %s failure without starving scheduled reads or hiding failure", async (failedPass) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const scheduled = vi.fn(async () => undefined);
+    const queue = vi.fn(async () => undefined);
+    const notifications = vi.fn(async () => undefined);
+    const failure = vi.fn(async () => { throw new Error("private-auxiliary-payload"); });
+    expect(await runWorker(["--run-once"], {
+      jobs: [{ name: "endpoints", run: scheduled }], getConnections: async () => [connection],
+      processReadSyncRequests: failedPass === "processReadSyncRequests" ? failure : queue,
+      processNotifications: failedPass === "processNotifications" ? failure : notifications,
+    })).toBe(1);
+    expect(scheduled).toHaveBeenCalledWith(1);
+    expect(failedPass === "processReadSyncRequests" ? notifications : queue).toHaveBeenCalledOnce();
+    expect(JSON.stringify(error.mock.calls)).not.toContain("private-auxiliary-payload");
+  });
   it("returns nonzero without leaking connection query errors", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     expect(await runWorker(["--run-once"], {

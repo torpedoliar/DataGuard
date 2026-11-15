@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:epdr:postgres": "tsx scripts/epdr-postgres-check.ts --run-isolated",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run test && npm run build",
     "db:migrate": "tsx scripts/migrate.ts",

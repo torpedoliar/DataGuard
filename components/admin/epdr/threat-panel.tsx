@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ShieldQuestion } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown } from "lucide-react";
 import clsx from "clsx";
-import type { EpdrDetectionRow, EpdrThreatsData } from "@/actions/epdr-threats";
+import IncidentHandoff from "./incident-handoff";
+import { getEpdrThreatTable, type EpdrThreatPage, type EpdrDetectionRow, type EpdrThreatsData } from "@/actions/epdr-threats";
+import type { ThreatQuery } from "@/lib/epdr/threat-query";
 import { THREAT_CATEGORIES, type ThreatCategory, type TrendDay } from "@/lib/epdr/posture";
 
 /** One severity-ordered palette for the whole page: bars, dots and list rows agree. */
@@ -96,11 +98,11 @@ function Trend({ trend, locale }: { trend: TrendDay[]; locale: string }) {
   );
 }
 
-function DetectionRow({ d, locale }: { d: EpdrDetectionRow; locale: string }) {
+function DetectionRow({ d, locale, isAdmin }: { d: EpdrDetectionRow; locale: string; isAdmin: boolean }) {
   const t = useTranslations("Epdr");
   const active = d.incidentStatus === "Open" || d.incidentStatus === "In Progress";
   return (
-    <li className="flex items-center gap-3 px-5 py-3">
+    <li className="flex flex-wrap items-center gap-3 px-5 py-3">
       <span className={clsx("size-2 shrink-0 rounded-full", CATEGORY_FILL[d.category] ?? CATEGORY_FILL.pup)} aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13.5px] text-ops-text">
@@ -123,13 +125,104 @@ function DetectionRow({ d, locale }: { d: EpdrDetectionRow; locale: string }) {
       ) : (
         <span className="shrink-0 text-[12.5px] text-ops-subtle">{t("threats.noIncident")}</span>
       )}
+      {d.historical && <span className="shrink-0 text-[11px] text-ops-warning">{t("threatV2.historical")}</span>}
+      {isAdmin && !d.incidentId && !d.historical && <IncidentHandoff detectionId={d.id} locale={locale} />}
     </li>
+  );
+}
+
+export function ThreatTable({ initial, ignored = false, locale, isAdmin }: { initial: EpdrThreatPage; ignored?: boolean; locale: string; isAdmin: boolean }) {
+  const t = useTranslations("Epdr.threatV2");
+  const epdr = useTranslations("Epdr");
+  const [query, setQuery] = useState<ThreatQuery>({ page: 1, query: "", category: "all", source: "all", scoreMode: "any", minScore: 0, maxScore: 10, sort: "newest", ignored });
+  const [result, setResult] = useState(initial);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const first = useRef(true);
+  const initialSnapshot = useRef(initial);
+  const [retry, setRetry] = useState(0);
+  const invalid = query.scoreMode === "range" && (!Number.isInteger(query.minScore) || !Number.isInteger(query.maxScore) || query.minScore < 0 || query.maxScore > 10 || query.minScore > query.maxScore);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    let cancelled = false;
+    if (invalid) return;
+    if (initialSnapshot.current !== initial) {
+      initialSnapshot.current = initial;
+      if (query.page === 1 && !query.query && query.category === "all" && query.source === "all" && query.scoreMode === "any" && query.sort === "newest") {
+        // The refreshed server snapshot is already the default query's result.
+        const timer = setTimeout(() => { if (!cancelled) { setResult(initial); setError(""); setLoading(false); } }, 0);
+        return () => { cancelled = true; clearTimeout(timer); };
+      }
+    }
+    const timer = setTimeout(() => {
+      setLoading(true);
+      setError("");
+      void getEpdrThreatTable(query).then((response) => {
+        if (cancelled) return;
+        if ("message" in response) setError(t("loadError"));
+        else setResult(response);
+      }).catch(() => {
+        if (!cancelled) setError(t("loadError"));
+      }).finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    }, 300);
+    return () => { clearTimeout(timer); cancelled = true; };
+  }, [query, t, invalid, initial, retry]);
+  const pending = !invalid && loading;
+  const pages = Math.max(1, Math.ceil(result.total / result.pageSize));
+  const change = (value: Partial<typeof query>) => { setLoading(true); setQuery((old) => ({ ...old, ...value, page: 1 })); };
+  const control = "rounded border border-ops-border bg-ops-surface px-2 py-1.5 text-sm text-ops-text";
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 border-b border-ops-border p-4">
+        <input aria-label={t("query")} placeholder={t("query")} value={query.query} maxLength={100} onChange={(e) => change({ query: e.target.value })} className={control} />
+        <select aria-label={t("category")} value={query.category} onChange={(e) => change({ category: e.target.value as typeof query.category })} className={control}>
+          <option value="all">{t("all")}</option>
+          {[...THREAT_CATEGORIES, "other"].map((c) => <option key={c} value={c}>{epdr(`category.${c}`)}</option>)}
+        </select>
+        <select aria-label={t("source")} value={query.source} onChange={(e) => change({ source: e.target.value as typeof query.source })} className={control}>
+          <option value="all">{t("all")}</option>
+          {["event_export", "threatsync"].map((s) => <option key={s} value={s}>{epdr(`threats.source.${s}`)}</option>)}
+        </select>
+        <select aria-label={t("scoreMode")} value={query.scoreMode} onChange={(e) => change({ scoreMode: e.target.value as typeof query.scoreMode })} className={control}>
+          <option value="any">{t("anyScore")}</option><option value="range">{t("scoreRange")}</option><option value="missing">{t("missingScore")}</option>
+        </select>
+        {query.scoreMode === "range" && <>
+          <input type="number" min={0} max={10} aria-label={t("minScore")} value={query.minScore} onChange={(e) => change({ minScore: Number(e.target.value) })} className={`${control} w-20`} />
+          <input type="number" min={0} max={10} aria-label={t("maxScore")} value={query.maxScore} onChange={(e) => change({ maxScore: Number(e.target.value) })} className={`${control} w-20`} />
+        </>}
+        <select aria-label={t("sort")} value={query.sort} onChange={(e) => change({ sort: e.target.value as typeof query.sort })} className={control}>
+          {["newest", "oldest", "scoreHigh"].map((s) => <option key={s} value={s}>{t(s)}</option>)}
+        </select>
+        <p className="w-full text-xs text-ops-muted">{t("windowHint")}</p>
+      </div>
+      {invalid && <p role="alert" className="p-4 text-ops-danger">{t("invalidRange")}</p>}
+      {error && !invalid && <div className="p-4"><p role="alert" className="text-ops-danger">{error}</p>
+        <button type="button" className={control} disabled={pending} onClick={() => { setLoading(true); setRetry((value) => value + 1); }}>{t("retry")}</button></div>}
+      <div aria-busy={pending}>
+        {pending && !invalid && <p role="status" className="p-4 text-sm text-ops-muted">{t("loading")}</p>}
+        {!pending && !invalid && !error && (result.rows.length ? <ul className="divide-y divide-ops-border">
+          {result.rows.map((d) => ignored ? <li key={d.id} className="px-5 py-3 text-sm text-ops-muted">
+            {epdr("threats.found", { category: epdr(`category.${d.category}`), host: d.hostName ?? epdr("threats.unknownHost") })} · {d.ignoredReason ? epdr(`ignoredReason.${d.ignoredReason}`) : "—"}
+          </li> : <DetectionRow key={d.id} d={d} locale={locale} isAdmin={isAdmin} />)}
+        </ul> : <p className="p-5 text-sm text-ops-muted">{epdr("threats.empty")}</p>)}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ops-border p-4 text-sm">
+        <span>{t("pageSummary", { page: result.page, pages, total: result.total })}</span>
+        <div className="flex gap-2">
+          <button type="button" className={control} disabled={pending || invalid || result.page <= 1} onClick={() => setQuery((q) => ({ ...q, page: result.page - 1 }))}>{t("previous")}</button>
+          <button type="button" className={control} disabled={pending || invalid || result.page >= pages} onClick={() => setQuery((q) => ({ ...q, page: result.page + 1 }))}>{t("next")}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function ThreatPanel({ data, locale }: { data: EpdrThreatsData; locale: string }) {
   const t = useTranslations("Epdr");
   const [showIgnored, setShowIgnored] = useState(false);
+  const h = useTranslations("Epdr.handoffV2");
   const cleared = data.activeCount === 0;
 
   return (
@@ -150,9 +243,9 @@ export default function ThreatPanel({ data, locale }: { data: EpdrThreatsData; l
           )}
           <div>
             <p className={clsx("text-[15px] font-semibold", cleared ? "text-ops-success" : "text-ops-orange")}>
-              {cleared ? t("threats.clear") : t("threats.active", { count: data.activeCount })}
+              {cleared ? h("noActiveLinked") : t("threats.active", { count: data.activeCount })}
             </p>
-            <p className="mt-0.5 text-[13px] text-ops-muted">{cleared ? t("threats.clearBody") : t("threats.activeBody")}</p>
+            <p className="mt-0.5 text-[13px] text-ops-muted">{cleared ? h("noActiveLinkedHint") : t("threats.activeBody")}</p>
           </div>
         </div>
       </section>
@@ -185,18 +278,7 @@ export default function ThreatPanel({ data, locale }: { data: EpdrThreatsData; l
           <div className="border-b border-ops-border px-5 py-4">
             <h2 id="recent-heading" className="text-[15px] font-semibold text-ops-text">{t("threats.recent")}</h2>
           </div>
-          {data.detections.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
-              <ShieldQuestion className="size-6 text-ops-subtle" aria-hidden />
-              <p className="text-sm text-ops-muted">{t("threats.empty")}</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-ops-border">
-              {data.detections.slice(0, 50).map((d) => (
-                <DetectionRow key={d.id} d={d} locale={locale} />
-              ))}
-            </ul>
-          )}
+          <ThreatTable initial={data.detectionPage} locale={locale} isAdmin={data.isAdmin} />
         </section>
 
         <section aria-labelledby="trend-heading" className="ops-panel p-5">
@@ -216,7 +298,7 @@ export default function ThreatPanel({ data, locale }: { data: EpdrThreatsData; l
       </div>
 
       {/* Ignored detections: admin-only review material, collapsed by default. */}
-      {data.isAdmin && data.ignored.length > 0 && (
+      {data.isAdmin && data.ignoredPage.total > 0 && (
         <section className="ops-panel">
           <button
             type="button"
@@ -225,26 +307,13 @@ export default function ThreatPanel({ data, locale }: { data: EpdrThreatsData; l
             className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
           >
             <span>
-              <span className="text-[15px] font-semibold text-ops-text">{showIgnored ? t("threats.hideIgnored") : t("threats.showIgnored", { count: data.ignored.length })}</span>
+              <span className="text-[15px] font-semibold text-ops-text">{showIgnored ? t("threats.hideIgnored") : t("threats.showIgnored", { count: data.ignoredPage.total })}</span>
               <span className="mt-0.5 block text-[12.5px] text-ops-muted">{t("threats.ignoredHint")}</span>
             </span>
             <ChevronDown className={clsx("size-4 shrink-0 text-ops-muted transition-transform", showIgnored && "rotate-180")} aria-hidden />
           </button>
           {showIgnored && (
-            <ul className="divide-y divide-ops-border border-t border-ops-border">
-              {data.ignored.map((d) => (
-                <li key={d.id} className="flex items-center gap-3 px-5 py-2.5 text-[13px]">
-                  <span className={clsx("size-2 shrink-0 rounded-full", CATEGORY_FILL[d.category] ?? CATEGORY_FILL.pup)} aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-ops-text">
-                    {t("threats.found", { category: t(`category.${d.category}`), host: d.hostName ?? t("threats.unknownHost") })}
-                  </span>
-                  <span className="shrink-0 text-[12px] text-ops-muted">
-                    {d.ignoredReason ? t(`ignoredReason.${d.ignoredReason}`) : d.ignoredReason}
-                  </span>
-                  <ChevronRight className="size-4 shrink-0 text-ops-subtle" aria-hidden />
-                </li>
-              ))}
-            </ul>
+            <ThreatTable initial={data.ignoredPage} ignored locale={locale} isAdmin={data.isAdmin} />
           )}
         </section>
       )}

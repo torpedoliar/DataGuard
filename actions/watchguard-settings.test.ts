@@ -81,7 +81,7 @@ function saveForm(overrides: Record<string, string | number | boolean> = {}): Fo
     watchguardRegion: "jpn",
     watchguardAccountId: "WGC-3-123",
     watchguardApiKey: "",
-    watchguardRwAccessId: "ACCESS-RW",
+    watchguardRwAccessId: "",
     watchguardRwPassword: "",
     watchguardRoAccessId: "",
     watchguardRoPassword: "",
@@ -162,17 +162,94 @@ describe("saveWatchGuardConnection validation", () => {
   });
 });
 
+describe("credential input safeguards", () => {
+  const credentialFields = ["watchguardApiKey", "watchguardRoAccessId", "watchguardRoPassword", "watchguardRwAccessId", "watchguardRwPassword"];
+
+  it.each(credentialFields.flatMap((field) => ["********", "••••••••", "●●●●●●●●", "  ********  "].map((mask) => ({ field, mask }))))(
+    "rejects a mask sentinel in $field without persisting or rotating", async ({ field, mask }) => {
+      mocks.selectQueue = [[], [existingRow()]];
+      const result = await saveWatchGuardConnection(undefined, saveForm({ [field]: mask, watchguardApiKey: field === "watchguardApiKey" ? mask : "replacement-key" }));
+      expect(result).not.toHaveProperty("success");
+      expect(mocks.updates).toHaveLength(0);
+      expect(mocks.inserts).toHaveLength(0);
+      expect(mocks.logAudit).not.toHaveBeenCalled();
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      expect(mocks.testConnection).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["Ro", "Rw"].flatMap((mode) => ["AccessId", "Password"].flatMap((part) => [false, true].map((newConnection) => ({ mode, part, newConnection })))))(
+    "rejects partial $mode $part credentials (new connection: $newConnection)", async ({ mode, part, newConnection }) => {
+      // An existing RW pair must not make a partial RO pair valid.
+      mocks.selectQueue = [[], newConnection ? [] : [existingRow({ [`${mode.toLowerCase()}AccessId`]: null, [`${mode.toLowerCase()}Password`]: null })]];
+      const result = await saveWatchGuardConnection(undefined, saveForm({ [`watchguard${mode}${part}`]: "partial-value", watchguardApiKey: "replacement-key" }));
+      expect(result).not.toHaveProperty("success");
+      expect(mocks.updates).toHaveLength(0);
+      expect(mocks.inserts).toHaveLength(0);
+      expect(mocks.logAudit).not.toHaveBeenCalled();
+      expect(mocks.testConnection).not.toHaveBeenCalled();
+    },
+  );
+
+  it("allows a new draft with both credential pairs absent", async () => {
+    mocks.selectQueue = [[], []];
+    const result = await saveWatchGuardConnection(undefined, saveForm());
+    expect(result).toMatchObject({ success: true });
+    expect(mocks.inserts[0]).toMatchObject({ rwAccessId: null, rwPassword: null, roAccessId: null, roPassword: null });
+  });
+});
+
 describe("saveWatchGuardConnection persistence", () => {
-  it("preserves stored secrets when the secret fields are blank", async () => {
-    mocks.selectQueue = [[], [existingRow()]];
+  it("preserves both stored IDs, secrets and revisions on an unchanged wizard submit", async () => {
+    mocks.selectQueue = [[], [existingRow({ roAccessId: "ACCESS-RO", roPassword: "enc(old-ro-pass)" })]];
     const result = await saveWatchGuardConnection(undefined, saveForm());
     expect(result).toMatchObject({ success: true });
     expect(mocks.updates[0]).toMatchObject({
       apiKey: "enc(old-key)",
+      rwAccessId: "ACCESS-RW",
       rwPassword: "enc(old-pass)",
+      roAccessId: "ACCESS-RO",
+      roPassword: "enc(old-ro-pass)",
       credentialRevision: 2,
       accountRevision: 1,
     });
+  });
+
+  it("preserves credentials when only sync settings change", async () => {
+    mocks.selectQueue = [[], [existingRow()]];
+    const result = await saveWatchGuardConnection(undefined, saveForm({ watchguardEndpointSyncMinutes: 30 }));
+    expect(result).toMatchObject({ success: true });
+    expect(mocks.updates[0]).toMatchObject({
+      endpointSyncMinutes: 30, rwAccessId: "ACCESS-RW", rwPassword: "enc(old-pass)", credentialRevision: 2,
+    });
+  });
+
+  it.each(["Ro", "Rw"])("stores a legitimate %s credential replacement", async (mode) => {
+    mocks.selectQueue = [[], [existingRow()]];
+    const result = await saveWatchGuardConnection(undefined, saveForm({
+      [`watchguard${mode}AccessId`]: "NEW-ACCESS",
+      [`watchguard${mode}Password`]: "new-password",
+    }));
+    expect(result).toMatchObject({ success: true });
+    expect(mocks.updates[0]).toMatchObject({
+      [`${mode.toLowerCase()}AccessId`]: "NEW-ACCESS",
+      [`${mode.toLowerCase()}Password`]: "enc(new-password)",
+      credentialRevision: 3,
+    });
+  });
+
+  it("allows an ID replacement while preserving its stored password", async () => {
+    mocks.selectQueue = [[], [existingRow()]];
+    const result = await saveWatchGuardConnection(undefined, saveForm({ watchguardRwAccessId: "NEW-RW" }));
+    expect(result).toMatchObject({ success: true });
+    expect(mocks.updates[0]).toMatchObject({ rwAccessId: "NEW-RW", rwPassword: "enc(old-pass)", credentialRevision: 3 });
+  });
+
+  it("does not rotate when the same access ID is explicitly supplied", async () => {
+    mocks.selectQueue = [[], [existingRow()]];
+    const result = await saveWatchGuardConnection(undefined, saveForm({ watchguardRwAccessId: "ACCESS-RW" }));
+    expect(result).toMatchObject({ success: true });
+    expect(mocks.updates[0]).toMatchObject({ credentialRevision: 2 });
   });
 
   it("rotates credentials (bumps credential_revision) when a new secret is supplied", async () => {

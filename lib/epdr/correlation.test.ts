@@ -45,6 +45,14 @@ describe("correlate", () => {
     expect(result).toEqual({ kind: "reopen", incidentId: 9, reopenCount: 2, severity: "Critical" });
   });
 
+  it.each([11_000, Infinity, NaN])("does not reopen on an older detection or invalid closure timestamp %s", (closedAtMs) => {
+    expect(correlate(base({ closedWorkflow: { incidentId: 9, closedAtMs, severity: "High", reopenCount: 1 } })))
+      .toEqual({ kind: "create" });
+  });
+  it.each([-1, Infinity, NaN])("does not reopen with an invalid reopen window %s", (reopenWindowMs) => {
+    expect(correlate(base({ reopenWindowMs, closedWorkflow: { incidentId: 9, closedAtMs: 9_000, severity: "High", reopenCount: 1 } })))
+      .toEqual({ kind: "create" });
+  });
   it("creates a new episode when nothing matches", () => {
     expect(correlate(base()).kind).toBe("create");
   });

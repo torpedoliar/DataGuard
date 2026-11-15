@@ -1,7 +1,10 @@
 import { getEpdrSettings, saveEpdrSettings } from "@/actions/epdr-settings";
 import ActionButton from "@/components/ui/action-button";
 import PageHeader from "@/components/ui/page-header";
+import EpdrNav from "@/components/admin/epdr/epdr-nav";
+import NotificationSettings from "@/components/admin/epdr/notification-settings";
 import { verifySession } from "@/lib/session";
+import { hasAdminAccess } from "@/lib/site-access";
 import { THREAT_CATEGORIES } from "@/lib/epdr/posture";
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -59,6 +62,7 @@ export default async function EpdrSettingsPage() {
   const session = await verifySession();
   if (!session) redirect("/login");
   if (!session.activeSiteId) redirect("/select-site");
+  if (!await hasAdminAccess()) redirect("/admin/epdr");
   const { getLocale } = await import("next-intl/server");
   setRequestLocale(await getLocale());
   const t = await getTranslations("Epdr");
@@ -72,6 +76,8 @@ export default async function EpdrSettingsPage() {
     <main className="mx-auto flex w-full max-w-4xl animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
       <PageHeader eyebrow={`Security / ${t("detection.title")}`} title={t("detection.title")} description={t("detection.description")} />
 
+      <EpdrNav isAdmin />
+      <NotificationSettings />
       <form action={asFormAction(saveEpdrSettings.bind(null, undefined))} className="space-y-6">
         <Section title={t("detection.signals")}>
           <label className="flex items-start gap-3 rounded-md border border-ops-border p-3.5">

@@ -1,6 +1,9 @@
-import { getEpdrEndpoints } from "@/actions/epdr-endpoints";
+import { getEpdrFleetOverview } from "@/actions/epdr-endpoints";
 import EndpointFleet from "@/components/admin/epdr/endpoint-fleet";
 import SyncRefresh from "@/components/admin/epdr/sync-refresh";
+import EpdrNav from "@/components/admin/epdr/epdr-nav";
+import ReadSyncPanel from "@/components/admin/epdr/read-sync-panel";
+import NotificationInbox from "@/components/admin/epdr/notification-inbox";
 import { ConnectionGate, FreshnessWarning, SecurityStatusPills } from "@/components/admin/epdr/security-chrome";
 import PageHeader from "@/components/ui/page-header";
 import { verifySession } from "@/lib/session";
@@ -20,12 +23,12 @@ export default async function EpdrEndpointsPage() {
   setRequestLocale(locale);
   const t = await getTranslations("Epdr");
 
-  const data = await getEpdrEndpoints();
+  const data = await getEpdrFleetOverview();
   if ("message" in data) {
     return <main className="mx-auto max-w-3xl px-4 py-16 text-sm text-ops-muted">{data.message}</main>;
   }
 
-  const hasData = data.endpoints.length > 0 && data.connection !== "not_configured";
+  const hasData = data.summary.total > 0 && data.connection !== "not_configured";
 
   return (
     <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
@@ -36,12 +39,15 @@ export default async function EpdrEndpointsPage() {
         actions={<SecurityStatusPills context={data} locale={locale} />}
       />
 
+      <EpdrNav isAdmin={data.isAdmin} />
+      {data.isAdmin && <ReadSyncPanel enabled={data.connection !== "not_configured" && data.connection !== "disabled"} />}
+      <NotificationInbox locale={locale} />
       <ConnectionGate context={data} />
       <FreshnessWarning context={data} locale={locale} />
       {(data.connection === "syncing_first" || data.connection === "error" || data.connection === "stale") && (
         <SyncRefresh key={data.siteName} waiting={data.connection === "syncing_first"} />
       )}
-      {hasData && <EndpointFleet posture={data.posture} endpoints={data.endpoints} isAdmin={data.isAdmin} locale={locale} />}
+      {hasData && <EndpointFleet posture={data.posture} endpoints={data.endpoints} summary={data.summary} isAdmin={data.isAdmin} locale={locale} />}
       {!hasData && data.connection === "live" && <p className="ops-panel p-6 text-sm text-ops-muted">{t("setup.emptyInventory")}</p>}
     </main>
   );

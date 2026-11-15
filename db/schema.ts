@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, jsonb, index, real, uuid } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, foreignKey, jsonb, index, real, uuid, date } from "drizzle-orm/pg-core";
 import { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { AssetType, FacilitySpecs } from "@/lib/facility-asset";
 
@@ -1387,8 +1387,63 @@ export const watchguardConnections = pgTable(
   },
   (table) => ({
     regionAccountIdx: uniqueIndex("watchguard_connections_region_account_idx").on(table.region, table.accountId),
+    idSiteIdx: uniqueIndex("watchguard_connections_id_site_idx").on(table.id, table.siteId),
   }),
 );
+
+// Durable endpoint read requests. Partial unique index is defined in SQL0072.
+export const epdrReadSyncRequests = pgTable("epdr_read_sync_requests", {
+  id: serial("id").primaryKey(),
+  connectionId: integer("connection_id").notNull(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  accountRevision: integer("account_revision").notNull(),
+  requestedBy: integer("requested_by").references(() => users.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("queued"),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  error: text("error"),
+}, (table) => ({
+  connectionSiteFk: foreignKey({
+    name: "epdr_read_sync_connection_site_fk",
+    columns: [table.connectionId, table.siteId],
+    foreignColumns: [watchguardConnections.id, watchguardConnections.siteId],
+  }).onDelete("cascade"),
+}));
+
+// Immutable application-authored simulation versions; no provider dispatch mode.
+export const epdrPlaybookVersions = pgTable("epdr_playbook_versions", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  templateId: text("template_id").notNull(),
+  version: integer("version").notNull(),
+  name: text("name").notNull(),
+  mode: text("mode").notNull().default("simulate"),
+  configuration: jsonb("configuration").notNull(),
+  definition: jsonb("definition").notNull(),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  templateVersionIdx: uniqueIndex("epdr_playbook_template_version_idx").on(table.siteId, table.templateId, table.version),
+  idSiteIdx: uniqueIndex("epdr_playbook_versions_id_site_idx").on(table.id, table.siteId),
+}));
+
+export const epdrPlaybookRuns = pgTable("epdr_playbook_runs", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  versionId: integer("version_id").notNull(),
+  requestedBy: integer("requested_by").references(() => users.id, { onDelete: "set null" }),
+  status: text("status").notNull(),
+  evidence: jsonb("evidence").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  versionSiteFk: foreignKey({ name: "epdr_playbook_run_version_site_fk", columns: [table.versionId, table.siteId], foreignColumns: [epdrPlaybookVersions.id, epdrPlaybookVersions.siteId] }).onDelete("cascade"),
+  siteHistoryIdx: index("epdr_playbook_runs_site_history").on(table.siteId, table.id),
+}));
 
 // Singleton (id=1) superadmin-global EPDR controls. allowed_actions is the
 // ceiling for every site (values from lib/epdr/action-types.ts).
@@ -1413,6 +1468,7 @@ export const epdrEndpoints = pgTable(
     id: serial("id").primaryKey(),
     connectionId: integer("connection_id").notNull().references(() => watchguardConnections.id, { onDelete: "cascade" }),
     siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    accountRevision: integer("account_revision").notNull().default(0),
     wgDeviceId: text("wg_device_id").notNull(),
     hostName: text("host_name").notNull(),
     ipAddress: text("ip_address"),
@@ -1451,7 +1507,8 @@ export const epdrEndpoints = pgTable(
     raw: jsonb("raw"),
   },
   (table) => ({
-    connectionDeviceIdx: uniqueIndex("epdr_endpoints_connection_device_unique").on(table.connectionId, table.wgDeviceId),
+    connectionDeviceIdx: uniqueIndex("epdr_endpoints_connection_device_unique").on(table.connectionId, table.accountRevision, table.wgDeviceId),
+    idSiteIdx: uniqueIndex("epdr_endpoints_id_site_idx").on(table.id, table.siteId),
     siteProtectionIdx: index("epdr_endpoints_site_protection_idx").on(table.siteId, table.accumulatedProtectionStatus),
     siteHostIdx: index("epdr_endpoints_site_host_idx").on(table.siteId, table.hostName),
   }),
@@ -1467,6 +1524,24 @@ export const epdrSyncRuns = pgTable("epdr_sync_runs", {
   stats: jsonb("stats"),
   error: text("error"),
 });
+
+// Append-only source attempts. No legacy sync timestamp is backfilled as complete.
+export const epdrDetectionReadEvidence = pgTable("epdr_detection_read_evidence", {
+  id: serial("id").primaryKey(),
+  connectionId: integer("connection_id").notNull().references(() => watchguardConnections.id, { onDelete: "cascade" }),
+  accountRevision: integer("account_revision").notNull(),
+  credentialRevision: integer("credential_revision").notNull(),
+  source: text("source").notNull(),
+  settingsUpdatedAt: timestamp("settings_updated_at"),
+  status: text("status").notNull(),
+  window: text("window").notNull(),
+  startedAt: timestamp("started_at").notNull(),
+  finishedAt: timestamp("finished_at").notNull(),
+  eventTypes: integer("event_types").array().notNull(),
+  completedEventTypes: integer("completed_event_types").array().notNull(),
+}, (table) => ({
+  sourceAttemptIdx: index("epdr_detection_read_evidence_source_idx").on(table.connectionId, table.accountRevision, table.credentialRevision, table.source, table.startedAt, table.id),
+}));
 
 export const epdrUnmanagedDevices = pgTable(
   "epdr_unmanaged_devices",
@@ -1526,6 +1601,7 @@ export const epdrDetections = pgTable(
     siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
     source: text("source").notNull(),
     sourceKey: text("source_key").notNull(),
+    accountRevision: integer("account_revision").notNull().default(0),
     endpointId: integer("endpoint_id").references(() => epdrEndpoints.id, { onDelete: "set null" }),
     category: text("category").notNull(),
     providerType: text("provider_type"),
@@ -1546,11 +1622,154 @@ export const epdrDetections = pgTable(
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
-    connectionSourceKeyIdx: uniqueIndex("epdr_detections_connection_source_key_unique").on(table.connectionId, table.source, table.sourceKey),
+    connectionSourceKeyIdx: uniqueIndex("epdr_detections_connection_source_key_unique").on(table.connectionId, table.accountRevision, table.source, table.sourceKey),
     endpointTimeIdx: index("epdr_detections_endpoint_time_idx").on(table.endpointId, table.detectedAt),
     incidentIdx: index("epdr_detections_incident_idx").on(table.incidentId),
+    // Required by composite site-scoped foreign keys (migration 0075).
+    idSiteIdx: uniqueIndex("epdr_detections_id_site_local_idx").on(table.id, table.siteId),
   }),
 );
+
+export const epdrIncidentHandoffs = pgTable("epdr_incident_handoffs", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  detectionId: integer("detection_id").notNull().unique().references(() => epdrDetections.id, { onDelete: "cascade" }),
+  incidentId: integer("incident_id").notNull().references(() => incidents.id, { onDelete: "cascade" }),
+  connectionId: integer("connection_id").notNull(),
+  accountRevision: integer("account_revision").notNull(),
+  requestedBy: integer("requested_by").references(() => users.id, { onDelete: "set null" }),
+  assigneeId: integer("assignee_id").references(() => users.id, { onDelete: "set null" }),
+  picGroupId: integer("pic_group_id").references(() => deviceGroups.id, { onDelete: "set null" }),
+  note: text("note").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  connectionSiteFk: foreignKey({ name: "epdr_handoff_connection_site_fk", columns: [table.connectionId, table.siteId], foreignColumns: [watchguardConnections.id, watchguardConnections.siteId] }).onDelete("cascade"),
+  siteHistoryIdx: index("epdr_incident_handoffs_site_history").on(table.siteId, table.id),
+}));
+
+// Explicit local-review runs over an immutable simulation version. Provider and
+// notification steps remain suppressed; no dispatcher observes these tables.
+export const epdrLocalPlaybookRuns = pgTable("epdr_local_playbook_runs", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  versionId: integer("version_id").notNull(),
+  detectionId: integer("detection_id").notNull(),
+  connectionId: integer("connection_id").notNull(),
+  accountRevision: integer("account_revision").notNull(),
+  requestedBy: integer("requested_by").references(() => users.id, { onDelete: "set null" }),
+  mode: text("mode").notNull().default("local"),
+  status: text("status").notNull().default("pending"),
+  evidence: jsonb("evidence").notNull(),
+  generation: integer("generation").notNull().default(0),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (table) => ({
+  versionSiteFk: foreignKey({ name: "epdr_local_runs_version_site_fk", columns: [table.versionId, table.siteId], foreignColumns: [epdrPlaybookVersions.id, epdrPlaybookVersions.siteId] }).onDelete("cascade"),
+  detectionSiteFk: foreignKey({ name: "epdr_local_runs_detection_site_fk", columns: [table.detectionId, table.siteId], foreignColumns: [epdrDetections.id, epdrDetections.siteId] }).onDelete("cascade"),
+  connectionSiteFk: foreignKey({ name: "epdr_local_runs_connection_site_fk", columns: [table.connectionId, table.siteId], foreignColumns: [watchguardConnections.id, watchguardConnections.siteId] }).onDelete("cascade"),
+  versionDetectionIdx: uniqueIndex("epdr_local_runs_version_detection_idx").on(table.siteId, table.versionId, table.detectionId),
+  siteHistoryIdx: index("epdr_local_runs_site_history").on(table.siteId, table.id),
+}));
+
+export const epdrLocalPlaybookSteps = pgTable("epdr_local_playbook_steps", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  runId: integer("run_id").notNull(),
+  ordinal: integer("ordinal").notNull(),
+  kind: text("kind").notNull(),
+  action: text("action").notNull(),
+  status: text("status").notNull().default("pending"),
+  reason: text("reason"),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (table) => ({
+  runSiteFk: foreignKey({ name: "epdr_local_steps_run_site_fk", columns: [table.runId, table.siteId], foreignColumns: [epdrLocalPlaybookRuns.id, epdrLocalPlaybookRuns.siteId] }).onDelete("cascade"),
+  orderIdx: uniqueIndex("epdr_local_steps_order_idx").on(table.runId, table.ordinal),
+}));
+
+// Local-only, opt-in notification policy. No external transport exists here.
+export const epdrLocalNotificationPolicies = pgTable("epdr_local_notification_policies", {
+  siteId: integer("site_id").primaryKey().references(() => sites.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  notifyHeld: boolean("notify_held").notNull().default(false),
+  quietStart: integer("quiet_start"),
+  quietEnd: integer("quiet_end"),
+  escalateOverdueToAdmins: boolean("escalate_overdue_to_admins").notNull().default(false),
+  digestEnabled: boolean("digest_enabled").notNull().default(false),
+  digestHourUtc: integer("digest_hour_utc"),
+  updatedBy: integer("updated_by").notNull().references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const epdrLocalNotificationOutbox = pgTable("epdr_local_notification_outbox", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "cascade" }),
+  recipientId: integer("recipient_id").notNull().references(() => users.id),
+  kind: text("kind").notNull(),
+  status: text("status").notNull().default("queued"),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull(),
+  digestDay: date("digest_day"),
+  attempts: integer("attempts").notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (table) => ({
+  dedupIdx: uniqueIndex("epdr_local_notification_outbox_dedup").on(table.incidentId, table.recipientId, table.kind),
+}));
+
+export const epdrLocalNotifications = pgTable("epdr_local_notifications", {
+  id: serial("id").primaryKey(),
+  outboxId: integer("outbox_id").notNull().unique().references(() => epdrLocalNotificationOutbox.id, { onDelete: "cascade" }),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "cascade" }),
+  recipientId: integer("recipient_id").notNull().references(() => users.id),
+  kind: text("kind").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+});
+
+export const epdrLocalNotificationAudit = pgTable("epdr_local_notification_audit", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  actorId: integer("actor_id").references(() => users.id),
+  event: text("event").notNull(),
+  incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "cascade" }),
+  outboxId: integer("outbox_id").references(() => epdrLocalNotificationOutbox.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Durable local approval decisions for provider-action intentions. Approving a
+// row records a local decision only; no dispatcher observes this table and the
+// transport lock remains the final block.
+export const epdrLocalApprovals = pgTable("epdr_local_approvals", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  detectionId: integer("detection_id").notNull(),
+  localRunId: integer("local_run_id").notNull(),
+  endpointId: integer("endpoint_id").notNull(),
+  connectionId: integer("connection_id").notNull(),
+  accountRevision: integer("account_revision").notNull(),
+  actionIntent: text("action_intent").notNull(),
+  snapshot: jsonb("snapshot").notNull(),
+  status: text("status").notNull().default("pending"),
+  requestedBy: integer("requested_by").notNull().references(() => users.id),
+  decidedBy: integer("decided_by").references(() => users.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decision: jsonb("decision"),
+  decisionNote: text("decision_note"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  runSiteFk: foreignKey({ name: "epdr_local_approvals_run_site_fk", columns: [table.localRunId, table.siteId], foreignColumns: [epdrLocalPlaybookRuns.id, epdrLocalPlaybookRuns.siteId] }).onDelete("cascade"),
+  detectionSiteFk: foreignKey({ name: "epdr_local_approvals_detection_site_fk", columns: [table.detectionId, table.siteId], foreignColumns: [epdrDetections.id, epdrDetections.siteId] }).onDelete("cascade"),
+  endpointSiteFk: foreignKey({ name: "epdr_local_approvals_endpoint_site_fk", columns: [table.endpointId, table.siteId], foreignColumns: [epdrEndpoints.id, epdrEndpoints.siteId] }).onDelete("cascade"),
+  connectionSiteFk: foreignKey({ name: "epdr_local_approvals_connection_site_fk", columns: [table.connectionId, table.siteId], foreignColumns: [watchguardConnections.id, watchguardConnections.siteId] }).onDelete("cascade"),
+  runIntentIdx: uniqueIndex("epdr_local_approvals_run_intent_idx").on(table.siteId, table.localRunId, table.actionIntent),
+  siteStatusIdx: index("epdr_local_approvals_site_status_idx").on(table.siteId, table.status, table.expiresAt, table.id),
+}));
 
 export const epdrWorkflows = pgTable("epdr_workflows", {
   incidentId: integer("incident_id").primaryKey().references(() => incidents.id, { onDelete: "cascade" }),

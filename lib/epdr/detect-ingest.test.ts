@@ -5,6 +5,7 @@ import {
   buildThreatSyncDetections,
   classifyThreatSync,
   dedupeDetections,
+  md5ThreatKeySuffix,
   type IngestSettings,
 } from "./detect-ingest";
 
@@ -18,6 +19,15 @@ const settings: IngestSettings = {
   reopenWindowDays: 7,
   defaultAssigneeId: null,
 };
+
+describe("md5ThreatKeySuffix", () => {
+  it.each([
+    ["d41d8cd98f00b204e9800998ecf8427e", "%:d41d8cd98f00b204e9800998ecf8427e"],
+    ["D41D8CD98F00B204E9800998ECF8427E", "%:D41D8CD98F00B204E9800998ECF8427E"],
+  ])("accepts a full 32-hex hash %s", (md5, expected) => expect(md5ThreatKeySuffix(md5)).toBe(expected));
+  it.each([null, undefined, "", "md5-a", "zzzz8cd98f00b204e9800998ecf8427e", "d41d8cd98f00b204e9800998ecf8427e00", "%_d41d8cd98f00b204e9800998ecf8427e"])(
+    "rejects a non-hash value %j so LIKE wildcards cannot be injected", (md5) => expect(md5ThreatKeySuffix(md5)).toBeNull());
+});
 
 describe("classifyThreatSync", () => {
   it("accepts in-scope categories with a score 7-10 and rejects the rest", () => {

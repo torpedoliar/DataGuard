@@ -9,18 +9,50 @@
  * tickets land and remain blocked by the transport guard.
  */
 import { Client } from "pg";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { epdrDetections, epdrEndpoints, epdrHealthCases, epdrRuleEvaluations, epdrRules, epdrSiteSettings, epdrSyncRuns, epdrUnmanagedDevices, epdrWorkflows, incidents, watchguardConnections, watchguardGlobalSettings } from "@/db/schema";
+import { devices, epdrActions, epdrDetections, epdrLocalNotificationPolicies, epdrEndpoints, epdrExclusions, epdrHealthCases, epdrRuleEvaluations, epdrRules, epdrSiteSettings, epdrSyncRuns, epdrUnmanagedDevices, epdrWorkflows, incidents, watchguardConnections, watchguardGlobalSettings } from "@/db/schema";
 import { buildDatabaseUrl } from "@/lib/database-url";
 import { resolveWatchGuardConnection } from "@/lib/watchguard/connection";
 import { createWatchGuardClient } from "@/lib/watchguard/client";
 import { syncEndpoints, type EndpointSyncDeps, type EndpointSourceDevice, type EndpointSourceProtection, type EndpointSourceUnmanaged } from "./sync";
-import { buildSecurityEventDetections, buildThreatSyncDetections, threatKeyFor, type DetectionDraft, type IgnoredItem } from "./detect-ingest";
+import { buildSecurityEventDetections, buildThreatSyncDetections, md5ThreatKeySuffix, threatKeyFor, type DetectionDraft, type IgnoredItem } from "./detect-ingest";
+import { attachDetectionOnce } from "./detection-attachment";
+import { epdrDetectionReadEvidence } from "@/db/schema";
+import { eventExportReadStatus, type DetectionReadEvidence } from "./detection-evidence";
 import { correlate } from "./correlation";
 import { evaluate as evaluatePolicy, type EndpointInput as PolicyEndpoint, type RuleInput as PolicyRule, type SiteControls, type GlobalControls } from "./policy";
 import { classifyHealth, advanceHealthStage, type HealthSettings } from "./health";
+import { resolveConnectionState } from "./posture";
 import type { IngestSettings } from "./detect-ingest";
+import { assertReadSyncActor, processReadSyncQueue, type ReadSyncFence } from "./read-sync-queue";
+import { processLocalNotificationQueue, scheduleLocalNotifications } from "./local-notification-outbox";
+import { calculateIncidentDueDate } from "@/lib/incidents";
+
+export async function runPendingReadSyncRequests(): Promise<void> {
+  await processReadSyncQueue(runEndpointsJob);
+}
+
+/**
+ * Local in-app notifications only. Scheduling is bounded to sites with an
+ * explicitly enabled policy; delivery is assignee-scoped and never leaves the
+ * application. No external channel exists in this path.
+ */
+export async function runLocalNotificationPass(): Promise<void> {
+  const policies = await db
+    .select({ siteId: epdrLocalNotificationPolicies.siteId })
+    .from(epdrLocalNotificationPolicies)
+    .where(eq(epdrLocalNotificationPolicies.enabled, true));
+  for (const { siteId } of policies) {
+    try {
+      await scheduleLocalNotifications(siteId);
+    } catch {
+      // A broken site must not starve the others; no raw error content is logged.
+      console.error("[epdr] local notification scheduling failed");
+    }
+  }
+  await processLocalNotificationQueue();
+}
 
 export type EpdrJobName = "endpoints" | "detections" | "evaluate" | "dispatch" | "tasks" | "provider_sync" | "verify" | "health";
 
@@ -55,7 +87,29 @@ function endpointSyncDeps(
   siteId: number,
   creds: Parameters<typeof createWatchGuardClient>[0],
   credentialRevision: number,
+  accountRevision: number,
+  fence?: ReadSyncFence,
 ): EndpointSyncDeps {
+  // Each publication locks the binding in the same transaction as the write.
+  // Settings changes therefore cannot interleave a revision check and its write.
+  async function publish<T>(write: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>): Promise<T> {
+    return db.transaction(async (tx) => {
+      const { rows } = await tx.execute(sql`SELECT id FROM watchguard_connections
+        WHERE id = ${connectionId} AND site_id = ${siteId} AND enabled
+        AND account_revision = ${accountRevision} AND credential_revision = ${credentialRevision} FOR UPDATE`);
+      if (!rows[0]) throw new Error("endpoint_binding_changed");
+      if (fence) {
+        const { rows: leases } = await tx.execute<{ requested_by: number | null }>(sql`SELECT requested_by FROM epdr_read_sync_requests
+          WHERE id = ${fence.requestId} AND connection_id = ${connectionId}
+          AND account_revision = ${accountRevision} AND status = 'running'
+          AND lease_token = ${fence.leaseToken} AND lease_until > clock_timestamp() FOR UPDATE`);
+        if (!leases[0]) throw new Error("endpoint_lease_lost");
+        if (leases[0].requested_by === null) throw new Error("read_sync_actor_unavailable");
+        await assertReadSyncActor(tx, siteId, leases[0].requested_by);
+      }
+      return write(tx);
+    });
+  }
   const client = createWatchGuardClient(creds, { credentialRevision });
   let releaseLockFn: (() => Promise<void>) | null = null;
 
@@ -86,13 +140,14 @@ function endpointSyncDeps(
       const rows = await db
         .select({ wgDeviceId: epdrEndpoints.wgDeviceId })
         .from(epdrEndpoints)
-        .where(and(eq(epdrEndpoints.connectionId, id), isNull(epdrEndpoints.removedAt)));
+        .where(and(eq(epdrEndpoints.connectionId, id), eq(epdrEndpoints.accountRevision, accountRevision), isNull(epdrEndpoints.removedAt)));
       return new Set(rows.map((r) => r.wgDeviceId));
     },
     async upsertEndpoint(id, site, merged) {
       const values = {
         connectionId: id,
         siteId: site,
+        accountRevision,
         wgDeviceId: merged.wgDeviceId,
         hostName: merged.hostName,
         ipAddress: merged.ipAddress,
@@ -124,12 +179,13 @@ function endpointSyncDeps(
         lastSyncedAt: new Date(),
         raw: merged.raw,
       };
-      await db
+      await publish(async (tx) => tx
         .insert(epdrEndpoints)
         .values(values)
         .onConflictDoUpdate({
-          target: [epdrEndpoints.connectionId, epdrEndpoints.wgDeviceId],
+          target: [epdrEndpoints.connectionId, epdrEndpoints.accountRevision, epdrEndpoints.wgDeviceId],
           set: {
+            accountRevision,
             hostName: merged.hostName,
             ipAddress: merged.ipAddress,
             macAddresses: merged.macAddresses,
@@ -161,28 +217,29 @@ function endpointSyncDeps(
             removedAt: null,
             raw: merged.raw,
           },
-        });
+        }));
     },
     async markRemoved(id, absentIds) {
       if (absentIds.length === 0) return 0;
-      const result = await db
+      const result = await publish(async (tx) => tx
         .update(epdrEndpoints)
         .set({ removedAt: new Date() })
         .where(
-          and(eq(epdrEndpoints.connectionId, id), sql`${epdrEndpoints.wgDeviceId} = ANY(${absentIds})`),
-        );
+          and(eq(epdrEndpoints.connectionId, id), eq(epdrEndpoints.accountRevision, accountRevision), sql`${epdrEndpoints.wgDeviceId} = ANY(${absentIds})`),
+        ));
       return result.rowCount ?? absentIds.length;
     },
     async upsertUnmanaged(id, site, items) {
       let count = 0;
       for (const u of items) {
         if (!u.wg_unmanaged_id) continue;
-        await db
+        const unmanagedId = u.wg_unmanaged_id;
+        await publish(async (tx) => tx
           .insert(epdrUnmanagedDevices)
           .values({
             connectionId: id,
             siteId: site,
-            wgUnmanagedId: u.wg_unmanaged_id,
+            wgUnmanagedId: unmanagedId,
             hostName: u.host_name ?? null,
             ipAddress: u.ip_address ?? null,
             macAddress: u.mac_address ?? null,
@@ -204,13 +261,13 @@ function endpointSyncDeps(
               lastSyncedAt: new Date(),
               raw: u as unknown,
             },
-          });
+          }));
         count++;
       }
       return count;
     },
     async recordSyncRun(kind, status, stats, error) {
-      await db.insert(epdrSyncRuns).values({
+      await publish(async (tx) => tx.insert(epdrSyncRuns).values({
         connectionId,
         kind,
         startedAt: new Date(),
@@ -218,40 +275,55 @@ function endpointSyncDeps(
         status,
         stats,
         error: error ?? null,
-      });
+      }));
     },
     async touchConnection(id, error) {
-      await db
+      await publish(async (tx) => tx
         .update(watchguardConnections)
         .set({ ...(error ? {} : { lastEndpointSyncAt: new Date() }), lastSyncError: error ?? null, updatedAt: new Date() })
-        .where(eq(watchguardConnections.id, id));
+        .where(eq(watchguardConnections.id, id)));
     },
   };
 }
 
-async function runEndpointsJob(connectionId: number): Promise<void> {
+export async function runEndpointsJob(connectionId: number, fence?: ReadSyncFence): Promise<"ok" | "partial" | "skipped_locked"> {
   const row = await db.select().from(watchguardConnections).where(eq(watchguardConnections.id, connectionId)).limit(1);
   const conn = row[0];
-  if (!conn || !conn.enabled) return;
+  if (!conn || !conn.enabled) throw new Error("endpoint_connection_unavailable");
 
   try {
     const resolved = await resolveWatchGuardConnection(conn.siteId, { mode: "read" });
     if (!resolved.ok) {
-      await db.update(watchguardConnections)
-        .set({ lastSyncError: `connection_${resolved.reason}`, updatedAt: new Date() })
-        .where(eq(watchguardConnections.id, connectionId));
+      await db.transaction(async (tx) => {
+        const { rows: bindings } = await tx.execute(sql`SELECT id FROM watchguard_connections
+          WHERE id = ${connectionId} AND site_id = ${conn.siteId} AND enabled
+          AND account_revision = ${conn.accountRevision} AND credential_revision = ${conn.credentialRevision} FOR UPDATE`);
+        if (!bindings[0]) return;
+        if (fence) {
+          const { rows: leases } = await tx.execute<{ requested_by: number | null }>(sql`SELECT requested_by FROM epdr_read_sync_requests
+            WHERE id = ${fence.requestId} AND connection_id = ${connectionId} AND status = 'running'
+            AND lease_token = ${fence.leaseToken} AND lease_until > clock_timestamp() FOR UPDATE`);
+          if (!leases[0] || leases[0].requested_by === null) return;
+          await assertReadSyncActor(tx, conn.siteId, leases[0].requested_by);
+        }
+        await tx.execute(sql`UPDATE watchguard_connections SET last_sync_error = 'endpoint_connection_unavailable',
+          updated_at = clock_timestamp() WHERE id = ${connectionId}`);
+      });
       throw new Error("endpoint_connection_unavailable");
     }
 
-    const summary = await syncEndpoints(endpointSyncDeps(connectionId, conn.siteId, resolved.credentials, resolved.credentialRevision));
-    if (summary.status === "failed" || summary.status === "partial") {
+    if (resolved.accountRevision !== conn.accountRevision || resolved.credentialRevision !== conn.credentialRevision) {
+      throw new Error("endpoint_binding_changed");
+    }
+    const summary = await syncEndpoints(endpointSyncDeps(connectionId, conn.siteId, resolved.credentials,
+      resolved.credentialRevision, resolved.accountRevision, fence));
+    if (summary.status === "failed") {
       throw new Error("endpoint_sync_incomplete");
     }
+    return summary.status;
   } catch {
-    // syncEndpoints records safe stream errors; retain those diagnostics.
-    await db.update(watchguardConnections)
-      .set({ lastSyncError: sql`coalesce(${watchguardConnections.lastSyncError}, 'endpoint_sync_failed')`, updatedAt: new Date() })
-      .where(eq(watchguardConnections.id, connectionId));
+    // Only the revision/fence guarded deps publish diagnostics; never write here
+    // using a stale connection snapshot after cancellation or account rebinding.
     throw new Error("endpoint_sync_failed");
   }
 }
@@ -270,11 +342,11 @@ function detectSettings(row?: typeof epdrSiteSettings.$inferSelect): IngestSetti
   };
 }
 
-async function resolveEndpointId(connectionId: number, wgDeviceId: string): Promise<number | null> {
-  const rows = await db
+async function resolveEndpointId(store: Pick<typeof db, "select">, connectionId: number, siteId: number, accountRevision: number, wgDeviceId: string): Promise<number | null> {
+  const rows = await store
     .select({ id: epdrEndpoints.id })
     .from(epdrEndpoints)
-    .where(and(eq(epdrEndpoints.connectionId, connectionId), eq(epdrEndpoints.wgDeviceId, wgDeviceId), isNull(epdrEndpoints.removedAt)))
+    .where(and(eq(epdrEndpoints.connectionId, connectionId), eq(epdrEndpoints.siteId, siteId), eq(epdrEndpoints.accountRevision, accountRevision), eq(epdrEndpoints.wgDeviceId, wgDeviceId), isNull(epdrEndpoints.removedAt)))
     .limit(1);
   return rows[0]?.id ?? null;
 }
@@ -289,34 +361,42 @@ async function linkDetectionToEpisode(
   endpointId: number,
   settings: IngestSettings,
   d: DetectionDraft,
+  store: Pick<typeof db, "select" | "insert" | "update"> = db,
 ): Promise<number | null> {
   const threatKey = threatKeyFor(d.category, d.md5, d.threatName);
+  // Same file hash on the same endpoint is the same threat episode even when a
+  // provider reports a different category/name. Keep the exact-key match first;
+  // the MD5 suffix fallback is the documented "MD5 correlation" path.
+  const md5Suffix = md5ThreatKeySuffix(d.md5);
+  const workflowKeyMatch = md5Suffix
+    ? or(eq(epdrWorkflows.threatKey, threatKey), ilike(epdrWorkflows.threatKey, md5Suffix))
+    : eq(epdrWorkflows.threatKey, threatKey);
   const now = new Date();
   const detectedAtMs = d.detectedAt.getTime();
   const correlationWindowMs = settings.correlationWindowMinutes * 60_000;
   const reopenWindowMs = settings.reopenWindowDays * 24 * 60 * 60 * 1000;
 
-  const openRows = await db
+  const openRows = await store
     .select({ incidentId: epdrWorkflows.incidentId, lastDetectionAt: epdrWorkflows.lastDetectionAt, severity: incidents.severity })
     .from(epdrWorkflows)
     .innerJoin(incidents, eq(incidents.id, epdrWorkflows.incidentId))
     .where(and(
       eq(epdrWorkflows.siteId, siteId),
       eq(epdrWorkflows.endpointId, endpointId),
-      eq(epdrWorkflows.threatKey, threatKey),
+      workflowKeyMatch,
       inArray(incidents.status, ["Open", "In Progress"]),
     ))
     .orderBy(desc(epdrWorkflows.lastDetectionAt))
     .limit(1);
 
-  const closedRows = await db
+  const closedRows = await store
     .select({ incidentId: epdrWorkflows.incidentId, resolvedAt: incidents.resolvedAt, severity: incidents.severity, reopenCount: epdrWorkflows.reopenCount })
     .from(epdrWorkflows)
     .innerJoin(incidents, eq(incidents.id, epdrWorkflows.incidentId))
     .where(and(
       eq(epdrWorkflows.siteId, siteId),
       eq(epdrWorkflows.endpointId, endpointId),
-      eq(epdrWorkflows.threatKey, threatKey),
+      workflowKeyMatch,
       inArray(incidents.status, ["Resolved", "Verified"]),
     ))
     .orderBy(desc(incidents.resolvedAt))
@@ -337,23 +417,23 @@ async function linkDetectionToEpisode(
   });
 
   if (decision.kind === "attach") {
-    await db.update(epdrWorkflows)
+    await store.update(epdrWorkflows)
       .set({ lastDetectionAt: d.detectedAt, evidenceGeneration: sql`${epdrWorkflows.evidenceGeneration} + 1`, updatedAt: now })
       .where(eq(epdrWorkflows.incidentId, decision.incidentId));
     return decision.incidentId;
   }
 
   if (decision.kind === "reopen") {
-    await db.update(incidents)
+    await store.update(incidents)
       .set({ status: "Open", severity: decision.severity, resolvedAt: null, resolvedById: null, resolutionCategory: null, resolutionAction: null, updatedAt: now })
       .where(eq(incidents.id, decision.incidentId));
-    await db.update(epdrWorkflows)
+    await store.update(epdrWorkflows)
       .set({ state: "detected", lastDetectionAt: d.detectedAt, reopenCount: decision.reopenCount, evidenceGeneration: sql`${epdrWorkflows.evidenceGeneration} + 1`, updatedAt: now })
       .where(eq(epdrWorkflows.incidentId, decision.incidentId));
     return decision.incidentId;
   }
 
-  const created = await db.insert(incidents).values({
+  const created = await store.insert(incidents).values({
     siteId,
     deviceId: null,
     epdrEndpointId: endpointId,
@@ -364,13 +444,14 @@ async function linkDetectionToEpisode(
     source: "epdr",
     externalRef: d.tsIncidentId,
     assignedToId: settings.defaultAssigneeId,
+    dueDate: calculateIncidentDueDate(d.severity as "Low" | "Medium" | "High" | "Critical", now),
     createdAt: now,
     updatedAt: now,
   }).returning({ id: incidents.id });
 
   const id = created[0]?.id;
   if (!id) return null;
-  await db.insert(epdrWorkflows).values({
+  await store.insert(epdrWorkflows).values({
     incidentId: id,
     siteId,
     endpointId,
@@ -393,56 +474,92 @@ async function runDetectionsJob(connectionId: number): Promise<void> {
   const [settingsRow] = await db.select().from(epdrSiteSettings).where(eq(epdrSiteSettings.siteId, conn.siteId)).limit(1);
   const settings = detectSettings(settingsRow);
   const ingestOn = Boolean(settingsRow?.ingestEnabled ?? false) || (settingsRow?.threatsyncEnabled ?? true);
-  if (!ingestOn || (settingsRow?.siteKillSwitch ?? false)) return;
+  // Kill switches gate provider writes, not observation: detection reads and
+  // local Incident evidence continue. No provider command exists in this job.
+  if (!ingestOn) return;
 
   const resolved = await resolveWatchGuardConnection(conn.siteId, { mode: "read" });
   if (!resolved.ok) return;
+  if (resolved.accountRevision !== conn.accountRevision || resolved.credentialRevision !== conn.credentialRevision) {
+    throw new Error("detection_binding_changed");
+  }
+  // Serialize each evidence publication with connection reconfiguration. The
+  // endpoint lookup and insert must share this lock, not merely Incident attachment.
+  async function publishDetection<T>(write: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>): Promise<T> {
+    return db.transaction(async (tx) => {
+      const { rows } = await tx.execute(sql`SELECT id FROM watchguard_connections
+        WHERE id = ${connectionId} AND site_id = ${conn.siteId} AND enabled
+          AND account_revision = ${conn.accountRevision} AND credential_revision = ${conn.credentialRevision} FOR UPDATE`);
+      if (!rows[0]) throw new Error("detection_binding_changed");
+      return write(tx);
+    });
+  }
   const client = createWatchGuardClient(resolved.credentials, { credentialRevision: resolved.credentialRevision });
 
   const existingKeys = new Set(
-    (await db.select({ sourceKey: epdrDetections.sourceKey }).from(epdrDetections).where(eq(epdrDetections.connectionId, connectionId)))
+    (await db.select({ sourceKey: epdrDetections.sourceKey }).from(epdrDetections)
+      .where(and(eq(epdrDetections.connectionId, connectionId), eq(epdrDetections.accountRevision, conn.accountRevision))))
       .map((r) => r.sourceKey)
       .filter((k): k is string => k !== null),
   );
 
   const drafts: DetectionDraft[] = [];
   const extra: IgnoredItem[] = [];
+  const readEvidence: DetectionReadEvidence[] = [];
+  const binding = { connectionId, accountRevision: conn.accountRevision, credentialRevision: conn.credentialRevision, settingsUpdatedAt: settingsRow?.updatedAt ?? null };
 
   if (settingsRow?.threatsyncEnabled ?? true) {
+    const startedAt = new Date();
+    let received = 0;
+    let status: DetectionReadEvidence["status"] = "failed";
     try {
       for await (const inc of client.iterateIncidents({ limit: 500 })) {
+        received++;
         const r = buildThreatSyncDetections(inc, settings);
         drafts.push(...r.detections);
         extra.push(...r.unmatched);
       }
-    } catch (error) {
-      console.error(`[epdr] threatsync ingest failed for connection ${connectionId}:`, error);
+      status = "completed"; // Only reached after full iterator exhaustion.
+    } catch {
+      status = received > 0 ? "partial" : "failed";
+      console.error(`[epdr] threatsync ingest failed for connection ${connectionId}`);
     }
+    readEvidence.push({ ...binding, source: "threatsync", status, window: "provider_default", startedAt, finishedAt: new Date(), eventTypes: [], completedEventTypes: [] });
   }
 
   if (settingsRow?.ingestEnabled ?? false) {
-    for (const type of settings.eventTypes) {
+    const startedAt = new Date();
+    const completedEventTypes: number[] = [];
+    let received = 0;
+    for (const type of new Set(settings.eventTypes)) {
       try {
         for await (const ev of client.iterateSecurityEvents(type, 1)) {
+          received++;
           const r = buildSecurityEventDetections([ev], settings);
           drafts.push(...r.detections);
           extra.push(...r.ignored, ...r.unmatched);
         }
-      } catch (error) {
-        console.error(`[epdr] security-event ingest failed (type ${type}) for connection ${connectionId}:`, error);
+        completedEventTypes.push(type);
+      } catch {
+        console.error(`[epdr] security-event ingest failed (type ${type}) for connection ${connectionId}`);
       }
     }
+    const status = eventExportReadStatus(settings.eventTypes, completedEventTypes);
+    readEvidence.push({ ...binding, source: "event_export", status: status === "failed" && received > 0 ? "partial" : status,
+      window: "event_export_period_1", startedAt, finishedAt: new Date(), eventTypes: [...settings.eventTypes], completedEventTypes });
   }
 
   const fresh = drafts.filter((d) => !existingKeys.has(d.sourceKey));
 
   for (const d of fresh) {
-    const endpointId = await resolveEndpointId(connectionId, d.endpointProviderId);
-    const inserted = await db.insert(epdrDetections).values({
+    const { endpointId, detectionId } = await publishDetection(async (tx) => {
+      const endpointId = await resolveEndpointId(tx, connectionId, conn.siteId, conn.accountRevision, d.endpointProviderId);
+      const inserted = await tx.insert(epdrDetections).values({
       connectionId,
       siteId: conn.siteId,
       source: d.source,
       sourceKey: d.sourceKey,
+      accountRevision: conn.accountRevision,
       endpointId,
       category: d.category,
       providerType: d.providerType,
@@ -455,29 +572,100 @@ async function runDetectionsJob(connectionId: number): Promise<void> {
       tsIncidentId: d.tsIncidentId,
       ignoredReason: endpointId === null ? "unmapped_endpoint" : null,
       raw: d.raw as object,
-    }).onConflictDoNothing().returning({ id: epdrDetections.id });
-
-    const detectionId = inserted[0]?.id;
+      }).onConflictDoNothing().returning({ id: epdrDetections.id });
+      return { endpointId, detectionId: inserted[0]?.id };
+    });
     if (!detectionId || endpointId === null) continue;
-    const incidentId = await linkDetectionToEpisode(conn.siteId, endpointId, settings, d);
-    if (incidentId) {
-      await db.update(epdrDetections).set({ incidentId }).where(eq(epdrDetections.id, detectionId));
-    }
+    await db.transaction(async (tx) => {
+      await attachDetectionOnce(tx, { connectionId, siteId: conn.siteId, accountRevision: conn.accountRevision }, detectionId,
+        () => linkDetectionToEpisode(conn.siteId, endpointId, settings, d, tx));
+    });
   }
 
   // Persist out-of-scope / below-threshold / missing-entity records for review.
   for (const u of extra) {
-    await db.insert(epdrDetections).values({
+    await publishDetection(async (tx) => tx.insert(epdrDetections).values({
       connectionId,
       siteId: conn.siteId,
       source: u.source,
       sourceKey: u.sourceKey,
+      accountRevision: conn.accountRevision,
       category: "other",
       severity: "Low",
       detectedAt: new Date(),
       ignoredReason: u.reason,
       raw: u.raw as object,
-    }).onConflictDoNothing();
+    }).onConflictDoNothing());
+  }
+
+  // Publish only after the collected detections have been persisted. A crash or
+  // revision change must never leave a completed checkpoint for unpublished data.
+  for (const evidence of readEvidence) {
+    await publishDetection(async (tx) => {
+      const { rows: settings } = await tx.execute<{ updated_at: Date | null }>(sql`SELECT updated_at FROM epdr_site_settings
+        WHERE site_id = ${conn.siteId} FOR UPDATE`);
+      // The settings action updates updated_at for each save, including off/on.
+      // Compare using JS milliseconds because the timestamp driver returns Date.
+      const current = settings[0]?.updated_at;
+      if (Boolean(settings[0]) !== Boolean(settingsRow) ||
+          (current ? new Date(current).getTime() : null) !== (binding.settingsUpdatedAt?.getTime() ?? null)) {
+        throw new Error("detection_settings_changed");
+      }
+      await tx.insert(epdrDetectionReadEvidence).values(evidence);
+    });
+  }
+
+  // Recovery: a crash between the committed detection insert and its Incident
+  // attachment must not strand the detection forever. Bounded to recent rows
+  // of the current account revision so a settings change never revives old
+  // evidence as a new Incident.
+  const recoverable = await db
+    .select({
+      id: epdrDetections.id, source: epdrDetections.source, sourceKey: epdrDetections.sourceKey,
+      category: epdrDetections.category, providerType: epdrDetections.providerType,
+      threatName: epdrDetections.threatName, filePath: epdrDetections.filePath, md5: epdrDetections.md5,
+      threatScore: epdrDetections.threatScore, severity: epdrDetections.severity,
+      detectedAt: epdrDetections.detectedAt, tsIncidentId: epdrDetections.tsIncidentId,
+      endpointId: epdrEndpoints.id, endpointProviderId: epdrEndpoints.wgDeviceId, raw: epdrDetections.raw,
+    })
+    .from(epdrDetections)
+    .innerJoin(epdrEndpoints, and(
+      eq(epdrEndpoints.id, epdrDetections.endpointId),
+      eq(epdrEndpoints.connectionId, connectionId),
+      eq(epdrEndpoints.accountRevision, conn.accountRevision),
+      isNull(epdrEndpoints.removedAt),
+    ))
+    .where(and(
+      eq(epdrDetections.connectionId, connectionId),
+      eq(epdrDetections.accountRevision, conn.accountRevision),
+      isNull(epdrDetections.incidentId),
+      isNull(epdrDetections.ignoredReason),
+      gte(epdrDetections.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+    ))
+    .orderBy(desc(epdrDetections.id))
+    .limit(50);
+
+  for (const row of recoverable) {
+    const draft = {
+      source: row.source as DetectionDraft["source"],
+      sourceKey: row.sourceKey,
+      category: row.category as DetectionDraft["category"],
+      providerType: row.providerType,
+      threatName: row.threatName,
+      filePath: row.filePath,
+      md5: row.md5,
+      threatScore: row.threatScore,
+      severity: row.severity as DetectionDraft["severity"],
+      detectedAt: row.detectedAt,
+      tsIncidentId: row.tsIncidentId,
+      endpointProviderId: row.endpointProviderId,
+      endpointId: row.endpointId,
+      raw: row.raw,
+    } satisfies DetectionDraft;
+    await db.transaction(async (tx) => {
+      await attachDetectionOnce(tx, { connectionId, siteId: conn.siteId, accountRevision: conn.accountRevision }, row.id,
+        () => linkDetectionToEpisode(conn.siteId, row.endpointId, settings, draft, tx));
+    });
   }
 }
 
@@ -505,7 +693,14 @@ async function runEvaluateJob(connectionId: number): Promise<void> {
   const siteControls: SiteControls = {
     killSwitch: site?.siteKillSwitch ?? false,
     breakerPaused: site?.automationPausedAt !== null && site?.automationPausedAt !== undefined,
-    dataStale: false,
+    dataStale: resolveConnectionState({
+      configured: Boolean(conn.accountId),
+      enabled: conn.enabled,
+      lastSyncAt: conn.lastEndpointSyncAt ?? null,
+      lastSyncError: conn.lastSyncError ?? null,
+      syncIntervalMinutes: conn.endpointSyncMinutes ?? 15,
+      nowMs: Date.now(),
+    }) !== "live",
   };
   const globalControls: GlobalControls = {
     killSwitch: global?.killSwitch ?? false,
@@ -522,17 +717,52 @@ async function runEvaluateJob(connectionId: number): Promise<void> {
       await db
         .select()
         .from(epdrDetections)
-        .where(and(eq(epdrDetections.incidentId, wf.incidentId), isNull(epdrDetections.ignoredReason)))
+        .where(and(eq(epdrDetections.incidentId, wf.incidentId), isNull(epdrDetections.ignoredReason),
+          eq(epdrDetections.accountRevision, conn.accountRevision)))
         .orderBy(desc(epdrDetections.detectedAt))
         .limit(1)
     )[0];
     if (!latest) continue;
 
     const endpoint = latest.endpointId
-      ? (await db.select().from(epdrEndpoints).where(eq(epdrEndpoints.id, latest.endpointId)).limit(1))[0]
+      ? (await db.select().from(epdrEndpoints).where(and(
+          eq(epdrEndpoints.id, latest.endpointId),
+          eq(epdrEndpoints.siteId, conn.siteId),
+          eq(epdrEndpoints.connectionId, connectionId),
+          eq(epdrEndpoints.accountRevision, conn.accountRevision),
+        )).limit(1))[0]
       : undefined;
 
+    const [incident] = await db.select({ automationHold: incidents.automationHold })
+      .from(incidents).where(and(eq(incidents.id, wf.incidentId), eq(incidents.siteId, conn.siteId))).limit(1);
+
+    const exclusionConditions = [
+      latest.md5 ? eq(epdrExclusions.matchMd5, latest.md5) : undefined,
+      latest.threatName ? eq(epdrExclusions.matchThreatName, latest.threatName) : undefined,
+      latest.endpointId ? eq(epdrExclusions.endpointId, latest.endpointId) : undefined,
+    ].filter((value) => value !== undefined);
+    const [exclusion] = exclusionConditions.length > 0
+      ? await db.select({ id: epdrExclusions.id }).from(epdrExclusions).where(and(
+          eq(epdrExclusions.siteId, conn.siteId),
+          gte(epdrExclusions.expiresAt, new Date()),
+          or(...exclusionConditions),
+        )).limit(1)
+      : [];
+
+    const [asset] = endpoint?.deviceId
+      ? await db.select({ isCritical: devices.isCritical }).from(devices)
+          .where(and(eq(devices.id, endpoint.deviceId), eq(devices.siteId, conn.siteId))).limit(1)
+      : [];
+
     for (const rule of rules) {
+      const [recentAction] = latest.endpointId
+        ? await db.select({ id: epdrActions.id }).from(epdrActions).where(and(
+            eq(epdrActions.siteId, conn.siteId),
+            eq(epdrActions.endpointId, latest.endpointId),
+            eq(epdrActions.actionType, rule.actionType),
+            gte(epdrActions.createdAt, new Date(Date.now() - rule.cooldownMinutes * 60_000)),
+          )).limit(1)
+        : [];
       const ruleInput: PolicyRule = {
         enabled: rule.enabled,
         trigger: rule.trigger as "detection",
@@ -546,7 +776,7 @@ async function runEvaluateJob(connectionId: number): Promise<void> {
       const ep: PolicyEndpoint = {
         deviceType: endpoint?.deviceType ?? null,
         isCritical: endpoint?.isCritical ?? false,
-        assetCritical: false,
+        assetCritical: asset?.isCritical ?? false,
         noAuto: endpoint?.noAuto ?? false,
         removedAt: endpoint?.removedAt ?? null,
         lastConnectionAt: endpoint?.lastConnectionAt ?? null,
@@ -555,12 +785,12 @@ async function runEvaluateJob(connectionId: number): Promise<void> {
       const result = evaluatePolicy({
         detection: { category: latest.category, threatScore: latest.threatScore },
         endpoint: ep,
-        incident: { automationHold: false, exclusionActive: false },
+        incident: { automationHold: incident?.automationHold ?? true, exclusionActive: exclusion !== undefined },
         rule: ruleInput,
         site: siteControls,
         global: globalControls,
         nowMs: Date.now(),
-        cooldownActive: false,
+        cooldownActive: recentAction !== undefined,
       });
 
       await db.insert(epdrRuleEvaluations).values({
@@ -649,7 +879,11 @@ async function runHealthJob(connectionId: number): Promise<void> {
 }
 
 export const EPDR_JOBS: EpdrJob[] = [
-  { name: "endpoints", run: runEndpointsJob },
+  { name: "endpoints", run: async (id) => {
+    const outcome = await runEndpointsJob(id);
+    if (outcome === "skipped_locked") throw new Error("endpoint_sync_locked");
+    if (outcome === "partial") throw new Error("endpoint_sync_failed");
+  } },
   { name: "detections", run: runDetectionsJob },
   { name: "evaluate", run: runEvaluateJob },
   { name: "health", run: runHealthJob },

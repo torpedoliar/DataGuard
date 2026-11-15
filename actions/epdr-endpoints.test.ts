@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 
 const mocks = vi.hoisted(() => ({
   requireActiveSiteAction: vi.fn(async (): Promise<unknown> => ({ ok: true, session: { userId: 1, role: "admin" }, activeSiteId: 7 })),
   requireActiveSiteAdminAction: vi.fn(async (): Promise<unknown> => ({ ok: true, session: { userId: 1, role: "admin" }, activeSiteId: 7 })),
+  requireSiteAccess: vi.fn(async () => true),
   logAudit: vi.fn(async (): Promise<unknown> => undefined),
   revalidatePath: vi.fn(() => undefined),
   selectQueue: [] as unknown[][],
+  binding: { id: 12, accountRevision: 3, enabled: true, accountId: "account" } as { id: number; accountRevision: number; enabled: boolean; accountId: string } | null,
   updates: [] as Array<Record<string, unknown>>,
+  limits: [] as number[],
+  offsets: [] as number[],
+  predicates: [] as unknown[],
 }));
 
 vi.mock("@/lib/action-auth", () => ({
@@ -15,7 +22,7 @@ vi.mock("@/lib/action-auth", () => ({
 }));
 
 vi.mock("@/lib/audit", () => ({ logAudit: () => mocks.logAudit() }));
-vi.mock("@/lib/site-access", () => ({ hasAdminAccess: async () => true }));
+vi.mock("@/lib/site-access", () => ({ hasAdminAccess: async () => true, requireSiteAccess: (...args: unknown[]) => { void args; return mocks.requireSiteAccess(); } }));
 vi.mock("next/cache", () => ({ revalidatePath: () => mocks.revalidatePath() }));
 
 vi.mock("@/db", () => {
@@ -23,18 +30,24 @@ vi.mock("@/db", () => {
     const t: Record<string, unknown> = {
       then: (onFulfilled: (v: unknown[]) => unknown) => Promise.resolve(value()).then(onFulfilled),
     };
-    for (const m of ["where", "orderBy", "limit"] as const) t[m] = () => t;
+    for (const m of ["orderBy", "leftJoin"] as const) t[m] = () => t;
+    t.where = (value: unknown) => { mocks.predicates.push(value); return t; };
+    t.limit = (value: number) => { mocks.limits.push(value); return t; };
+    t.offset = (value: number) => { mocks.offsets.push(value); return t; };
     return t;
   }
   return {
     db: {
-      select: (..._a: unknown[]) => ({ from: () => thenable(() => mocks.selectQueue.shift() ?? []) }),
+      select: (selection: Record<string, unknown>) => ({ from: () => thenable(() =>
+        "accountId" in selection
+          ? (mocks.binding ? [mocks.binding] : [])
+          : mocks.selectQueue.shift() ?? []) }),
       update: () => ({ set: (v: Record<string, unknown>) => { mocks.updates.push(v); return { where: () => Promise.resolve(undefined) }; } }),
     },
   };
 });
 
-import { getEpdrEndpoints, linkEpdrEndpointToAsset, setEpdrEndpointCritical, setEpdrEndpointNoAuto, unlinkEpdrEndpoint } from "./epdr-endpoints";
+import { getEpdrEndpointPage, loadSecurityContext, getEpdrEndpoints, linkEpdrEndpointToAsset, setEpdrEndpointCritical, setEpdrEndpointNoAuto, unlinkEpdrEndpoint } from "./epdr-endpoints";
 
 function form(values: Record<string, string | number>): FormData {
   const fd = new FormData();
@@ -45,7 +58,12 @@ function form(values: Record<string, string | number>): FormData {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.selectQueue = [];
+  mocks.binding = { id: 12, accountRevision: 3, enabled: true, accountId: "account" };
   mocks.updates = [];
+  mocks.limits = [];
+  mocks.offsets = [];
+  mocks.predicates = [];
+  mocks.requireSiteAccess.mockResolvedValue(true);
   mocks.requireActiveSiteAction.mockResolvedValue({ ok: true, session: { userId: 1, role: "admin" }, activeSiteId: 7 });
   mocks.requireActiveSiteAdminAction.mockResolvedValue({ ok: true, session: { userId: 1, role: "admin" }, activeSiteId: 7 });
 });
@@ -55,6 +73,12 @@ describe("epdr-endpoints authorization", () => {
     mocks.requireActiveSiteAction.mockResolvedValueOnce({ ok: false, message: "No active site selected." });
     const result = await getEpdrEndpoints();
     expect(result).toMatchObject({ message: "No active site selected." });
+  });
+
+  it("admin mutations reject revoked site membership", async () => {
+    mocks.requireSiteAccess.mockResolvedValue(false);
+    expect(await setEpdrEndpointCritical(undefined, form({ endpointId: "1", value: "true" }))).toEqual({ message: "Unauthorized." });
+    expect(mocks.updates).toHaveLength(0);
   });
 
   it("admin mutations reject staff", async () => {
@@ -85,6 +109,76 @@ describe("epdr-endpoints site isolation", () => {
     const result = await setEpdrEndpointCritical(undefined, form({ endpointId: "5", value: "true" }));
     expect(result).toMatchObject({ message: expect.stringContaining("tidak ditemukan") });
     expect(mocks.updates).toHaveLength(0);
+  });
+});
+
+describe("fleet paging and context guards", () => {
+  const input = { page: 1, query: "", filter: "all" as const, group: "", os: "", sort: "name" as const };
+
+  it("rejects revoked membership before reading inventory", async () => {
+    mocks.requireSiteAccess.mockResolvedValue(false);
+    expect(await getEpdrEndpointPage(input)).toEqual({ message: "Unauthorized." });
+    expect(await getEpdrEndpoints()).toEqual({ message: "Unauthorized." });
+  });
+
+  it("does not trust a caller-supplied site or role", async () => {
+    await expect(loadSecurityContext(99, "superadmin")).rejects.toThrow("Unauthorized");
+  });
+
+  it("rejects unbounded or invalid paging inputs", async () => {
+    expect(await getEpdrEndpointPage({ ...input, page: 0 })).toEqual({ message: "Invalid fleet filters." });
+    expect(await getEpdrEndpointPage({ ...input, query: "x".repeat(81) })).toEqual({ message: "Invalid fleet filters." });
+  });
+
+  it.each(["attention", "offline", "outdated", "unlinked", "unknown_contact"] as const)("uses identical site-scoped count/table predicates for %s", async (filter) => {
+    mocks.selectQueue = [[{ total: 0 }], []];
+    await getEpdrEndpointPage({ ...input, filter, query: "host%_", group: "Production", os: "Linux" });
+    const dialect = new PgDialect();
+    const count = dialect.sqlToQuery(mocks.predicates[1] as SQL);
+    const table = dialect.sqlToQuery(mocks.predicates[2] as SQL);
+    expect(table).toEqual(count);
+    expect(count.sql).toContain('"epdr_endpoints"."site_id"');
+    expect(count.sql).toContain('"epdr_endpoints"."removed_at" is null');
+    expect(count.sql).toContain('"epdr_endpoints"."connection_id"');
+    expect(count.sql).toContain('"epdr_endpoints"."account_revision"');
+    expect(count.params.slice(0, 3)).toEqual([7, 12, 3]);
+    expect(count.params).toContain(String.raw`%host\%\_%`);
+    expect(count.params).toContain("Production");
+    expect(count.params).toContain("Linux");
+  });
+
+  it.each([null, { id: 12, accountRevision: 3, enabled: false, accountId: "account" },
+    { id: 12, accountRevision: 3, enabled: true, accountId: "" },
+    { id: 12, accountRevision: 3, enabled: true, accountId: "   " }])("returns empty current fleet without a usable binding %#", async (binding) => {
+    mocks.binding = binding;
+    mocks.selectQueue = [[{ name: "Site" }], [{ id: 99, hostName: "historical" }]];
+    expect(await getEpdrEndpointPage({ ...input, page: 8 })).toEqual({ rows: [], total: 0, page: 1, pageSize: 50 });
+    const overview = await getEpdrEndpoints();
+    expect(overview).toMatchObject({ endpoints: [], posture: { total: 0 } });
+    // Only context consumes a queued row: historical inventory was never queried.
+    expect(mocks.selectQueue).toEqual([[{ id: 99, hostName: "historical" }]]);
+    expect(mocks.offsets).toEqual([]);
+  });
+
+  it("scopes overview inventory to the explicit connection and revision", async () => {
+    mocks.selectQueue = [[{ name: "Site" }], []];
+    await getEpdrEndpoints();
+    const compiled = new PgDialect().sqlToQuery(mocks.predicates.at(-1) as SQL);
+    expect(compiled.sql).toContain('"epdr_endpoints"."connection_id"');
+    expect(compiled.sql).toContain('"epdr_endpoints"."account_revision"');
+    expect(compiled.params).toEqual([7, 12, 3]);
+  });
+
+  it("can reach records beyond 300 using a bounded database offset", async () => {
+    mocks.selectQueue = [[{ total: 607 }], []];
+    expect(await getEpdrEndpointPage({ ...input, page: 8 })).toMatchObject({ total: 607, page: 8, pageSize: 50 });
+    expect(mocks.limits).toEqual([1, 50]);
+    expect(mocks.offsets).toEqual([350]);
+  });
+
+  it("returns an explicit total and clamps a page beyond the final page", async () => {
+    mocks.selectQueue = [[{ total: 51 }], []];
+    expect(await getEpdrEndpointPage({ ...input, page: 100 })).toEqual({ rows: [], total: 51, page: 2, pageSize: 50 });
   });
 });
 
