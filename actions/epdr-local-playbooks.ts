@@ -1,5 +1,6 @@
 "use server";
 
+import { isDeepStrictEqual } from "node:util";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -8,7 +9,8 @@ import { assertReadSyncActor } from "@/lib/epdr/read-sync-queue";
 import { runLocalPlaybook, type LocalStep } from "@/lib/epdr/local-playbook-engine";
 import { planLocalResponse, type LocalResponsePolicy } from "@/lib/epdr/local-response-policy";
 import { detectionCompleteness, type DetectionReadEvidence } from "@/lib/epdr/detection-evidence";
-import { PLAYBOOK_FRESHNESS_MS } from "@/lib/epdr/playbooks";
+import { PLAYBOOK_FRESHNESS_MS, PLAYBOOK_TEMPLATES } from "@/lib/epdr/playbooks";
+import { playbookConfigSchema } from "@/lib/epdr/playbook-config";
 
 export type LocalPlaybookReviewEvidence = {
   mode: "local"; requestedBy: number; siteId: number; versionId: number; detectionId: number;
@@ -31,14 +33,89 @@ export type LocalPlaybookRunDetail = {
   accountRevision: number; evidence: unknown; createdAt: string; finishedAt: string | null;
   steps: (LocalStep & { reason: string | null; finishedAt: string | null })[];
 };
+export type LocalPlaybookError = {
+  code: "invalid_input" | "binding_unavailable" | "version_unavailable" | "detection_unavailable" | "service_unavailable";
+  /** Retained as a generic non-sensitive discriminator for existing clients; use code for handling. */
+  message: "Local playbook unavailable.";
+};
+function localPlaybookError(code: LocalPlaybookError["code"]): LocalPlaybookError {
+  return { code, message: "Local playbook unavailable." };
+}
 const unavailable = { message: "Local playbook unavailable. No notification or provider action was requested." };
+const LOCAL_OPTION_LIMIT = 100;
+const optionsInputSchema = z.object({ detectionId: z.number().int().positive().optional() }).strict();
+export type LocalPlaybookOptions = {
+  versions: { id: number; templateId: string; name: string; version: number }[];
+  detections: { id: number; hostName: string | null; category: string; threatName: string | null; score: number | null; detectedAt: string }[];
+  detectionTruncated: boolean;
+  requestedDetection: LocalPlaybookOptions["detections"][number] | null;
+  requestedDetectionUnavailable: boolean;
+};
+type LocalDetectionRow = { id: number; host_name: string | null; category: string; threat_name: string | null; score: number | null; detected_at: Date };
+function localDetectionOption(row: LocalDetectionRow): LocalPlaybookOptions["detections"][number] {
+  return { id: row.id, hostName: row.host_name, category: row.category, threatName: row.threat_name,
+    score: row.score, detectedAt: new Date(row.detected_at).toISOString() };
+}
+
+/** Named choices from current local evidence; never authorization or a run request. */
+export async function getEpdrLocalPlaybookOptions(input: unknown = {}): Promise<LocalPlaybookOptions | LocalPlaybookError> {
+  const guard = await requireActiveSiteAdminAction();
+  if (!guard.ok) return localPlaybookError("binding_unavailable");
+  const parsed = optionsInputSchema.safeParse(input);
+  if (!parsed.success) return localPlaybookError("invalid_input");
+  try {
+    return await db.transaction(async (tx) => {
+      const { rows: bindings } = await tx.execute<{ id: number; account_revision: number }>(sql`
+        SELECT id, account_revision FROM watchguard_connections
+        WHERE site_id = ${guard.activeSiteId} AND enabled = true AND account_id <> ''`);
+      const binding = bindings[0];
+      if (!binding) return localPlaybookError("binding_unavailable");
+      await assertReadSyncActor(tx, guard.activeSiteId, guard.session.userId);
+      const { rows: versions } = await tx.execute<{ id: number; configuration: unknown; definition: unknown; version: number }>(sql`
+        SELECT id, configuration, definition, version FROM epdr_playbook_versions
+        WHERE site_id = ${guard.activeSiteId} AND mode = 'simulate' AND name <> ''
+        ORDER BY id DESC LIMIT ${LOCAL_OPTION_LIMIT}`);
+      const optionsVersions = versions.flatMap((row) => {
+        const config = playbookConfigSchema.safeParse(row.configuration);
+        if (!config.success) return [];
+        const template = PLAYBOOK_TEMPLATES.find((item) => item.id === config.data.templateId);
+        return template && isDeepStrictEqual(row.definition, { schemaVersion: 1, template })
+          ? [{ id: row.id, templateId: template.id, name: config.data.name, version: row.version }] : [];
+      });
+      const detectionFields = sql`d.id, coalesce(e.host_name, devices.hostname) AS host_name, d.category,
+        d.threat_name, d.threat_score AS score, d.detected_at`;
+      const currentDetectionScope = sql`d.site_id = ${guard.activeSiteId} AND d.connection_id = ${binding.id}
+        AND d.account_revision = ${binding.account_revision} AND d.ignored_reason IS NULL`;
+      const detectionJoins = sql`LEFT JOIN epdr_endpoints e ON e.id = d.endpoint_id AND e.site_id = d.site_id
+        AND e.connection_id = d.connection_id AND e.account_revision = d.account_revision
+        LEFT JOIN devices ON devices.id = e.device_id AND devices.site_id = d.site_id`;
+      const { rows: detections } = await tx.execute<LocalDetectionRow>(sql`
+        SELECT ${detectionFields} FROM epdr_detections d ${detectionJoins}
+        WHERE ${currentDetectionScope}
+        ORDER BY d.detected_at DESC, d.id DESC LIMIT ${LOCAL_OPTION_LIMIT + 1}`);
+      const bounded = detections.slice(0, LOCAL_OPTION_LIMIT);
+      const requested = parsed.data.detectionId;
+      let requestedRow = bounded.find((row) => row.id === requested);
+      if (requested !== undefined && !requestedRow) {
+        const { rows } = await tx.execute<LocalDetectionRow>(sql`
+          SELECT ${detectionFields} FROM epdr_detections d ${detectionJoins}
+          WHERE ${currentDetectionScope} AND d.id = ${requested} LIMIT 1`);
+        requestedRow = rows[0];
+      }
+      return { versions: optionsVersions, detections: bounded.map(localDetectionOption),
+        detectionTruncated: detections.length > LOCAL_OPTION_LIMIT,
+        requestedDetection: requestedRow ? localDetectionOption(requestedRow) : null,
+        requestedDetectionUnavailable: requested !== undefined && !requestedRow };
+    });
+  } catch { return localPlaybookError("service_unavailable"); }
+}
 
 /** No activation: append a distinct local review, never mutate a saved simulation or its runs. */
-export async function startEpdrLocalPlaybook(input: unknown): Promise<{ runId: number; existing: boolean } | { message: string }> {
+export async function startEpdrLocalPlaybook(input: unknown): Promise<{ runId: number; existing: boolean } | LocalPlaybookError> {
   const guard = await requireActiveSiteAdminAction();
-  if (!guard.ok) return { message: guard.message };
+  if (!guard.ok) return localPlaybookError("binding_unavailable");
   const parsed = startSchema.safeParse(input);
-  if (!parsed.success) return { message: "Explicit local review confirmation, version and detection required." };
+  if (!parsed.success) return localPlaybookError("invalid_input");
   const { versionId, detectionId } = parsed.data;
   try {
     return await db.transaction(async (tx) => {
@@ -109,7 +186,15 @@ export async function startEpdrLocalPlaybook(input: unknown): Promise<{ runId: n
         VALUES (${guard.activeSiteId}, ${runId}, ${step.ordinal}, ${step.kind}, ${step.action})`);
       return { runId, existing: false };
     });
-  } catch { return unavailable; }
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "binding_unavailable" || error.message === "version_unavailable" || error.message === "detection_unavailable") {
+        return localPlaybookError(error.message);
+      }
+      if (error.message === "invalid_input") return localPlaybookError("invalid_input");
+    }
+    return localPlaybookError("service_unavailable");
+  }
 }
 
 /** Shared lock ordering with connection reconfiguration, plus original actor revocation check. */

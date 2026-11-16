@@ -3,7 +3,7 @@ import OperationsLedgerPanel from "@/components/admin/epdr/operations-ledger";
 import LocalApprovals from "@/components/admin/epdr/local-approvals";
 import PageHeader from "@/components/ui/page-header";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
 export const metadata = { title: "Approvals | DataGuard" };
@@ -11,11 +11,12 @@ export const metadata = { title: "Approvals | DataGuard" };
 export default async function EpdrApprovalsPage() {
   const guard = await requireActiveSiteAdminAction();
   if (!guard.ok) redirect("/select-site");
+  const locale = await getLocale();
   const t = await getTranslations("Epdr.operationsV2");
   return <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 lg:px-8">
     <PageHeader eyebrow={t("eyebrow")} title={t("approvalsTitle")} description={t("approvalsDescription")} />
     <EpdrNav isAdmin />
-    <LocalApprovals key={`local-approvals-${guard.activeSiteId}`} />
+    <LocalApprovals key={`local-approvals-${guard.activeSiteId}`} locale={locale} />
     <OperationsLedgerPanel key={guard.activeSiteId} view="approvals" />
   </main>;
 }

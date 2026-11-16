@@ -126,6 +126,9 @@ function DetectionRow({ d, locale, isAdmin }: { d: EpdrDetectionRow; locale: str
         <span className="shrink-0 text-[12.5px] text-ops-subtle">{t("threats.noIncident")}</span>
       )}
       {d.historical && <span className="shrink-0 text-[11px] text-ops-warning">{t("threatV2.historical")}</span>}
+      {isAdmin && !d.historical && <Link href={`/${locale}/admin/epdr/playbooks?detection=${d.id}`} className="shrink-0 text-[12.5px] font-medium text-ops-accent underline-offset-4 hover:underline">
+        {t("threats.review")}
+      </Link>}
       {isAdmin && !d.incidentId && !d.historical && <IncidentHandoff detectionId={d.id} locale={locale} />}
     </li>
   );

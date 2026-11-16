@@ -40,6 +40,7 @@ vi.mock("react", async (original) => ({
   },
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => state.translate }));
+vi.mock("next/link", () => ({ default: (props: Record<string, unknown>) => ({ type: "a", key: null, props }) }));
 vi.mock("@/actions/epdr-threats", () => ({ getEpdrThreatTable: state.getPage }));
 vi.mock("./incident-handoff", () => ({ default: () => null }));
 
@@ -57,14 +58,22 @@ function page(number = 1, total = 150, id = number): EpdrThreatPage {
   return { rows: [detection(id)], total, page: number, pageSize: 50 };
 }
 let initial: EpdrThreatPage;
-function render() {
+function render(options: { ignored?: boolean; locale?: string; isAdmin?: boolean } = {}) {
   state.cursor = 0;
-  return ThreatTable({ initial, ignored: true, locale: "en", isAdmin: false });
+  return ThreatTable({
+    initial,
+    ignored: options.ignored ?? true,
+    locale: options.locale ?? "en",
+    isAdmin: options.isAdmin ?? false,
+  });
 }
 function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!node || typeof node !== "object" || !("props" in node)) return [];
   const element = node as ReactElement<Record<string, unknown>>;
+  if (typeof element.type === "function") {
+    return [element, ...elements((element.type as (props: Record<string, unknown>) => unknown)(element.props))];
+  }
   return [element, ...elements(element.props.children)];
 }
 function text(node: unknown): string {
@@ -129,6 +138,29 @@ afterEach(() => {
 });
 
 describe("ThreatTable request lifecycle", () => {
+  it("links an active admin detection to its locale-aware review without acting", async () => {
+    const tree = render({ ignored: false, locale: "id", isAdmin: true });
+    const rendered = elements(render({ ignored: false, locale: "id", isAdmin: true }));
+    const link = rendered.find((node) => String(node.props.href ?? "").includes("/admin/epdr/playbooks?"));
+    expect(link?.props.href).toBe("/id/admin/epdr/playbooks?detection=1");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(state.getPage).not.toHaveBeenCalled();
+    expect(text(tree)).not.toContain("finish");
+  });
+
+  it("does not offer review links for staff or historical detections", async () => {
+    initial = { ...page(), rows: [{ ...detection(2), historical: true }] };
+    await vi.advanceTimersByTimeAsync(300);
+    await settle();
+    expect(elements(render({ ignored: false, isAdmin: true }))
+      .some((node) => node.type === "a" && node.props.children === "threats.review")).toBe(false);
+    initial = page();
+    await vi.advanceTimersByTimeAsync(300);
+    await settle();
+    expect(elements(render({ ignored: false, locale: "id" }))
+      .some((node) => node.type === "a" && node.props.children === "threats.review")).toBe(false);
+  });
+
   it("marks an invalid score range as not busy and cancels its pending read", async () => {
     let tree = change(render(), "scoreMode", "range");
     tree = change(tree, "minScore", "9");

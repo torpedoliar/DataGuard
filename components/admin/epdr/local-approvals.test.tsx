@@ -25,11 +25,12 @@ vi.mock("react", async (original) => ({
   }],
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next/link", () => ({ default: "a" }));
 vi.mock("@/actions/epdr-local-approvals", () => ({ getEpdrLocalApprovals: state.list, decideEpdrLocalApproval: state.decide }));
 
 import LocalApprovals from "./local-approvals";
 
-function render() { state.cursor = 0; return LocalApprovals(); }
+function render(locale: string) { state.cursor = 0; return LocalApprovals({ locale }); }
 function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!node || typeof node !== "object" || !("props" in node)) return [];
@@ -61,34 +62,46 @@ afterEach(() => state.cleanup?.());
 
 describe("local approvals panel", () => {
   it("loads requests on mount and states that approval never dispatches", async () => {
-    render(); await settle();
-    const nodes = elements(render());
+    render("en"); await settle();
+    const nodes = elements(render("en"));
     expect(state.list).toHaveBeenCalledOnce();
-    expect(nodes.some((node) => node.props.role === "note" && node.props.children === "readOnly")).toBe(true);
+    expect(state.decide).not.toHaveBeenCalled();
+    const note = nodes.find((node) => node.props.role === "note");
+    expect(note).toBeDefined();
+    expect(nodes.some((node) => node.type === "p" && node.props.children === "readOnly")).toBe(true);
+    expect(nodes.some((node) => node.type === "p" && node.props.children === "decisionOnly")).toBe(true);
     expect(nodes.some((node) => node.props.children === "row")).toBe(true);
     expect(nodes.some((node) => node.props.children === "status.pending")).toBe(true);
   });
 
+  it("links each approval to the detection review in the provided locale without deciding", async () => {
+    render("id"); await settle();
+    const links = elements(render("id")).filter((node) => node.type === "a" && node.props.children === "review");
+    expect(links).toHaveLength(1);
+    expect(links[0].props.href).toBe("/id/admin/epdr/playbooks?detection=31");
+    expect(state.decide).not.toHaveBeenCalled();
+  });
+
   it("approves with the typed note and refreshes the list", async () => {
-    render(); await settle();
-    const input = elements(render()).find((node) => node.type === "input")!;
+    render("en"); await settle();
+    const input = elements(render("en")).find((node) => node.type === "input")!;
     (input.props.onChange as (event: unknown) => void)({ target: { value: " checked " } });
-    click(render(), "approve");
+    click(render("en"), "approve");
     await state.pending;
     expect(state.decide).toHaveBeenCalledExactlyOnceWith({ approvalId: 11, decision: "approve", note: "checked" });
-    expect(elements(render()).some((node) => node.props.children === "feedback.approved")).toBe(true);
+    expect(elements(render("en")).some((node) => node.props.children === "feedback.approved")).toBe(true);
     await settle();
     expect(state.list).toHaveBeenCalledTimes(2);
   });
 
   it("rejects without a note and shows a safe error for refused decisions", async () => {
-    render(); await settle();
-    click(render(), "reject"); await state.pending;
+    render("en"); await settle();
+    click(render("en"), "reject"); await state.pending;
     expect(state.decide).toHaveBeenCalledWith({ approvalId: 11, decision: "reject", note: undefined });
     state.decide.mockResolvedValueOnce({ message: "Approval expired." });
-    click(render(), "approve"); await state.pending;
-    expect(elements(render()).some((node) => node.props.role === "alert" && node.props.children === "error")).toBe(true);
-    expect(JSON.stringify(render())).not.toContain("Approval expired.");
+    click(render("en"), "approve"); await state.pending;
+    expect(elements(render("en")).some((node) => node.props.role === "alert" && node.props.children === "error")).toBe(true);
+    expect(JSON.stringify(render("en"))).not.toContain("Approval expired.");
   });
 
   it("never shows decision controls for approved or expired rows", async () => {
@@ -96,8 +109,8 @@ describe("local approvals panel", () => {
       rows: [{ ...row, id: 12, status: "approved" }, { ...row, id: 13, status: "expired" }],
       total: 2, limit: 50, pending: 0,
     });
-    render(); await settle();
-    const nodes = elements(render());
+    render("en"); await settle();
+    const nodes = elements(render("en"));
     expect(nodes.filter((node) => node.type === "input")).toHaveLength(0);
     expect(nodes.filter((node) => node.type === "button" && (node.props.children === "approve" || node.props.children === "reject"))).toHaveLength(0);
     expect(nodes.some((node) => node.props.children === "approvedNote")).toBe(true);

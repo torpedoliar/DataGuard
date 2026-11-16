@@ -63,8 +63,14 @@ function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
   const element = node as ReactElement<Record<string, unknown>>;
   return [element, ...elements(element.props.children)];
 }
+function text(node: unknown): string {
+  if (Array.isArray(node)) return node.map(text).join("");
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "object" && "props" in node) return text((node as ReactElement<{ children?: unknown }>).props.children);
+  return String(node);
+}
 function button(tree: ReactElement, name: "request" | "refresh") {
-  return elements(tree).find((node) => node.type === "button" && node.props.children === name)!;
+  return elements(tree).find((node) => node.type === "button" && text(node.props.children) === name)!;
 }
 function click(tree: ReactElement, name: "request" | "refresh") {
   const target = button(tree, name);

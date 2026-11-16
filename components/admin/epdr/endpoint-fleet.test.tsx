@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import type { EpdrEndpointPage, EpdrEndpointRow } from "@/actions/epdr-endpoints";
 import { summarizeFleet } from "@/lib/epdr/posture";
 
@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   cleanup: undefined as (() => void) | undefined,
   writes: vi.fn(),
   getPage: vi.fn(),
+  drawer: vi.fn(),
   translate: (key: string, values?: Record<string, number>) =>
     values ? `${key}:${JSON.stringify(values)}` : key,
 }));
@@ -37,7 +38,8 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => state.translate }));
 vi.mock("@/actions/epdr-endpoints", () => ({ getEpdrEndpointPage: state.getPage }));
-vi.mock("./endpoint-drawer", () => ({ default: () => null }));
+vi.mock("./endpoint-drawer", () => ({ default: (props: { endpoint: EpdrEndpointRow | null }) => { state.drawer(props); return null; } }));
+vi.mock("@/components/ui/status-badge", () => ({ default: ({ children }: { children: unknown }) => <span>{children as string}</span> }));
 
 import EndpointFleet from "./endpoint-fleet";
 
@@ -59,14 +61,17 @@ function page(number = 1, total = 101): EpdrEndpointPage {
     total, page: number, pageSize: 50,
   };
 }
-function render() {
+function render(overrides: Partial<Parameters<typeof EndpointFleet>[0]> = {}) {
   state.cursor = 0;
-  return EndpointFleet({ endpoints, posture, isAdmin: false, locale: "en" });
+  return EndpointFleet({ endpoints, posture, isAdmin: false, locale: "en", ...overrides });
 }
 function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!node || typeof node !== "object" || !("props" in node)) return [];
   const element = node as ReactElement<Record<string, unknown>>;
+  if (typeof element.type === "function") {
+    return elements((element.type as (props: Record<string, unknown>) => ReactNode)(element.props));
+  }
   return [element, ...elements(element.props.children)];
 }
 function text(node: unknown): string {
@@ -110,10 +115,10 @@ async function settle() {
   await Promise.resolve();
   await Promise.resolve();
 }
-async function load() {
-  render();
+async function load(overrides: Partial<Parameters<typeof EndpointFleet>[0]> = {}) {
+  render(overrides);
   await vi.advanceTimersByTimeAsync(250);
-  return render();
+  return render(overrides);
 }
 async function secondPage() {
   const tree = await load();
@@ -303,5 +308,28 @@ describe("EndpointFleet server-side list", () => {
     expect(loading(render())).toBe(false);
     expect(rows(render())).toHaveLength(50);
     expect(state.getPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the canonical protected count without treating no-license devices as attention", async () => {
+    state.getPage.mockResolvedValueOnce(page(1, 0));
+    const counts = { ...posture.counts, protected: 3, outdated: 1, disabled: 0, error: 0, install_error: 0, no_license: 2, unknown: 1 };
+    const remote = { ...endpoint(903), hostName: "outside-map", bucket: "unknown" as const };
+    const mixedPosture = { ...posture, total: 7, counts, protectedPct: 57.1, attention: [remote] };
+    const tree = await load({ posture: mixedPosture });
+    expect(text(tree)).toContain('endpoints.protectedOf:{"protected":4,"total":7}');
+    expect(text(tree)).not.toContain('endpoints.needsAttention:{"count":3}');
+    expect(text(button(tree, "endpoints.needsAttention"))).toContain('endpoints.needsAttention:{"count":1}');
+    expect(button(tree, "outside-map")).toBeDefined();
+  });
+
+  it("opens attention endpoints outside the bounded map sample once their latest row is available", async () => {
+    const remote = { ...endpoint(902), hostName: "remote-priority", bucket: "disabled" as const };
+    state.getPage.mockResolvedValueOnce({ ...page(1, 1), rows: [remote] });
+    const overrides = { posture: { ...posture, attention: [remote], counts: { ...posture.counts, disabled: 1 } } };
+    const tree = await load(overrides);
+    click(tree, "remote-priority");
+    const opened = render(overrides);
+    elements(opened);
+    expect(state.drawer).toHaveBeenLastCalledWith(expect.objectContaining({ endpoint: expect.objectContaining({ id: 902, bucket: "disabled" }) }));
   });
 });

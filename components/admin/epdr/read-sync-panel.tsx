@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+import { CheckCircle2, Clock3, CloudDownload, LoaderCircle, RefreshCw, RotateCw, TriangleAlert } from "lucide-react";
 import { getEpdrReadSyncStatus, requestEpdrReadSync } from "@/actions/epdr-read-sync";
 import type { ReadSyncStatus } from "@/lib/epdr/read-sync-queue";
 import { scheduleSyncRefresh } from "@/lib/epdr/sync-refresh";
@@ -53,20 +54,30 @@ export default function ReadSyncPanel({ enabled }: { enabled: boolean }) {
   }
 
   const safeStatus = status?.status ?? "idle";
-  return <section className="flex flex-col gap-3 rounded-lg border border-ops-border bg-ops-surface p-4 sm:flex-row sm:items-center sm:justify-between">
-    <div className="space-y-1 text-sm">
-      <p className="font-medium text-ops-text">{t("title")}</p>
-      <p className="text-ops-muted">{t("hint")}</p>
-      <p role="status" className="text-ops-muted">{t(`states.${safeStatus}`)}</p>
-      {safeStatus === "queued" && <p className="text-ops-muted">{t("waiting")}</p>}
-      {feedback && <p role="status" className="text-ops-text">{feedback}</p>}
-      {status?.finishedAt && <p className="text-xs text-ops-muted">{t("finished", { time: new Date(status.finishedAt).toLocaleString() })}</p>}
+  const active = pending || safeStatus === "queued" || safeStatus === "running";
+  const StateIcon = safeStatus === "succeeded" ? CheckCircle2 : active ? LoaderCircle : safeStatus === "idle" ? Clock3 : safeStatus === "partial" || safeStatus === "failed" || safeStatus === "cancelled" ? TriangleAlert : CloudDownload;
+  return <section className="ops-panel flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex min-w-0 items-start gap-3">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-ops-border bg-ops-surface-raised text-ops-accent"><StateIcon className={`size-4 ${active ? "animate-spin" : ""}`} aria-hidden /></span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h2 className="text-sm font-semibold text-ops-text">{t("title")}</h2>
+          <p className="text-xs text-ops-muted">{t(`states.${safeStatus}`)}</p>
+        </div>
+        <p role="status" className="sr-only">{t(`states.${safeStatus}`)}</p>
+        <p className="mt-1 max-w-4xl text-xs leading-5 text-ops-muted">{t("hint")}</p>
+        <div className="mt-2 space-y-1">
+          {safeStatus === "queued" && <p className="text-xs text-ops-warning">{t("waiting")}</p>}
+          {feedback && <p role="status" className="text-xs font-medium text-ops-text">{feedback}</p>}
+          {status?.finishedAt && <p className="text-xs text-ops-subtle">{t("finished", { time: new Date(status.finishedAt).toLocaleString() })}</p>}
+        </div>
+      </div>
     </div>
-    <div className="flex shrink-0 gap-2">
+    <div className="flex shrink-0 flex-wrap gap-2 pl-12 lg:pl-0">
       <button type="button" disabled={!enabled || pending || safeStatus === "queued" || safeStatus === "running"} onClick={request}
-        className="rounded-md bg-ops-accent px-3 py-2 text-sm font-medium text-ops-bg disabled:opacity-50">{t("request")}</button>
+        className="inline-flex h-9 items-center gap-2 rounded-md bg-ops-accent px-3 text-sm font-medium text-ops-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"><RotateCw className={`size-3.5 ${pending ? "animate-spin" : ""}`} aria-hidden />{t("request")}</button>
       <button type="button" onClick={() => { setWatch((value) => value + 1); router.refresh(); }}
-        className="rounded-md border border-ops-border px-3 py-2 text-sm text-ops-text">{t("refresh")}</button>
+        className="inline-flex h-9 items-center gap-2 rounded-md border border-ops-border px-3 text-sm text-ops-text transition-colors hover:bg-ops-surface-raised"><RefreshCw className="size-3.5" aria-hidden />{t("refresh")}</button>
     </div>
   </section>;
 }

@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 
-const state = vi.hoisted(() => ({ values: [] as unknown[], cursor: 0, dependencies: undefined as unknown[] | undefined,
-  cleanup: undefined as (() => void) | undefined, busy: false, pending: Promise.resolve(),
-  list: vi.fn(), detail: vi.fn(), start: vi.fn(), resume: vi.fn(), request: vi.fn() }));
+const state = vi.hoisted(() => ({
+  values: [] as unknown[], cursor: 0, cleanups: [] as (() => void)[], busy: false,
+  dependencies: [] as unknown[][],
+  pending: Promise.resolve(), operations: [] as Promise<unknown>[], mounted: { current: true }, detailRequest: { current: 0 },
+  list: vi.fn(), detail: vi.fn(), start: vi.fn(), resume: vi.fn(), request: vi.fn(), options: vi.fn(),
+  translate: (key: string, values?: Record<string, string | number>) => values ? `${key}:${JSON.stringify(values)}` : key,
+}));
 vi.mock("react", async (original) => ({
   ...await original<typeof import("react")>(),
   useState: (initial: unknown) => {
@@ -13,101 +17,217 @@ vi.mock("react", async (original) => ({
       state.values[index] = typeof value === "function" ? value(state.values[index]) : value;
     }];
   },
-  useEffect: (run: () => () => void, dependencies: unknown[]) => {
-    if (!state.dependencies || dependencies.some((value, index) => !Object.is(value, state.dependencies?.[index]))) {
-      state.cleanup?.(); state.dependencies = dependencies; state.cleanup = run();
+  useEffect: (run: () => void | (() => void), dependencies: unknown[]) => {
+    const index = state.cursor++;
+    const previous = state.dependencies[index];
+    if (!previous || previous.length !== dependencies.length || dependencies.some((value, slot) => !Object.is(value, previous[slot]))) {
+      state.dependencies[index] = dependencies;
+      const cleanup = run();
+      if (typeof cleanup === "function") state.cleanups.push(cleanup);
     }
   },
+  useRef: (initial: unknown) => initial === true ? state.mounted : initial === 0 ? state.detailRequest : { current: initial },
   useTransition: () => [state.busy, (run: () => Promise<void>) => {
-    state.busy = true; state.pending = run().finally(() => { state.busy = false; });
+    state.busy = true;
+    const operation = run();
+    state.operations.push(operation.catch(() => undefined));
+    state.pending = operation.catch(() => undefined).finally(() => { state.busy = false; });
   }],
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("@/actions/epdr-local-playbooks", () => ({ getEpdrLocalPlaybookRuns: state.list,
-  getEpdrLocalPlaybookRun: state.detail, startEpdrLocalPlaybook: state.start, resumeEpdrLocalPlaybook: state.resume }));
+vi.mock("next-intl", () => ({ useTranslations: () => state.translate }));
+vi.mock("@/actions/epdr-local-playbooks", () => ({
+  getEpdrLocalPlaybookRuns: state.list, getEpdrLocalPlaybookRun: state.detail,
+  getEpdrLocalPlaybookOptions: state.options, startEpdrLocalPlaybook: state.start, resumeEpdrLocalPlaybook: state.resume,
+}));
 vi.mock("@/actions/epdr-local-approvals", () => ({ requestEpdrLocalApproval: state.request }));
+vi.mock("./incident-handoff", () => ({
+  default: function handoff({ detectionId, locale }: { detectionId: number; locale: string }) {
+    return { type: "handoff", key: null, props: { detectionId, locale } };
+  },
+}));
 import LocalPlaybookRunner from "./local-playbook-runner";
-function render() { state.cursor = 0; return LocalPlaybookRunner(); }
+function render(initialDetectionId?: number) {
+  state.cursor = 0;
+  return LocalPlaybookRunner({ initialDetectionId, locale: "id" });
+}
 function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!node || typeof node !== "object" || !("props" in node)) return [];
   const element = node as ReactElement<Record<string, unknown>>;
   return [element, ...elements(element.props.children)];
 }
-function click(name: string) {
-  const target = elements(render()).find((node) => node.type === "button" && node.props.children === name)!;
+function text(node: unknown): string {
+  if (Array.isArray(node)) return node.map(text).join("");
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "object" && "props" in node) return text((node as ReactElement<{ children?: unknown }>).props.children);
+  return String(node);
+}
+function click(name: string, tree = render()) {
+  const target = elements(tree).find((node) => node.type === "button" && text(node.props.children) === name)!;
   if (!target.props.disabled) (target.props.onClick as () => void)();
 }
+function submit(tree = render()) {
+  (elements(tree).find((node) => node.type === "form")!.props.onSubmit as (event: { preventDefault: () => void }) => void)({ preventDefault: vi.fn() });
+}
 async function settle() { await Promise.resolve(); await Promise.resolve(); }
-const run = { id: 7, versionId: 1, detectionId: 2, status: "pending", createdAt: "2026-01-01", finishedAt: null };
+const run = { id: 7, versionId: 42, detectionId: 31, status: "pending", createdAt: "2026-01-01", finishedAt: null };
+const storedOptions = {
+  versions: [{ id: 42, name: "Malware review", version: 3, templateId: "malware-virus" }],
+  detections: [{ id: 31, hostName: "Workstation", category: "malware", threatName: "Test threat", score: 8, detectedAt: "2026-01-01T00:00:00.000Z" }],
+  detectionTruncated: false, requestedDetection: null, requestedDetectionUnavailable: false,
+};
 beforeEach(() => {
-  vi.resetAllMocks(); state.values = []; state.cursor = 0; state.dependencies = undefined; state.cleanup = undefined;
-  state.busy = false; state.pending = Promise.resolve();
+  vi.resetAllMocks(); state.values = []; state.cursor = 0; state.cleanups = []; state.dependencies = [];
+  state.busy = false; state.pending = Promise.resolve(); state.operations = []; state.mounted.current = true; state.detailRequest.current = 0;
   state.list.mockResolvedValue({ rows: [run], total: 1, limit: 50 });
   state.detail.mockResolvedValue({ ...run, steps: [] });
+  state.options.mockResolvedValue(storedOptions);
+  state.start.mockResolvedValue({ runId: 7, existing: false });
   state.resume.mockResolvedValue({ runId: 7, result: "finished" });
   state.request.mockResolvedValue({ approvalId: 21, existing: false });
 });
-afterEach(() => state.cleanup?.());
+afterEach(() => { state.cleanups.forEach((cleanup) => cleanup()); state.mounted.current = false; });
 describe("local review runner interactions", () => {
-  it("loads evidence only on inspection, never starts or resumes on mount", async () => {
-    render(); await settle();
+  it("loads named choices and evidence only on inspection, never acts on mount", async () => {
+    render(31); await settle();
+    expect(state.options).toHaveBeenCalledExactlyOnceWith({ detectionId: 31 });
     expect(state.list).toHaveBeenCalledOnce();
-    expect(state.detail).not.toHaveBeenCalled(); expect(state.start).not.toHaveBeenCalled(); expect(state.resume).not.toHaveBeenCalled();
+    expect(state.detail).not.toHaveBeenCalled(); expect(state.start).not.toHaveBeenCalled(); expect(state.resume).not.toHaveBeenCalled(); expect(state.request).not.toHaveBeenCalled();
+    const tree = render(31);
+    expect(text(tree)).toContain("detectionOption");
+    expect(text(tree)).toContain("versionOption");
   });
-  it("refreshes both list and detail after explicit resume", async () => {
-    render(); await settle(); click("inspect"); await state.pending;
-    state.detail.mockResolvedValue({ ...run, status: "finished", steps: [] });
-    state.list.mockResolvedValue({ rows: [{ ...run, status: "finished" }], total: 1, limit: 50 });
-    click("resume"); await state.pending; render(); await settle();
+  it("keeps a valid requested detection outside the recent selector window", async () => {
+    state.options.mockResolvedValue({ ...storedOptions, detections: [], requestedDetection: storedOptions.detections[0] });
+    const tree = render(31); await settle();
+    const select = elements(render(31)).find((node) => node.type === "select" && node.props["aria-label"] === "detection")!;
+    expect(select.props.value).toBe("31");
+    expect(text(select)).toContain("detectionOption");
+    expect(text(tree)).not.toContain("requestedUnavailable");
+  });
+  it("does not offer an unavailable URL detection as a valid selection", async () => {
+    state.options.mockResolvedValue({ ...storedOptions, requestedDetectionUnavailable: true });
+    render(99); await settle();
+    const select = elements(render(99)).find((node) => node.type === "select" && node.props["aria-label"] === "detection")!;
+    expect(select.props.value).toBe("");
+    expect(text(render(99))).toContain("requestedUnavailable");
+  });
+  it("requires explicit creation, then a separate pending-only recording action", async () => {
+    state.detail.mockResolvedValueOnce({ ...run, steps: [] }).mockResolvedValue({ ...run, status: "finished", steps: [] });
+    render(31); await settle();
+    click("start"); expect(state.start).not.toHaveBeenCalled();
+    const checkbox = elements(render(31)).find((node) => node.type === "input" && node.props.type === "checkbox")!;
+    (checkbox.props.onChange as (event: { target: { checked: boolean } }) => void)({ target: { checked: true } });
+    const selects = elements(render(31)).filter((node) => node.type === "select");
+    (selects[0].props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "31" } });
+    (selects[1].props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "42" } });
+    submit(render(31));
+    expect(state.start).toHaveBeenCalledExactlyOnceWith({ versionId: 42, detectionId: 31, mode: "local", confirmLocalReview: true });
+    expect(state.resume).not.toHaveBeenCalled();
+    await state.pending;
+    click("resume"); await state.pending;
     expect(state.resume).toHaveBeenCalledExactlyOnceWith(7);
-    expect(state.detail).toHaveBeenCalledTimes(2); expect(state.list).toHaveBeenCalledTimes(2);
-    expect(elements(render()).some((node) => node.props.children === "status.finished")).toBe(true);
+    const tree = render(31);
+    expect(text(tree)).toContain("statusHint.finished");
+    expect(elements(tree).some((node) => node.type === "button" && text(node.props.children) === "resume")).toBe(false);
+  });
+  it("explains running without offering a duplicate recording pass", async () => {
+    state.detail.mockResolvedValue({ ...run, status: "running", steps: [] });
+    render(); await settle(); click("inspect"); await state.pending;
+    expect(text(render())).toContain("statusHint.running");
+    expect(elements(render()).some((node) => node.type === "button" || node.type === "handoff")).toBe(true);
+    expect(elements(render()).some((node) => node.type === "button" && text(node.props.children) === "resume")).toBe(false);
+    expect(state.resume).not.toHaveBeenCalled();
   });
   it("shows initial load failure rather than permanent loading and supports retry", async () => {
     state.list.mockRejectedValueOnce(new Error("private")); render(); await settle();
-    expect(elements(render()).some((node) => node.props.role === "alert")).toBe(true);
-    expect(elements(render()).some((node) => node.props.children === "loading")).toBe(false);
+    expect(text(render())).toContain("errors.service_unavailable");
+    expect(text(render())).not.toContain("private");
+    expect(text(render())).not.toContain("loading");
     click("refresh"); render(); await settle();
     expect(state.list).toHaveBeenCalledTimes(2);
-    expect(elements(render()).some((node) => node.props.role === "alert")).toBe(false);
+    expect(text(render())).not.toContain("errors.service_unavailable");
+  });
+  it.each(["invalid_input", "binding_unavailable", "version_unavailable", "detection_unavailable", "service_unavailable"] as const)("shows only actionable %s error", async (code) => {
+    state.start.mockResolvedValue({ code, message: "Local playbook unavailable." });
+    render(); await settle();
+    const checkbox = elements(render()).find((node) => node.type === "input" && node.props.type === "checkbox")!;
+    (checkbox.props.onChange as (event: { target: { checked: boolean } }) => void)({ target: { checked: true } });
+    const selects = elements(render()).filter((node) => node.type === "select");
+    (selects[0].props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "31" } });
+    (selects[1].props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "42" } });
+    submit(); await state.pending;
+    expect(text(render())).toContain(`errors.${code}`);
+    expect(text(render())).not.toContain("Local playbook unavailable.");
   });
   it("requests a local approval only for an intent the saved review proposed", async () => {
     state.detail.mockResolvedValue({ ...run, steps: [], evidence: {
       responsePolicy: { status: "proposed" }, definition: { template: { steps: ["review", "incident", "scan"] } },
     } });
     render(); await settle(); click("inspect"); await state.pending;
-    expect(elements(render()).some((node) => node.type === "button" && node.props.children === "request_scan")).toBe(true);
-    expect(elements(render()).some((node) => node.type === "button" && node.props.children === "request_isolate")).toBe(false);
+    expect(elements(render()).some((node) => node.type === "button" && text(node.props.children) === "request_scan")).toBe(true);
+    expect(elements(render()).some((node) => node.type === "button" && text(node.props.children) === "request_isolate")).toBe(false);
     click("request_scan"); await state.pending;
     expect(state.request).toHaveBeenCalledExactlyOnceWith({ runId: 7, actionIntent: "scan", confirmLocalApproval: true });
-    expect(elements(render()).some((node) => node.props.children === "approvalRequested")).toBe(true);
+    expect(text(render())).toContain("approvalRequested");
   });
-  it("shows no approval controls for a blocked review", async () => {
-    state.detail.mockResolvedValue({ ...run, steps: [], evidence: {
-      responsePolicy: { status: "blocked" }, definition: { template: { steps: ["review", "scan"] } },
+  it("displays saved blocked reasons and retains a separate incident handoff", async () => {
+    state.detail.mockResolvedValue({ ...run, status: "finished", steps: [{ ordinal: 0, kind: "provider", status: "suppressed", reason: "provider_execution_disabled" }], evidence: {
+      responsePolicy: { status: "blocked", reasons: ["identity", "stale"] }, definition: { template: { steps: ["review", "scan"] } },
     } });
     render(); await settle(); click("inspect"); await state.pending;
-    expect(elements(render()).some((node) => node.type === "button" && node.props.children === "request_scan")).toBe(false);
+    const tree = render();
+    expect(text(tree)).toContain("policy.blocked");
+    expect(text(tree)).toContain("reasons.identity"); expect(text(tree)).toContain("reasons.stale");
+    expect(text(tree)).toContain("outcomes.suppressed");
+    expect(elements(tree).some((node) => (node.type === "handoff" || (typeof node.type === "function" && node.type.name === "handoff")) && node.props.detectionId === 31 && node.props.locale === "id")).toBe(true);
+    expect(elements(tree).some((node) => node.type === "button" && text(node.props.children) === "request_scan")).toBe(false);
+    expect(state.request).not.toHaveBeenCalled();
   });
   it("clears stale details when inspection fails", async () => {
     render(); await settle(); click("inspect"); await state.pending;
     state.detail.mockResolvedValueOnce({ message: "unavailable" });
     click("inspect"); await state.pending;
-    expect(elements(render()).some((node) => node.type === "button" && node.props.children === "resume")).toBe(false);
+    expect(elements(render()).some((node) => node.type === "button" && text(node.props.children) === "resume")).toBe(false);
+    expect(text(render())).toContain("errors.service_unavailable");
+  });
+  it("keeps only the most recent inspection and ignores stale responses", async () => {
+    let resolveFirst!: (value: unknown) => void;
+    state.detail.mockReturnValueOnce(new Promise((done) => { resolveFirst = done; }));
+    render(); await settle(); click("inspect");
+    await vi.waitFor(() => expect(state.detail).toHaveBeenCalledOnce());
+    state.detail.mockResolvedValueOnce({ ...run, id: 8, steps: [] });
+    state.busy = false;
+    click("inspect");
+    await vi.waitFor(() => expect(state.detail).toHaveBeenCalledTimes(2));
+    await state.pending;
+    resolveFirst({ ...run, steps: [] }); await state.pending;
+    expect(text(render())).toContain("detail:{\"id\":8}");
+    expect(state.resume).not.toHaveBeenCalled();
+  });
+  it("does not publish in-flight inspection results after unmount", async () => {
+    let resolve!: (value: unknown) => void;
+    state.detail.mockReturnValue(new Promise((done) => { resolve = done; }));
+    render(); await settle(); click("inspect");
+    const detailIndex = state.values.findIndex((value) => value === null && state.values.indexOf(value) > 1);
+    state.cleanups.forEach((cleanup) => cleanup()); state.mounted.current = false;
+    resolve({ ...run, steps: [] }); await state.pending;
+    expect(state.values[2]).toBeNull();
+    expect(state.resume).not.toHaveBeenCalled();
+    expect(detailIndex).toBeLessThan(state.values.length);
   });
   it("pages the run list, mirrors a clamped page and leaves detail untouched", async () => {
     state.list.mockResolvedValue({ rows: [run], total: 120, limit: 50, page: 1, pages: 3 });
     render(); await settle();
     expect(state.list).toHaveBeenLastCalledWith({ page: 1 });
-    expect(elements(render()).some((node) => node.props.children === "pageSummary")).toBe(true);
+    expect(text(render())).toContain("pageSummary");
     state.list.mockResolvedValue({ rows: [run], total: 120, limit: 50, page: 2, pages: 3 });
     click("next"); render(); await settle();
     expect(state.list).toHaveBeenLastCalledWith({ page: 2 });
     state.list.mockResolvedValue({ rows: [run], total: 120, limit: 50, page: 3, pages: 3 });
     click("next"); render(); await settle();
     expect(state.list).toHaveBeenLastCalledWith({ page: 3 });
-    const next = elements(render()).find((node) => node.type === "button" && node.props.children === "next")!;
+    const next = elements(render()).find((node) => node.type === "button" && text(node.props.children) === "next")!;
     expect(next.props.disabled).toBe(true);
     expect(state.detail).not.toHaveBeenCalled();
     expect(state.resume).not.toHaveBeenCalled();
