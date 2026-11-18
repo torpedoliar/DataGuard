@@ -1,10 +1,12 @@
 # WatchGuard EPDR — Operator Runbook
 
-Status: **implemented read-only** (`WATCHGUARD_READ_ONLY_LOCK = true`). All real
-provider adapters are read-only; every mutation is blocked before network with
-`WATCHGUARD_READ_ONLY_BLOCKED`. There is no UI/config/env unlock. Enabling real
-writes requires a separate, explicit operator authorization and a reviewed code
-change.
+Status: **read-only ingestion plus opt-in, gated provider writes**. Inventory and
+evidence are always read through the read-only transport
+(`WATCHGUARD_READ_ONLY_LOCK = true`). Provider writes exist only through the
+separate execution pipeline documented in §11: both enablement gates default off,
+a different site administrator must approve an immutable target snapshot, and the
+worker re-validates every gate immediately before one single send. There is no
+arbitrary HTTP path, no bulk execution and no automatic (approval-free) write.
 
 ## 1. Entry routes
 
@@ -64,8 +66,9 @@ errors into logs, tickets or chat.
   pass. Restarting the worker intentionally resets cadence and makes all jobs
   due. Do not use repeated restarts as a sync health check.
 - Stop ingestion with `docker compose stop watchguard-worker` if required.
-  The read-only transport lock remains mandatory in every startup mode; there
-  is no environment flag or CLI option that permits scans, repair or writes.
+  The read-only transport lock remains mandatory in every startup mode. The worker
+  also hosts the gated write dispatcher/observer from §11; those jobs do nothing
+  while either write gate is off.
 
 ## 4. Kill switch / rollback
 
@@ -104,5 +107,194 @@ See `lib/epdr/reasons.ts`: `no_match`, `block_kill_switch_global/site`, `block_a
 - **Operator must separately authorize live commands, production rules, and migrations.**
 
 ## 10. Evidence retention
-
 - Provider raw evidence/result visibility is bounded to site role; retention is UI-backed within global minimum; prune only expired, non-referenced data in bounded batches. Endpoint-only inventory is never registered as an asset or a fake checklist item.
+## 11. Provider write execution (RW)
+
+This section documents the opt-in execution path added in migration `0084_epdr_provider_writes`.
+It replaces the previous "mutations are unreachable" statement with a gated pipeline. The
+read-only transport (`lib/watchguard/guard.ts`) is unchanged and still refuses every write;
+writes travel through a separate allowlist (`lib/watchguard/write-guard.ts`).
+
+### 11.1 Current default
+
+Both gates ship **off**:
+
+- `watchguard_global_settings.provider_writes_enabled` (superadmin)
+- `epdr_site_settings.provider_writes_enabled` (site admin)
+
+With either gate off, `getEpdrExecutionOptions()` reports `writeEnabled: false` and the request
+form is disabled. No request can be created, approved or dispatched.
+
+### 11.2 Verified operations
+
+Only operations recorded as verified in
+`docs/superpowers/plans/2026-11-17-epdr-playbook-proper/RW_CAPABILITY_MATRIX.md` exist in the
+registry. Everything else is `unsupported` and cannot be selected. A verified *write* contract
+does not imply verified *completion* observation; §11.5 lists what the worker can confirm.
+
+Deliberately **not** implemented: uninstall protection, `/transact` batch, standalone provider
+comment, repair, automatic (no-approval) execution, and multi-target bulk sends.
+
+### 11.3 Request lifecycle
+
+```text
+pending_approval → queued → dispatching → in_progress → completed
+                                  ↘ outcome_unknown → (observation) → completed | needs_review
+                                  ↘ failed
+pending_approval | queued → cancelled
+```
+
+- A request is created by one site admin and shows **nothing sent**.
+- Approval requires a **different** currently-authorized site admin and re-validates every gate
+  against fresh state, including a rebuilt snapshot of the exact target. The approver's snapshot
+  hash must equal the stored snapshot hash; the database enforces `approved_by <> requested_by`.
+- The approval UI requires opening the request, reviewing the frozen target, parameters and
+  revision values, and ticking an explicit confirmation. There is no one-click approval from the
+  list.
+- Any material change (target, parameters, account/credential revision, evidence generation)
+  invalidates the approval and the request moves to `needs_review` instead of sending.
+- Approvals expire and never extend past the request's own window. An expired approval never
+  authorizes a send.
+
+### 11.4 Dispatch safety
+
+- The attempt row is committed **before** the provider request.
+- One attempt per request. There is no retry for a write; a GET-style retry is never applied.
+- Timeout, network failure, 5xx, redirect, or a 2xx without the documented receipt field become
+  `outcome_unknown`. The request is **never re-sent automatically**.
+- A dispatch lease that expires without a published result is converted to `outcome_unknown` by
+  `recoverStaleDispatchLeases`. Lease expiry is not permission to resend.
+- A stale worker generation cannot publish; the CAS on `generation` rejects it.
+
+Known limits of this release:
+
+- Rate limit and cooldown are checked per claim, not reserved atomically. Two workers claiming
+  different requests for the same site/endpoint in the same instant can exceed the intended cap;
+  run a single worker, as the deployment does.
+- Revalidation happens immediately before the claim; a kill switch or pause flipped during the few
+  seconds between claim and HTTP send cannot cancel that one send. The next claim is blocked.
+- Scan completion aggregates the first page of task jobs. A task with more jobs than that page can
+  be under-observed; it is never treated as clean.
+- `needs_review` is closed by one administrator with a note, after which a new request may be made.
+  The new request still requires a fresh second-admin approval, but the closure itself does not
+  prove the earlier operation was not performed.
+
+### 11.5 Observation
+
+`runProviderObservePass` reads provider state only and keeps running while a kill switch is
+active or the connection is disabled. Scan observation correlates the exact
+`dcheck-<requestId>` marker in `task_name` and aggregates every job status; a completed task is
+never treated as proof the endpoint is clean. Zero matches leave the request unresolved (bounded
+by the observation deadline and attempt budget, after which it moves to `needs_review`).
+
+Observation coverage is deliberately uneven and shown in the UI:
+
+| Action | Completion evidence |
+|---|---|
+| `scan` | Task jobs all reported success. Result pages are not fetched. |
+| `isolate`, `unisolate` | Explicit recognized device isolation state only. |
+| `reboot`, `assign_config` | None verified. First observation moves the request to `needs_review`. |
+| ThreatSync actions and incident status | None verified. First observation moves the request to `needs_review`. |
+
+ThreatSync writes additionally require a recorded provider incident target. This repository has no
+ingestion writer for `epdr_provider_incident_targets`, so those actions currently fail creation with
+`target_unresolved` unless the table is populated by an external, authorized process. The id is
+never inferred from an Endpoint Security device id.
+
+The worker only enumerates **enabled** connections, so disabling a connection also pauses its
+observation passes. Resolve outstanding requests or re-enable the connection before disabling it
+for a long period.
+
+### 11.6 Kill switch
+
+Global and site kill switches stop **new sends**. Observation and reconciliation continue, so a
+request that may already have been performed is still resolved. Setting a kill switch is not
+rollback: it does not undo anything already accepted by the provider.
+
+### 11.7 Compensation
+
+`unisolate` is a separate request with its own approval. Reboot, process termination and file
+quarantine have no in-app undo. Deployment rollback preserves `epdr_actions` and `epdr_attempts`
+and leaves unresolved `outcome_unknown` rows visible.
+
+### 11.8 Live activation checklist (requires explicit operator authorization)
+
+Nothing below is executed by tests or by the application on its own.
+
+- [ ] Rotate the exposed RW/RO credentials and store the new values through the encrypted
+      connection fields. Never place them in code, docs, tickets or chat.
+- [ ] Apply migrations up to `0084_epdr_provider_writes` on the target database.
+- [ ] Run `npm run watchguard:worker -- --only=dispatch --run-once` and confirm the log shows
+      `pass complete: N ran, 0 failed`, **no new `epdr_attempts` rows**, and every request still
+      `pending_approval`/`queued` while both gates are off.
+- [ ] Enable the global gate as superadmin, then the site gate, with a narrow action list
+      (start with `scan` only).
+- [ ] Create one request on one endpoint and confirm it stays `pending_approval` with no attempt
+      row.
+- [ ] Inspect the request, confirm the approved device id and revisions, then approve from a
+      different admin account and confirm exactly one `epdr_attempts` row.
+- [ ] Observe the outcome and confirm a completed scan is not presented as a clean endpoint.
+- [ ] Rehearse the kill switch: new sends stop, observation continues.
+- [ ] Only then widen the action list, one action at a time.
+
+### 11.9 Rollback
+
+- Turn off the site gate, then the global gate, then raise the kill switch.
+- Do not delete `epdr_actions` or `epdr_attempts`: they are the audit trail.
+- Resolve every `outcome_unknown` request before re-enabling writes, so a possibly-performed
+  operation is not repeated.
+- Requests stuck in `needs_review` are closed with the explicit review action ("Close after
+  review"), which records a note and releases the active-intent lock. It makes no claim about what
+  the provider did.
+
+
+## 12. Hardening release (0085): atomic limits, confirmed ThreatSync targets, observation, monitoring, retention
+
+### 12.1 Per-site limits and atomic reservation
+
+- Effective hourly cap = LEAST(site max_actions_per_hour, global max_actions_per_hour_per_site); a site value
+  of NULL follows the global ceiling. Effective cooldown = per-site execution_cooldown_minutes (default 10,
+  0 disables). Both are edited in the execution-center settings section; the site cap may narrow but never
+  raise the global value.
+- The dispatcher reserves atomically: one transaction locks the connection row, reads the limits, counts
+  committed dispatch attempts for the hour, then claims one request with a cooldown anti-join and
+  FOR UPDATE SKIP LOCKED. A cooled-down endpoint can no longer block the queue head. The attempt row and its
+  claimed event commit before any HTTP call.
+- epdr_attempt_events is append-only at the database level. Corrections appear as new events; the trigger
+  rejects UPDATE and DELETE. Event vocabulary: claimed, sent, accepted, ambiguous, aborted, observed.
+- An aborted claim (gate flipped, snapshot changed before send) returns the request to queued or needs_review,
+  marks the attempt aborted and clears dispatched_at: no cooldown attaches to an endpoint that was never
+  contacted.
+- Ops: watch /api/metrics (epdr block) and /admin/epdr/activity (execution health panel). The worker compose
+  service now has a real healthcheck (scripts/healthcheck-watchguard.ts, exit 1 on a stale heartbeat or stuck
+  thresholds; thresholds env-tunable via EPDR_* variables).
+
+### 12.2 ThreatSync confirmed targets (required before any TS action)
+
+- The provider_sync job ingests incidents/targets as unreviewed. It never auto-confirms and never derives a
+  ThreatSync entity id from a device id (and vice versa).
+- An operator must confirm each target on /admin/epdr/threats: pick the endpoint, confirm (or reject with a
+  reason). Only confirmed targets whose incident matches the connection's current account revision authorize
+  ThreatSync actions and link detections to endpoints.
+- Detections no longer fall back to comparing entity ids with device ids. Historical detections linked that
+  way appear in the mislink report on the same panel; history is not rewritten automatically.
+- Retention windows (per site, Settings > EPDR): attempts of terminal requests are deleted after
+  execution_attempt_retention_days (default 90); result/response payloads are redacted after
+  execution_result_retention_days (default 180). Requests, snapshots and approval records are permanent.
+
+### 12.3 ThreatSync observation
+
+- Command actions read GET /actions/{actionId}; only inProgress and performed are recognized. performed
+  completes the request; anything else is unreadable and retries a bounded number of times before
+  needs_review.
+- ts_incident_status completes only when the provider reports exactly the requested status.
+
+### 12.4 Residual risks
+
+- Closing a needs_review request remains a single-admin decision. It records a note and releases the
+  active-intent lock; it does not prove the earlier operation did not run. Retry still requires a fresh
+  approval from a different administrator.
+- The retention worker deletes technical evidence (attempts, receipts) after the configured windows; the
+  decision records remain but the raw evidence does not. Export what you need before the window closes.
+- The expired-approval sweep cancels lapsed approvals automatically; a request that was genuinely still
+  wanted must be requested and approved again.

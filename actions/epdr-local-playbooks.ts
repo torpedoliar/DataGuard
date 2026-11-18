@@ -1,16 +1,17 @@
 "use server";
 
-import { isDeepStrictEqual } from "node:util";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { assertReadSyncActor } from "@/lib/epdr/read-sync-queue";
 import { runLocalPlaybook, type LocalStep } from "@/lib/epdr/local-playbook-engine";
-import { planLocalResponse, type LocalResponsePolicy } from "@/lib/epdr/local-response-policy";
+import { evaluateLocalResponsePolicy, planLocalResponse, type LocalResponsePolicy } from "@/lib/epdr/local-response-policy";
 import { detectionCompleteness, type DetectionReadEvidence } from "@/lib/epdr/detection-evidence";
-import { PLAYBOOK_FRESHNESS_MS, PLAYBOOK_TEMPLATES } from "@/lib/epdr/playbooks";
-import { playbookConfigSchema } from "@/lib/epdr/playbook-config";
+import { PLAYBOOK_FRESHNESS_MS } from "@/lib/epdr/playbooks";
+import { evaluatePlaybook } from "@/lib/epdr/playbooks";
+import { playbookConfigMatches, type PlaybookConfig } from "@/lib/epdr/playbook-config";
+import { classifyPlaybookVersion } from "@/lib/epdr/playbook-version";
 
 export type LocalPlaybookReviewEvidence = {
   mode: "local"; requestedBy: number; siteId: number; versionId: number; detectionId: number;
@@ -19,7 +20,12 @@ export type LocalPlaybookReviewEvidence = {
   signal: Parameters<typeof planLocalResponse>[2];
   eligibility: ReturnType<typeof planLocalResponse>["eligibility"];
   responsePolicy: LocalResponsePolicy;
-  providerLocked: true; notificationsEnabled: false; incidentPolicy: "requires_operator";
+  // Capability contract (lib/epdr/local-capabilities.ts): kept explicit on
+  // every evidence record so a future reader cannot mistake a local review
+  // for a delivery receipt. `providerLocked` is load-bearing: the local
+  // approval action refuses evidence without it.
+  providerLocked: true; notificationsEnabled: false; automationDelivered: false;
+  providerAction: "suppressed"; notification: "disabled"; incidentHandoff: "required";
 };
 
 const startSchema = z.object({ versionId: z.number().int().positive(), detectionId: z.number().int().positive(), mode: z.literal("local"), confirmLocalReview: z.literal(true) }).strict();
@@ -34,7 +40,9 @@ export type LocalPlaybookRunDetail = {
   steps: (LocalStep & { reason: string | null; finishedAt: string | null })[];
 };
 export type LocalPlaybookError = {
-  code: "invalid_input" | "binding_unavailable" | "version_unavailable" | "detection_unavailable" | "service_unavailable";
+  code: "invalid_input" | "binding_unavailable" | "version_unavailable" | "detection_unavailable"
+    | "version_definition_changed" | "detection_outside_configuration" | "detection_outside_template"
+    | "service_unavailable";
   /** Retained as a generic non-sensitive discriminator for existing clients; use code for handling. */
   message: "Local playbook unavailable.";
 };
@@ -43,18 +51,117 @@ function localPlaybookError(code: LocalPlaybookError["code"]): LocalPlaybookErro
 }
 const unavailable = { message: "Local playbook unavailable. No notification or provider action was requested." };
 const LOCAL_OPTION_LIMIT = 100;
-const optionsInputSchema = z.object({ detectionId: z.number().int().positive().optional() }).strict();
+const optionsInputSchema = z.object({
+  detectionId: z.number().int().positive().optional(),
+  versionId: z.number().int().positive().optional(),
+}).strict();
+
+/** Compatibility reason for a saved version, from the shared classifier. */
+export type PlaybookVersionOption = {
+  id: number; templateId: string | null; name: string; version: number; createdAt: string;
+  compatible: boolean;
+  incompatibilityReason: "invalid_configuration" | "unknown_template" | "definition_changed" | null;
+  filters: PlaybookConfig["filters"] | null;
+};
+
+/** Read-only pre-create eligibility for the requested detection+version pair. */
+export type LocalPlaybookEligibility = {
+  versionCompatible: boolean;
+  incompatibilityReason: PlaybookVersionOption["incompatibilityReason"];
+  /** Why a run cannot be created right now, using the engine's own vocabulary. */
+  blocker: "version_definition_changed" | "detection_outside_configuration" | "detection_outside_template"
+    | "version_unavailable" | "detection_unavailable" | null;
+  policy: { status: "proposed" | "blocked"; reasons: string[]; route: string | null } | null;
+  endpointFacts: {
+    identityKnown: boolean;
+    endpointRemoved: boolean | null;
+    hold: boolean;
+    critical: boolean | null;
+    noAuto: boolean | null;
+    sourceCompleteness: "verified" | "partial" | "unknown";
+    fresh: boolean;
+  } | null;
+};
+
 export type LocalPlaybookOptions = {
-  versions: { id: number; templateId: string; name: string; version: number }[];
+  versions: PlaybookVersionOption[];
+  versionsTruncated: boolean;
   detections: { id: number; hostName: string | null; category: string; threatName: string | null; score: number | null; detectedAt: string }[];
   detectionTruncated: boolean;
   requestedDetection: LocalPlaybookOptions["detections"][number] | null;
   requestedDetectionUnavailable: boolean;
+  eligibility: LocalPlaybookEligibility | null;
 };
 type LocalDetectionRow = { id: number; host_name: string | null; category: string; threat_name: string | null; score: number | null; detected_at: Date };
 function localDetectionOption(row: LocalDetectionRow): LocalPlaybookOptions["detections"][number] {
   return { id: row.id, hostName: row.host_name, category: row.category, threatName: row.threat_name,
     score: row.score, detectedAt: new Date(row.detected_at).toISOString() };
+}
+
+/**
+ * Everything a local review decision needs from trusted state, read-only.
+ * Extracted from the start path so the options action can compute eligibility
+ * WITHOUT creating a run.
+ */
+async function loadLocalReviewContext(
+  tx: Tx,
+  siteId: number,
+  binding: { id: number; account_revision: number; credential_revision: number },
+  detectionId: number,
+) {
+  const { rows: detections } = await tx.execute<{
+    source: string; category: string; score: number | null; detected_at: Date; endpoint_id: number | null;
+    identity_known: boolean; endpoint_removed: boolean | null; automation_hold: boolean;
+    is_critical: boolean | null; no_auto: boolean | null;
+  }>(sql`
+    SELECT d.source, d.category, d.threat_score AS score, d.detected_at, d.endpoint_id,
+      (e.id IS NOT NULL AND length(trim(e.wg_device_id)) > 0) AS identity_known,
+      CASE WHEN e.id IS NULL THEN NULL ELSE (e.removed_at IS NOT NULL) END AS endpoint_removed,
+      coalesce(i.automation_hold, false) AS automation_hold,
+      CASE WHEN e.id IS NULL OR e.removed_at IS NOT NULL THEN NULL
+        ELSE (e.is_critical OR coalesce(a.is_critical, false)) END AS is_critical,
+      CASE WHEN e.id IS NULL OR e.removed_at IS NOT NULL THEN NULL ELSE e.no_auto END AS no_auto
+    FROM epdr_detections d LEFT JOIN epdr_endpoints e ON e.id = d.endpoint_id AND e.site_id = d.site_id AND e.connection_id = d.connection_id
+      AND e.account_revision = d.account_revision AND e.account_revision = ${binding.account_revision}
+    LEFT JOIN devices a ON a.id = e.device_id AND a.site_id = d.site_id
+    LEFT JOIN incidents i ON i.id = d.incident_id AND i.site_id = d.site_id
+    WHERE d.id = ${detectionId} AND d.site_id = ${siteId} AND d.connection_id = ${binding.id}
+      AND d.account_revision = ${binding.account_revision} FOR SHARE OF d`);
+  const detection = detections[0];
+  if (!detection) return null;
+  const { rows: settingsRows } = await tx.execute<{ updated_at: Date | null; threatsync_enabled: boolean; ingest_enabled: boolean }>(sql`
+    SELECT updated_at, threatsync_enabled, ingest_enabled FROM epdr_site_settings WHERE site_id = ${siteId} FOR SHARE`);
+  const settings = settingsRows[0];
+  const { rows: attempts } = await tx.execute<DetectionReadEvidence>(sql`
+    SELECT connection_id AS "connectionId", account_revision AS "accountRevision", credential_revision AS "credentialRevision",
+      source, status, "window", settings_updated_at AS "settingsUpdatedAt", started_at AS "startedAt", finished_at AS "finishedAt",
+      event_types AS "eventTypes", completed_event_types AS "completedEventTypes"
+    FROM epdr_detection_read_evidence WHERE connection_id = ${binding.id} AND account_revision = ${binding.account_revision}
+      AND credential_revision = ${binding.credential_revision} AND source = ${detection.source}
+    ORDER BY started_at DESC, id DESC LIMIT 1`);
+  return { detection, settings, readEvidence: attempts[0] ?? null };
+}
+
+/** Build the immutable signal + endpoint flags the response policy evaluates. */
+function buildLocalSignal(
+  context: NonNullable<Awaited<ReturnType<typeof loadLocalReviewContext>>>,
+  binding: { id: number; account_revision: number; credential_revision: number },
+  now: Date,
+): { signal: Parameters<typeof planLocalResponse>[2]; flags: { hold: boolean; critical: boolean | null; noAuto: boolean | null } } {
+  const source = context.detection.source;
+  const readEvidence = source === "threatsync" || source === "event_export" ? detectionCompleteness(context.readEvidence, {
+    connectionId: binding.id, accountRevision: binding.account_revision, credentialRevision: binding.credential_revision, source,
+    enabled: source === "threatsync" ? (context.settings?.threatsync_enabled ?? true) : (context.settings?.ingest_enabled ?? false),
+    settingsUpdatedAt: context.settings?.updated_at ?? null, now: now.getTime(), maxAgeMs: PLAYBOOK_FRESHNESS_MS,
+  }) : { completeness: { source, status: "unknown" as const }, syncedAt: null };
+  const signal = { source, category: context.detection.category, score: context.detection.score,
+    identityKnown: context.detection.identity_known, observedAt: new Date(context.detection.detected_at).getTime(), ...readEvidence };
+  // Only the actual linked same-site Incident can contribute a hold; absent means no hold.
+  // Missing/removed endpoint identity still leaves endpoint flags unknown, never false.
+  const flags = { hold: context.detection.automation_hold ?? false,
+    critical: signal.identityKnown ? (context.detection.is_critical ?? null) : null,
+    noAuto: signal.identityKnown ? (context.detection.no_auto ?? null) : null };
+  return { signal, flags };
 }
 
 /** Named choices from current local evidence; never authorization or a run request. */
@@ -65,23 +172,29 @@ export async function getEpdrLocalPlaybookOptions(input: unknown = {}): Promise<
   if (!parsed.success) return localPlaybookError("invalid_input");
   try {
     return await db.transaction(async (tx) => {
-      const { rows: bindings } = await tx.execute<{ id: number; account_revision: number }>(sql`
-        SELECT id, account_revision FROM watchguard_connections
+      const { rows: bindings } = await tx.execute<{ id: number; account_revision: number; credential_revision: number }>(sql`
+        SELECT id, account_revision, credential_revision FROM watchguard_connections
         WHERE site_id = ${guard.activeSiteId} AND enabled = true AND account_id <> ''`);
       const binding = bindings[0];
       if (!binding) return localPlaybookError("binding_unavailable");
       await assertReadSyncActor(tx, guard.activeSiteId, guard.session.userId);
-      const { rows: versions } = await tx.execute<{ id: number; configuration: unknown; definition: unknown; version: number }>(sql`
-        SELECT id, configuration, definition, version FROM epdr_playbook_versions
+      const { rows: versions } = await tx.execute<{ id: number; configuration: unknown; definition: unknown; version: number; created_at: Date }>(sql`
+        SELECT id, configuration, definition, version, created_at FROM epdr_playbook_versions
         WHERE site_id = ${guard.activeSiteId} AND mode = 'simulate' AND name <> ''
-        ORDER BY id DESC LIMIT ${LOCAL_OPTION_LIMIT}`);
-      const optionsVersions = versions.flatMap((row) => {
-        const config = playbookConfigSchema.safeParse(row.configuration);
-        if (!config.success) return [];
-        const template = PLAYBOOK_TEMPLATES.find((item) => item.id === config.data.templateId);
-        return template && isDeepStrictEqual(row.definition, { schemaVersion: 1, template })
-          ? [{ id: row.id, templateId: template.id, name: config.data.name, version: row.version }] : [];
+        ORDER BY id DESC LIMIT ${LOCAL_OPTION_LIMIT + 1}`);
+      const versionsTruncated = versions.length > LOCAL_OPTION_LIMIT;
+      const optionsVersions: PlaybookVersionOption[] = versions.slice(0, LOCAL_OPTION_LIMIT).map((row) => {
+        const classified = classifyPlaybookVersion(row.configuration, row.definition);
+        return classified.compatible
+          ? { id: row.id, templateId: classified.template.id, name: classified.config.name, version: row.version,
+              createdAt: new Date(row.created_at).toISOString(), compatible: true, incompatibilityReason: null,
+              filters: classified.config.filters }
+          : { id: row.id, templateId: null, name: typeof (row.configuration as { name?: unknown } | null)?.name === "string"
+              ? String((row.configuration as { name: string }).name) : "", version: row.version,
+              createdAt: new Date(row.created_at).toISOString(), compatible: false,
+              incompatibilityReason: classified.reason, filters: null };
       });
+
       const detectionFields = sql`d.id, coalesce(e.host_name, devices.hostname) AS host_name, d.category,
         d.threat_name, d.threat_score AS score, d.detected_at`;
       const currentDetectionScope = sql`d.site_id = ${guard.activeSiteId} AND d.connection_id = ${binding.id}
@@ -102,10 +215,60 @@ export async function getEpdrLocalPlaybookOptions(input: unknown = {}): Promise<
           WHERE ${currentDetectionScope} AND d.id = ${requested} LIMIT 1`);
         requestedRow = rows[0];
       }
-      return { versions: optionsVersions, detections: bounded.map(localDetectionOption),
+
+      // Pre-create eligibility: read-only recompute of exactly what a start
+      // would evaluate, without creating a run.
+      let eligibility: LocalPlaybookEligibility | null = null;
+      const { detectionId, versionId } = parsed.data;
+      if (detectionId !== undefined && versionId !== undefined) {
+        const { rows: versionRows } = await tx.execute<{ configuration: unknown; definition: unknown }>(sql`
+          SELECT configuration, definition FROM epdr_playbook_versions
+          WHERE id = ${versionId} AND site_id = ${guard.activeSiteId} AND mode = 'simulate' FOR SHARE`);
+        const classified = versionRows[0] ? classifyPlaybookVersion(versionRows[0].configuration, versionRows[0].definition) : null;
+        const context = await loadLocalReviewContext(tx, guard.activeSiteId, binding, detectionId);
+        if (classified === null) {
+          eligibility = { versionCompatible: false, incompatibilityReason: null,
+            blocker: "version_unavailable", policy: null, endpointFacts: null };
+        } else if (!classified.compatible) {
+          eligibility = { versionCompatible: false, incompatibilityReason: classified.reason,
+            blocker: classified.reason === "definition_changed" ? "version_definition_changed" : null,
+            policy: null, endpointFacts: null };
+        } else if (!context) {
+          eligibility = { versionCompatible: true, incompatibilityReason: null,
+            blocker: "detection_unavailable", policy: null, endpointFacts: null };
+        } else {
+          const now = new Date();
+          const { signal, flags } = buildLocalSignal(context, binding, now);
+          const eligibilityCheck = evaluatePlaybook(classified.template, signal, now.getTime());
+          const blocker: LocalPlaybookEligibility["blocker"] =
+            !playbookConfigMatches(classified.config, signal) ? "detection_outside_configuration"
+            : eligibilityCheck.status === "no_match" || eligibilityCheck.reason === "unsupported"
+              ? "detection_outside_template" : null;
+          const policy = evaluateLocalResponsePolicy(signal, flags, now.getTime());
+          eligibility = {
+            versionCompatible: true,
+            incompatibilityReason: null,
+            blocker,
+            policy: { status: policy.status, reasons: [...policy.reasons], route: policy.route },
+            endpointFacts: {
+              identityKnown: context.detection.identity_known,
+              endpointRemoved: context.detection.endpoint_removed,
+              hold: flags.hold,
+              critical: flags.critical,
+              noAuto: flags.noAuto,
+              sourceCompleteness: signal.completeness.status,
+              fresh: signal.syncedAt !== null && now.getTime() - signal.syncedAt <= PLAYBOOK_FRESHNESS_MS,
+            },
+          };
+        }
+      }
+
+      return { versions: optionsVersions, versionsTruncated,
+        detections: bounded.map(localDetectionOption),
         detectionTruncated: detections.length > LOCAL_OPTION_LIMIT,
         requestedDetection: requestedRow ? localDetectionOption(requestedRow) : null,
-        requestedDetectionUnavailable: requested !== undefined && !requestedRow };
+        requestedDetectionUnavailable: requested !== undefined && !requestedRow,
+        eligibility };
     });
   } catch { return localPlaybookError("service_unavailable"); }
 }
@@ -127,56 +290,22 @@ export async function startEpdrLocalPlaybook(input: unknown): Promise<{ runId: n
       const { rows: versions } = await tx.execute<{ configuration: unknown; definition: unknown }>(sql`SELECT configuration, definition
         FROM epdr_playbook_versions WHERE id = ${versionId} AND site_id = ${guard.activeSiteId} AND mode = 'simulate' FOR SHARE`);
       if (!versions[0]) throw new Error("version_unavailable");
-      const { rows: detections } = await tx.execute<{ source: string; category: string; score: number | null; detected_at: Date; endpoint_id: number | null; identity_known: boolean; automation_hold: boolean; is_critical: boolean | null; no_auto: boolean | null }>(sql`
-        SELECT d.source, d.category, d.threat_score AS score, d.detected_at, d.endpoint_id,
-          (e.id IS NOT NULL AND e.removed_at IS NULL AND length(trim(e.wg_device_id)) > 0) AS identity_known,
-          coalesce(i.automation_hold, false) AS automation_hold,
-          CASE WHEN e.id IS NULL OR e.removed_at IS NOT NULL THEN NULL
-            ELSE (e.is_critical OR coalesce(a.is_critical, false)) END AS is_critical,
-          CASE WHEN e.id IS NULL OR e.removed_at IS NOT NULL THEN NULL ELSE e.no_auto END AS no_auto
-        FROM epdr_detections d LEFT JOIN epdr_endpoints e ON e.id = d.endpoint_id AND e.site_id = d.site_id AND e.connection_id = d.connection_id
-          AND e.account_revision = d.account_revision AND e.account_revision = ${binding.account_revision}
-        LEFT JOIN devices a ON a.id = e.device_id AND a.site_id = d.site_id
-        LEFT JOIN incidents i ON i.id = d.incident_id AND i.site_id = d.site_id
-        WHERE d.id = ${detectionId} AND d.site_id = ${guard.activeSiteId} AND d.connection_id = ${binding.id}
-          AND d.account_revision = ${binding.account_revision} FOR SHARE OF d`);
-      const detection = detections[0];
-      if (!detection) throw new Error("detection_unavailable");
+      // Shared read-only context with the options eligibility path: both
+      // answers are computed from exactly the same facts.
+      const context = await loadLocalReviewContext(tx, guard.activeSiteId, binding, detectionId);
+      if (!context) throw new Error("detection_unavailable");
       const { rows: existing } = await tx.execute<{ id: number }>(sql`SELECT id FROM epdr_local_playbook_runs
         WHERE site_id = ${guard.activeSiteId} AND version_id = ${versionId} AND detection_id = ${detectionId}`);
       if (existing[0]) return { runId: existing[0].id, existing: true };
-      // Same transaction/lock ordering as configuration changes: connection, then settings.
-      const { rows: settingsRows } = await tx.execute<{ updated_at: Date | null; threatsync_enabled: boolean; ingest_enabled: boolean }>(sql`
-        SELECT updated_at, threatsync_enabled, ingest_enabled FROM epdr_site_settings
-        WHERE site_id = ${guard.activeSiteId} FOR SHARE`);
-      const settings = settingsRows[0];
-      const { rows: attempts } = await tx.execute<DetectionReadEvidence>(sql`
-        SELECT connection_id AS "connectionId", account_revision AS "accountRevision", credential_revision AS "credentialRevision",
-          source, status, "window", settings_updated_at AS "settingsUpdatedAt", started_at AS "startedAt", finished_at AS "finishedAt",
-          event_types AS "eventTypes", completed_event_types AS "completedEventTypes"
-        FROM epdr_detection_read_evidence WHERE connection_id = ${binding.id} AND account_revision = ${binding.account_revision}
-          AND credential_revision = ${binding.credential_revision} AND source = ${detection.source}
-        ORDER BY started_at DESC, id DESC LIMIT 1`);
       const now = new Date();
-      const source = detection.source;
-      const readEvidence = source === "threatsync" || source === "event_export" ? detectionCompleteness(attempts[0], {
-        connectionId: binding.id, accountRevision: binding.account_revision, credentialRevision: binding.credential_revision, source,
-        enabled: source === "threatsync" ? (settings?.threatsync_enabled ?? true) : (settings?.ingest_enabled ?? false),
-        settingsUpdatedAt: settings?.updated_at ?? null, now: now.getTime(), maxAgeMs: PLAYBOOK_FRESHNESS_MS,
-      }) : { completeness: { source, status: "unknown" as const }, syncedAt: null };
-      const signal = { source, category: detection.category, score: detection.score,
-        identityKnown: detection.identity_known === true, observedAt: new Date(detection.detected_at).getTime(), ...readEvidence };
-      // Only the actual linked same-site Incident can contribute a hold; absent means no hold.
-      // Missing/removed endpoint identity still leaves endpoint flags unknown, never false.
-      const plan = planLocalResponse(versions[0].configuration, versions[0].definition, signal,
-        { hold: detection.automation_hold ?? false,
-          critical: signal.identityKnown ? (detection.is_critical ?? null) : null,
-          noAuto: signal.identityKnown ? (detection.no_auto ?? null) : null }, now.getTime());
+      const { signal, flags } = buildLocalSignal(context, binding, now);
+      const plan = planLocalResponse(versions[0].configuration, versions[0].definition, signal, flags, now.getTime());
       const evidence: LocalPlaybookReviewEvidence = { mode: "local", requestedBy: guard.session.userId, siteId: guard.activeSiteId, versionId, detectionId,
         connectionId: binding.id, accountRevision: binding.account_revision, capturedAt: now.toISOString(),
         configuration: versions[0].configuration, definition: versions[0].definition, signal, eligibility: plan.eligibility,
         responsePolicy: plan.responsePolicy,
-        providerLocked: true, notificationsEnabled: false, incidentPolicy: "requires_operator" };
+        providerLocked: true, notificationsEnabled: false, automationDelivered: false,
+        providerAction: "suppressed", notification: "disabled", incidentHandoff: "required" };
       const { rows } = await tx.execute<{ id: number }>(sql`INSERT INTO epdr_local_playbook_runs
         (site_id, version_id, detection_id, connection_id, account_revision, requested_by, evidence)
         VALUES (${guard.activeSiteId}, ${versionId}, ${detectionId}, ${binding.id}, ${binding.account_revision}, ${guard.session.userId}, ${JSON.stringify(evidence)}::jsonb)
@@ -188,10 +317,15 @@ export async function startEpdrLocalPlaybook(input: unknown): Promise<{ runId: n
     });
   } catch (error) {
     if (error instanceof Error) {
+      // The engine's own mismatch vocabulary surfaces as actionable codes,
+      // not as a generic service failure.
+      if (error.message === "version_definition_changed" || error.message === "detection_outside_configuration"
+        || error.message === "detection_outside_template" || error.message === "invalid_input") {
+        return localPlaybookError(error.message as LocalPlaybookError["code"]);
+      }
       if (error.message === "binding_unavailable" || error.message === "version_unavailable" || error.message === "detection_unavailable") {
         return localPlaybookError(error.message);
       }
-      if (error.message === "invalid_input") return localPlaybookError("invalid_input");
     }
     return localPlaybookError("service_unavailable");
   }

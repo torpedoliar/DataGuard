@@ -24,9 +24,9 @@ function startRows(existing = false) {
   mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 3 }] })
     .mockResolvedValueOnce({ rows: [{ configuration, definition }] })
     .mockResolvedValueOnce({ rows: [{ source: "threatsync", category: "malware", score: 8, detected_at: new Date(), endpoint_id: 5, identity_known: true }] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: existing ? [{ id: 7 }] : [] })
-    .mockResolvedValueOnce({ rows: [] })
-    .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [{ id: 7 }] });
 }
 function locked(requestedBy = 9) {
@@ -36,10 +36,15 @@ function detectionRow(id = 31, day = 2) {
   return { id, host_name: "workstation", category: "malware", threat_name: "Example", score: 8, detected_at: new Date(Date.UTC(2026, 0, day)) };
 }
 function optionRows(detections: ReturnType<typeof detectionRow>[]) {
-  mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 3 }] })
-    .mockResolvedValueOnce({ rows: [{ id: 42, configuration, definition, version: 4 }] })
+  mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 3, credential_revision: 4 }] })
+    .mockResolvedValueOnce({ rows: [{ id: 42, configuration, definition, version: 4, created_at: new Date(0) }] })
     .mockResolvedValueOnce({ rows: detections });
 }
+const compatibleVersion = {
+  id: 42, templateId: "malware-virus", name: "Review", version: 4,
+  createdAt: "1970-01-01T00:00:00.000Z", compatible: true, incompatibilityReason: null,
+  filters: configuration.filters,
+};
 describe("local playbook options", () => {
   it("denies access before parsing input or accessing the database", async () => {
     mocks.guard.mockResolvedValue({ ok: false, message: "Forbidden" });
@@ -56,12 +61,14 @@ describe("local playbook options", () => {
   it("returns exact current templates and current-account detections using bounded reads", async () => {
     optionRows([detectionRow(31, 3), detectionRow(30, 2)]);
     expect(await getEpdrLocalPlaybookOptions()).toEqual({
-      versions: [{ id: 42, templateId: "malware-virus", name: "Review", version: 4 }],
+      versions: [compatibleVersion],
+      versionsTruncated: false,
       detections: [
         { id: 31, hostName: "workstation", category: "malware", threatName: "Example", score: 8, detectedAt: "2026-01-03T00:00:00.000Z" },
         { id: 30, hostName: "workstation", category: "malware", threatName: "Example", score: 8, detectedAt: "2026-01-02T00:00:00.000Z" },
       ],
       detectionTruncated: false, requestedDetection: null, requestedDetectionUnavailable: false,
+      eligibility: null,
     });
     const compiled = queries();
     expect(compiled).toHaveLength(3);
@@ -74,7 +81,7 @@ describe("local playbook options", () => {
     expect(compiled[1].sql).toContain("mode = 'simulate'");
     expect(compiled[1].sql).toContain("name <> ''");
     expect(compiled[1].sql).toContain("LIMIT $2");
-    expect(compiled[1].params).toEqual([17, 100]);
+    expect(compiled[1].params).toEqual([17, 101]);
     for (const query of [compiled[2]]) {
       expect(query.sql).toContain("d.site_id = $1");
       expect(query.sql).toContain("d.connection_id = $2");
@@ -87,19 +94,27 @@ describe("local playbook options", () => {
     expect(mocks.actor).toHaveBeenCalledWith(expect.anything(), 17, 9);
   });
 
-  it("excludes invalid, unnamed or tampered saved versions without filtering names", async () => {
+  it("labels incompatible versions with a reason instead of silently dropping them", async () => {
     const blank = { ...configuration, name: "   " };
-    mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 3 }] })
+    mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 3, credential_revision: 4 }] })
       .mockResolvedValueOnce({ rows: [
-        { id: 1, configuration, definition: { ...definition, template: { ...definition.template, steps: ["review"] } }, version: 1 },
-        { id: 2, configuration: blank, definition, version: 2 },
-        { id: 3, configuration: { ...configuration, templateId: "unknown" }, definition, version: 3 },
-        { id: 4, configuration: { ...configuration, siteId: 99 }, definition, version: 4 },
-        { id: 5, configuration, definition, version: 5 },
+        { id: 1, configuration, definition: { ...definition, template: { ...definition.template, steps: ["review"] } }, version: 1, created_at: new Date(0) },
+        { id: 2, configuration: blank, definition, version: 2, created_at: new Date(0) },
+        { id: 3, configuration: { ...configuration, templateId: "unknown" }, definition, version: 3, created_at: new Date(0) },
+        { id: 4, configuration: { ...configuration, siteId: 99 }, definition, version: 4, created_at: new Date(0) },
+        { id: 5, configuration, definition, version: 5, created_at: new Date(0) },
       ] })
       .mockResolvedValueOnce({ rows: [] });
-    expect(await getEpdrLocalPlaybookOptions()).toMatchObject({
-      versions: [{ id: 5, templateId: "malware-virus", name: "Review", version: 5 }], detections: [],
+    const result = await getEpdrLocalPlaybookOptions();
+    expect(result).toMatchObject({
+      versions: [
+        { id: 1, compatible: false, incompatibilityReason: "definition_changed" },
+        { id: 2, compatible: false, incompatibilityReason: "invalid_configuration" },
+        { id: 3, compatible: false, incompatibilityReason: "unknown_template" },
+        { id: 4, compatible: false, incompatibilityReason: "invalid_configuration" },
+        { id: 5, compatible: true, incompatibilityReason: null, templateId: "malware-virus", name: "Review", version: 5 },
+      ],
+      detections: [],
     });
   });
 
@@ -184,7 +199,9 @@ describe("explicit local playbooks", () => {
     const compiled = queries();
     const insert = compiled.find((q) => q.sql.includes("INSERT INTO epdr_local_playbook_runs"))!;
     const evidence = JSON.parse(insert.params.find((p) => typeof p === "string" && p.startsWith("{")) as string);
-    expect(evidence).toMatchObject({ accountRevision: 3, providerLocked: true, incidentPolicy: "requires_operator", eligibility: { status: "blocked", reason: "partial" },
+    expect(evidence).toMatchObject({ accountRevision: 3, providerLocked: true, automationDelivered: false,
+      providerAction: "suppressed", notification: "disabled", incidentHandoff: "required",
+      eligibility: { status: "blocked", reason: "partial" },
       responsePolicy: { schemaVersion: 1, scope: "local_review_recommendation", tier: "7-8", status: "blocked", route: null,
         reasons: ["partial", "unknown_flags"], flags: { hold: false, critical: null, noAuto: null },
         providerLocked: true, notificationsEnabled: false, automationDelivered: false, operatorReviewRequired: true } });
@@ -202,19 +219,19 @@ describe("explicit local playbooks", () => {
     mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 3, credential_revision: 4 }] })
       .mockResolvedValueOnce({ rows: [{ configuration, definition }] })
       .mockResolvedValueOnce({ rows: [{ source: "threatsync", category: "malware", score: 8, detected_at: now, identity_known: true }] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ updated_at: settingsUpdatedAt, threatsync_enabled: true, ingest_enabled: false }] })
       .mockResolvedValueOnce({ rows: [{ connectionId: 2, accountRevision: 3, credentialRevision: 4, source: "threatsync",
         settingsUpdatedAt: new Date(settingsUpdatedAt.getTime() + offset), status: "completed", window: "provider_default",
         startedAt: now, finishedAt: now, eventTypes: [], completedEventTypes: [] }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: 7 }] });
     expect(await startEpdrLocalPlaybook(input)).toEqual({ runId: 7, existing: false });
     const compiled = queries();
-    expect(compiled[4].sql).toContain("FROM epdr_site_settings");
-    expect(compiled[4].sql).toContain("FOR SHARE");
-    expect(compiled[5].sql).toContain('settings_updated_at AS "settingsUpdatedAt"');
-    expect(compiled[5].sql).toContain("ORDER BY started_at DESC, id DESC LIMIT 1");
-    expect(compiled[5].params).toEqual([2, 3, 4, "threatsync"]);
+    expect(compiled[3].sql).toContain("FROM epdr_site_settings");
+    expect(compiled[3].sql).toContain("FOR SHARE");
+    expect(compiled[4].sql).toContain('settings_updated_at AS "settingsUpdatedAt"');
+    expect(compiled[4].sql).toContain("ORDER BY started_at DESC, id DESC LIMIT 1");
+    expect(compiled[4].params).toEqual([2, 3, 4, "threatsync"]);
     const insert = compiled.find((q) => q.sql.includes("INSERT INTO epdr_local_playbook_runs"))!;
     const evidence = JSON.parse(insert.params.find((p) => typeof p === "string" && p.startsWith("{")) as string);
     expect(evidence.signal.completeness.status).toBe(offset === 0 ? "verified" : "unknown");
@@ -233,11 +250,11 @@ describe("explicit local playbooks", () => {
       .mockResolvedValueOnce({ rows: [{ configuration, definition }] })
       .mockResolvedValueOnce({ rows: [{ source: "threatsync", category: "malware", score: 8, detected_at: now,
         identity_known: flags.identityKnown, automation_hold: flags.hold, is_critical: flags.critical, no_auto: flags.noAuto }] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ updated_at: now, threatsync_enabled: true, ingest_enabled: false }] })
       .mockResolvedValueOnce({ rows: [{ connectionId: 2, accountRevision: 3, credentialRevision: 4, source: "threatsync",
         settingsUpdatedAt: now, status: "completed", window: "provider_default", startedAt: now, finishedAt: now,
         eventTypes: [], completedEventTypes: [] }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: 7 }] });
     expect(await startEpdrLocalPlaybook(input)).toEqual({ runId: 7, existing: false });
     const compiled = queries();
@@ -261,7 +278,7 @@ describe("explicit local playbooks", () => {
       .mockResolvedValueOnce({ rows: [{ configuration, definition: { ...definition, template: { ...definition.template, steps: ["isolate"] } } }] })
       .mockResolvedValueOnce({ rows: [{ source: "threatsync", category: "malware", score: 10, detected_at: new Date(), identity_known: true }] })
       .mockResolvedValueOnce({ rows: [] });
-    expect(await startEpdrLocalPlaybook(input)).toMatchObject({ code: "service_unavailable" });
+    expect(await startEpdrLocalPlaybook(input)).toMatchObject({ code: "version_definition_changed" });
     expect(queries().every((q) => !q.sql.includes("INSERT"))).toBe(true);
   });
   it("rejects historical detection before idempotency lookup or capturing current-account evidence", async () => {

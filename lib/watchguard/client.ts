@@ -394,6 +394,36 @@ export function createWatchGuardClient(creds: WatchGuardCredentials, options: Wa
       });
     },
 
+    /** Account-level action status read (documented GET /actions/{actionId}). */
+    getAction(actionId: string) {
+      return performGet(`${threatSyncBase}/actions/${encode(actionId)}`, {}, (raw) => {
+        const parsed = threatSyncActionSchema.safeParse(raw);
+        if (!parsed.success) throw new WatchGuardError("invalid_response", "WatchGuard action: unexpected shape");
+        return parsed.data;
+      });
+    },
+
+    /** Actions attached to one incident (documented GET /incidents/{id}/actions). */
+    listIncidentActions(id: string) {
+      return performGet(`${threatSyncBase}/incidents/${encode(id)}/actions`, {}, (raw) => {
+        if (raw === null || typeof raw !== "object") {
+          throw new WatchGuardError("invalid_response", "WatchGuard incident actions: unexpected shape");
+        }
+        // Same envelope variants as the incident list: field reference uses
+        // items, the published example uses groups._default.
+        const envelope = raw as { items?: unknown; groups?: { _default?: unknown } };
+        const rows = Object.hasOwn(envelope, "items") ? envelope.items : envelope.groups?._default;
+        if (!Array.isArray(rows)) {
+          throw new WatchGuardError("invalid_response", "WatchGuard incident actions: missing items or groups._default array");
+        }
+        return rows.map((item) => {
+          const parsed = threatSyncActionSchema.safeParse(item);
+          if (!parsed.success) throw new WatchGuardError("invalid_response", "WatchGuard incident actions: unexpected shape");
+          return parsed.data;
+        });
+      });
+    },
+
     // ---- Iterators (paging until exhausted / total reached) ------------------
 
     async *iterateDevices(params: { pageSize?: number } = {}): AsyncGenerator<DeviceRecord, void, unknown> {

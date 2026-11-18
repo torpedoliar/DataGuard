@@ -397,7 +397,7 @@ Add service after `app`:
       DB_HOST: db
       DB_PORT: "5432"
       DB_USER: administrator
-      DB_PASSWORD: "Arabika1927"
+      DB_PASSWORD: "${DB_PASSWORD}"
       DB_NAME: dccheck
       SYSLOG_UDP_HOST: "0.0.0.0"
       SYSLOG_UDP_PORT: "514"

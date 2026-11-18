@@ -148,6 +148,13 @@ export default async function EpdrSettingsPage() {
           </div>
         </Section>
 
+        <Section title={t("detection.retention")} hint={t("detection.retentionHint")}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <NumberField name="executionAttemptRetentionDays" label={t("detection.retentionAttempt")} hint={t("detection.retentionAttemptHint")} defaultValue={data.executionAttemptRetentionDays} min={7} max={3650} />
+            <NumberField name="executionResultRetentionDays" label={t("detection.retentionResult")} hint={t("detection.retentionResultHint")} defaultValue={data.executionResultRetentionDays} min={7} max={3650} />
+          </div>
+        </Section>
+
         <Section title={t("detection.killSwitch")} hint={t("detection.killSwitchHint")}>
           <label className="flex items-start gap-3 rounded-md border border-ops-danger/25 bg-ops-danger-soft/40 p-3.5">
             <input type="checkbox" name="siteKillSwitch" defaultChecked={data.siteKillSwitch} className="mt-0.5 size-4" />

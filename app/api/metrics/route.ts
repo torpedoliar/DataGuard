@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSuperadminAction } from "@/lib/action-auth";
-import { collectMetrics } from "@/lib/metrics";
+import { collectMetrics, EMPTY_EPDR } from "@/lib/metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +25,7 @@ export async function GET(): Promise<NextResponse> {
           retention: { lastRunAt: null },
           partition: { lastEnsureRunAt: null },
         },
+        epdr: EMPTY_EPDR,
         backup: { lastBackupAt: null, lastRestoreAt: null },
         health: { dbOk: false, appUptimeSec: process.uptime() },
         timestamp: new Date().toISOString(),

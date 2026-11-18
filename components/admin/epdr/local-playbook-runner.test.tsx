@@ -45,6 +45,11 @@ vi.mock("./incident-handoff", () => ({
     return { type: "handoff", key: null, props: { detectionId, locale } };
   },
 }));
+vi.mock("./playbook-version-form", () => ({
+  default: function versionForm({ onSaved }: { onSaved?: (saved: { id: number; version: number }) => void }) {
+    return { type: "version-form", key: null, props: { onSaved } };
+  },
+}));
 import LocalPlaybookRunner from "./local-playbook-runner";
 function render(initialDetectionId?: number) {
   state.cursor = 0;
@@ -72,9 +77,12 @@ function submit(tree = render()) {
 async function settle() { await Promise.resolve(); await Promise.resolve(); }
 const run = { id: 7, versionId: 42, detectionId: 31, status: "pending", createdAt: "2026-01-01", finishedAt: null };
 const storedOptions = {
-  versions: [{ id: 42, name: "Malware review", version: 3, templateId: "malware-virus" }],
+  versions: [{ id: 42, name: "Malware review", version: 3, templateId: "malware-virus", createdAt: "2026-01-01T00:00:00.000Z",
+    compatible: true, incompatibilityReason: null, filters: { category: "all", source: "all", score: "all", minScore: 1, maxScore: 10 } }],
+  versionsTruncated: false,
   detections: [{ id: 31, hostName: "Workstation", category: "malware", threatName: "Test threat", score: 8, detectedAt: "2026-01-01T00:00:00.000Z" }],
   detectionTruncated: false, requestedDetection: null, requestedDetectionUnavailable: false,
+  eligibility: null,
 };
 beforeEach(() => {
   vi.resetAllMocks(); state.values = []; state.cursor = 0; state.cleanups = []; state.dependencies = [];
@@ -232,4 +240,98 @@ describe("local review runner interactions", () => {
     expect(state.detail).not.toHaveBeenCalled();
     expect(state.resume).not.toHaveBeenCalled();
   });
+
+  it("shows eligibility before create and never mutates on mount", async () => {
+    state.options.mockResolvedValue({ ...storedOptions, eligibility: {
+      versionCompatible: true, incompatibilityReason: null, blocker: null,
+      policy: { status: "proposed", reasons: [], route: "operator_incident_pic_review" },
+      endpointFacts: { identityKnown: true, endpointRemoved: false, hold: false, critical: false, noAuto: false,
+        sourceCompleteness: "verified", fresh: true },
+    } });
+    render(31); await settle();
+    expect(state.start).not.toHaveBeenCalled();
+    expect(state.detail).not.toHaveBeenCalled();
+    const tree = render(31);
+    expect(text(tree)).toContain("eligibility.title");
+    expect(text(tree)).toContain("eligibility.ok");
+    expect(text(tree)).toContain("eligibility.completeness_verified");
+    // A blocker is named before the create button is enabled.
+    state.options.mockResolvedValue({ ...storedOptions, eligibility: {
+      versionCompatible: true, incompatibilityReason: null, blocker: "detection_outside_configuration",
+      policy: null, endpointFacts: null,
+    } });
+    click("refreshChoices"); await settle();
+    render(); await settle();
+    expect(text(render(31))).toContain("eligibility.blocker.detection_outside_configuration");
+  });
+
+  it("marks the current stage with aria-current and advances through selections", () => {
+    const empty = render();
+    expect(elements(empty).filter((node) => node.props["aria-current"] === "step")).toHaveLength(1);
+    expect(text(elements(empty).find((node) => node.props["aria-current"] === "step")!)).toContain("chooseDetection");
+    const detectionSelect = elements(empty).find((node) => node.type === "select" && node.props["aria-label"] === "detection")!;
+    (detectionSelect.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "31" } });
+    const detectionStage = elements(render()).find((node) => node.props["aria-current"] === "step");
+    expect(text(detectionStage!)).toContain("chooseVersion");
+  });
+
+  it("clears a stale version selection when a refresh drops it", async () => {
+    render(); await settle();
+    const selects = elements(render()).filter((node) => node.type === "select");
+    (selects[0].props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "31" } });
+    (selects[1].props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "42" } });
+    // Next options load no longer contains version 42 as compatible.
+    state.options.mockResolvedValue({ ...storedOptions,
+      versions: [{ ...storedOptions.versions[0]!, id: 43, compatible: false, incompatibilityReason: "definition_changed" }] });
+    click("refreshChoices");
+    // The guard runs inside the options effect's async continuation: render to
+    // trigger it, settle the promise, then read the applied selection.
+    render(); await settle();
+    const refreshed = elements(render()).find((node) => node.type === "select" && node.props["aria-label"] === "version")!;
+    expect(refreshed.props.value).toBe("");
+  });
+
+  it("offers inline authoring when no compatible version exists and selects the saved one", async () => {
+    state.options.mockResolvedValue({ ...storedOptions,
+      versions: [{ ...storedOptions.versions[0]!, compatible: false, incompatibilityReason: "definition_changed" }] });
+    render(); await settle();
+    expect(text(render())).toContain("authoringTitle");
+    // Eligibility needs both a detection and a version; select the detection
+    // first so the post-save refresh computes eligibility for the new version.
+    const detectionSelect = elements(render()).find((node) => node.type === "select" && node.props["aria-label"] === "detection")!;
+    (detectionSelect.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "31" } });
+    const form = elements(render()).find((node) => typeof node.type === "function" && typeof node.props.onSaved === "function")!;
+    // The post-save options load must contain the new version as compatible,
+    // otherwise the membership guard clears it again.
+    state.options.mockResolvedValue({ ...storedOptions, versions: [{ ...storedOptions.versions[0]!, id: 44 }] });
+    (form.props.onSaved as (saved: { id: number; version: number }) => void)({ id: 44, version: 1 });
+    await state.pending;
+    // The refresh effect re-queries on the next render; the request carries the
+    // newly saved version so eligibility is computed for it immediately.
+    render(); await settle();
+    expect(state.options).toHaveBeenLastCalledWith(expect.objectContaining({ versionId: 44 }));
+    const versionSelect = elements(render()).find((node) => node.type === "select" && node.props["aria-label"] === "version")!;
+    expect(versionSelect.props.value).toBe("44");
+  });
+
+  it("shows the per-step outcome reason from the engine vocabulary", async () => {
+    state.detail.mockResolvedValue({ ...run, status: "finished", steps: [
+      { ordinal: 0, kind: "record", status: "recorded", reason: "immutable_evidence_saved" },
+    ] });
+    render(); await settle(); click("inspect"); await state.pending;
+    expect(text(render())).toContain("outcomeReasons.immutable_evidence_saved");
+  });
+
+  it.each(["version_definition_changed", "detection_outside_configuration", "detection_outside_template"] as const)(
+    "maps %s to its actionable copy", async (code) => {
+      state.start.mockResolvedValue({ code, message: "Local playbook unavailable." });
+      render(); await settle();
+      const checkbox = elements(render()).find((node) => node.type === "input" && node.props.type === "checkbox")!;
+      (checkbox.props.onChange as (event: { target: { checked: boolean } }) => void)({ target: { checked: true } });
+      const selects = elements(render()).filter((node) => node.type === "select");
+      (selects[0].props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "31" } });
+      (selects[1].props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "42" } });
+      submit(); await state.pending;
+      expect(text(render())).toContain(`errors.${code}`);
+    });
 });

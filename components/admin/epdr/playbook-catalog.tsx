@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { previewEpdrPlaybooks, type PlaybookPreview } from "@/actions/epdr-playbooks";
 import { PLAYBOOK_CATEGORIES, PLAYBOOK_TEMPLATES, matchesPlaybookFilters, scorePolicyProposal, type PlaybookCategory, type PlaybookSource } from "@/lib/epdr/playbooks";
+import { localStepCapability } from "@/lib/epdr/local-capabilities";
 import ActionButton from "@/components/ui/action-button";
 
 export default function PlaybookCatalog() {
@@ -77,7 +78,15 @@ export default function PlaybookCatalog() {
         <p className="text-sm text-ops-muted">{template.sources.map((s) => t(`sources.${s}`)).join(" / ")} · {template.categories?.map((c) => t(`categories.${c}`)).join(" / ") ?? t("notThreatCategory")}</p>
         <p className="text-sm text-ops-muted">{t("threshold", { score: template.minScore ?? t("notRequired") })}</p>
         <p className="text-sm text-ops-muted">{t("localSeverity", { severity: t(`severities.${template.localSeverity}`) })}</p>
-        <ol className="list-inside list-decimal space-y-1 text-sm text-ops-muted">{template.steps.map((step) => <li key={step}>{t(`steps.${step}`)} — {t("inert")}</li>)}</ol>
+        {/* Per-step capability, not a blanket "inert": evidence/review/handoff
+            steps are real work; only provider commands and notifications are
+            suppressed by the capability contract. */}
+        <ol className="list-inside list-decimal space-y-1 text-sm text-ops-muted">{template.steps.map((step) => {
+          const capability = localStepCapability(step);
+          return <li key={step}>{t(`steps.${step}`)} — {capability.reason
+            ? t(capability.reason === "notifications_disabled" ? "stepDisabled" : "stepSuppressed")
+            : t("stepAvailable")}</li>;
+        })}</ol>
         {!template.previewAvailable ? <p className="text-sm text-ops-muted">{t("healthUnavailable")}</p> : preview && <details className="text-sm text-ops-muted">
           <summary className="cursor-pointer text-ops-text">{t("results", { count: rows.length })}</summary>
           <ul className="mt-2 max-h-64 space-y-2 overflow-auto">{rows.map((row) => {

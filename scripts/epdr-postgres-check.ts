@@ -9,77 +9,24 @@
  *
  * Usage: npm run test:epdr:postgres
  */
-import { execFileSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { createServer } from "node:net";
 import { Client } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import path from "node:path";
-
-const IMAGE = "postgres:15-alpine";
-const name = `dc-check-epdr-verify-${randomBytes(4).toString("hex")}`;
-const password = randomBytes(18).toString("base64url");
-
-function docker(args: string[], input?: string): string {
-  return execFileSync("docker", args, { encoding: "utf8", input, stdio: ["pipe", "pipe", "pipe"] }).trim();
-}
-
-async function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      const port = typeof address === "object" && address ? address.port : 0;
-      server.close(() => port ? resolve(port) : reject(new Error("no free port")));
-    });
-  });
-}
-
-async function waitReady(container: string, deadlineMs: number): Promise<void> {
-  while (Date.now() < deadlineMs) {
-    try {
-      docker(["exec", container, "pg_isready", "-U", "postgres"]);
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 750));
-    }
-  }
-  throw new Error("isolated PostgreSQL did not become ready");
-}
+import { startIsolatedPostgres, verifyIsolatedInvocation } from "./lib/isolated-postgres";
 
 async function main(): Promise<number> {
-  if (!process.argv.includes("--run-isolated")) {
-    console.error("Refusing to run: pass --run-isolated to start a disposable local PostgreSQL container.");
-    return 2;
-  }
-  if (process.env.DATABASE_URL || process.env.DB_HOST) {
-    console.error("Refusing to run with DATABASE_URL/DB_HOST configured: this check must stay isolated.");
-    return 2;
-  }
+  const refused = verifyIsolatedInvocation(process.argv);
+  if (refused !== null) return refused;
 
-  const port = await freePort();
+  const pg = await startIsolatedPostgres("dc-check-epdr-verify");
   const checks: { name: string; ok: boolean; detail?: string }[] = [];
   const check = (checkName: string, ok: boolean, detail?: string) => {
     checks.push({ name: checkName, ok, detail });
   };
   let client: Client | null = null;
-  let containerId: string | null = null;
 
   try {
-    containerId = docker(["run", "-d", "--rm", "--name", name,
-      "-e", `POSTGRES_PASSWORD=${password}`,
-      "-e", "POSTGRES_HOST_AUTH_METHOD=scram-sha-256",
-      "-p", `127.0.0.1:${port}:5432`,
-      IMAGE, "postgres", "-c", "fsync=off", "-c", "full_page_writes=off",
-    ]);
-    await waitReady(containerId, Date.now() + 60_000);
-
-    client = new Client({ host: "127.0.0.1", port, user: "postgres", password, database: "postgres" });
+    client = pg.createClient();
     await client.connect();
-    const db = drizzle(client);
-    await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+    await pg.runMigrations();
 
     const tables = await client.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'
@@ -136,8 +83,8 @@ async function main(): Promise<number> {
     } catch { duplicateRejected = true; }
     check("queue dedups a second pending request", duplicateRejected);
 
-    const holder = new Client({ host: "127.0.0.1", port, user: "postgres", password, database: "postgres" });
-    const contender = new Client({ host: "127.0.0.1", port, user: "postgres", password, database: "postgres" });
+    const holder = pg.createClient();
+    const contender = pg.createClient();
     await holder.connect();
     await contender.connect();
     await holder.query("BEGIN");
@@ -327,17 +274,176 @@ async function main(): Promise<number> {
         VALUES ($1, $2, $3, 'assigned', clock_timestamp())`, [siteId, incident.rows[0].id, userId]);
     } catch { notificationDup = true; }
     check("local notification outbox dedups recipient/kind", notificationDup);
+
+    // ---- 0085: provider write hardening -------------------------------------
+    const hardening = await client.query<{ table_name: string; column_name: string }>(
+      `SELECT table_name, column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND (
+         (table_name = 'epdr_site_settings' AND column_name IN ('execution_cooldown_minutes', 'max_actions_per_hour', 'execution_attempt_retention_days', 'execution_result_retention_days'))
+         OR (table_name = 'watchguard_connections' AND column_name IN ('last_provider_sync_at', 'last_provider_sync_error'))
+         OR (table_name = 'epdr_provider_incidents' AND column_name = 'account_revision')
+         OR (table_name = 'epdr_actions' AND column_name = 'action_context')
+         OR (table_name = 'epdr_attempts' AND column_name IN ('connection_id', 'endpoint_id', 'action_type'))
+       )`);
+    check("0085 limit, retention and provenance columns exist", hardening.rowCount === 11, String(hardening.rowCount));
+    const hardeningTables = await client.query<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'
+       AND table_name IN ('epdr_attempt_events', 'epdr_worker_heartbeats') ORDER BY table_name`);
+    check("0085 attempt events and worker heartbeats tables exist", hardeningTables.rowCount === 2);
+    const constraintChecks = await client.query<{ conname: string }>(
+      `SELECT conname FROM pg_constraint WHERE conrelid = 'epdr_site_settings'::regclass
+       AND conname IN ('epdr_site_settings_execution_cooldown_check', 'epdr_site_settings_max_actions_per_hour_check',
+         'epdr_site_settings_execution_attempt_retention_check', 'epdr_site_settings_execution_result_retention_check')`);
+    check("0085 site limit and retention CHECK constraints exist", constraintChecks.rowCount === 4);
+    const indexes = await client.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname IN (
+         'epdr_attempts_phase_started_idx', 'epdr_actions_queue_idx', 'epdr_actions_site_cooldown_idx',
+         'epdr_actions_cooldown_idx', 'epdr_provider_incidents_connection_revision_ts_idx',
+         'epdr_provider_incident_targets_endpoint_idx')`);
+    check("0085 claim/cooldown/queue/ingestion indexes exist", indexes.rowCount === 6);
+    let cooldownRejected = false;
+    try {
+      await client.query(`INSERT INTO epdr_site_settings (site_id, execution_cooldown_minutes, max_actions_per_hour)
+        VALUES ($1, 2000, 5)`, [siteId]);
+    } catch { cooldownRejected = true; }
+    check("cooldown CHECK rejects out-of-range minutes", cooldownRejected);
+    let capRejected = false;
+    try {
+      await client.query(`INSERT INTO epdr_site_settings (site_id, execution_cooldown_minutes, max_actions_per_hour)
+        VALUES ($1, 10, 0)`, [siteId]);
+    } catch { capRejected = true; }
+    check("per-site cap CHECK rejects values below 1", capRejected);
+    await client.query(`INSERT INTO epdr_site_settings (site_id, execution_cooldown_minutes, max_actions_per_hour)
+      VALUES ($1, 10, NULL)`, [siteId]);
+    const siteSettings = await client.query<{ max_actions_per_hour: number | null; execution_cooldown_minutes: number }>(
+      "SELECT max_actions_per_hour, execution_cooldown_minutes FROM epdr_site_settings WHERE site_id = $1", [siteId]);
+    check("per-site cap NULL follows the global ceiling and cooldown defaults to 10",
+      siteSettings.rows[0]?.max_actions_per_hour === null && siteSettings.rows[0]?.execution_cooldown_minutes === 10);
+
+    // Attempt events: the append-only trigger blocks UPDATE and DELETE on a
+    // real row (a zero-row UPDATE never fires a row trigger).
+    const eventRow = await client.query<{ id: number }>(`
+      WITH action_row AS (SELECT id FROM epdr_actions ORDER BY id LIMIT 1)
+      INSERT INTO epdr_attempt_events (action_id, attempt, phase, event, detail)
+      SELECT action_row.id, 1, 'dispatch', 'claimed', '{}'::jsonb FROM action_row RETURNING id`);
+    let eventUpdatedRejected = false;
+    try {
+      await client.query(`UPDATE epdr_attempt_events SET event = 'rewritten' WHERE id = $1`, [eventRow.rows[0]!.id]);
+    } catch { eventUpdatedRejected = true; }
+    check("attempt events reject updates via the append-only trigger", eventUpdatedRejected);
+    let eventDeletedRejected = false;
+    try {
+      await client.query(`DELETE FROM epdr_attempt_events WHERE id = $1`, [eventRow.rows[0]!.id]);
+    } catch { eventDeletedRejected = true; }
+    check("attempt events reject deletes via the append-only trigger", eventDeletedRejected);
+
+    // Worker heartbeat: one row per worker id, upsert replaces.
+    await client.query(`INSERT INTO epdr_worker_heartbeats (worker_id, last_pass_at, last_pass_ran, last_pass_failed)
+      VALUES ('worker:verify-1', clock_timestamp(), true, false)`);
+    await client.query(`INSERT INTO epdr_worker_heartbeats (worker_id, last_pass_at, last_pass_ran, last_pass_failed)
+      VALUES ('worker:verify-1', clock_timestamp(), false, true)
+      ON CONFLICT (worker_id) DO UPDATE SET last_pass_at = clock_timestamp(), last_pass_ran = false, last_pass_failed = true`);
+    const heartbeat = await client.query<{ last_pass_ran: boolean; last_pass_failed: boolean; workers: string }>(
+      "SELECT last_pass_ran, last_pass_failed, count(*)::text AS workers FROM epdr_worker_heartbeats WHERE worker_id = 'worker:verify-1' GROUP BY last_pass_ran, last_pass_failed");
+    check("worker heartbeat upserts one row per worker id",
+      heartbeat.rows[0]?.last_pass_ran === false && heartbeat.rows[0]?.last_pass_failed === true && heartbeat.rows[0]?.workers === "1");
+
+    // Cooldown anti-join: a cooled-down endpoint cannot block another endpoint.
+    // The journal seeds a default (writes-off) global row; raise it explicitly.
+    await client.query(`INSERT INTO watchguard_global_settings (id, provider_writes_enabled, allowed_actions, max_actions_per_hour_per_site)
+      VALUES (1, true, ARRAY['scan']::text[], 30) ON CONFLICT (id) DO UPDATE SET
+        provider_writes_enabled = true, allowed_actions = ARRAY['scan']::text[], max_actions_per_hour_per_site = 30`);
+    await client.query(`UPDATE epdr_site_settings SET max_actions_per_hour = NULL, execution_cooldown_minutes = 10 WHERE site_id = $1`, [siteId]);
+    const approverUser = await client.query<{ id: number }>(
+      `INSERT INTO users (username, password_hash, role) VALUES ('epdr-verify-approver', 'x', 'admin') RETURNING id`);
+    const approverId = approverUser.rows[0].id;
+    await client.query(`INSERT INTO user_sites (user_id, site_id, role_in_site) VALUES ($1, $2, 'admin')`, [approverId, siteId]);
+    const insertQueued = async (endpointRowId: number, key: string): Promise<number> => {
+      const { rows } = await client!.query<{ id: number }>(`
+        INSERT INTO epdr_actions (site_id, connection_id, endpoint_id, action_type, params, mode, state,
+          idempotency_key, requested_by, approved_by, approved_at, approved_snapshot_hash, snapshot, snapshot_hash,
+          approval_expires_at, account_revision, credential_revision, namespace, device_id)
+        VALUES ($1, $2, $3, 'scan', '{}'::jsonb, 'approval', 'queued', $4, $5, $6, clock_timestamp(),
+          'verify-hash', '{}'::jsonb, 'verify-hash',
+          clock_timestamp() + interval '30 minutes', 1, 0, 'endpoint_security', 'verify-device')
+        RETURNING id`, [siteId, connId, endpointRowId, key, userId, approverId]);
+      return rows[0]!.id;
+    };
+    const cooledAction = await insertQueued(endpoint.rows[0].id, "verify-key-cooled");
+    const otherAction = await insertQueued(reboundEndpoint.rows[0].id, "verify-key-other");
+    await client.query(`UPDATE epdr_actions SET state = 'dispatching', dispatched_at = clock_timestamp()
+      WHERE id = $1`, [cooledAction]);
+    const antiJoin = await client.query<{ id: number }>(`
+      SELECT x.id FROM epdr_actions x
+      WHERE x.site_id = $1 AND x.connection_id = $2
+        AND x.mode = 'approval' AND x.state = 'queued' AND x.namespace IS NOT NULL
+        AND x.approved_by IS NOT NULL AND x.approved_snapshot_hash IS NOT NULL
+        AND x.approval_expires_at > clock_timestamp()
+        AND NOT EXISTS (
+          SELECT 1 FROM epdr_actions prev
+          WHERE prev.connection_id = x.connection_id AND prev.endpoint_id = x.endpoint_id
+            AND prev.action_type = x.action_type AND prev.dispatched_at IS NOT NULL
+            AND prev.dispatched_at > clock_timestamp() - interval '10 minutes'
+        )
+      ORDER BY x.id ASC FOR UPDATE OF x SKIP LOCKED LIMIT 1`, [siteId, connId]);
+    check("cooldown anti-join skips the cooled endpoint without blocking the queue",
+      antiJoin.rows[0]?.id === otherAction);
+
+    // Hourly cap is enforced from committed attempts (the claim's own filter).
+    const capped = await client.query<{ id: number }>(`
+      SELECT x.id FROM epdr_actions x
+      WHERE x.site_id = $1 AND x.connection_id = $2 AND x.mode = 'approval' AND x.state = 'queued'
+        AND x.namespace IS NOT NULL
+        AND (SELECT count(*) FROM epdr_attempts a JOIN epdr_actions xa ON xa.id = a.action_id
+          WHERE xa.connection_id = $2 AND a.phase = 'dispatch'
+            AND a.started_at > clock_timestamp() - interval '1 hour') >= 30
+      LIMIT 1`, [siteId, connId]);
+    check("hourly cap counts committed attempts before any claim", capped.rowCount === 0);
+
+    // Sweep: expired approvals are cancelled with the explicit reason.
+    const expiredQueued = await insertQueued(endpoint.rows[0].id, "verify-key-expired");
+    await client.query(`UPDATE epdr_actions SET approval_expires_at = clock_timestamp() - interval '1 minute'
+      WHERE id = $1`, [expiredQueued]);
+    const sweep = await client.query<{ id: number; review_reason: string }>(`
+      UPDATE epdr_actions SET state = 'cancelled', review_reason = 'approval_expired',
+        lease_owner = NULL, lease_expires_at = NULL, updated_at = clock_timestamp()
+      WHERE connection_id = $1 AND mode = 'approval' AND namespace IS NOT NULL
+        AND state IN ('pending_approval', 'queued')
+        AND approval_expires_at IS NOT NULL AND approval_expires_at <= clock_timestamp()
+      RETURNING id, review_reason`, [connId]);
+    check("expired approval sweep cancels only lapsed requests with the explicit reason",
+      sweep.rows.length === 1 && sweep.rows[0]!.id === expiredQueued && sweep.rows[0]!.review_reason === "approval_expired");
+
+    // Retention shape: only terminal-action attempts qualify; non-terminal stay.
+    const terminalAction = await insertQueued(endpoint.rows[0].id, "verify-key-retained");
+    const pendingAction = await insertQueued(endpoint.rows[0].id, "verify-key-pending");
+    await client.query(`UPDATE epdr_actions SET state = 'completed' WHERE id = $1`, [terminalAction]);
+    await client.query(`INSERT INTO epdr_attempts (action_id, attempt, started_at, status, phase)
+      VALUES ($1, 1, clock_timestamp() - interval '200 days', 'accepted', 'dispatch')`, [terminalAction]);
+    await client.query(`INSERT INTO epdr_attempts (action_id, attempt, started_at, status, phase)
+      VALUES ($1, 1, clock_timestamp() - interval '200 days', 'accepted', 'dispatch')`, [pendingAction]);
+    const retentionDelete = await client.query<{ id: number }>(`
+      DELETE FROM epdr_attempts a
+      WHERE a.id IN (
+        SELECT a2.id FROM epdr_attempts a2
+        JOIN epdr_actions x ON x.id = a2.action_id
+        JOIN sites st ON st.id = x.site_id
+        LEFT JOIN epdr_site_settings s ON s.site_id = x.site_id
+        WHERE x.mode = 'approval' AND x.namespace IS NOT NULL
+          AND x.state IN ('completed', 'failed', 'cancelled')
+          AND a2.started_at < clock_timestamp() - (interval '1 day' * coalesce(s.execution_attempt_retention_days, 90))
+        FOR UPDATE OF a2 SKIP LOCKED
+        LIMIT 500)
+      RETURNING a.id`);
+    const attemptFor = async (actionRowId: number): Promise<string> =>
+      (await client!.query<{ total: string }>("SELECT count(*)::text AS total FROM epdr_attempts WHERE action_id = $1", [actionRowId])).rows[0]!.total;
+    check("retention deletes only terminal-action attempts past the window",
+      (await attemptFor(terminalAction)) === "0" && (await attemptFor(pendingAction)) === "1" && retentionDelete.rowCount === 1);
   } catch (error) {
     checks.push({ name: "verification run", ok: false, detail: error instanceof Error ? error.message.slice(0, 300) : "unknown" });
   } finally {
     try { await client?.end(); } catch { /* connection may already be closed */ }
-    if (containerId) {
-      try {
-        docker(["rm", "-f", containerId]);
-      } catch {
-        checks.push({ name: "isolated container cleanup", ok: false, detail: "Could not confirm container removal." });
-      }
-    }
+    pg.cleanup();
   }
 
   for (const item of checks) {

@@ -238,9 +238,27 @@ services:
     depends_on:
       app:
         condition: service_healthy
-    # The image healthcheck probes the web server; this process is a worker.
+    # This process is a worker, so the healthcheck probes the EPDR heartbeat
+    # and stuck-request thresholds instead of a web endpoint.
     healthcheck:
-      disable: true
+      test: ["CMD", "npx", "tsx", "scripts/healthcheck-watchguard.ts"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
+    networks:
+      - dccheck_net
+
+  epdr-retention:
+    image: dc-check-app:latest
+    container_name: dccheck_epdr_retention
+    restart: unless-stopped
+    command: npm run epdr:retention
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - dccheck_net
 

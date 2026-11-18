@@ -114,6 +114,30 @@ function freePort(): Promise<number> {
   });
 }
 
+/**
+ * Allocate a free UDP port on loopback. A TCP port number is not a valid proxy
+ * for a UDP port: Windows excluded-port ranges can reject the UDP bind with
+ * EACCES even though the TCP port was free.
+ */
+function freeUdpPort(attempts = 20): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const tryBind = (remaining: number) => {
+      const socket = dgram.createSocket("udp4");
+      socket.unref();
+      socket.once("error", (error) => {
+        socket.close();
+        if (remaining <= 1) reject(error);
+        else tryBind(remaining - 1);
+      });
+      socket.bind(0, "127.0.0.1", () => {
+        const addr = socket.address();
+        socket.close(() => resolve(addr.port));
+      });
+    };
+    tryBind(attempts);
+  });
+}
+
 describe("syslog TCP receiver", () => {
   const receivers: { stop: () => Promise<void> }[] = [];
 
@@ -303,7 +327,7 @@ describe("multiple transports in one process", () => {
   });
 
   it("runs UDP and TCP concurrently with independent ports", async () => {
-    const udpPort = await freePort();
+    const udpPort = await freeUdpPort();
     const tcpPort = await freePort();
 
     const udpWriter = { insertRawEvents: async (_e: RawSyslogInsert[]) => undefined };
@@ -313,7 +337,7 @@ describe("multiple transports in one process", () => {
     sockets.push(udpSocket);
     await new Promise<void>((resolve, reject) => {
       udpSocket.once("error", reject);
-      udpSocket.bind(udpPort, () => resolve());
+      udpSocket.bind(udpPort, "127.0.0.1", () => resolve());
     });
     udpSocket.on("message", (msg) => {
       void udpBuffer.enqueue({

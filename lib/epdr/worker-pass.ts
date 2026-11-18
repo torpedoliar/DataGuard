@@ -8,7 +8,10 @@ export type WorkerConnection = { id: number; endpointSyncMinutes: number; detect
 /** Interval per job for a connection (minutes). 0 = run every pass. */
 export function resolveJobIntervalMinutes(jobName: string, connection: WorkerConnection): number {
   if (jobName === "endpoints") return connection.endpointSyncMinutes;
-  // detection/evaluate/tasks jobs use the detection cadence when they land.
+  // Approved execution requests and their observation are latency-sensitive,
+  // and each pass is a bounded, cheap query when the queue is empty.
+  if (jobName === "dispatch" || jobName === "tasks") return 0;
+  // detection/evaluate/health jobs use the detection cadence.
   return connection.detectionSyncMinutes;
 }
 

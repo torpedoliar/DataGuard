@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("WatchGuard deployment wiring (static checks only)", () => {
-  it("reuses the archived application runtime without a web healthcheck", () => {
+  it("reuses the archived application runtime with a worker-process healthcheck", () => {
     const service = read("docker-compose.yml").split("  watchguard-worker:\n")[1]?.split("\n  db:")[0];
     expect(service).toBeDefined();
     expect(service).toContain("image: dc-check-app:latest");
@@ -13,7 +13,8 @@ describe("WatchGuard deployment wiring (static checks only)", () => {
     expect(service).toContain("restart: unless-stopped");
     expect(service).toContain("env_file:\n      - .env");
     expect(service).toContain("app:\n        condition: service_healthy");
-    expect(service).toContain("healthcheck:\n      disable: true");
+    // The worker healthcheck probes the EPDR heartbeat, not a web endpoint.
+    expect(service).toContain("test: [\"CMD\", \"npx\", \"tsx\", \"scripts/healthcheck-watchguard.ts\"]");
     expect(service).toContain("- dccheck_net");
     expect(service).not.toContain("ports:");
     expect(read("Dockerfile")).toMatch(/tar -cf \/app\/assets\.tar .*package\.json .*scripts lib node_modules/);

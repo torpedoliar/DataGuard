@@ -406,7 +406,7 @@ function GlobalSafeguards({ global }: { global: WatchGuardGlobalConfig }) {
                 <input type="checkbox" name="watchguardAllowedActions" value={a} defaultChecked={global.allowedActions.includes(a)} className="mt-0.5 size-4" />
                 <span className="min-w-0">
                   <span className="block text-[13px] text-ops-text">{t(`action.${a}`)}</span>
-                  <span className="block text-[11.5px] text-ops-muted">{t("global.notAvailable")}</span>
+                  <span className="block text-[11.5px] text-ops-muted">{t("global.approvalRequired")}</span>
                 </span>
               </label>
             ))}

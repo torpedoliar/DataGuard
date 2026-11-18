@@ -33,9 +33,33 @@ jobs:
       - name: Unit Tests (Backup & Deployment)
         run: npx vitest run lib/backup scripts/watchguard-deployment.test.ts scripts/watchguard-worker.test.ts
 
+  epdr-postgres-verification:
+    name: EPDR Isolated PostgreSQL Verification
+    runs-on: ubuntu-latest
+    # Disposable containers only: both scripts refuse to run against any
+    # configured database and always remove their container.
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: EPDR migration and constraint checks (disposable container)
+        run: npm run test:epdr:postgres
+
+      - name: EPDR claim/retention integration (disposable container)
+        run: npm run test:epdr:postgres:integration
+
   deploy:
     name: Deploy to Local Server (Self-Hosted)
-    needs: ci-check
+    needs: [ci-check, epdr-postgres-verification]
     runs-on: self-hosted
     if: github.ref == 'refs/heads/main'
     steps:

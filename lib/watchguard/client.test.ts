@@ -339,3 +339,54 @@ describe("read-only transport: every write is blocked before network", () => {
     expect(calls).toHaveLength(0);
   });
 });
+describe("ThreatSync action reads", () => {
+  const ACTIONS_BASE = `/rest/threatsync/management/v1/${ACCOUNT}/actions`;
+  const INCIDENT_ACTIONS_PATH = `/rest/threatsync/management/v1/${ACCOUNT}/incidents/ts-1/actions`;
+
+  it("reads an account-level action by id", async () => {
+    let captured: URL | null = null;
+    const { fetchImpl } = routedFetch((url) => {
+      if (url.pathname === TOKEN_PATH) return tokenResponse();
+      captured = url;
+      return json({ action_id: "act-1", status: "performed", command: "killProcess" });
+    });
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl, sleep: vi.fn().mockResolvedValue(undefined) });
+
+    const action = await client.getAction("act-1");
+
+    expect(captured!.pathname).toBe(`${ACTIONS_BASE}/act-1`);
+    expect(action.status).toBe("performed");
+  });
+
+  it("rejects an account-level action response with an unexpected shape", async () => {
+    const { fetchImpl } = routedFetch((url) =>
+      url.pathname === TOKEN_PATH ? tokenResponse() : json(["not-an-object"]));
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl, sleep: vi.fn().mockResolvedValue(undefined) });
+    await expect(client.getAction("act-1")).rejects.toMatchObject({ kind: "invalid_response" });
+  });
+
+  it("lists incident actions through both documented envelopes", async () => {
+    const { fetchImpl } = routedFetch((url) => {
+      if (url.pathname === TOKEN_PATH) return tokenResponse();
+      if (url.pathname === INCIDENT_ACTIONS_PATH) return json({ items: [{ action_id: "a-1", status: "inProgress" }] });
+      throw new Error(`unexpected ${url.toString()}`);
+    });
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl, sleep: vi.fn().mockResolvedValue(undefined) });
+    expect((await client.listIncidentActions("ts-1")).map((a) => a.status)).toEqual(["inProgress"]);
+
+    const groupEnvelope = routedFetch((url) => {
+      if (url.pathname === TOKEN_PATH) return tokenResponse();
+      if (url.pathname === INCIDENT_ACTIONS_PATH) return json({ groups: { _default: [{ action_id: "a-2", status: "performed" }] } });
+      throw new Error(`unexpected ${url.toString()}`);
+    });
+    const client2 = createWatchGuardClient(creds, { fetch: groupEnvelope.fetchImpl, sleep: vi.fn().mockResolvedValue(undefined) });
+    expect((await client2.listIncidentActions("ts-1")).map((a) => a.action_id)).toEqual(["a-2"]);
+  });
+
+  it("rejects an incident-action list without items or groups._default", async () => {
+    const { fetchImpl } = routedFetch((url) =>
+      url.pathname === TOKEN_PATH ? tokenResponse() : json({ groups: {} }));
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl, sleep: vi.fn().mockResolvedValue(undefined) });
+    await expect(client.listIncidentActions("ts-1")).rejects.toMatchObject({ kind: "invalid_response" });
+  });
+});

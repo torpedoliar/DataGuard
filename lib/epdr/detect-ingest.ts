@@ -67,7 +67,10 @@ export type DetectionDraft = {
   severity: EpdrSeverity;
   detectedAt: Date;
   tsIncidentId: string | null;
+  /** Identity used for the source key: explicit entity id, else device id. */
   endpointProviderId: string;
+  /** Explicit ThreatSync entity id; null when the provider only gave a device id. */
+  providerEntityId: string | null;
   endpointId: number | null;
   raw: unknown;
 };
@@ -139,6 +142,9 @@ export function buildThreatSyncDetections(
       detectedAt,
       tsIncidentId: tsId,
       endpointProviderId: entityId,
+      // Only an explicit entity id may drive target-based endpoint resolution;
+      // a device id in its place is never treated as a ThreatSync id.
+      providerEntityId: entity.entityId ?? null,
       endpointId: null,
       raw,
     });
@@ -190,6 +196,7 @@ export function buildSecurityEventDetections(
       detectedAt,
       tsIncidentId: null,
       endpointProviderId: event.device_id,
+      providerEntityId: null,
       endpointId: null,
       raw: event,
     });

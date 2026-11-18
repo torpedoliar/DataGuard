@@ -9,6 +9,8 @@ import {
   type LocalPlaybookRunSummary,
 } from "@/actions/epdr-local-playbooks";
 import { requestEpdrLocalApproval } from "@/actions/epdr-local-approvals";
+import { LOCAL_REVIEW_CAPABILITIES } from "@/lib/epdr/local-capabilities";
+import PlaybookVersionForm from "./playbook-version-form";
 import IncidentHandoff from "./incident-handoff";
 
 type RunList = Exclude<Awaited<ReturnType<typeof getEpdrLocalPlaybookRuns>>, { message: string }>;
@@ -32,6 +34,8 @@ function proposedIntents(evidence: unknown): ApprovalIntent[] {
   if (reviewPolicy(evidence).status !== "proposed" || !Array.isArray(steps)) return [];
   return (["scan", "isolate"] as const).filter((intent) => steps.includes(intent));
 }
+
+const STAGE_KEYS = ["chooseDetection", "chooseVersion", "createReview", "recordReview"] as const;
 
 export default function LocalPlaybookRunner({ initialDetectionId, locale = "en" }: { initialDetectionId?: number; locale?: string } = {}) {
   const t = useTranslations("Epdr.localRunV2");
@@ -66,16 +70,33 @@ export default function LocalPlaybookRunner({ initialDetectionId, locale = "en" 
   }, [revision, page]);
   useEffect(() => {
     let active = true;
-    getEpdrLocalPlaybookOptions(initialDetectionId ? { detectionId: initialDetectionId } : {}).then((result) => {
+    // Eligibility is recomputed whenever the selection pair changes; a guard
+    // then drops selections a refresh removed (new revision, redefined
+    // version) instead of submitting them.
+    getEpdrLocalPlaybookOptions({
+      ...(initialDetectionId ? { detectionId: Number(initialDetectionId) } : {}),
+      ...(detectionId !== "" && versionId !== ""
+        ? { detectionId: Number(detectionId), versionId: Number(versionId) } : {}),
+    }).then((result) => {
       if (!active) return;
       if ("code" in result) setError(result.code);
       else {
         setOptions(result);
+        if (versionId !== "" && !result.versions.some((item) => String(item.id) === versionId && item.compatible)) {
+          setVersionId("");
+          setConfirmed(false);
+        }
+        if (detectionId !== "" && !initialDetectionId
+          && !result.detections.some((item) => String(item.id) === detectionId)
+          && !(result.requestedDetection && String(result.requestedDetection.id) === detectionId)) {
+          setDetectionId("");
+          setConfirmed(false);
+        }
         if (initialDetectionId && result.requestedDetectionUnavailable) setDetectionId("");
       }
     }).catch(() => { if (active) setError("service_unavailable"); });
     return () => { active = false; };
-  }, [initialDetectionId, optionsRevision]);
+  }, [initialDetectionId, optionsRevision, detectionId, versionId]);
 
   function perform(operation: () => Promise<void>) {
     startTransition(async () => {
@@ -102,16 +123,27 @@ export default function LocalPlaybookRunner({ initialDetectionId, locale = "en" 
   const policy = detail ? reviewPolicy(detail.evidence) : {};
   const pages = runs ? Math.max(1, runs.pages ?? Math.ceil(runs.total / Math.max(1, runs.limit))) : 1;
   const currentPage = runs?.page ?? page;
+  const compatibleVersions = options?.versions.filter((item) => item.compatible) ?? [];
+  const incompatibleVersions = options?.versions.filter((item) => !item.compatible) ?? [];
+  const eligibility = options?.eligibility ?? null;
+  // Four-stage flow: the indicator marks where the operator currently is.
+  const stage = detail ? 3 : versionId !== "" ? 2 : detectionId !== "" ? 1 : 0;
   return <section className="ops-panel space-y-5 p-5">
     <div>
       <h2 className="font-semibold text-ops-text">{t("title")}</h2>
       <p className="mt-1 max-w-4xl text-sm leading-6 text-ops-muted">{t("hint")}</p>
     </div>
     <ol className="grid gap-2 text-xs text-ops-muted sm:grid-cols-2 xl:grid-cols-4">
-      {["chooseDetection", "chooseVersion", "createReview", "recordReview"].map((step, index) => <li key={step} className="flex items-center gap-2 rounded-md border border-ops-border bg-ops-surface-raised px-3 py-2">
+      {STAGE_KEYS.map((step, index) => <li key={step} aria-current={index === stage ? "step" : undefined}
+        className={`flex items-center gap-2 rounded-md border px-3 py-2 ${index === stage
+          ? "border-ops-accent bg-ops-surface-raised text-ops-text" : "border-ops-border bg-ops-surface-raised"}`}>
         <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-ops-border font-semibold text-ops-accent">{index + 1}</span>{t(`stages.${step}`)}
       </li>)}
     </ol>
+    <p className="text-xs text-ops-muted">{t("capabilityNotice", {
+      provider: t(`capability.${LOCAL_REVIEW_CAPABILITIES.providerAction.availability}`),
+      notification: t(`capability.${LOCAL_REVIEW_CAPABILITIES.notification.availability}`),
+    })}</p>
     <form className="grid items-end gap-4 rounded-md border border-ops-border p-4 lg:grid-cols-2" onSubmit={(event) => {
       event.preventDefault();
       perform(async () => {
@@ -134,17 +166,41 @@ export default function LocalPlaybookRunner({ initialDetectionId, locale = "en" 
       <label className="grid gap-1.5 text-sm text-ops-text">{t("version")}
         <select required aria-label={t("version")} value={versionId} disabled={!options} onChange={(event) => { setVersionId(event.target.value); setConfirmed(false); }} className="ops-input px-3 py-2">
           <option value="">{options ? t("selectVersion") : t("loadingOptions")}</option>
-          {options?.versions.map((item) => <option key={item.id} value={item.id}>{t("versionOption", { name: item.name, version: item.version, template: item.templateId })}</option>)}
+          {compatibleVersions.map((item) => <option key={item.id} value={item.id}>{t("versionOption", { name: item.name, version: item.version, template: item.templateId ?? "" })}</option>)}
         </select>
       </label>
       <div className="grid gap-2 text-xs text-ops-muted lg:col-span-2">
-        {options && !options.versions.length && <p>{t("noVersions")}</p>}
+        {options && options.versions.length > 0 && incompatibleVersions.length > 0 && <p>
+          {t("incompatibleNote", { count: incompatibleVersions.length })}
+          {incompatibleVersions.map((item) => <span key={item.id} className="block pl-3">
+            #{item.id} · {t(`compatibility.${item.incompatibilityReason}`)}
+          </span>)}
+        </p>}
+        {options?.versionsTruncated && <p>{t("versionsLimited")}</p>}
+        {options && !compatibleVersions.length && <p>{t("noVersions")}</p>}
         {options && !options.detections.length && !options.requestedDetection && <p>{t("noDetections")}</p>}
         {options?.requestedDetectionUnavailable && <p className="text-ops-warning">{t("requestedUnavailable")}</p>}
         {options?.detectionTruncated && <p>{t("detectionsLimited")}</p>}
         {selectedDetection && <p>{t("selectedDetection", { category: selectedDetection.category, score: selectedDetection.score ?? t("missingScore"), time: new Date(selectedDetection.detectedAt).toLocaleString(locale) })}</p>}
         <p>{t("selectorNote")}</p>
       </div>
+      {/* Pre-create eligibility: what a start would evaluate, shown before the create step. */}
+      {eligibility && <div aria-live="polite" className="rounded-md border border-ops-border bg-ops-surface-raised p-3 text-xs lg:col-span-2">
+        <p className="font-medium text-ops-text">{t("eligibility.title")}</p>
+        {eligibility.blocker && <p className="mt-1 text-ops-warning">{t(`eligibility.blocker.${eligibility.blocker}`)}</p>}
+        {!eligibility.blocker && eligibility.versionCompatible && <p className="mt-1">{t("eligibility.ok")}</p>}
+        {eligibility.blocker === null && eligibility.versionCompatible && eligibility.policy && <>
+          <p className="mt-1">{t("eligibility.policy", { status: t(`policy.${eligibility.policy.status}`) })}</p>
+          {eligibility.policy.reasons.length > 0 && <ul className="mt-1 list-inside list-disc">
+            {eligibility.policy.reasons.map((reason) => <li key={reason}>{t(`reasons.${reason}`)}</li>)}
+          </ul>}
+        </>}
+        {eligibility.endpointFacts && <ul className="mt-1 list-inside list-disc">
+          <li>{t("eligibility.identity", { known: eligibility.endpointFacts.identityKnown ? t("yes") : t("no") })}</li>
+          <li>{t("eligibility.hold", { hold: eligibility.endpointFacts.hold ? t("yes") : t("no") })}</li>
+          <li>{t("eligibility.completeness", { status: t(`eligibility.completeness_${eligibility.endpointFacts.sourceCompleteness}`) })}</li>
+        </ul>}
+      </div>}
       <label className="flex items-start gap-2 text-xs leading-5 text-ops-muted lg:col-span-2">
         <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-0.5" />
         {t("confirm")}
@@ -154,6 +210,18 @@ export default function LocalPlaybookRunner({ initialDetectionId, locale = "en" 
         <button type="button" disabled={pending} onClick={refreshChoices} className="rounded-md border border-ops-border px-3 py-2 text-sm text-ops-text disabled:opacity-50">{t("refreshChoices")}</button>
       </div>
     </form>
+    {/* Inline authoring: a missing or unusable version is solved here, not in another panel. */}
+    {options && !compatibleVersions.length && <div className="rounded-md border border-ops-border p-4">
+      <p className="text-sm font-medium text-ops-text">{t("authoringTitle")}</p>
+      <p className="mt-1 text-xs text-ops-muted">{t("authoringHint")}</p>
+      <div className="mt-3">
+        <PlaybookVersionForm onSaved={(saved) => {
+          setFeedback(t("versionSaved", { id: saved.id, version: saved.version }));
+          setVersionId(String(saved.id));
+          refreshChoices();
+        }} />
+      </div>
+    </div>}
     {feedback && <p role="status" className="text-sm text-ops-text">{feedback}</p>}
     {error && <p role="alert" className="text-sm text-ops-danger">{t(`errors.${error}`)}</p>}
     <div className="flex flex-wrap items-center gap-3">
@@ -182,6 +250,7 @@ export default function LocalPlaybookRunner({ initialDetectionId, locale = "en" 
         {detail.steps.map((step) => <li key={step.ordinal} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border border-ops-border px-3 py-2">
           <span className="text-ops-text">{step.ordinal}. {t(`steps.${step.kind}`)}</span>
           <span className="text-ops-muted">{t(`outcomes.${step.status}`)}</span>
+          {step.reason && <span className="text-xs text-ops-muted">{t(`outcomeReasons.${step.reason}`)}</span>}
         </li>)}
       </ol>
       <details className="rounded-md border border-ops-border p-3 text-sm">

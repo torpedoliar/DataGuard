@@ -19,6 +19,12 @@ vi.mock("@/lib/action-auth", () => ({
 
 vi.mock("@/lib/metrics", () => ({
   collectMetrics: (...args: unknown[]) => mockCollectMetrics(...args),
+  EMPTY_EPDR: {
+    queued: null, pendingApproval: null, expiredApproval: null, staleLease: null,
+    observeDue: null, overdue: null, needsReview: null, outcomeUnknown: null,
+    orphanAttempts: null, workers: null, workerLatestPassAt: null,
+    retention: { lastRunAt: null },
+  },
 }));
 
 import { GET } from "@/app/api/metrics/route";

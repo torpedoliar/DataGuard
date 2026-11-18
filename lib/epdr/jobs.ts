@@ -26,8 +26,14 @@ import { classifyHealth, advanceHealthStage, type HealthSettings } from "./healt
 import { resolveConnectionState } from "./posture";
 import type { IngestSettings } from "./detect-ingest";
 import { assertReadSyncActor, processReadSyncQueue, type ReadSyncFence } from "./read-sync-queue";
+import { buildProviderIncidentDrafts } from "./provider-targets";
 import { processLocalNotificationQueue, scheduleLocalNotifications } from "./local-notification-outbox";
 import { calculateIncidentDueDate } from "@/lib/incidents";
+import {
+  recoverStaleDispatchLeases,
+  runProviderDispatchPass,
+  runProviderObservePass,
+} from "./execution-jobs";
 
 export async function runPendingReadSyncRequests(): Promise<void> {
   await processReadSyncQueue(runEndpointsJob);
@@ -466,6 +472,102 @@ async function linkDetectionToEpisode(
   return id;
 }
 
+/**
+ * ThreatSync detections attach to an endpoint only through an operator-confirmed
+ * provider target for the current account revision. Comparing a ThreatSync
+ * entity id with a device id was the old fallback; it is gone — a detection
+ * without a confirmed target stays endpointless and reviewable.
+ */
+async function resolveConfirmedTargetEndpoint(
+  store: Pick<typeof db, "execute">,
+  connectionId: number,
+  accountRevision: number,
+  entityId: string | null,
+): Promise<number | null> {
+  if (!entityId) return null;
+  const { rows } = await store.execute<{ endpoint_id: number }>(sql`
+    SELECT t.endpoint_id FROM epdr_provider_incident_targets t
+    JOIN epdr_provider_incidents p ON p.id = t.provider_incident_id
+    WHERE p.connection_id = ${connectionId} AND p.account_revision = ${accountRevision}
+      AND t.entity_id = ${entityId} AND t.review_state = 'confirmed'
+      AND t.endpoint_id IS NOT NULL
+    LIMIT 1`);
+  return rows[0]?.endpoint_id ?? null;
+}
+
+/**
+ * Provider incident/target ingestion (`provider_sync`). Read-only iteration of
+ * ThreatSync incidents, persisted as unreviewed targets. Confirmation is an
+ * operator decision in `actions/epdr-provider-targets.ts` — this job never
+ * sets `review_state`, never derives identity, and never overwrites a
+ * confirmed endpoint link with NULL.
+ */
+async function runProviderSyncJob(connectionId: number): Promise<void> {
+  const row = await db.select().from(watchguardConnections).where(eq(watchguardConnections.id, connectionId)).limit(1);
+  const conn = row[0];
+  if (!conn || !conn.enabled) return;
+  const resolved = await resolveWatchGuardConnection(conn.siteId, { mode: "read" });
+  if (!resolved.ok) return;
+  if (resolved.accountRevision !== conn.accountRevision || resolved.credentialRevision !== conn.credentialRevision) {
+    throw new Error("provider_sync_binding_changed");
+  }
+  const client = createWatchGuardClient(resolved.credentials, { credentialRevision: resolved.credentialRevision });
+
+  let failed: string | null = null;
+  try {
+    for await (const incident of client.iterateIncidents({ limit: 500 })) {
+      const { drafts } = buildProviderIncidentDrafts([incident]);
+      for (const draft of drafts) {
+        await db.transaction(async (tx) => {
+          const { rows: incidentRows } = await tx.execute<{ id: number }>(sql`
+            INSERT INTO epdr_provider_incidents (connection_id, ts_incident_id, account_revision, provider_status, raw)
+            VALUES (${connectionId}, ${draft.tsIncidentId}, ${conn.accountRevision}, ${draft.providerStatus}, ${JSON.stringify(draft.raw)}::jsonb)
+            ON CONFLICT (connection_id, account_revision, ts_incident_id) DO UPDATE SET
+              provider_status = EXCLUDED.provider_status, raw = EXCLUDED.raw, updated_at = clock_timestamp()
+            RETURNING id`);
+          const incidentId = incidentRows[0]?.id;
+          if (!incidentId) return;
+
+          for (const target of draft.targets) {
+            // Endpoint suggestion: only when the provider's explicit device id
+            // matches exactly one live endpoint on this connection+revision.
+            let suggestedEndpointId: number | null = null;
+            if (target.providerDeviceId) {
+              const { rows: candidates } = await tx.execute<{ id: number }>(sql`
+                SELECT id FROM epdr_endpoints
+                WHERE connection_id = ${connectionId} AND account_revision = ${conn.accountRevision}
+                  AND wg_device_id = ${target.providerDeviceId} AND removed_at IS NULL`);
+              suggestedEndpointId = candidates.length === 1 ? candidates[0]!.id : null;
+            }
+            await tx.execute(sql`
+              INSERT INTO epdr_provider_incident_targets (provider_incident_id, entity_id, endpoint_id, raw)
+              VALUES (${incidentId}, ${target.entityId}, ${suggestedEndpointId}, ${JSON.stringify(target.raw)}::jsonb)
+              ON CONFLICT (provider_incident_id, entity_id) DO UPDATE SET
+                raw = EXCLUDED.raw, updated_at = clock_timestamp(),
+                endpoint_id = CASE
+                  -- An operator decision outranks the provider's suggestion.
+                  WHEN epdr_provider_incident_targets.review_state = 'confirmed'
+                    THEN epdr_provider_incident_targets.endpoint_id
+                  ELSE coalesce(epdr_provider_incident_targets.endpoint_id, EXCLUDED.endpoint_id)
+                END`);
+          }
+        });
+      }
+    }
+  } catch {
+    failed = "provider_iteration_failed";
+    console.error(`[epdr] provider incident sync failed for connection ${connectionId}`);
+  }
+
+  // Completion bookkeeping: the timestamp moves only after a full iteration on
+  // an unchanged binding revision; a failed iteration records the error instead.
+  await db.execute(sql`
+    UPDATE watchguard_connections SET
+      last_provider_sync_error = ${failed},
+      last_provider_sync_at = CASE WHEN ${failed} IS NULL THEN clock_timestamp() ELSE last_provider_sync_at END
+    WHERE id = ${connectionId} AND account_revision = ${conn.accountRevision}`);
+}
+
 async function runDetectionsJob(connectionId: number): Promise<void> {
   const row = await db.select().from(watchguardConnections).where(eq(watchguardConnections.id, connectionId)).limit(1);
   const conn = row[0];
@@ -553,7 +655,11 @@ async function runDetectionsJob(connectionId: number): Promise<void> {
 
   for (const d of fresh) {
     const { endpointId, detectionId } = await publishDetection(async (tx) => {
-      const endpointId = await resolveEndpointId(tx, connectionId, conn.siteId, conn.accountRevision, d.endpointProviderId);
+      // ThreatSync identity never compares against wg_device_id: only an
+      // operator-confirmed provider target links an entity to an endpoint.
+      const endpointId = d.source === "threatsync"
+        ? await resolveConfirmedTargetEndpoint(tx, connectionId, conn.accountRevision, d.providerEntityId)
+        : await resolveEndpointId(tx, connectionId, conn.siteId, conn.accountRevision, d.endpointProviderId);
       const inserted = await tx.insert(epdrDetections).values({
       connectionId,
       siteId: conn.siteId,
@@ -659,6 +765,7 @@ async function runDetectionsJob(connectionId: number): Promise<void> {
       detectedAt: row.detectedAt,
       tsIncidentId: row.tsIncidentId,
       endpointProviderId: row.endpointProviderId,
+      providerEntityId: null,
       endpointId: row.endpointId,
       raw: row.raw,
     } satisfies DetectionDraft;
@@ -886,9 +993,17 @@ export const EPDR_JOBS: EpdrJob[] = [
   } },
   { name: "detections", run: runDetectionsJob },
   { name: "evaluate", run: runEvaluateJob },
+  // Provider write pipeline. Dispatch stops on a kill switch; observation keeps
+  // running so requests that may already have been performed are still resolved.
+  { name: "dispatch", run: async (id) => {
+    await recoverStaleDispatchLeases(id);
+    await runProviderDispatchPass(id);
+  } },
+  { name: "tasks", run: async (id) => {
+    await runProviderObservePass(id);
+  } },
+  { name: "provider_sync", run: runProviderSyncJob },
   { name: "health", run: runHealthJob },
-  // dispatch/tasks/provider_sync/verify remain: they either perform write
-  // (blocked under read-only) or poll task status (see T07/T08 follow-ups).
 ];
 
 export function hasJob(name: string): boolean {

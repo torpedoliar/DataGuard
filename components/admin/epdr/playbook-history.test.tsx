@@ -43,6 +43,11 @@ function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!node || typeof node !== "object" || !("props" in node)) return [];
   const element = node as ReactElement<Record<string, unknown>>;
+  // The inline authoring form is a nested function component; expand it so the
+  // walker sees the real form fields under test.
+  if (typeof element.type === "function" && element.type.length <= 1) {
+    return elements((element.type as (props: unknown) => unknown)(element.props));
+  }
   return [element, ...elements(element.props.children)];
 }
 function button(tree: ReactElement, name: string) {
@@ -64,8 +69,12 @@ function configureName() {
 }
 function submit() {
   const tree = render();
-  if (!button(tree, "save").props.disabled) {
-    (elements(tree).find((node) => node.type === "form")!.props.onSubmit as (event: unknown) => void)({ preventDefault: vi.fn() });
+  // Single walker pass: re-walking the same raw tree would re-invoke the
+  // nested form with shifted useState slots and submit stale defaults.
+  const nodes = elements(tree);
+  const save = nodes.find((node) => node.type === "button" && node.props.children === "save")!;
+  if (!save.props.disabled) {
+    (nodes.find((node) => node.type === "form")!.props.onSubmit as (event: unknown) => void)({ preventDefault: vi.fn() });
   }
 }
 function snapshot() {

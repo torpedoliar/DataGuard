@@ -1382,6 +1382,9 @@ export const watchguardConnections = pgTable(
     lastEndpointSyncAt: timestamp("last_endpoint_sync_at"),
     lastDetectionSyncAt: timestamp("last_detection_sync_at"),
     lastSyncError: text("last_sync_error"),
+    /** Provider incident/target iteration bookkeeping (migration 0085). */
+    lastProviderSyncAt: timestamp("last_provider_sync_at"),
+    lastProviderSyncError: text("last_provider_sync_error"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -1456,6 +1459,9 @@ export const watchguardGlobalSettings = pgTable("watchguard_global_settings", {
   autoCloseCategories: text("auto_close_categories").array().notNull().default(sql`ARRAY['malware', 'pup']::text[]`),
   autoCloseMaxScore: integer("auto_close_max_score").notNull().default(6),
   approvalExpiryHours: integer("approval_expiry_hours").notNull().default(24),
+  /** Deployment-level gate for provider writes. Off until an operator enables it. */
+  providerWritesEnabled: boolean("provider_writes_enabled").notNull().default(false),
+  approvalExpiryMinutes: integer("approval_expiry_minutes").notNull().default(60),
   exclusionMaxDays: integer("exclusion_max_days").notNull().default(90),
   updatedBy: integer("updated_by").references(() => users.id),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1578,11 +1584,23 @@ export const epdrSiteSettings = pgTable("epdr_site_settings", {
   reopenWindowDays: integer("reopen_window_days").notNull().default(7),
   defaultAssigneeId: integer("default_assignee_id").references(() => users.id, { onDelete: "set null" }),
   siteKillSwitch: boolean("site_kill_switch").notNull().default(false),
+  /** Per-site gate for provider writes. Off until a site admin enables it. */
+  providerWritesEnabled: boolean("provider_writes_enabled").notNull().default(false),
+  /** Per-site narrowing of the global action ceiling; empty means no writes. */
+  allowedActions: text("allowed_actions").array().notNull().default(sql`'{}'::text[]`),
   automationPausedAt: timestamp("automation_paused_at"),
   automationPausedReason: text("automation_paused_reason"),
   breakerMaxActions: integer("breaker_max_actions").notNull().default(20),
   breakerWindowMinutes: integer("breaker_window_minutes").notNull().default(15),
   breakerSameThreatEndpoints: integer("breaker_same_threat_endpoints").notNull().default(5),
+  // ---- Provider write execution limits (migration 0085) --------------------
+  /** Minimum minutes between two writes to the same endpoint+action. */
+  executionCooldownMinutes: integer("execution_cooldown_minutes").notNull().default(10),
+  /** Per-site hourly write cap; NULL = follow the global ceiling. */
+  maxActionsPerHour: integer("max_actions_per_hour"),
+  /** Attempt rows are purged after this many days (results later). */
+  executionAttemptRetentionDays: integer("execution_attempt_retention_days").notNull().default(90),
+  executionResultRetentionDays: integer("execution_result_retention_days").notNull().default(180),
   healthEnabled: boolean("health_enabled").notNull().default(false),
   healthGraceMinutes: integer("health_grace_minutes").notNull().default(30),
   healthStageWaitHours: integer("health_stage_wait_hours").notNull().default(24),
@@ -1797,12 +1815,18 @@ export const epdrProviderIncidents = pgTable(
     providerStatus: text("provider_status"),
     evidenceFingerprint: text("evidence_fingerprint"),
     completeSyncRevision: integer("complete_sync_revision").notNull().default(0),
+    accountRevision: integer("account_revision").notNull().default(0),
+    confirmedBy: integer("confirmed_by").references(() => users.id, { onDelete: "set null" }),
+    confirmedAt: timestamp("confirmed_at"),
+    lastProviderSyncAt: timestamp("last_provider_sync_at"),
+    lastProviderSyncError: text("last_provider_sync_error"),
     raw: jsonb("raw"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
-    connectionTsIncidentIdx: uniqueIndex("epdr_provider_incidents_connection_ts_idx").on(table.connectionId, table.tsIncidentId),
+    // Renamed in 0085: a re-bound account revision is a distinct population.
+    connectionRevisionTsIdx: uniqueIndex("epdr_provider_incidents_connection_revision_ts_idx").on(table.connectionId, table.accountRevision, table.tsIncidentId),
   }),
 );
 
@@ -1816,12 +1840,17 @@ export const epdrProviderIncidentTargets = pgTable(
     incidentId: integer("incident_id").references(() => incidents.id, { onDelete: "set null" }),
     classification: text("classification").notNull().default("unreviewed"),
     reviewState: text("review_state").notNull().default("unreviewed"),
+    confirmedBy: integer("confirmed_by").references(() => users.id, { onDelete: "set null" }),
+    confirmedAt: timestamp("confirmed_at"),
+    lastProviderSyncAt: timestamp("last_provider_sync_at"),
+    lastProviderSyncError: text("last_provider_sync_error"),
     raw: jsonb("raw"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
     providerIncidentEntityIdx: uniqueIndex("epdr_provider_incident_targets_entity_unique").on(table.providerIncidentId, table.entityId),
+    endpointIdx: index("epdr_provider_incident_targets_endpoint_idx").on(table.endpointId),
   }),
 );
 
@@ -1898,7 +1927,8 @@ export const epdrActions = pgTable(
     params: jsonb("params").notNull(),
     mode: text("mode").notNull(),
     state: text("state").notNull(),
-    idempotencyKey: text("idempotency_key").notNull().unique(),
+    /** Unique only among active requests (see the partial index in 0084). */
+    idempotencyKey: text("idempotency_key").notNull(),
     requestedBy: integer("requested_by").references(() => users.id),
     approvedBy: integer("approved_by").references(() => users.id),
     approvedAt: timestamp("approved_at"),
@@ -1916,12 +1946,37 @@ export const epdrActions = pgTable(
     result: jsonb("result"),
     error: text("error"),
     deadlineAt: timestamp("deadline_at"),
+    // ---- Provider write execution (migration 0084) --------------------------
+    namespace: text("namespace"),
+    deviceId: text("device_id"),
+    entityId: text("entity_id"),
+    providerIncidentId: text("provider_incident_id"),
+    /** Frozen execution snapshot; the only source for the provider payload. */
+    snapshot: jsonb("snapshot"),
+    snapshotHash: text("snapshot_hash"),
+    /** Must equal `snapshotHash` for the approval to authorize a send. */
+    approvedSnapshotHash: text("approved_snapshot_hash"),
+    accountRevision: integer("account_revision").notNull().default(0),
+    credentialRevision: integer("credential_revision").notNull().default(0),
+    evidenceGeneration: integer("evidence_generation").notNull().default(0),
+    /** Dispatch generation fence; a stale worker cannot publish. */
+    generation: integer("generation").notNull().default(0),
+    outcomeUnknownReason: text("outcome_unknown_reason"),
+    reviewReason: text("review_reason"),
+    observeAfter: timestamp("observe_after"),
+    observedAt: timestamp("observed_at"),
+    observeAttempts: integer("observe_attempts").notNull().default(0),
+    lastErrorKind: text("last_error_kind"),
+    bodyHash: text("body_hash"),
+    /** Free-form request context recorded at creation (migration 0085). */
+    actionContext: jsonb("action_context").notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
     stateIdx: index("epdr_actions_state_idx").on(table.state, table.leaseExpiresAt),
     endpointIdx: index("epdr_actions_endpoint_idx").on(table.endpointId, table.actionType, table.createdAt),
+    idempotencyIdx: index("epdr_actions_idempotency_idx").on(table.idempotencyKey),
   }),
 );
 
@@ -1949,11 +2004,47 @@ export const epdrAttempts = pgTable(
     request: jsonb("request"),
     response: jsonb("response"),
     error: text("error"),
+    /** `dispatch` for a provider write, `observe` for a status read. */
+    phase: text("phase").notNull().default("dispatch"),
+    responseStatus: integer("response_status"),
+    snapshotHash: text("snapshot_hash"),
+    // Denormalized reservation facts (0085): the attempt row is the rate-limit
+    // and cooldown evidence, so it must survive even if the action row is
+    // later edited, and it must be queryable without joining the action.
+    connectionId: integer("connection_id").references(() => watchguardConnections.id, { onDelete: "set null" }),
+    endpointId: integer("endpoint_id").references(() => epdrEndpoints.id, { onDelete: "set null" }),
+    actionType: text("action_type"),
   },
   (table) => ({
     uniqueIdx: uniqueIndex("epdr_attempts_action_attempt_unique").on(table.actionId, table.attempt),
   }),
 );
+
+// Append-only attempt lifecycle ledger (0085). Rows are only ever inserted;
+// corrections surface as new events, never updates.
+export const epdrAttemptEvents = pgTable("epdr_attempt_events", {
+  id: serial("id").primaryKey(),
+  actionId: integer("action_id").notNull().references(() => epdrActions.id, { onDelete: "cascade" }),
+  attempt: integer("attempt").notNull(),
+  phase: text("phase").notNull(),
+  /** claimed | sent | accepted | ambiguous | observed | aborted */
+  event: text("event").notNull(),
+  detail: jsonb("detail").notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  actionAttemptIdx: index("epdr_attempt_events_action_attempt_idx").on(table.actionId, table.attempt, table.createdAt),
+}));
+
+// One row per worker process (0085). `last_pass_ran=false` with a recent
+// last_pass_at means the process is alive but idle; a stale last_pass_at is
+// the "no worker is dispatching" signal.
+export const epdrWorkerHeartbeats = pgTable("epdr_worker_heartbeats", {
+  workerId: text("worker_id").primaryKey(),
+  lastPassAt: timestamp("last_pass_at", { withTimezone: true }).notNull().defaultNow(),
+  lastPassRan: boolean("last_pass_ran").notNull().default(false),
+  lastPassFailed: boolean("last_pass_failed").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const epdrProviderSyncOutbox = pgTable("epdr_provider_sync_outbox", {
   id: serial("id").primaryKey(),

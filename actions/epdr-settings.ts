@@ -31,6 +31,10 @@ export type EpdrSiteSettingsData = {
   healthRebootMode: "off" | "approval" | "automatic";
   healthRebootCountdown: number;
   healthStableMinutes: number;
+  /** Attempt rows of terminal actions are deleted after this many days. */
+  executionAttemptRetentionDays: number;
+  /** Result/response payloads are redacted after this many days. */
+  executionResultRetentionDays: number;
 };
 
 export async function getEpdrSettings(): Promise<EpdrSiteSettingsData | { message: string }> {
@@ -59,6 +63,8 @@ export async function getEpdrSettings(): Promise<EpdrSiteSettingsData | { messag
     healthRebootMode: (row?.healthRebootMode as EpdrSiteSettingsData["healthRebootMode"]) ?? "approval",
     healthRebootCountdown: row?.healthRebootCountdown ?? 7,
     healthStableMinutes: row?.healthStableMinutes ?? 60,
+    executionAttemptRetentionDays: row?.executionAttemptRetentionDays ?? 90,
+    executionResultRetentionDays: row?.executionResultRetentionDays ?? 180,
   };
 }
 
@@ -107,9 +113,14 @@ const schema = z
     healthRebootMode: z.enum(["off", "approval", "automatic"]),
     healthRebootCountdown: z.coerce.number().int().min(0).max(7),
     healthStableMinutes: z.coerce.number().int().min(5).max(1440),
+    executionAttemptRetentionDays: z.coerce.number().int().min(7).max(3650),
+    executionResultRetentionDays: z.coerce.number().int().min(7).max(3650),
   })
   .refine((d) => d.threatsyncMinScore <= d.threatsyncMaxScore, {
     message: "Skor minimum tidak boleh melebihi maksimum.",
+  })
+  .refine((d) => d.executionAttemptRetentionDays <= d.executionResultRetentionDays, {
+    message: "Retensi attempt tidak boleh melebihi retensi result.",
   });
 
 export async function saveEpdrSettings(prevState: unknown, formData: FormData) {
@@ -138,6 +149,8 @@ export async function saveEpdrSettings(prevState: unknown, formData: FormData) {
     healthRebootMode: String(formData.get("healthRebootMode") ?? "approval"),
     healthRebootCountdown: String(formData.get("healthRebootCountdown") ?? "7"),
     healthStableMinutes: String(formData.get("healthStableMinutes") ?? "60"),
+    executionAttemptRetentionDays: String(formData.get("executionAttemptRetentionDays") ?? "90"),
+    executionResultRetentionDays: String(formData.get("executionResultRetentionDays") ?? "180"),
   });
 
   if (!parsed.success) {
@@ -165,6 +178,8 @@ export async function saveEpdrSettings(prevState: unknown, formData: FormData) {
     healthRebootMode: d.healthRebootMode,
     healthRebootCountdown: d.healthRebootCountdown,
     healthStableMinutes: d.healthStableMinutes,
+    executionAttemptRetentionDays: d.executionAttemptRetentionDays,
+    executionResultRetentionDays: d.executionResultRetentionDays,
     updatedBy: guard.session.userId,
     updatedAt: new Date(),
   };

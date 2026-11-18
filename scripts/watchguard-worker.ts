@@ -7,6 +7,8 @@ type WorkerDependencies = {
   getConnections: () => Promise<WorkerConnection[]>;
   processReadSyncRequests?: () => Promise<void>;
   processNotifications?: () => Promise<void>;
+  /** Best-effort liveness upsert after every pass (ran/failed). */
+  recordHeartbeat?: (ran: boolean, failed: boolean) => Promise<void>;
 };
 
 const LOOP_MS = 60_000;
@@ -28,6 +30,14 @@ export async function runWorker(args: string[], dependencies: WorkerDependencies
   const onlyArg = args.find((arg) => arg.startsWith("--only="));
   const runPass = createWorkerRunner(dependencies, onlyArg?.slice("--only=".length));
   const runOnce = args.includes("--run-once");
+  const recordHeartbeat = async (ran: boolean, failed: boolean) => {
+    try {
+      await dependencies.recordHeartbeat?.(ran, failed);
+    } catch {
+      // A heartbeat failure must never take the worker down.
+      console.error("[watchguard-worker] heartbeat upsert failed");
+    }
+  };
   do {
     try {
       let auxiliaryFailed = false;
@@ -50,10 +60,12 @@ export async function runWorker(args: string[], dependencies: WorkerDependencies
       }
       const result = await runPass();
       console.log(`[watchguard-worker] pass complete: ${result.ran} ran, ${result.failed} failed`);
+      await recordHeartbeat(true, result.failed > 0 || auxiliaryFailed);
       if (runOnce) return result.failed > 0 || auxiliaryFailed ? 1 : 0;
     } catch {
       // Never emit raw provider/DB errors: they may contain credentials or URLs.
       console.error("[watchguard-worker] pass failed");
+      await recordHeartbeat(false, true);
       if (runOnce) return 1;
     }
     await new Promise((resolve) => setTimeout(resolve, LOOP_MS));
@@ -62,13 +74,22 @@ export async function runWorker(args: string[], dependencies: WorkerDependencies
 
 async function main(): Promise<number> {
   await import("dotenv/config");
-  const [{ eq }, { db }, { watchguardConnections }, { EPDR_JOBS, runPendingReadSyncRequests, runLocalNotificationPass }] = await Promise.all([
+  const [{ eq, sql }, { db }, { watchguardConnections }, { EPDR_JOBS, runPendingReadSyncRequests, runLocalNotificationPass }] = await Promise.all([
     import("drizzle-orm"), import("@/db"), import("@/db/schema"), import("@/lib/epdr/jobs"),
   ]);
+  const workerId = `worker:${process.pid}`;
   return runWorker(process.argv.slice(2), {
     jobs: EPDR_JOBS,
     processReadSyncRequests: runPendingReadSyncRequests,
     processNotifications: runLocalNotificationPass,
+    recordHeartbeat: async (ran, failed) => {
+      await db.execute(sql`
+        INSERT INTO epdr_worker_heartbeats (worker_id, last_pass_at, last_pass_ran, last_pass_failed, updated_at)
+        VALUES (${workerId}, clock_timestamp(), ${ran}, ${failed}, clock_timestamp())
+        ON CONFLICT (worker_id) DO UPDATE SET
+          last_pass_at = clock_timestamp(), last_pass_ran = ${ran}, last_pass_failed = ${failed},
+          updated_at = clock_timestamp()`);
+    },
     getConnections: () => db
       .select({ id: watchguardConnections.id, endpointSyncMinutes: watchguardConnections.endpointSyncMinutes, detectionSyncMinutes: watchguardConnections.detectionSyncMinutes })
       .from(watchguardConnections)

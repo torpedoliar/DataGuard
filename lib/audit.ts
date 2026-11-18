@@ -24,7 +24,9 @@ export type AuditAction =
     // Finding #59: fire-and-forget Telegram alert sends (checklist & incident
     // notifications) are audited with chatId + success/failure so outbound
     // notifications leave a trail even though they never block the caller.
-    | "TELEGRAM_SEND";
+    | "TELEGRAM_SEND"
+    // Provider-execution request lifecycle (create/approve/reject/review).
+    | "EPDR_EXECUTION";
 
 export type AuditEntity =
     | "device"
@@ -54,7 +56,10 @@ export type AuditEntity =
     | "ncm_backup"
     | "ncm_baseline"
     | "ncm_review"
-    | "ncm_credential";
+    | "ncm_credential"
+    | "epdr_action"
+    // ThreatSync target confirmation/rejection (operator decisions).
+    | "provider_target";
 
 export interface AuditParams {
     action: AuditAction;
