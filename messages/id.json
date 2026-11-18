@@ -292,7 +292,8 @@
         "outdated": "Perlu pembaruan",
         "unlinked": "Belum terkait aset",
         "unknown_contact": "Kontak belum diketahui"
-      }
+      },
+      "deviceType": "Jenis device"
     },
     "syncV2": {
       "title": "Baca data perangkat terbaru",
@@ -647,9 +648,9 @@
       "apiKeyLabel": "API key",
       "apiKeyHint": "Kunci bersama dari WatchGuard Cloud.",
       "roTitle": "Kredensial baca-saja",
-      "roHint": "Dipakai sekarang, karena dc-check hanya membaca data.",
+      "roHint": "Diutamakan untuk pembacaan terjadwal. Jika pasangan baca-saja tidak dikonfigurasi, pembacaan memakai pasangan baca-tulis lengkap. Mengganti Access ID wajib disertai password pasangannya.",
       "rwTitle": "Kredensial baca-tulis",
-      "rwHint": "Belum dipakai — disimpan untuk update berikutnya. Simpan di bagian Lanjutan.",
+      "rwHint": "Diperlukan untuk perubahan provider yang disetujui secara terpisah dan untuk pembacaan hanya jika pasangan baca-saja tidak dikonfigurasi. Tes koneksi ini tidak mengirim perintah perubahan.",
       "advanced": "Lanjutan: kredensial baca-tulis",
       "accessIdLabel": "Access ID",
       "passwordLabel": "Password",
@@ -658,7 +659,7 @@
       "testing": "Mengetes…",
       "testPass": "Semua pemeriksaan lolos.",
       "testFail": "Sebagian pemeriksaan gagal — lihat daftar.",
-      "testHint": "dc-check memeriksa login, akun, data perangkat, dan data ancaman secara terpisah.",
+      "testHint": "Simpan dan tes setelah mengubah rincian koneksi. Login baru diperiksa terlebih dahulu, lalu data akun, perangkat, dan ancaman. Ini tidak memverifikasi izin mengirim perintah perubahan.",
       "activateTitle": "Aktifkan & atur frekuensi pembaruan",
       "syncLabel": "Frekuensi pembaruan",
       "syncHint": "Seberapa sering dc-check membaca data terbaru dari WatchGuard.",
@@ -674,7 +675,27 @@
       "doneTitle": "Site terhubung",
       "doneBody": "Data WatchGuard kini akan muncul di halaman Endpoint Security dan Threats.",
       "clearSecrets": "Hapus kredensial tersimpan",
-      "customMinutes": "Setiap {n} menit"
+      "customMinutes": "Setiap {n} menit",
+      "passed": "OK",
+      "failed": "Gagal",
+      "skipped": "Tidak diuji",
+      "stage": "Tahap",
+      "httpStatus": "HTTP",
+      "readResults": "Pemeriksaan koneksi baca",
+      "writeResults": "Kredensial baca-tulis: hanya tes login dan pembacaan",
+      "source": "Sumber kredensial",
+      "credentialSource": {
+        "ro": "Baca-saja (RO)",
+        "rw": "Baca-tulis (RW; juga dipakai membaca jika RO tidak dikonfigurasi)"
+      },
+      "resolveReason": {
+        "not_configured": "Rincian koneksi atau kredensial yang dapat didekripsi belum tersedia.",
+        "disabled": "Koneksi dijeda; sinkronisasi background berhenti.",
+        "missing_write_credentials": "Pasangan RW lengkap belum dikonfigurasi. Pembacaan RO tetap dapat diaktifkan; perubahan tidak tersedia.",
+        "unknown_region": "Pilih region WatchGuard yang didukung.",
+        "partial_read_credentials": "Kredensial RO belum lengkap. Isi Access ID dan password pasangannya bersama-sama."
+      },
+      "testStale": "Rincian koneksi berubah atau hasil tes sudah kedaluwarsa. Simpan dan tes kembali sebelum mengaktifkan."
     },
     "service": {
       "auth": "Login",

@@ -201,6 +201,7 @@ export default function EndpointFleet({
   const [page, setPage] = useState(1);
   const [group, setGroup] = useState("");
   const [os, setOs] = useState("");
+  const [deviceType, setDeviceType] = useState<FleetQuery["deviceType"]>("");
   const [sort, setSort] = useState<FleetQuery["sort"]>("name");
   const [result, setResult] = useState<EpdrEndpointPage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -210,7 +211,7 @@ export default function EndpointFleet({
     let active = true;
     const timer = setTimeout(async () => {
       try {
-        const data = await getEpdrEndpointPage({ page, query, filter, group, os, sort });
+        const data = await getEpdrEndpointPage({ page, query, filter, group, os, deviceType, sort });
         if (!active) return;
         if ("message" in data) { setError(true); setResult(null); }
         else { setError(false); setResult(data); }
@@ -218,7 +219,7 @@ export default function EndpointFleet({
       finally { if (active) setLoading(false); }
     }, 250);
     return () => { active = false; clearTimeout(timer); };
-  }, [page, query, filter, group, os, sort, retry, endpoints]);
+  }, [page, query, filter, group, os, deviceType, sort, retry, endpoints]);
   function changeFilter(next: Filter) {
     if (next === filter && page === 1) return;
     setLoading(true); setFilter(next); setPage(1);
@@ -338,15 +339,35 @@ export default function EndpointFleet({
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 xl:max-w-3xl">
-            {(["group", "os", "sort"] as const).map((field) => (
-              <label key={field} className="flex min-w-0 items-center gap-2 text-xs">
-                <span className="shrink-0 text-ops-muted">{v(field)}</span>
-                <select value={field === "group" ? group : field === "os" ? os : sort} className="ops-input h-8 min-w-0 flex-1 px-2 text-xs" onChange={(event) => { setLoading(true); setPage(1); if (field === "group") setGroup(event.target.value); else if (field === "os") setOs(event.target.value); else setSort(event.target.value as FleetQuery["sort"]); }}>
-                  {field === "sort" ? <><option value="name">{v("name")}</option><option value="contact">{v("contact")}</option></> : <><option value="">{v("any")}</option>{(field === "group" ? groupOptions : osOptions).map((value) => <option key={value}>{value}</option>)}</>}
-                </select>
-              </label>
-            ))}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:max-w-4xl">
+            <label className="flex min-w-0 items-center gap-2 text-xs">
+              <span className="shrink-0 text-ops-muted">{v("group")}</span>
+              <select value={group} className="ops-input h-8 min-w-0 flex-1 px-2 text-xs" onChange={(event) => { setLoading(true); setPage(1); setGroup(event.target.value); }}>
+                <option value="">{v("any")}</option>
+                {groupOptions.map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="flex min-w-0 items-center gap-2 text-xs">
+              <span className="shrink-0 text-ops-muted">{v("os")}</span>
+              <select value={os} className="ops-input h-8 min-w-0 flex-1 px-2 text-xs" onChange={(event) => { setLoading(true); setPage(1); setOs(event.target.value); }}>
+                <option value="">{v("any")}</option>
+                {osOptions.map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="flex min-w-0 items-center gap-2 text-xs">
+              <span className="shrink-0 text-ops-muted">{v("deviceType")}</span>
+              <select value={deviceType} className="ops-input h-8 min-w-0 flex-1 px-2 text-xs" onChange={(event) => { setLoading(true); setPage(1); setDeviceType(event.target.value as FleetQuery["deviceType"]); }}>
+                <option value="">{v("any")}</option>
+                {(["1", "2", "3", "4"] as const).map((value) => <option key={value} value={value}>{t(`deviceType.${value}`)}</option>)}
+              </select>
+            </label>
+            <label className="flex min-w-0 items-center gap-2 text-xs">
+              <span className="shrink-0 text-ops-muted">{v("sort")}</span>
+              <select value={sort} className="ops-input h-8 min-w-0 flex-1 px-2 text-xs" onChange={(event) => { setLoading(true); setPage(1); setSort(event.target.value as FleetQuery["sort"]); }}>
+                <option value="name">{v("name")}</option>
+                <option value="contact">{v("contact")}</option>
+              </select>
+            </label>
           </div>
         </div>
         {loading ? <div role="status" className="flex min-h-52 flex-col items-center justify-center gap-3 p-5 text-sm text-ops-muted"><LoaderCircle className="size-5 animate-spin" aria-hidden />{v("loading")}</div> : error ? <div role="alert" className="flex min-h-52 flex-col items-center justify-center gap-3 p-5 text-center"><CircleAlert className="size-6 text-ops-danger" aria-hidden /><p className="text-sm text-ops-danger">{v("error")}</p><button type="button" onClick={() => { setLoading(true); setRetry((n) => n + 1); }} className="inline-flex h-8 items-center gap-2 rounded-md border border-ops-border-strong px-3 text-xs font-medium text-ops-text transition-colors hover:bg-ops-surface-raised"><RefreshCw aria-hidden />{v("retry")}</button></div> : filtered.length === 0 ? <div className="flex min-h-52 flex-col items-center justify-center gap-3 px-5 py-10 text-center"><Search className="size-6 text-ops-subtle" aria-hidden /><p className="text-sm text-ops-muted">{t("endpoints.noResults")}</p></div> : (

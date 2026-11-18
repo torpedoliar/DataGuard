@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { encryptString } from "../crypto";
 import { resolveWatchGuardConnection, runServiceChecks, testConnection, type CheckTarget, type ResolvedConnection, type WatchGuardConnectionRow } from "./connection";
 import { WatchGuardError } from "./errors";
+import { authDeps, clearTokenCache, getToken } from "./auth";
+import { connectionTestDeps } from "./connection";
 
 const SECRET = "test-watchguard-encryption-secret-32-chars!";
 
@@ -128,7 +130,7 @@ describe("testConnection", () => {
     expect(result).toMatchObject({ configured: false, reason: "not_configured" });
   });
 
-  it("runs read checks only when RO and RW access ids match", async () => {
+  it("reuses identical complete credentials while reporting both modes", async () => {
     const deps = {
       resolve: vi.fn(async () => cred("same-access")),
       buildClient: vi.fn(() => ({})),
@@ -138,7 +140,8 @@ describe("testConnection", () => {
     expect(result).toMatchObject({ configured: true });
     if ("configured" in result && result.configured) {
       expect(result.read).toBeDefined();
-      expect(result.write).toBeUndefined();
+      expect(result.write).toEqual(result.read);
+      expect(deps.checkTarget).toHaveBeenCalledTimes(1);
     }
   });
 
@@ -153,5 +156,108 @@ describe("testConnection", () => {
       expect(result.read).toBeDefined();
       expect(result.write).toBeDefined();
     }
+  });
+});
+
+describe("offline diagnostic regressions", () => {
+  it.each([{ roAccessId: null }, { roPassword: null }, { roAccessId: "" }, { roPassword: "" }])("rejects partial RO without mixing or falling back: %j", async (partial) => {
+    getRow.mockResolvedValue(row(partial));
+    expect(await resolveWatchGuardConnection(1, { deps: { getRow } })).toEqual({ ok: false, reason: "partial_read_credentials" });
+  });
+
+  it("reports the actual fallback source", async () => {
+    getRow.mockResolvedValue(row({ roAccessId: null, roPassword: null }));
+    expect(await resolveWatchGuardConnection(1, { deps: { getRow } })).toMatchObject({ ok: true, credentialSource: "rw" });
+    getRow.mockResolvedValue(row());
+    expect(await resolveWatchGuardConnection(1, { deps: { getRow } })).toMatchObject({ ok: true, credentialSource: "ro" });
+  });
+
+  it("does not call REST after OAuth failure or expose raw exceptions", async () => {
+    const rest = vi.fn();
+    const result = await runServiceChecks({ getToken: () => { throw new WatchGuardError("auth", "raw body secret", { status: 401 }); }, getAccount: rest, getLicenses: rest, listIncidents: rest });
+    expect(rest).not.toHaveBeenCalled();
+    expect(result.auth).toMatchObject({ ok: false, stage: "oauth", status: 401 });
+    expect(result.account).toMatchObject({ ok: false, stage: "rest", skipped: true, status: null });
+    expect(JSON.stringify(result)).not.toContain("raw body secret");
+  });
+
+  it("waits for OAuth before starting REST", async () => {
+    let finish!: () => void;
+    const rest = vi.fn(async () => ({}));
+    const pending = runServiceChecks({ getToken: () => new Promise<void>((resolve) => { finish = resolve; }), getAccount: rest, getLicenses: rest, listIncidents: rest });
+    expect(rest).not.toHaveBeenCalled();
+    finish();
+    await pending;
+    expect(rest).toHaveBeenCalledTimes(3);
+  });
+
+  it("tests distinct passwords with the same ID and surfaces unresolved modes", async () => {
+    const resolved = async (password: string) => {
+      getRow.mockResolvedValue(row({ roAccessId: "same", rwAccessId: "same", roPassword: enc(password), rwPassword: enc("other") }));
+      return resolveWatchGuardConnection(1, { deps: { getRow } });
+    };
+    const a = await resolved("first");
+    const b = await resolved("second");
+    const target = vi.fn(() => ({ getToken: async () => ({}), getAccount: async () => ({}), getLicenses: async () => ({}), listIncidents: async () => ({}) }));
+    const resolve = vi.fn().mockResolvedValueOnce(a).mockResolvedValueOnce(b);
+    await testConnection(1, { ...connectionTestDeps, resolve, checkTarget: target });
+    expect(target).toHaveBeenCalledTimes(2);
+    resolve.mockResolvedValueOnce({ ok: false, reason: "partial_read_credentials" }).mockResolvedValueOnce(b);
+    const result = await testConnection(1, { ...connectionTestDeps, resolve, checkTarget: target });
+    expect(result).toMatchObject({ configured: true, unresolved: { read: "partial_read_credentials" }, read: { auth: { ok: false, skipped: true, stage: "resolve" } }, write: { auth: { ok: true } } });
+  });
+
+  it("shares fresh scoped OAuth with real REST probes without changing the normal cache", async () => {
+    clearTokenCache();
+    getRow.mockResolvedValue(row());
+    const resolved = await resolveWatchGuardConnection(1, { deps: { getRow } });
+    if (!resolved.ok) throw new Error("fixture");
+    let oauthCalls = 0;
+    const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).endsWith("/oauth/token")) {
+        oauthCalls++;
+        return new Response(JSON.stringify({ access_token: oauthCalls === 1 ? "normal" : "diagnostic", expires_in: 3600 }));
+      }
+      expect(init?.headers).toMatchObject({ Authorization: "Bearer diagnostic" });
+      const body = new URL(String(url)).pathname.endsWith("/incidents")
+        ? { items: [], count: 0 }
+        : { data: [] };
+      return new Response(JSON.stringify(body));
+    });
+    const originalAuthFetch = authDeps.fetch;
+    authDeps.fetch = fetch;
+    try {
+      await getToken(resolved.credentials, { credentialRevision: 3 });
+      const resolve = vi.fn(async () => resolved);
+      const result = await testConnection(1, {
+        ...connectionTestDeps,
+        resolve,
+        checkTarget: (credentials, options) => connectionTestDeps.checkTarget(credentials, { ...options, fetch }),
+      });
+      expect(result).toMatchObject({ configured: true, read: { auth: { ok: true }, account: { ok: true }, endpointSecurity: { ok: true }, threatSync: { ok: true } } });
+      expect(oauthCalls).toBe(2);
+      expect(fetch).toHaveBeenCalledTimes(5);
+      expect((await getToken(resolved.credentials, { credentialRevision: 3 })).token).toBe("normal");
+      expect(oauthCalls).toBe(2);
+    } finally { authDeps.fetch = originalAuthFetch; clearTokenCache(); }
+  });
+
+  it("fresh diagnostic OAuth bypasses a warm normal cache without replacing it", async () => {
+    clearTokenCache();
+    getRow.mockResolvedValue(row());
+    const resolved = await resolveWatchGuardConnection(1, { deps: { getRow } });
+    if (!resolved.ok) throw new Error("fixture");
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "normal", expires_in: 3600 }))).mockResolvedValue(new Response("raw sensitive body", { status: 401 }));
+    const original = authDeps.fetch;
+    authDeps.fetch = fetch;
+    try {
+      await getToken(resolved.credentials, { credentialRevision: 3 });
+      const resolve = vi.fn(async () => resolved);
+      const result = await testConnection(1, { ...connectionTestDeps, resolve });
+      expect(result).toMatchObject({ configured: true, read: { auth: { ok: false, status: 401 }, account: { skipped: true } } });
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect((await getToken(resolved.credentials, { credentialRevision: 3 })).token).toBe("normal");
+      expect(JSON.stringify(result)).not.toContain("raw sensitive body");
+    } finally { authDeps.fetch = original; clearTokenCache(); }
   });
 });

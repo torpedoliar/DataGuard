@@ -33,12 +33,14 @@ export type WatchGuardConnectionRow = {
   accountRevision: number;
 };
 
-export type ResolveReason = "not_configured" | "disabled" | "missing_write_credentials" | "unknown_region";
+export type CredentialSource = "ro" | "rw";
+export type ResolveReason = "not_configured" | "disabled" | "missing_write_credentials" | "unknown_region" | "partial_read_credentials";
 
 export type ResolvedConnection =
   | {
       ok: true;
       credentials: WatchGuardCredentials;
+      credentialSource?: CredentialSource;
       credentialRevision: number;
       accountRevision: number;
       region: WatchGuardRegion;
@@ -92,8 +94,14 @@ export async function resolveWatchGuardConnection(
   if (!row.enabled && !options.allowDisabled) return { ok: false, reason: "disabled" };
   if (!row.region || !isWatchGuardRegion(row.region)) return { ok: false, reason: "unknown_region" };
 
-  const accessId = mode === "write" ? row.rwAccessId : (row.roAccessId ?? row.rwAccessId);
-  const passwordCipher = mode === "write" ? row.rwPassword : (row.roPassword ?? row.rwPassword);
+  const hasRoId = Boolean(row.roAccessId);
+  const hasRoPassword = Boolean(row.roPassword);
+  if (mode === "read" && hasRoId !== hasRoPassword) {
+    return { ok: false, reason: "partial_read_credentials" };
+  }
+  const credentialSource: CredentialSource = mode === "read" && hasRoId && hasRoPassword ? "ro" : "rw";
+  const accessId = credentialSource === "ro" ? row.roAccessId : row.rwAccessId;
+  const passwordCipher = credentialSource === "ro" ? row.roPassword : row.rwPassword;
 
   if (!row.accountId || !accessId || !passwordCipher) {
     return { ok: false, reason: mode === "write" ? "missing_write_credentials" : "not_configured" };
@@ -110,6 +118,7 @@ export async function resolveWatchGuardConnection(
 
   return {
     ok: true,
+    credentialSource,
     region: row.region,
     accountId: row.accountId,
     credentialRevision: row.credentialRevision,
@@ -120,7 +129,11 @@ export async function resolveWatchGuardConnection(
 
 // ---- Connection test -------------------------------------------------------
 
-export type ServiceTest = { ok: boolean; status: number | null; kind: string | null; message: string };
+export type ServiceTest = {
+  ok: boolean; status: number | null; kind: string | null; message: string;
+  stage?: "oauth" | "rest" | "resolve";
+  skipped?: boolean;
+};
 export type ServiceChecks = { auth: ServiceTest; account: ServiceTest; endpointSecurity: ServiceTest; threatSync: ServiceTest };
 
 export type CheckTarget = {
@@ -130,32 +143,44 @@ export type CheckTarget = {
   listIncidents(): Promise<unknown>;
 };
 
-async function toServiceTest(promise: Promise<unknown>): Promise<ServiceTest> {
-  return promise
-    .then(() => ({ ok: true, status: 200, kind: null, message: "OK" }))
-    .catch((error) => {
-      if (error instanceof WatchGuardError) {
-        return { ok: false, status: error.status, kind: error.kind, message: error.message };
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      return { ok: false, status: null, kind: "network", message };
-    });
+async function toServiceTest(check: () => Promise<unknown>, stage: "oauth" | "rest"): Promise<ServiceTest> {
+  try {
+    await check();
+    return { ok: true, status: 200, kind: null, message: "OK", stage };
+  } catch (error) {
+    // Provider bodies and arbitrary exception messages are not safe UI output.
+    const status = error instanceof WatchGuardError ? error.status : null;
+    const kind = error instanceof WatchGuardError ? error.kind : "network";
+    return { ok: false, status, kind, stage, message: `${stage === "oauth" ? "OAuth" : "REST"} check failed${status !== null ? ` (HTTP ${status})` : ""}.` };
+  }
 }
 
-/** Run the four service checks independently so one failure is visible per-service. */
+/** Authenticate first; only independent REST probes run concurrently. */
 export async function runServiceChecks(target: CheckTarget): Promise<ServiceChecks> {
-  const [auth, account, endpointSecurity, threatSync] = await Promise.all([
-    toServiceTest(target.getToken()),
-    toServiceTest(target.getAccount()),
-    toServiceTest(target.getLicenses()),
-    toServiceTest(target.listIncidents()),
+  const auth = await toServiceTest(() => target.getToken(), "oauth");
+  if (!auth.ok) {
+    const skipped: ServiceTest = {
+      ok: false, status: null, kind: auth.kind, stage: "rest", skipped: true,
+      message: "REST check skipped because OAuth authentication failed.",
+    };
+    return { auth, account: { ...skipped }, endpointSecurity: { ...skipped }, threatSync: { ...skipped } };
+  }
+  const [account, endpointSecurity, threatSync] = await Promise.all([
+    toServiceTest(() => target.getAccount(), "rest"),
+    toServiceTest(() => target.getLicenses(), "rest"),
+    toServiceTest(() => target.listIncidents(), "rest"),
   ]);
   return { auth, account, endpointSecurity, threatSync };
 }
 
-export type ConnectionTestResult =
+export type ConnectionTestMetadata = {
+  credentialSources?: { read?: CredentialSource; write?: CredentialSource };
+  unresolved?: { read?: ResolveReason; write?: ResolveReason };
+};
+export type ConnectionTestResult = ConnectionTestMetadata & (
   | { configured: false; reason: ResolveReason }
-  | { configured: true; read?: ServiceChecks; write?: ServiceChecks };
+  | { configured: true; read?: ServiceChecks; write?: ServiceChecks }
+);
 
 export type ConnectionTestDeps = {
   resolve(siteId: number, options: { mode: ConnectionMode; allowDisabled: true }): Promise<ResolvedConnection>;
@@ -184,16 +209,35 @@ export async function testConnection(
   const read = await deps.resolve(siteId, { mode: "read", allowDisabled: true });
   const write = await deps.resolve(siteId, { mode: "write", allowDisabled: true });
 
+  const unresolved: NonNullable<ConnectionTestMetadata["unresolved"]> = {};
+  if (!read.ok) unresolved.read = read.reason;
+  if (!write.ok) unresolved.write = write.reason;
   if (!read.ok && !write.ok) {
-    return { configured: false, reason: read.reason };
+    return { configured: false, reason: read.reason, unresolved };
   }
 
-  const result: ConnectionTestResult = { configured: true };
-  if (read.ok) {
-    result.read = await runServiceChecks(deps.checkTarget(read.credentials, { credentialRevision: read.credentialRevision }));
+  const result: ConnectionTestResult = { configured: true, credentialSources: {}, unresolved };
+  function unresolvedChecks(reason: ResolveReason): ServiceChecks {
+    const check: ServiceTest = { ok: false, status: null, kind: "unresolved", message: `Credentials unresolved: ${reason}.`, stage: "resolve", skipped: true };
+    return { auth: { ...check }, account: { ...check }, endpointSecurity: { ...check }, threatSync: { ...check } };
   }
-  if (write.ok && (!read.ok || write.credentials.accessId !== read.credentials.accessId)) {
-    result.write = await runServiceChecks(deps.checkTarget(write.credentials, { credentialRevision: write.credentialRevision }));
+  async function checks(resolved: ResolvedConnection): Promise<ServiceChecks> {
+    if (!resolved.ok) return unresolvedChecks(resolved.reason);
+    // A new scope guarantees fresh OAuth without disturbing worker tokens.
+    return runServiceChecks(deps.checkTarget(resolved.credentials, {
+      credentialRevision: resolved.credentialRevision, cacheScope: {},
+    }));
   }
+  result.read = await checks(read);
+  if (read.ok && read.credentialSource) result.credentialSources!.read = read.credentialSource;
+  if (write.ok && write.credentialSource) result.credentialSources!.write = write.credentialSource;
+  const sameCredentials = read.ok && write.ok
+    && read.credentialRevision === write.credentialRevision
+    && read.credentials.region === write.credentials.region
+    && read.credentials.accountId === write.credentials.accountId
+    && read.credentials.accessId === write.credentials.accessId
+    && read.credentials.password === write.credentials.password
+    && read.credentials.apiKey === write.credentials.apiKey;
+  result.write = sameCredentials ? result.read : await checks(write);
   return result;
 }

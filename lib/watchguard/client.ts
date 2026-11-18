@@ -58,6 +58,8 @@ export type WatchGuardClientOptions = {
   sleep?: (ms: number) => Promise<void>;
   /** Material change in stored credentials; invalidates cached tokens. */
   credentialRevision?: number;
+  /** Isolated token cache shared only within one connection diagnostic. */
+  cacheScope?: object;
 };
 
 function defaultSleep(ms: number): Promise<void> {
@@ -206,7 +208,7 @@ export function createWatchGuardClient(creds: WatchGuardCredentials, options: Wa
     assertWatchGuardRequest("GET", url);
 
     const key = authCacheKey(creds, revision);
-    const tokenOpts = { credentialRevision: revision, fetch: fetchImpl, now };
+    const tokenOpts = { credentialRevision: revision, fetch: fetchImpl, now, cacheScope: options.cacheScope };
     let token = (await getToken(creds, tokenOpts)).token;
     let refreshed = false;
 
@@ -220,7 +222,7 @@ export function createWatchGuardClient(creds: WatchGuardCredentials, options: Wa
             ? error
             : new WatchGuardError("network", redactWatchGuard(String(error), { password: creds.password, token }));
         if (err.kind === "auth" && !refreshed) {
-          invalidateToken(key);
+          invalidateToken(key, options.cacheScope);
           token = (await getToken(creds, tokenOpts)).token;
           refreshed = true;
           continue;

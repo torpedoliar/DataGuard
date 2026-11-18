@@ -332,6 +332,7 @@ export async function getEpdrEndpointPage(input: FleetQuery): Promise<EpdrEndpoi
   if (q.filter === "unlinked") predicates.push(isNull(epdrEndpoints.deviceId));
   if (q.group) predicates.push(eq(epdrEndpoints.groupPath, q.group));
   if (q.os) predicates.push(eq(epdrEndpoints.operatingSystem, q.os));
+  if (q.deviceType) predicates.push(eq(epdrEndpoints.deviceType, Number(q.deviceType)));
   if (q.query) {
     const pattern = `%${q.query.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
     predicates.push(sql`(${epdrEndpoints.hostName} ilike ${pattern} or ${epdrEndpoints.ipAddress} ilike ${pattern})`);

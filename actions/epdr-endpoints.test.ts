@@ -113,7 +113,7 @@ describe("epdr-endpoints site isolation", () => {
 });
 
 describe("fleet paging and context guards", () => {
-  const input = { page: 1, query: "", filter: "all" as const, group: "", os: "", sort: "name" as const };
+  const input = { page: 1, query: "", filter: "all" as const, group: "", os: "", deviceType: "" as const, sort: "name" as const };
 
   it("rejects revoked membership before reading inventory", async () => {
     mocks.requireSiteAccess.mockResolvedValue(false);
@@ -145,6 +145,21 @@ describe("fleet paging and context guards", () => {
     expect(count.params).toContain(String.raw`%host\%\_%`);
     expect(count.params).toContain("Production");
     expect(count.params).toContain("Linux");
+  });
+
+  it("applies the device type filter to both count and table reads", async () => {
+    mocks.selectQueue = [[{ total: 0 }], []];
+    await getEpdrEndpointPage({ ...input, deviceType: "3" });
+    const dialect = new PgDialect();
+    const count = dialect.sqlToQuery(mocks.predicates[1] as SQL);
+    const table = dialect.sqlToQuery(mocks.predicates[2] as SQL);
+    expect(table).toEqual(count);
+    expect(count.sql).toContain('"epdr_endpoints"."device_type" = $4');
+    expect(count.params).toContain(3);
+  });
+
+  it("rejects an invalid device type value", async () => {
+    expect(await getEpdrEndpointPage({ ...input, deviceType: "9" as never })).toEqual({ message: "Invalid fleet filters." });
   });
 
   it.each([null, { id: 12, accountRevision: 3, enabled: false, accountId: "account" },

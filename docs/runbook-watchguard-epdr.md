@@ -76,7 +76,19 @@ errors into logs, tickets or chat.
 
 ## 5. Secret rotation / account change
 
-- Blank secret fields preserve stored values; non-blank = rotate (bumps `credential_revision`, invalidates tokens/tests). Explicit clear is a separate action.
+- Blank secret fields preserve stored values; non-blank = rotate (bumps `credential_revision`, invalidates tokens/tests). Replacing an Access ID requires its matching password in the same save. Explicit clear removes both RO/RW pairs and the API key, pauses the connection, and invalidates its test result.
+- Read resolution uses one complete credential pair: prefer RO, or use RW only when both RO fields are absent. A partial RO pair is a configuration error, not permission to mix credentials or silently retry with RW.
+
+### Connection troubleshooting after deployment
+
+1. Check whether the site connection is **enabled** before diagnosing credentials. Testing an existing connection must preserve its enabled state; testing a new connection leaves it as a draft. A paused connection is intentionally excluded from background ingestion.
+2. Run **Save & test connection** after any credential/account change. The diagnostic requests a fresh OAuth token before probing REST services. Old results and results from another credential/account revision must not be used as activation evidence.
+3. Interpret the stage, source and HTTP status, not just `auth`: an OAuth failure prevents REST probes, so skipped account/device/threat checks are not three additional provider permission failures. Read source can be RO or explicitly labelled RW fallback.
+4. OAuth uses the regional `/oauth/token` URL with Basic Access ID/password and `client_credentials` / `api-access`; Account ID and API key are used by REST, not the token request. If OAuth passes but a REST probe fails, investigate that service's account access, API key and entitlement. A 400/401 category alone does not prove a password is wrong.
+5. The RW diagnostic performs authentication and GET probes only. Passing it does **not** verify mutation permission or authorize writes. Never enable provider-write gates as a connection workaround.
+6. Keep credentials out of shell history, tickets and screenshots. Rotate exposed credentials using the encrypted settings form. Do not repeatedly retry rejected passwords or silently switch failed RO authentication to RW.
+
+These steps describe operator checks after the patch is deployed; local mock tests do not establish that production credentials are accepted by WatchGuard.
 - Changing region/account bumps `account_revision`, disables dispatch and requires retest; old inventory/evidence is preserved, never migrated to the new account.
 
 ## 6. Modes and progression

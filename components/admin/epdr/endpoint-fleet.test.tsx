@@ -90,7 +90,7 @@ function click(tree: ReactElement, label: string) {
   if (!target.props.disabled) (target.props.onClick as () => void)();
   return render();
 }
-function change(tree: ReactElement, field: "search" | "group" | "os" | "sort", value: string) {
+function change(tree: ReactElement, field: "search" | "group" | "os" | "sort" | "deviceType", value: string) {
   const target = field === "search"
     ? elements(tree).find((node) => node.type === "input" && node.props.type === "search")
     : elements(tree).find((node) => node.type === "label" && text(node.props.children).startsWith(field));
@@ -147,7 +147,7 @@ describe("EndpointFleet server-side list", () => {
     expect(loading(render())).toBe(true);
     expect(state.getPage).not.toHaveBeenCalled();
     let tree = await load();
-    expect(state.getPage).toHaveBeenCalledExactlyOnceWith({ page: 1, query: "", filter: "all", group: "", os: "", sort: "name" });
+    expect(state.getPage).toHaveBeenCalledExactlyOnceWith({ page: 1, query: "", filter: "all", group: "", os: "", deviceType: "", sort: "name" });
     expect(rows(tree)).toHaveLength(50);
     expect(text(rows(tree))).toContain("endpoint-1");
     expect(text(rows(tree))).not.toContain("endpoint-900");
@@ -186,7 +186,7 @@ describe("EndpointFleet server-side list", () => {
   });
 
   it.each([
-    ["group", "Headquarters"], ["os", "Windows"], ["sort", "contact"], ["search", "needle"],
+    ["group", "Headquarters"], ["os", "Windows"], ["deviceType", "3"], ["deviceType", ""], ["sort", "contact"], ["search", "needle"],
   ] as const)("resets page on %s changes and forwards the value", async (field, value) => {
     change(await secondPage(), field, value);
     await vi.advanceTimersByTimeAsync(250);
@@ -198,6 +198,7 @@ describe("EndpointFleet server-side list", () => {
     let tree = await load();
     tree = change(tree, "group", "Headquarters");
     tree = change(tree, "os", "Windows");
+    tree = change(tree, "deviceType", "3");
     tree = change(tree, "sort", "contact");
     tree = click(tree, "filters.offline");
     tree = change(tree, "search", "a");
@@ -208,8 +209,14 @@ describe("EndpointFleet server-side list", () => {
     expect(loading(tree)).toBe(true);
     await vi.advanceTimersByTimeAsync(1);
     expect(state.getPage).toHaveBeenCalledTimes(2);
-    expect(state.getPage).toHaveBeenLastCalledWith({ page: 1, query: "ab", filter: "offline", group: "Headquarters", os: "Windows", sort: "contact" });
+    expect(state.getPage).toHaveBeenLastCalledWith({ page: 1, query: "ab", filter: "offline", group: "Headquarters", os: "Windows", deviceType: "3", sort: "contact" });
     expect(loading(render())).toBe(false);
+    click(render(), "next");
+    await vi.advanceTimersByTimeAsync(250);
+    expect(state.getPage).toHaveBeenLastCalledWith({ page: 2, query: "ab", filter: "offline", group: "Headquarters", os: "Windows", deviceType: "3", sort: "contact" });
+    change(render(), "deviceType", "");
+    await vi.advanceTimersByTimeAsync(250);
+    expect(state.getPage).toHaveBeenLastCalledWith({ page: 1, query: "ab", filter: "offline", group: "Headquarters", os: "Windows", deviceType: "", sort: "contact" });
   });
 
   it.each(["success", "action error", "rejection"])("ignores a stale %s while the newer request is pending", async (outcome) => {

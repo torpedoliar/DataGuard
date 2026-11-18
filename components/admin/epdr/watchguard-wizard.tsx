@@ -10,13 +10,34 @@ import { saveWatchGuardConnection, saveWatchGuardGlobal, testWatchGuardConnectio
 import type { WatchGuardGlobalConfig, WatchGuardSettingsData, WatchGuardSiteConfig } from "@/actions/watchguard-settings";
 import { EPDR_ACTION_TYPES } from "@/lib/epdr/action-types";
 
-type ServiceTest = { ok: boolean; status: number | null; kind: string | null; message: string };
+type ServiceTest = { ok: boolean; status: number | null; kind: string | null; message: string; stage?: string; skipped?: boolean };
 type Checks = { auth: ServiceTest; account: ServiceTest; endpointSecurity: ServiceTest; threatSync: ServiceTest };
-type TestResult = { configured?: boolean; read?: Checks; write?: Checks };
+type TestResult = { configured?: boolean; read?: Checks; write?: Checks; credentialRevision?: number; accountRevision?: number; credentialSources?: { read?: "ro" | "rw"; write?: "ro" | "rw" }; unresolved?: { read?: string; write?: string }; reason?: string };
 
-function readChecks(value: unknown): Checks | null {
-  const r = value as TestResult | null;
-  return r?.read ?? null;
+function CredentialDetails({ result, mode }: { result: TestResult; mode: "read" | "write" }) {
+  const t = useTranslations("Epdr");
+  const source = result.credentialSources?.[mode];
+  const reason = result.unresolved?.[mode] ?? (!result.configured ? result.reason : undefined);
+  const knownReason = reason && ["not_configured", "disabled", "missing_write_credentials", "unknown_region", "partial_read_credentials"].includes(reason);
+  return <p className="text-xs text-ops-muted">
+    {(source === "ro" || source === "rw") && <span>{t("settings.source")}: {t(`settings.credentialSource.${source}`)}</span>}
+    {knownReason && <span>{t(`settings.resolveReason.${reason}`)}</span>}
+  </p>;
+}
+
+const SENSITIVE_FIELDS = ["watchguardApiKey", "watchguardRoAccessId", "watchguardRoPassword", "watchguardRwAccessId", "watchguardRwPassword"];
+const CONNECTION_FIELDS = ["watchguardRegion", "watchguardAccountId", ...SENSITIVE_FIELDS];
+
+function connectionValues(form: HTMLFormElement) {
+  const data = new FormData(form);
+  return JSON.stringify(CONNECTION_FIELDS.map((name) => data.get(name) ?? ""));
+}
+
+function clearSensitiveFields(form: HTMLFormElement) {
+  for (const name of SENSITIVE_FIELDS) {
+    const input = form.elements.namedItem(name);
+    if (input instanceof HTMLInputElement) input.value = "";
+  }
 }
 
 const REGION_LABEL: Record<string, string> = {
@@ -75,15 +96,19 @@ function Checklist({ checks }: { checks: Checks }) {
             <span
               className={clsx(
                 "flex size-5 shrink-0 items-center justify-center rounded-full",
-                check.ok ? "bg-ops-success-soft text-ops-success" : "bg-ops-danger-soft text-ops-danger",
+                check.skipped ? "bg-ops-surface-raised text-ops-muted" : check.ok ? "bg-ops-success-soft text-ops-success" : "bg-ops-danger-soft text-ops-danger",
               )}
               aria-hidden
             >
               {check.ok ? <Check className="size-3.5" /> : <CircleAlert className="size-3.5" />}
             </span>
             <span className="flex-1 text-[13px] text-ops-text">{t(`service.${s}`)}</span>
-            <span className={clsx("text-[12.5px]", check.ok ? "text-ops-success" : "text-ops-danger")}>
-              {check.ok ? "OK" : (check.kind ?? "failed")}
+            <span className={clsx("text-[12.5px]", check.skipped ? "text-ops-muted" : check.ok ? "text-ops-success" : "text-ops-danger")}>
+              {check.skipped ? t("settings.skipped") : check.ok ? t("settings.passed") : t("settings.failed")}
+              {check.stage && ["oauth", "rest", "resolve"].includes(check.stage) && (
+                <span className="ml-2">{t("settings.stage")}: {check.stage}</span>
+              )}
+              {typeof check.status === "number" && <span className="ml-2">{t("settings.httpStatus")}: {check.status}</span>}
               {!check.ok && check.kind === "invalid_response" &&
                 /^WatchGuard incidents?: (invalid field type \((?:id|category|type|threatScore|threat_score|severity|status|entities|recommended_actions|remediated|item|count)\)|missing items or groups\._default array)$/.test(check.message) && (
                   <span className="mt-1 block max-w-72 text-xs">{check.message}</span>
@@ -104,9 +129,34 @@ function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () =
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [tested, setTested] = useState(false);
+  const [invalidated, setInvalidated] = useState(false);
+  const observedValues = useRef<string | null>(null);
+  const editVersion = useRef(0);
+  const [supersededResult, setSupersededResult] = useState<unknown>(undefined);
 
-  const checks = readChecks(site.lastTestResult);
-  const allPassed = checks ? Object.values(checks).every((c) => c.ok) : false;
+  const result = site.lastTestResult as TestResult | null;
+  const currentTest = !invalidated && site.lastTestResult !== supersededResult && result?.credentialRevision === site.credentialRevision &&
+    result?.accountRevision === site.accountRevision && Number.isInteger(result?.credentialRevision) &&
+    Number.isInteger(result?.accountRevision);
+  const checks = currentTest ? result?.read : undefined;
+  const checksPassed = (group: Checks | undefined) => Boolean(group &&
+    (["auth", "account", "endpointSecurity", "threatSync"] as const).every((key) => {
+      const check = group[key];
+      return check?.ok === true && !check.skipped;
+    }));
+  // RO-only installations may activate reads, but configured RW credentials
+  // must pass too; an unrelated successful read test cannot hide RW failure.
+  const allPassed = checksPassed(checks) && (!site.rwConfigured || checksPassed(result?.write));
+
+  const observeEdits = () => {
+    const values = connectionValues(formRef.current!);
+    if (observedValues.current !== values) {
+      observedValues.current = values;
+      editVersion.current += 1;
+      setInvalidated(true);
+      setTested(false);
+    }
+  };
   const steps = [t("settings.step1"), t("settings.step2"), t("settings.step3"), t("settings.step4")];
 
   const formData = (extra: Record<string, string> = {}) => {
@@ -118,20 +168,42 @@ function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () =
   const saveThenTest = () =>
     startTransition(async () => {
       setError(null);
-      const saved = await saveWatchGuardConnection(null, formData({ watchguardEnabled: "" }));
-      if (saved.message && !saved.success) {
-        setError(saved.message);
+      setInvalidated(true);
+      setSupersededResult(site.lastTestResult);
+      const version = editVersion.current;
+      const saved = await saveWatchGuardConnection(null, formData({ watchguardEnabled: site.enabled ? "on" : "" }));
+      if (!saved.success) {
+        setError(saved.message ?? t("settings.testFail"));
         return;
       }
-      const res = await testWatchGuardConnection(null, formData());
+      // Saved secrets are now stored server-side. Never send them again when
+      // activating: even an unchanged submitted secret advances its revision.
+      if (version === editVersion.current) {
+        clearSensitiveFields(formRef.current!);
+        observedValues.current = connectionValues(formRef.current!);
+      }
+      const testData = new FormData();
+      testData.set("watchguardSiteId", String(site.siteId));
+      const res = await testWatchGuardConnection(null, testData);
       if (res.message) setError(res.ok ? null : res.message);
-      setTested(true);
+      if (version === editVersion.current) {
+        setTested(true);
+        // Errors before a result is persisted carry no tested revisions. Do
+        // not let refreshed (potentially old) props restore activation then.
+        setInvalidated(!("testedCredentialRevision" in res && "testedAccountRevision" in res &&
+          Number.isInteger(res.testedCredentialRevision) && Number.isInteger(res.testedAccountRevision)));
+      }
       router.refresh();
     });
 
   const finish = (enabled: boolean) =>
     startTransition(async () => {
       setError(null);
+      if (enabled && (!allPassed || observedValues.current !== connectionValues(formRef.current!))) {
+        setInvalidated(true);
+        setError(t("settings.testStale"));
+        return;
+      }
       const res = await saveWatchGuardConnection(null, formData({ watchguardEnabled: enabled ? "on" : "" }));
       if (res.message && !res.success) setError(res.message);
       else {
@@ -148,8 +220,15 @@ function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () =
     startTransition(async () => {
       setError(null);
       const res = await clearWatchGuardSecrets(null, formData());
-      if (res.message && !res.success) setError(res.message);
-      else router.refresh();
+      if (!res.success) setError(res.message ?? t("settings.testFail"));
+      else {
+        clearSensitiveFields(formRef.current!);
+        observedValues.current = connectionValues(formRef.current!);
+        editVersion.current += 1;
+        setInvalidated(true);
+        setTested(false);
+        router.refresh();
+      }
     });
 
   if (step === 5) {
@@ -215,7 +294,10 @@ function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () =
       </ol>
 
       {/* One form holds every field across steps so moving back and forth never loses input. */}
-      <form ref={formRef} className="p-5" onSubmit={(e) => e.preventDefault()}>
+      <form ref={(form) => {
+        formRef.current = form;
+        if (form && observedValues.current === null) observedValues.current = connectionValues(form);
+      }} className="p-5" onChange={observeEdits} onSubmit={(e) => e.preventDefault()}>
         <input type="hidden" name="watchguardSiteId" value={site.siteId} />
 
         <div hidden={step !== 1} className="max-w-xl space-y-4">
@@ -293,9 +375,18 @@ function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () =
               <p className={clsx("text-[13px] font-medium", allPassed ? "text-ops-success" : "text-ops-warning")}>
                 {allPassed ? t("settings.testPass") : t("settings.testFail")}
               </p>
+              <h4 className="text-sm font-medium text-ops-text">{t("settings.readResults")}</h4>
+              <CredentialDetails result={result!} mode="read" />
               <Checklist checks={checks} />
+              {result?.write && <>
+                <h4 className="text-sm font-medium text-ops-text">{t("settings.writeResults")}</h4>
+                <CredentialDetails result={result} mode="write" />
+                <Checklist checks={result.write} />
+              </>}
             </>
           )}
+          {currentTest && result?.configured === false && <CredentialDetails result={result} mode="read" />}
+          {!currentTest && (result || invalidated) && <p className="text-[13px] text-ops-warning">{t("settings.testStale")}</p>}
           {tested && !checks && <p className="text-[13px] text-ops-muted">{t("settings.testHint")}</p>}
         </div>
 

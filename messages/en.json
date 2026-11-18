@@ -292,7 +292,8 @@
         "outdated": "Updates needed",
         "unlinked": "No linked asset",
         "unknown_contact": "Contact unknown"
-      }
+      },
+      "deviceType": "Device type"
     },
     "syncV2": {
       "title": "Read the latest device data",
@@ -647,9 +648,9 @@
       "apiKeyLabel": "API key",
       "apiKeyHint": "A shared key from WatchGuard Cloud.",
       "roTitle": "Read-only credentials",
-      "roHint": "Used for everything right now, since dc-check only reads data.",
+      "roHint": "Preferred for scheduled reads. If no read-only pair is configured, reads use the complete read-write pair. Changing an Access ID requires its matching password.",
       "rwTitle": "Read-write credentials",
-      "rwHint": "Not used yet — saved for a future update. Keep it in the Advanced section.",
+      "rwHint": "Required for separately approved provider writes and used for reads only when no read-only pair is configured. This connection test sends no write commands.",
       "advanced": "Advanced: read-write credentials",
       "accessIdLabel": "Access ID",
       "passwordLabel": "Password",
@@ -658,7 +659,7 @@
       "testing": "Testing…",
       "testPass": "All checks passed.",
       "testFail": "Some checks failed — see the list.",
-      "testHint": "dc-check checks login, account, device data and threat data separately.",
+      "testHint": "Save and test after editing connection details. A fresh login is checked first, then account, device and threat data. This does not verify permission to send write commands.",
       "activateTitle": "Turn on & set how often to refresh",
       "syncLabel": "Refresh rate",
       "syncHint": "How often dc-check reads fresh data from WatchGuard.",
@@ -674,7 +675,27 @@
       "doneTitle": "Site connected",
       "doneBody": "WatchGuard data will now appear on the Endpoint Security and Threats pages.",
       "clearSecrets": "Clear saved credentials",
-      "customMinutes": "Every {n} minutes"
+      "customMinutes": "Every {n} minutes",
+      "passed": "OK",
+      "failed": "Failed",
+      "skipped": "Not tested",
+      "stage": "Stage",
+      "httpStatus": "HTTP",
+      "readResults": "Read connection checks",
+      "writeResults": "Read-write credentials: login and read checks only",
+      "source": "Credential source",
+      "credentialSource": {
+        "ro": "Read-only (RO)",
+        "rw": "Read-write (RW; also used for reads when RO is absent)"
+      },
+      "resolveReason": {
+        "not_configured": "Connection details or decryptable credentials are missing.",
+        "disabled": "This connection is paused; background sync is stopped.",
+        "missing_write_credentials": "No complete RW pair is configured. RO reads can still be enabled; writes are unavailable.",
+        "unknown_region": "Select a supported WatchGuard region.",
+        "partial_read_credentials": "RO credentials are incomplete. Enter the matching Access ID and password together."
+      },
+      "testStale": "Connection details changed or this result is outdated. Save and test again before activating."
     },
     "service": {
       "auth": "Login",

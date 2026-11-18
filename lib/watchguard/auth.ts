@@ -21,6 +21,25 @@ type CacheEntry = { token: string; expiresAt: number };
 const tokenCache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<TokenResult>>();
 
+/** A diagnostic's tokens never read, overwrite, or invalidate normal tokens. */
+const scopedCaches = new WeakMap<object, { tokenCache: typeof tokenCache; inFlight: typeof inFlight }>();
+
+export type AuthOptions = AuthDeps & {
+  credentialRevision?: number;
+  fresh?: boolean;
+  cacheScope?: object;
+};
+
+function cacheFor(scope?: object) {
+  if (!scope) return { tokenCache, inFlight };
+  let cache = scopedCaches.get(scope);
+  if (!cache) {
+    cache = { tokenCache: new Map(), inFlight: new Map() };
+    scopedCaches.set(scope, cache);
+  }
+  return cache;
+}
+
 export type AuthDeps = {
   fetch?: typeof fetch;
   now?: () => number;
@@ -108,12 +127,16 @@ export const authDeps: Required<AuthDeps> = {
  */
 export async function getToken(
   creds: WatchGuardCredentials,
-  options: { credentialRevision?: number; fetch?: typeof fetch; now?: () => number } = {},
+  options: AuthOptions = {},
 ): Promise<TokenResult> {
   const deps: Required<AuthDeps> = {
     fetch: options.fetch ?? authDeps.fetch,
     now: options.now ?? authDeps.now,
   };
+  // A standalone fresh request is deliberately uncached. A diagnostic can
+  // instead share an isolated scope with its subsequent REST checks.
+  if (options.fresh) return requestToken(creds, deps);
+  const { tokenCache, inFlight } = cacheFor(options.cacheScope);
   const key = authCacheKey(creds, options.credentialRevision ?? 0);
 
   const cached = tokenCache.get(key);
@@ -138,8 +161,8 @@ export async function getToken(
 }
 
 /** Drop a cached token so the next `getToken` issues a fresh one. */
-export function invalidateToken(key: string): void {
-  tokenCache.delete(key);
+export function invalidateToken(key: string, cacheScope?: object): void {
+  cacheFor(cacheScope).tokenCache.delete(key);
 }
 
 /** Test/worker helper: clear the whole in-memory cache and pending requests. */

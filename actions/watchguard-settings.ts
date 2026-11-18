@@ -174,6 +174,12 @@ export async function saveWatchGuardConnection(prevState: unknown, formData: For
 
     const [existing] = await db.select().from(watchguardConnections).where(eq(watchguardConnections.siteId, d.siteId)).limit(1);
 
+    // A different access ID must never inherit the old identity's password.
+    if ((d.rwAccessId !== "" && d.rwAccessId !== existing?.rwAccessId && d.rwPassword === "") ||
+        (d.roAccessId !== "" && d.roAccessId !== existing?.roAccessId && d.roPassword === "")) {
+      return { message: "Password baru wajib diisi saat mengganti Access ID RO/RW." };
+    }
+
     // Blank fields preserve stored values; validate each effective pair so a
     // partial RO pair cannot accidentally fall back to an unrelated RW secret.
     const rwAccessId = d.rwAccessId !== "" ? d.rwAccessId : existing?.rwAccessId ?? null;
@@ -206,6 +212,7 @@ export async function saveWatchGuardConnection(prevState: unknown, formData: For
       roPassword: d.roPassword !== "" ? encryptString(d.roPassword) : existing?.roPassword ?? null,
       credentialRevision: credentialChanged ? (existing?.credentialRevision ?? 0) + 1 : (existing?.credentialRevision ?? 0),
       accountRevision: accountChanged ? (existing?.accountRevision ?? 0) + 1 : (existing?.accountRevision ?? 0),
+      ...(accountChanged || credentialChanged ? { lastTestAt: null, lastTestResult: null } : {}),
       updatedAt: new Date(),
     };
 
@@ -240,7 +247,18 @@ export async function clearWatchGuardSecrets(prevState: unknown, formData: FormD
 
     await db
       .update(watchguardConnections)
-      .set({ apiKey: null, rwPassword: null, roPassword: null, credentialRevision: existing.credentialRevision + 1, updatedAt: new Date() })
+      .set({
+        enabled: false,
+        apiKey: null,
+        rwAccessId: null,
+        rwPassword: null,
+        roAccessId: null,
+        roPassword: null,
+        credentialRevision: existing.credentialRevision + 1,
+        lastTestAt: null,
+        lastTestResult: null,
+        updatedAt: new Date(),
+      })
       .where(eq(watchguardConnections.id, existing.id));
 
     revalidatePath("/admin/settings");
@@ -260,45 +278,85 @@ export async function testWatchGuardConnection(prevState: unknown, formData: For
   if (!parsed.success) return { ok: false, message: "Site ID tidak valid." };
 
   const siteId = parsed.data.siteId;
-  const [row] = await db.select().from(watchguardConnections).where(eq(watchguardConnections.siteId, siteId)).limit(1);
-  if (!row) return { ok: false, message: "Belum ada koneksi: simpan dulu (boleh dalam keadaan nonaktif/draft)." };
-
   try {
-    const result = await testConnection(siteId);
+    const [row] = await db.select().from(watchguardConnections).where(eq(watchguardConnections.siteId, siteId)).limit(1);
+    if (!row) return { ok: false, message: "Belum ada koneksi: simpan dulu (boleh dalam keadaan nonaktif/draft)." };
 
+    const result = await testConnection(siteId);
+    const testedCredentialRevision = row.credentialRevision;
+    const testedAccountRevision = row.accountRevision;
     const summary = toTestSummary(result);
-    await db
+    const stored = await db
       .update(watchguardConnections)
-      .set({ lastTestAt: new Date(), lastTestResult: safeJson(result), updatedAt: new Date() })
-      .where(eq(watchguardConnections.id, row.id));
+      .set({
+        lastTestAt: new Date(),
+        lastTestResult: safeJson({ ...result, credentialRevision: testedCredentialRevision, accountRevision: testedAccountRevision }),
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(watchguardConnections.id, row.id),
+        eq(watchguardConnections.credentialRevision, testedCredentialRevision),
+        eq(watchguardConnections.accountRevision, testedAccountRevision),
+      ))
+      .returning({ id: watchguardConnections.id });
 
     revalidatePath("/admin/settings");
+    if (stored.length === 0) {
+      return { ok: false, message: "Pengaturan koneksi berubah selama tes. Jalankan tes kembali." };
+    }
     await logAudit({ action: "TEST", entity: "settings", entityName: "WatchGuard Connection", entityId: siteId, detail: "Per-service connection test" });
 
-    return { ok: "configured" in result && result.configured ? isAllOk(result) : false, message: summary };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Tes koneksi gagal." };
+    return {
+      ok: "configured" in result && result.configured ? isAllOk(result) : false,
+      message: summary,
+      testedCredentialRevision,
+      testedAccountRevision,
+    };
+  } catch {
+    return { ok: false, message: "Tes koneksi gagal. Silakan coba lagi." };
   }
 }
 
-function isAllOk(result: { read?: ServiceChecks; write?: ServiceChecks }): boolean {
-  const all = (checks?: ServiceChecks) => checks && Object.values(checks).every((s) => s.ok);
-  return Boolean(all(result.read) && (!result.write || all(result.write)));
+function isAllOk(result: Awaited<ReturnType<typeof testConnection>>): boolean {
+  if (!result.configured || result.unresolved?.read) return false;
+  const all = (checks?: ServiceChecks) => checks && Object.values(checks).every((s) => s.ok && !s.skipped);
+  if (!all(result.read)) return false;
+  // A read-only setup is valid: missing RW credentials are not a failed probe.
+  if (result.unresolved?.write === "missing_write_credentials") return true;
+  if (result.unresolved?.write) return false;
+  return Boolean(!result.write || all(result.write));
 }
 
 function toTestSummary(result: Awaited<ReturnType<typeof testConnection>>): string {
-  if (!("configured" in result) || !result.configured) {
-    return "Tidak dapat mengetes: koneksi belum layak.";
-  }
+  // Never include provider messages or arbitrary exception text in the summary.
+  const safeReason = (reason: string) => [
+    "not_configured", "disabled", "missing_write_credentials", "unknown_region", "partial_read_credentials",
+  ].includes(reason) ? reason : "unresolved";
   const parts: string[] = [];
-  const addChecks = (label: string, checks: ServiceChecks) => {
-    for (const [svc, s] of Object.entries(checks)) {
-      parts.push(`${label}:${svc}=${s.ok ? "OK" : `gagal(${s.kind})`}`);
+  if (!result.configured) {
+    parts.push(`Tidak dapat mengetes: koneksi belum layak (${safeReason(result.reason)}).`);
+  }
+  for (const mode of ["read", "write"] as const) {
+    const label = mode === "read" ? "RO" : "RW";
+    const source = result.credentialSources?.[mode];
+    if (source === "ro" || source === "rw") parts.push(`${label}:source=${source.toUpperCase()}`);
+    const unresolved = result.unresolved?.[mode];
+    if (unresolved) parts.push(`${label}:unresolved=${safeReason(unresolved)}`);
+    const checks = result.configured ? result[mode] : undefined;
+    if (!checks) continue;
+    for (const svc of ["auth", "account", "endpointSecurity", "threatSync"] as const) {
+      const s = checks[svc];
+      if (!s) continue;
+      const details: string[] = [];
+      if (s.stage === "oauth" || s.stage === "rest" || s.stage === "resolve") details.push(`stage=${s.stage}`);
+      if (typeof s.status === "number" && Number.isInteger(s.status) && s.status >= 100 && s.status <= 599) details.push(`HTTP ${s.status}`);
+      if (s.kind && ["auth", "forbidden", "not_found", "rate_limited", "server", "network", "timeout", "invalid_response", "read_only_blocked", "unresolved"].includes(s.kind)) {
+        details.push(`kind=${s.kind}`);
+      }
+      parts.push(`${label}:${svc}=${s.skipped ? "SKIPPED" : s.ok ? "OK" : "gagal"}${details.length ? `(${details.join(", ")})` : ""}`);
     }
-  };
-  if (result.read) addChecks("RO", result.read);
-  if (result.write) addChecks("RW", result.write);
-  return parts.join(" · ") || "Semua layanan OK";
+  }
+  return parts.join(" · ") || "Tidak ada hasil tes layanan.";
 }
 
 function safeJson(value: unknown): unknown {

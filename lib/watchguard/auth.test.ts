@@ -49,6 +49,30 @@ describe("getToken — request shape", () => {
   });
 });
 
+describe("getToken — diagnostic isolation", () => {
+  it("fresh requests neither read nor overwrite normal cached tokens", async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(tokenJson("normal")).mockResolvedValueOnce(tokenJson("fresh"));
+    await getToken(creds, { fetch });
+    expect((await getToken(creds, { fetch, fresh: true })).token).toBe("fresh");
+    expect((await getToken(creds, { fetch })).token).toBe("normal");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("isolates scopes including refresh invalidation and failed credentials sharing an ID", async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(tokenJson("normal")).mockResolvedValueOnce(tokenJson("diagnostic"))
+      .mockResolvedValueOnce(new Response("private body", { status: 401 })).mockResolvedValueOnce(tokenJson("refreshed"));
+    const scope = {};
+    await getToken(creds, { fetch });
+    expect((await getToken(creds, { fetch, cacheScope: scope })).token).toBe("diagnostic");
+    expect((await getToken(creds, { fetch, cacheScope: scope })).token).toBe("diagnostic");
+    await expect(getToken({ ...creds, password: "different" }, { fetch, cacheScope: {} })).rejects.toMatchObject({ status: 401 });
+    invalidateToken(authCacheKey(creds), scope);
+    expect((await getToken(creds, { fetch, cacheScope: scope })).token).toBe("refreshed");
+    expect((await getToken(creds, { fetch })).token).toBe("normal");
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+});
+
 describe("getToken — caching and concurrency", () => {
   it("reuses the cached token and does not re-fetch", async () => {
     const fetchMock = vi.fn(async () => tokenJson("tok-1"));
