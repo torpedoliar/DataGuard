@@ -122,7 +122,7 @@ function GenerateAiAnalysisForm({ finding }: { finding: SiemFindingRow }) {
         <input type="hidden" name="id" value={finding.id} />
         <ActionButton type="submit" size="sm" variant="secondary" isPending={isPending}>AI Analysis</ActionButton>
       </form>
-      {state?.message && !state.success && <p className="text-xs text-ops-danger">{state.message}</p>}
+      {state?.message && !state.success && <p className="max-w-56 break-words text-xs text-ops-danger">{state.message}</p>}
       {blocked && (
         <p className="text-xs text-ops-warning" title={lastRegeneratedAt ? `Last regenerated ${lastRegeneratedAt}` : undefined}>
           Last regenerated {formatRelativeCooldown(finding.aiGeneratedAt)} (cooldown {cooldownSec ?? "?"}s, try in {cooldownRemainingSec ?? "?"}s).

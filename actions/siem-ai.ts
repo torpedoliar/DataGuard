@@ -106,7 +106,9 @@ export async function generateSiemAiAnalysis(prevState: unknown, formData: FormD
     maxRawLength: settings.aiMaxRawLength,
   });
   if (!result.ok) {
-    return { message: result.error === "AI provider failed" ? "SIEM AI provider failed to generate analysis." : (result.error ?? "SIEM AI failed.") };
+    // Surface the provider's reason (HTTP status + message) so an incompatible
+    // response shape or rejected parameter is diagnosable from the UI.
+    return { message: `SIEM AI gagal: ${result.error ?? "unknown error"}` };
   }
   revalidatePath("/admin/siem/findings");
   void logAudit; // logAudit is invoked inside the lib helper.

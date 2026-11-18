@@ -1,11 +1,15 @@
-// PHASE 1 DIAGNOSTIC — capture the REAL provider content that fails to parse,
-// and run a copy of the current extractor against it to discriminate:
-//   - extractor OK here but prod fails -> stale deployment chunk (root cause = build)
-//   - extractor FAILS here             -> real extractor bug (we now have the bytes)
+// SIEM AI ROUTER DIAGNOSTIC — capture exactly what the configured
+// OpenAI-compatible router returns for the request the app sends. The current
+// parser accepts chat.completion envelopes, SSE, Responses API shapes, and
+// Anthropic content blocks; this script prints the raw shape so any remaining
+// incompatibility is visible without guessing.
 //
-// No rebuild needed. Run inside container:
+// No rebuild needed. Run inside the container:
 //   docker cp scripts/debug-siem-ai-content.js dccheck_app:/app/scripts/debug-siem-ai-content.js
 //   docker exec dccheck_app node scripts/debug-siem-ai-content.js
+//
+// Routers that only accept stream:true:
+//   docker exec dccheck_app node scripts/debug-siem-ai-content.js --stream
 const fs = require("fs");
 const { Pool } = require("pg");
 
@@ -19,39 +23,8 @@ function buildDatabaseUrl(env = process.env) {
   return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${name}`;
 }
 
-// EXACT copy of the current production extractor (keep in sync to test it).
-function extractFirstJsonObject(content) {
-  const trimmed = content.trim();
-  try {
-    return { value: JSON.parse(trimmed), path: "direct" };
-  } catch {}
-  const fenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
-  try {
-    return { value: JSON.parse(fenced.trim()), path: "fenced" };
-  } catch {}
-  const source = fenced;
-  const start = source.indexOf("{");
-  if (start === -1) throw new Error("no JSON object");
-  let depth = 0, inString = false, escaped = false;
-  for (let i = start; i < source.length; i += 1) {
-    const ch = source[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') inString = true;
-    else if (ch === "{") depth += 1;
-    else if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) return { value: JSON.parse(source.slice(start, i + 1)), path: "balanced@" + (i + 1) };
-    }
-  }
-  throw new Error("unbalanced JSON object");
-}
-
 async function main() {
+  const forceStream = process.argv.includes("--stream");
   const pool = new Pool({ connectionString: buildDatabaseUrl() });
   const [s] = (await pool.query(
     "select ai_endpoint_url, ai_default_model, ai_api_key from siem_settings order by id limit 1",
@@ -64,126 +37,56 @@ async function main() {
   const headers = { "Content-Type": "application/json" };
   if (s.ai_api_key && s.ai_api_key.trim()) headers.Authorization = "Bearer " + s.ai_api_key.trim();
 
-  // Realistic prompt that elicits a LARGE strict-JSON response, mirroring the
-  // real SIEM analysis request (5 keys, arrays, detailed evidence).
+  // Realistic prompt that elicits a strict-JSON answer, mirroring the app.
   const prompt = [
     "You are a defensive SIEM analyst. Return strict JSON with keys: summary, likelyCause, impact, recommendedActions, evidence.",
-    "recommendedActions and evidence must be arrays of strings. Be detailed and thorough with at least 6 evidence items.",
+    "recommendedActions and evidence must be arrays of strings.",
     "Finding: Power supply failure on CORE SWITCH X930, severity Critical, 1 event observed.",
-    "Provide a comprehensive analysis as json.",
+    "Provide a concise analysis as json.",
   ].join("\n");
 
-  console.log("POST", ep, "model", s.ai_default_model);
-  const resp = await fetch(ep, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: s.ai_default_model,
-      messages: [
-        { role: "system", content: "You produce evidence-only defensive SIEM analysis as strict JSON." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-    }),
-  });
+  // Same minimal body the app sends: no temperature, no response_format.
+  const body = {
+    model: s.ai_default_model,
+    messages: [
+      { role: "system", content: "You produce evidence-only defensive SIEM analysis as strict JSON." },
+      { role: "user", content: prompt },
+    ],
+    stream: forceStream,
+  };
+
+  console.log("POST", ep, "model", s.ai_default_model, "stream", forceStream);
+  const resp = await fetch(ep, { method: "POST", headers, body: JSON.stringify(body) });
   console.log("HTTP", resp.status, "content-type:", resp.headers.get("content-type"));
 
-  // Read the RAW body first — the failure is in parsing THIS envelope.
-  const rawBody = await resp.text();
-  fs.writeFileSync("/tmp/siem-raw-body.txt", rawBody);
-  console.log("raw body length:", rawBody.length);
+  const raw = await resp.text();
+  fs.writeFileSync("/tmp/siem-raw-body.txt", raw);
+  console.log("raw body length:", raw.length, "(saved to /tmp/siem-raw-body.txt)");
+  console.log("---- first 1200 chars ----");
+  console.log(raw.slice(0, 1200));
+
+  console.log("---- detected shape ----");
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("data:") || trimmed.includes("\ndata:")) {
+    console.log("SSE stream: data: event lines");
+  }
   try {
-    JSON.parse(rawBody);
-    console.log("ENVELOPE JSON.parse: OK");
-  } catch (e) {
-    console.log("ENVELOPE JSON.parse: FAILS ->", e.message, "  <<< THIS is the real bug");
-    const m = /position (\d+)/.exec(e.message);
-    if (m) {
-      const p = Number(m[1]);
-      console.log("---- envelope bytes around", p, "----");
-      console.log(JSON.stringify(rawBody.slice(Math.max(0, p - 80), p + 80)));
-      console.log("---- char codes at boundary ----");
-      console.log([...rawBody.slice(p - 2, p + 6)].map((c) => c.charCodeAt(0)));
+    const parsed = JSON.parse(trimmed);
+    console.log("single JSON object, keys:", Object.keys(parsed).join(", "));
+    if (Array.isArray(parsed.choices)) {
+      const choice = parsed.choices[0] || {};
+      console.log("choices[0] keys:", Object.keys(choice).join(", "));
+      console.log("message keys:", choice.message ? Object.keys(choice.message).join(", ") : "(none)");
+      console.log("finish_reason:", choice.finish_reason);
     }
-  }
-
-  // Mirror the SHIPPED parser (parseChatCompletionBody) to prove the live
-  // response now parses end-to-end.
-  function readChoiceContent(parsed) {
-    const c = parsed.choices?.[0];
-    return c?.message?.content ?? c?.delta?.content ?? "";
-  }
-  function parseChatCompletionBody(raw) {
-    const t = raw.trim();
-    if (!t) throw new Error("empty");
-    if (!t.includes("data:")) return readChoiceContent(JSON.parse(t));
-    let streamed = "", lastMessage = "", sawChunk = false;
-    for (const line of t.split(/\r?\n/)) {
-      const tr = line.trim();
-      if (!tr.startsWith("data:")) continue;
-      const p = tr.slice(5).trim();
-      if (!p || p === "[DONE]") continue;
-      let parsed;
-      try { parsed = JSON.parse(p); } catch { continue; }
-      sawChunk = true;
-      const c = parsed.choices?.[0];
-      if (c?.delta?.content) streamed += c.delta.content;
-      if (c?.message?.content) lastMessage = c.message.content;
+    if (parsed.error) console.log("provider error:", JSON.stringify(parsed.error).slice(0, 300));
+    if (typeof parsed.output_text === "string") console.log("OpenAI Responses shape (output_text)");
+    if (Array.isArray(parsed.output)) console.log("OpenAI Responses shape (output[])");
+    if (Array.isArray(parsed.content) || typeof parsed.content === "string") {
+      console.log("content-block / unwrapped shape");
     }
-    if (!sawChunk) {
-      const idx = t.indexOf("data:");
-      const head = idx > 0 ? t.slice(0, idx).trim() : "";
-      if (head) return readChoiceContent(JSON.parse(head));
-    }
-    const content = streamed || lastMessage;
-    if (!content) throw new Error("empty content");
-    return content;
-  }
-
-  let content;
-  try {
-    content = parseChatCompletionBody(rawBody);
-    console.log("SHIPPED PARSER: OK -> content length", content.length);
-  } catch (e) {
-    console.log("SHIPPED PARSER: FAILS ->", e.message, "(raw body saved to /tmp/siem-raw-body.txt)");
-    return;
-  }
-  if (typeof content !== "string") {
-    console.log("NO STRING CONTENT. Full response:");
-    console.log(JSON.stringify(data, null, 2).slice(0, 1500));
-    return;
-  }
-
-  fs.writeFileSync("/tmp/siem-content.txt", content);
-  console.log("content length:", content.length);
-  console.log("---- first 120 chars ----");
-  console.log(JSON.stringify(content.slice(0, 120)));
-  console.log("---- last 200 chars ----");
-  console.log(JSON.stringify(content.slice(-200)));
-
-  // Does a naive parse reproduce the prod error?
-  try {
-    JSON.parse(content);
-    console.log("NAIVE JSON.parse: OK (so trailing text is NOT the issue here)");
-  } catch (e) {
-    console.log("NAIVE JSON.parse: FAILS ->", e.message);
-    const m = /position (\d+)/.exec(e.message);
-    if (m) {
-      const p = Number(m[1]);
-      console.log("---- bytes around position", p, "----");
-      console.log(JSON.stringify(content.slice(Math.max(0, p - 60), p + 60)));
-    }
-  }
-
-  // Does the CURRENT extractor handle it?
-  try {
-    const r = extractFirstJsonObject(content);
-    console.log("EXTRACTOR: OK via", r.path, "-> keys:", Object.keys(r.value));
-    console.log(">> If prod still fails on this, root cause = STALE DEPLOYMENT, not the code.");
-  } catch (e) {
-    console.log("EXTRACTOR: FAILS ->", e.message);
-    console.log(">> Real extractor bug. Full content saved to /tmp/siem-content.txt");
+  } catch {
+    console.log("body is not a single JSON document (SSE or concatenated)");
   }
 }
 

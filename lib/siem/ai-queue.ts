@@ -113,7 +113,11 @@ export async function generateSiemAiAnalysisForFinding(
     return { ok: true };
   } catch (error) {
     console.error("SIEM AI analysis failed", error);
-    return { ok: false, error: "AI provider failed" };
+    // Keep the provider's own wording (e.g. "HTTP 400: ... does not support
+    // 'system'") so the operator and the ai_jobs row show why it failed
+    // instead of an opaque "AI provider failed".
+    const reason = error instanceof Error ? error.message.trim() : "";
+    return { ok: false, error: (reason || "AI provider failed").slice(0, 300) };
   }
 }
 

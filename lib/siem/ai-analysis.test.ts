@@ -6,6 +6,17 @@ describe("SIEM AI analysis", () => {
     expect(normalizeOpenAiCompatibleEndpoint("https://api.9router.example/v1")).toBe("https://api.9router.example/v1/chat/completions");
     expect(normalizeOpenAiCompatibleEndpoint("https://api.9router.example/v1/chat/completions")).toBe("https://api.9router.example/v1/chat/completions");
     expect(normalizeOpenAiCompatibleEndpoint(" ")).toBeNull();
+    expect(normalizeOpenAiCompatibleEndpoint(null)).toBeNull();
+  });
+
+  it("keeps query strings after the appended chat path (Azure/gateway style)", () => {
+    expect(
+      normalizeOpenAiCompatibleEndpoint("https://gw.example/openai/deployments/d1?api-version=2024-10-21"),
+    ).toBe("https://gw.example/openai/deployments/d1/chat/completions?api-version=2024-10-21");
+    // A URL that already is a chat endpoint keeps its query untouched.
+    expect(
+      normalizeOpenAiCompatibleEndpoint("https://gw.example/v1/chat/completions?api-version=1"),
+    ).toBe("https://gw.example/v1/chat/completions?api-version=1");
   });
 
   it("omits the Authorization header when no api key is provided", async () => {
@@ -105,6 +116,197 @@ describe("SIEM AI analysis", () => {
 
   it("parseChatCompletionBody throws on empty body", () => {
     expect(() => parseChatCompletionBody("   ")).toThrow();
+  });
+
+  it("parses content returned as an array of content parts (Chat Completions spec)", () => {
+    const body = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: [{ type: "text", text: '{"summary":"parts"}' }] } }],
+    });
+    expect(parseChatCompletionBody(body)).toBe('{"summary":"parts"}');
+  });
+
+  it("parses concatenated content parts and array-shaped stream deltas", () => {
+    const body = JSON.stringify({
+      choices: [{ message: { content: [{ type: "text", text: '{"sum' }, { type: "text", text: 'mary":"x"}' }] } }],
+    });
+    expect(parseChatCompletionBody(body)).toBe('{"summary":"x"}');
+
+    const chunk = (delta: unknown) => `data: ${JSON.stringify({ choices: [{ delta: { content: delta } }] })}\n\n`;
+    const sse = chunk([{ type: "text", text: '{"sum' }]) + chunk([{ type: "text", text: 'mary":"y"}' }]) + "data: [DONE]\n\n";
+    expect(parseChatCompletionBody(sse)).toBe('{"summary":"y"}');
+  });
+
+  it("falls back to reasoning_content when content is null", () => {
+    const body = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: null, reasoning_content: '{"summary":"from reasoning"}' } }],
+    });
+    expect(parseChatCompletionBody(body)).toBe('{"summary":"from reasoning"}');
+  });
+
+  it("uses refusal text when the model refuses to answer", () => {
+    const body = JSON.stringify({ choices: [{ message: { content: null, refusal: "I cannot help with that." } }] });
+    expect(parseChatCompletionBody(body)).toBe("I cannot help with that.");
+  });
+
+  it("does not mis-route a JSON body to the SSE parser just because content contains 'data:'", () => {
+    // Regression: the old fast-path test was `text.includes("data:")`, so any
+    // analysis text containing "data:" made JSON.parse run on an SSE-truncated
+    // slice and threw a SyntaxError.
+    const body = JSON.stringify({
+      choices: [{ message: { content: '{"summary":"raw log data: 10.0.0.1 -> 10.0.0.2"}' } }],
+    });
+    expect(parseChatCompletionBody(body)).toBe('{"summary":"raw log data: 10.0.0.1 -> 10.0.0.2"}');
+  });
+
+  it("accepts an unwrapped analysis object from thin proxies", () => {
+    const body = JSON.stringify({ summary: "direct", likelyCause: "x", impact: "y", recommendedActions: [], evidence: [] });
+    expect(parseChatCompletionBody(body)).toBe(body);
+  });
+
+  it("reads the OpenAI Responses shape returned by Codex-backed routers", () => {
+    expect(parseChatCompletionBody(JSON.stringify({
+      object: "response",
+      output_text: '{"summary":"responses-api"}',
+      output: [{ type: "message", content: [{ type: "output_text", text: '{"summary":"responses-api"}' }] }],
+    }))).toBe('{"summary":"responses-api"}');
+
+    // Without the convenience `output_text` field.
+    expect(parseChatCompletionBody(JSON.stringify({
+      object: "response",
+      output: [{ type: "message", content: [{ type: "output_text", text: '{"summary":"nested"}' }] }],
+    }))).toBe('{"summary":"nested"}');
+  });
+
+  it("reads an Anthropic-style content block body from a translating router", () => {
+    const body = JSON.stringify({
+      id: "msg_1",
+      type: "message",
+      role: "assistant",
+      content: [{ type: "text", text: '{"summary":"anthropic"}' }],
+    });
+    expect(parseChatCompletionBody(body)).toBe('{"summary":"anthropic"}');
+  });
+
+  it("reassembles Responses API text-delta events and Anthropic content deltas", () => {
+    const event = (value: unknown) => `data: ${JSON.stringify(value)}\n\n`;
+
+    const responses = event({ type: "response.created" })
+      + event({ type: "response.output_text.delta", delta: '{"summary":' })
+      + event({ type: "response.output_text.delta", delta: '"responses-stream"}' })
+      + event({ type: "response.completed", response: { output_text: '{"summary":"responses-stream"}' } })
+      + "data: [DONE]\n\n";
+    expect(parseChatCompletionBody(responses)).toBe('{"summary":"responses-stream"}');
+
+    const anthropic = event({ type: "message_start", message: { id: "m1" } })
+      + event({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })
+      + event({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: '{"summary":"claude-stream"}' } })
+      + event({ type: "message_stop" });
+    expect(parseChatCompletionBody(anthropic)).toBe('{"summary":"claude-stream"}');
+  });
+
+  it("uses the completed Responses object when the stream carried no deltas", () => {
+    const event = (value: unknown) => `data: ${JSON.stringify(value)}\n\n`;
+    const body = event({ type: "response.created" })
+      + event({ type: "response.completed", response: { output_text: '{"summary":"only-done"}' } })
+      + "data: [DONE]\n\n";
+    expect(parseChatCompletionBody(body)).toBe('{"summary":"only-done"}');
+  });
+
+  it("raises the provider message when a 200 body carries an error object", () => {
+    expect(() => parseChatCompletionBody(JSON.stringify({ error: { message: "context length exceeded", type: "invalid_request_error" } })))
+      .toThrow(/context length exceeded/);
+  });
+
+  it("reports truncation instead of a generic empty response", () => {
+    expect(() => parseChatCompletionBody(JSON.stringify({ choices: [{ message: { content: "" }, finish_reason: "length" }] })))
+      .toThrow(/finish_reason=length/);
+  });
+
+  it("includes the provider error detail (redacted) on a non-2xx response", async () => {
+    const fetchFn = (async () =>
+      new Response(
+        JSON.stringify({ error: { message: "Incorrect API key provided: sk-abcdef1234567890", type: "invalid_request_error" } }),
+        { status: 401 },
+      )) as unknown as typeof fetch;
+
+    const error = await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "m", prompt: "p", fetchFn })
+      .then(() => null)
+      .catch((cause: unknown) => (cause instanceof Error ? cause.message : String(cause)));
+
+    expect(error).toMatch(/HTTP 401\).*Incorrect API key provided/);
+    expect(error).not.toMatch(/sk-abcdef1234567890/);
+  });
+
+  it("retries once with the developer role when an OpenAI reasoning model rejects 'system'", async () => {
+    const roles: string[] = [];
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as { messages: { role: string }[] };
+      roles.push(body.messages[0].role);
+      if (body.messages[0].role === "system") {
+        return new Response(
+          JSON.stringify({
+            error: {
+              message: "Unsupported value: 'messages[0].role' does not support 'system' with this model. Supported values are: 'developer' and 'user'.",
+              type: "invalid_request_error",
+            },
+          }),
+          { status: 400 },
+        );
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{"summary":"reasoning-model-ok"}' } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const result = await requestSiemAiAnalysis({ endpointUrl: "https://api.openai.com/v1/chat/completions", model: "gpt-5", prompt: "p", fetchFn });
+    expect(result).toEqual({ summary: "reasoning-model-ok" });
+    expect(roles).toEqual(["system", "developer"]);
+  });
+
+  it("does not retry unrelated 400s", async () => {
+    const roles: string[] = [];
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as { messages: { role: string }[] };
+      roles.push(body.messages[0].role);
+      return new Response(JSON.stringify({ error: { message: "The model `bogus` does not exist" } }), { status: 400 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "bogus", prompt: "p", fetchFn }),
+    ).rejects.toThrow(/HTTP 400\).*The model `bogus` does not exist/);
+    expect(roles).toEqual(["system"]);
+  });
+
+  it("retries with stream:true when the router requires streaming (Codex backends)", async () => {
+    const streams: boolean[] = [];
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as { stream: boolean };
+      streams.push(body.stream);
+      if (!body.stream) {
+        return new Response(JSON.stringify({ detail: "Stream must be set to true for this model" }), { status: 400 });
+      }
+      const chunk = (content: string) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
+      return new Response(chunk('{"summary":') + chunk('"streamed-router"}') + "data: [DONE]\n\n", {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }) as unknown as typeof fetch;
+
+    const result = await requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "cx/gpt-5", prompt: "p", fetchFn });
+    expect(result).toEqual({ summary: "streamed-router" });
+    expect(streams).toEqual([false, true]);
+  });
+
+  it("does not retry with stream:true when the router says streaming is unsupported", async () => {
+    const streams: boolean[] = [];
+    const fetchFn = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as { stream: boolean };
+      streams.push(body.stream);
+      return new Response(JSON.stringify({ error: { message: "Streaming is not supported for this model" } }), { status: 400 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      requestSiemAiAnalysis({ endpointUrl: "https://router.local/v1/chat/completions", model: "m", prompt: "p", fetchFn }),
+    ).rejects.toThrow(/Streaming is not supported/);
+    expect(streams).toEqual([false]);
   });
 
   it("sends a minimal body with no temperature or response_format (gateway error-caches those)", async () => {

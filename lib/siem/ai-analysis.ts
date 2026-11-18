@@ -49,10 +49,23 @@ export type SiemAiAnalysis = {
   evidence: string[];
 };
 
-export function normalizeOpenAiCompatibleEndpoint(value: string) {
-  const trimmed = value.trim().replace(/\/+$/, "");
+export function normalizeOpenAiCompatibleEndpoint(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
   if (!trimmed) return null;
-  return trimmed.endsWith("/chat/completions") ? trimmed : `${trimmed}/chat/completions`;
+
+  // Split off a query string / fragment before appending the chat path, then
+  // put it back. OpenAI-compatible gateways and Azure deployments authenticate
+  // or pin a version with query params (`?api-version=...`), and appending
+  // after the `?` would silently produce a path the provider cannot route.
+  const match = trimmed.match(/^([^?#]*)([?#].*)?$/);
+  const pathPart = (match?.[1] ?? trimmed).replace(/\/+$/, "");
+  const suffix = match?.[2] ?? "";
+  if (!pathPart) return null;
+
+  // Already a chat-completions URL (`/v1/chat/completions`, Azure's
+  // `/openai/deployments/<name>/chat/completions`): use as-is.
+  if (pathPart.endsWith("/chat/completions")) return `${pathPart}${suffix}`;
+  return `${pathPart}/chat/completions${suffix}`;
 }
 
 export function buildSiemAiPrompt(input: { finding: SiemAiFindingInput; events: SiemAiEventSample[]; maxRawLength: number }) {
@@ -167,16 +180,271 @@ export function normalizeSiemAiAnalysis(value: unknown, model: string, generated
   };
 }
 
-type ChatCompletionLike = {
-  choices?: { message?: { content?: string }; delta?: { content?: string } }[];
+// ---------------------------------------------------------------------------
+// OpenAI Chat Completions response adapter
+// ---------------------------------------------------------------------------
+// The contract we target is `POST /chat/completions` returning either
+//   { choices: [{ message: { content } }], ... }             (stream: false)
+// or a text/event-stream of
+//   data: { choices: [{ delta: { content } }] }
+//   data: [DONE]
+// Real gateways deviate in ways that used to break us, so tolerate:
+//   - `content` as a string OR an array of content parts
+//     (`[{ type: "text", text: "..." }]`) — legal in the Chat Completions API;
+//   - `content: null` with the answer in `reasoning_content` / `reasoning`;
+//   - `refusal` instead of `content`;
+//   - a 200 body carrying `{ error: ... }` instead of `choices`;
+//   - an unwrapped analysis object (no envelope) from thin proxies.
+type ChatMessageLike = {
+  content?: unknown;
+  refusal?: unknown;
+  reasoning?: unknown;
+  reasoning_content?: unknown;
 };
 
-// Pull the assistant message content out of a parsed chat-completion object,
-// accepting both the non-streaming shape (choices[].message.content) and a
-// single streaming chunk shape (choices[].delta.content).
-function readChoiceContent(parsed: ChatCompletionLike): string {
-  const choice = parsed.choices?.[0];
-  return choice?.message?.content ?? choice?.delta?.content ?? "";
+type ChatChoiceLike = {
+  message?: ChatMessageLike;
+  delta?: ChatMessageLike;
+  text?: unknown;
+  finish_reason?: unknown;
+};
+
+// Flatten a content value to text. Chat Completions allows a plain string or
+// an array of parts, so callers never have to care which shape was returned.
+function contentToText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map((part) => contentToText(part)).join("");
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["text", "content", "value"]) {
+      const text = contentToText(record[key]);
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
+// Provider errors arrive as a string or as a nested object
+// (`{ error: { message } }`), so walk the common keys instead of assuming one
+// shape. Never echo credentials: invalid-key errors sometimes quote the token.
+function providerErrorMessage(value: unknown, depth = 0): string | null {
+  if (depth > 3 || value === null || value === undefined) return null;
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  for (const key of ["message", "error", "detail", "msg", "description"]) {
+    const message = providerErrorMessage(record[key], depth + 1);
+    if (message) return message;
+  }
+  return null;
+}
+
+function redactProviderDetail(value: string) {
+  return value
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[REDACTED_API_KEY]")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Turn a provider error body (JSON or an HTML/plain error page) into one short,
+// credential-free line suitable for the operator UI.
+function describeErrorBody(body: string) {
+  const text = body.trim();
+  if (!text) return "";
+  try {
+    const parsed: unknown = JSON.parse(text);
+    const message = providerErrorMessage(parsed);
+    if (message) return redactProviderDetail(message).slice(0, 300);
+  } catch {
+    // Not JSON — fall through to the raw body.
+  }
+  return redactProviderDetail(text).slice(0, 300);
+}
+
+// Pull the assistant text out of one choice, preferring the final answer over
+// reasoning text, and accepting both message (non-streaming) and delta
+// (streaming) shapes.
+function readChoiceContent(choice: ChatChoiceLike | null): string {
+  if (!choice) return "";
+  const message = choice.message ?? {};
+  const delta = choice.delta ?? {};
+  return (
+    contentToText(message.content) ||
+    contentToText(delta.content) ||
+    contentToText(choice.text) ||
+    contentToText(message.refusal) ||
+    contentToText(delta.refusal) ||
+    contentToText(message.reasoning_content) ||
+    contentToText(delta.reasoning_content) ||
+    contentToText(message.reasoning) ||
+    contentToText(delta.reasoning)
+  );
+}
+
+const ANALYSIS_KEYS = ["summary", "likelyCause", "impact", "recommendedActions", "evidence"] as const;
+
+// Routers fronting Codex/Claude models sometimes answer the chat path with the
+// OpenAI Responses shape (`output[]` / `output_text`) instead of
+// `choices[].message`. Pull the text out of that shape as well.
+function responsesText(record: Record<string, unknown>): string {
+  if (typeof record.output_text === "string" && record.output_text) return record.output_text;
+  if (Array.isArray(record.output)) {
+    return record.output
+      .map((item) => {
+        if (!item || typeof item !== "object") return "";
+        const entry = item as Record<string, unknown>;
+        return contentToText(entry.content) || contentToText(entry.text);
+      })
+      .join("");
+  }
+  if (record.response && typeof record.response === "object") {
+    return responsesText(record.response as Record<string, unknown>);
+  }
+  return "";
+}
+
+function readCompletionPayload(parsed: unknown, raw: string): string {
+  if (typeof parsed === "string") return parsed;
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("AI provider returned an unexpected response shape.");
+  }
+
+  const record = parsed as Record<string, unknown>;
+  if (record.error !== null && record.error !== undefined) {
+    const detail = providerErrorMessage(record.error) ?? "unknown error";
+    throw new Error(`AI provider returned an error: ${redactProviderDetail(detail)}`);
+  }
+
+  if (Array.isArray(record.choices)) {
+    const choice = (record.choices[0] ?? null) as ChatChoiceLike | null;
+    const content = readChoiceContent(choice);
+    if (content) return content;
+    const finishReason = typeof choice?.finish_reason === "string" ? choice.finish_reason : null;
+    if (finishReason === "length") {
+      throw new Error("AI provider truncated the analysis (finish_reason=length). Reduce Sample Events / Max Raw Length and retry.");
+    }
+    if (finishReason === "content_filter") {
+      throw new Error("AI provider blocked the response (finish_reason=content_filter).");
+    }
+    throw new Error(`AI provider returned an empty message${finishReason ? ` (finish_reason=${finishReason})` : ""}.`);
+  }
+
+  // Thin proxies sometimes unwrap the envelope and return the model's JSON
+  // object directly. Accept a valid analysis instead of failing it.
+  if (ANALYSIS_KEYS.some((key) => key in record)) return raw;
+
+  // OpenAI Responses shape (Codex-backed routers).
+  const responses = responsesText(record);
+  if (responses) return responses;
+
+  // Anthropic Messages / generic content-block shape: { content: [...] } or
+  // { content: "..." }. Only reached when there is no chat-completion envelope.
+  const content = contentToText(record.content);
+  if (content) return content;
+
+  // Last resort for routers that wrap the answer in a plain text field.
+  const text = contentToText(record.text) || contentToText(record.message);
+  if (text) return text;
+
+  const shape = redactProviderDetail(JSON.stringify(record).slice(0, 200));
+  throw new Error(`AI provider returned an unexpected response shape${shape ? `: ${shape}` : "."}`);
+}
+
+type SseParseState = { content: string; reasoning: string; finishReason: string; sawEvent: boolean; error?: string };
+
+function consumeSseBlock(block: string, state: SseParseState) {
+  // One SSE event may span several `data:` lines (the spec joins them with
+  // newlines), so collect the whole block before parsing.
+  const dataLines = block
+    .split(/\r?\n/)
+    .map((line) => line.trimStart())
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice("data:".length).replace(/^ /, ""));
+  const payload = dataLines.filter((line) => line.trim() !== "[DONE]").join("\n").trim();
+  if (!payload) return;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    return; // keep-alive / partial or non-JSON event line
+  }
+  state.sawEvent = true;
+
+  const record = parsed as Record<string, unknown>;
+  if (record.error !== null && record.error !== undefined) {
+    state.error = redactProviderDetail(providerErrorMessage(record.error) ?? "unknown error");
+    return;
+  }
+
+  const type = typeof record.type === "string" ? record.type : "";
+
+  // Some routers expose Codex/Claude models through the chat path but stream
+  // the upstream event shapes. Handle the common text-delta events so a router
+  // bridge still yields the analysis text.
+  if (!Array.isArray(record.choices)) {
+    if (type === "response.output_text.delta" || type === "response.refusal.delta") {
+      state.content += contentToText(record.delta);
+      return;
+    }
+    if (type === "response.output_text.done") {
+      if (!state.content) state.content = contentToText(record.text);
+      return;
+    }
+    if (type === "response.completed" || type === "response.done") {
+      if (!state.content) {
+        state.content = record.response && typeof record.response === "object"
+          ? responsesText(record.response as Record<string, unknown>)
+          : responsesText(record);
+      }
+      return;
+    }
+    if (type === "content_block_delta") {
+      state.content += contentToText(record.delta);
+      return;
+    }
+    if (type === "content_block_start") {
+      if (!state.content) {
+        state.content = contentToText((record.content_block as Record<string, unknown> | undefined)?.text);
+      }
+      return;
+    }
+    return;
+  }
+
+  const choice = (record.choices[0] ?? null) as ChatChoiceLike | null;
+  if (!choice) return;
+  const delta = choice.delta ?? {};
+  const message = choice.message ?? {};
+  // Prefer delta chunks. A few gateways also attach the full message on the
+  // final chunk; only fall back to it when no delta text has arrived, so the
+  // answer is not duplicated.
+  const deltaContent = contentToText(delta.content) || contentToText(delta.refusal);
+  if (deltaContent) state.content += deltaContent;
+  else if (!state.content) {
+    state.content += contentToText(message.content) || contentToText(choice.text) || contentToText(message.refusal);
+  }
+  const deltaReasoning = contentToText(delta.reasoning_content) || contentToText(delta.reasoning);
+  if (deltaReasoning) state.reasoning += deltaReasoning;
+  else if (!state.reasoning) {
+    state.reasoning += contentToText(message.reasoning_content) || contentToText(message.reasoning);
+  }
+  if (typeof choice.finish_reason === "string") state.finishReason = choice.finish_reason;
+}
+
+function parseSseBlocks(blocks: string[]): SseParseState {
+  const state: SseParseState = { content: "", reasoning: "", finishReason: "", sawEvent: false };
+  for (const block of blocks) consumeSseBlock(block, state);
+  return state;
+}
+
+function tryParseJson(text: string): { ok: true; value: unknown } | { ok: false } {
+  try {
+    return { ok: true, value: JSON.parse(text) as unknown };
+  } catch {
+    return { ok: false };
+  }
 }
 
 // Some OpenAI-compatible gateways (observed with 9router + DeepSeek on large
@@ -189,45 +457,63 @@ export function parseChatCompletionBody(raw: string): string {
   const text = raw.trim();
   if (!text) throw new Error("AI provider returned empty response.");
 
-  // Fast path: a clean JSON object body.
-  if (!text.includes("data:")) {
-    return readChoiceContent(JSON.parse(text) as ChatCompletionLike);
+  // Canonical path: the body is one JSON chat-completion envelope. Try JSON
+  // first and never sniff for a `data:` substring — the assistant's own text
+  // may contain it, which previously mis-routed valid JSON into the SSE parser.
+  const direct = tryParseJson(text);
+  if (direct.ok) return readCompletionPayload(direct.value, text);
+
+  // Non-streaming requests are sometimes answered with the full envelope plus a
+  // trailing SSE sentinel (`...}data: [DONE]`). Strip it and retry.
+  const withoutSentinel = text.replace(/\s*data:\s*\[DONE\]\s*$/i, "").trim();
+  if (withoutSentinel !== text) {
+    const parsed = tryParseJson(withoutSentinel);
+    if (parsed.ok) return readCompletionPayload(parsed.value, withoutSentinel);
   }
 
-  // SSE path: collect `data:` payloads, ignore the [DONE] sentinel, and
-  // concatenate streamed deltas (non-streamed bodies yield a single chunk).
-  let streamed = "";
-  let lastMessage = "";
-  let sawChunk = false;
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("data:")) continue;
-    const payload = trimmed.slice(5).trim();
-    if (!payload || payload === "[DONE]") continue;
-    let parsed: ChatCompletionLike;
-    try {
-      parsed = JSON.parse(payload) as ChatCompletionLike;
-    } catch {
-      continue; // skip keep-alive / non-JSON event lines
-    }
-    sawChunk = true;
-    const choice = parsed.choices?.[0];
-    if (choice?.delta?.content) streamed += choice.delta.content;
-    if (choice?.message?.content) lastMessage = choice.message.content;
-  }
+  // Real SSE stream: split on blank lines per the spec, then fall back to
+  // per-line parsing for gateways that omit the blank separator.
+  const blockState = parseSseBlocks(text.split(/\r?\n\r?\n/));
+  const state = blockState.sawEvent ? blockState : parseSseBlocks(text.split(/\r?\n/));
 
-  // The first `data:` may itself be a full completion object directly
-  // concatenated with `data: [DONE]` (no newline between them); handle that by
-  // parsing up to the first balanced JSON object when line-splitting found none.
-  if (!sawChunk) {
-    const idx = text.indexOf("data:");
-    const head = idx > 0 ? text.slice(0, idx).trim() : "";
-    if (head) return readChoiceContent(JSON.parse(head) as ChatCompletionLike);
+  if (state.error) throw new Error(`AI provider returned an error: ${state.error}`);
+  const content = state.content || state.reasoning;
+  if (content) return content;
+  if (state.finishReason === "length") {
+    throw new Error("AI provider truncated the analysis (finish_reason=length). Reduce Sample Events / Max Raw Length and retry.");
   }
+  throw new Error("AI provider returned empty response.");
+}
 
-  const content = streamed || lastMessage;
-  if (!content) throw new Error("AI provider returned empty response.");
-  return content;
+const SYSTEM_PROMPT = "You produce evidence-only defensive SIEM analysis as strict JSON.";
+
+function buildChatBody(input: { model: string; prompt: string }, options: { systemRole: "system" | "developer"; stream: boolean }) {
+  return {
+    model: input.model,
+    messages: [
+      { role: options.systemRole, content: SYSTEM_PROMPT },
+      { role: "user", content: input.prompt },
+    ],
+    stream: options.stream,
+  };
+}
+
+// OpenAI's reasoning models (o1/o3/o4/gpt-5 on api.openai.com) reject the
+// legacy `system` role: "Unsupported value: 'messages[0].role' does not support
+// 'system' with this model. Supported values are: 'developer' and 'user'."
+// Detect exactly that class of 400 so we retry once with the `developer` role
+// the Chat Completions spec defines for those models. Other 400s (bad model,
+// deprecated params) are surfaced without retrying.
+export function shouldRetryWithDeveloperRole(detail: string) {
+  return /\bsystem\b/i.test(detail) && /(unsupported|not supported|invalid|deprecated|developer)/i.test(detail);
+}
+
+// Routers bridging to Codex/ChatGPT backends sometimes expose the chat path but
+// only accept `stream: true`. Detect that specific 400 and retry once with
+// streaming, which parseChatCompletionBody already understands. A plain
+// "streaming is not supported" is NOT retried.
+export function shouldRetryWithStream(detail: string) {
+  return /\bstream(ing)?\b/i.test(detail) && /\b(must|required|mandatory|only)\b/i.test(detail);
 }
 
 export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey?: string | null; model: string; prompt: string; fetchFn?: typeof fetch }) {
@@ -236,28 +522,26 @@ export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey
   const apiKey = input.apiKey?.trim();
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-  // Minimal body only. We deliberately do NOT send `temperature` or
-  // `response_format`: the router in front of Anthropic models rejects
-  // `temperature` ("deprecated for this model") AND error-caches that 400 for
-  // ~30s, so a drop-and-retry hits the cached failure and never reaches the
-  // model. A bare request (model + messages) is the one shape proven to work
-  // across DeepSeek, Anthropic, GPT, and Gemini behind this gateway. Strict
-  // JSON is enforced by the prompt + extractFirstJsonObject, not by
-  // response_format.
-  const body: Record<string, unknown> = {
-    model: input.model,
-    messages: [
-      { role: "system", content: "You produce evidence-only defensive SIEM analysis as strict JSON." },
-      { role: "user", content: input.prompt },
-    ],
-    stream: false,
-  };
+  // Minimal body only. We deliberately do NOT send `temperature`,
+  // `max_tokens`, or `response_format`: the router in front of Anthropic
+  // models rejects `temperature` ("deprecated for this model") AND
+  // error-caches that 400 for ~30s, so a drop-and-retry hits the cached
+  // failure and never reaches the model. A bare request (model + messages) is
+  // the one shape proven to work across DeepSeek, Anthropic, GPT, and Gemini
+  // behind this gateway. Strict JSON is enforced by the prompt +
+  // extractFirstJsonObject, not by response_format.
+  let systemRole: "system" | "developer" = "system";
+  let stream = false;
+  let lastStatus = 0;
+  let lastDetail = "";
 
-  {
+  // At most three requests: initial, +developer role, +stream. Both fallbacks
+  // are one-way switches, so this loop cannot spin.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     const response = await fetchImpl(input.endpointUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: JSON.stringify(buildChatBody(input, { systemRole, stream })),
     });
 
     if (response.ok) {
@@ -270,10 +554,21 @@ export async function requestSiemAiAnalysis(input: { endpointUrl: string; apiKey
       return extractFirstJsonObject(content);
     }
 
-    const errorBody = await response.text().catch(() => "");
-    const snippet = errorBody.trim().slice(0, 200);
-    throw new Error(`AI provider rejected request (HTTP ${response.status})${snippet ? `: ${snippet}` : "."}`);
+    lastStatus = response.status;
+    lastDetail = describeErrorBody(await response.text().catch(() => ""));
+
+    if (lastStatus === 400 && systemRole === "system" && shouldRetryWithDeveloperRole(lastDetail)) {
+      systemRole = "developer";
+      continue;
+    }
+    if (lastStatus === 400 && !stream && shouldRetryWithStream(lastDetail)) {
+      stream = true;
+      continue;
+    }
+    break;
   }
+
+  throw new Error(`AI provider rejected request (HTTP ${lastStatus})${lastDetail ? `: ${lastDetail}` : "."}`);
 }
 
 // Lightly probe an OpenAI-compatible endpoint to figure out whether the
