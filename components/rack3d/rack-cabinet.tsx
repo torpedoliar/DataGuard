@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
+import { Detailed, RoundedBox } from "@react-three/drei";
 import { ScreenHtml as Html } from "./screen-html";
 import type { FilteredDevice, SceneRack } from "@/lib/rack-filter";
 import { criticalProblem, OCCUPANCY_COLOR, occupancyBand, type ColorBy } from "@/lib/rack-signals";
@@ -11,7 +12,8 @@ import { freeRanges, inRack, type FreeRange } from "./free-slots";
 import type { PlacedRack } from "./layout";
 import { sharedMaterials } from "./materials";
 import { RackDevice } from "./rack-device";
-import { perforationTexture, railTexture, repeated } from "./textures";
+import { HousingGrille } from "./housing-grille";
+import { hardwareTexture, radialTexture, perforationTexture, railTexture, repeated } from "./textures";
 import { useLabelTexture } from "./use-label-texture";
 import { useFade } from "./use-fade";
 
@@ -33,18 +35,34 @@ function Door({ height, open }: { height: number; open: boolean }) {
 
     return (
         <group ref={hinge} position={[-RACK_W / 2, PLINTH + 0.01 + height / 2, RACK_D / 2 + 0.006]}>
-            <mesh position={[RACK_W / 2, 0, 0]}>
-                <planeGeometry args={[RACK_W - 0.01, height]} />
-                <meshStandardMaterial color="#2a2f37" metalness={0.6} roughness={0.4} alphaMap={alpha} alphaTest={0.5} side={THREE.DoubleSide} />
-            </mesh>
+            <Detailed distances={[0, 2.8]} hysteresis={0.1} position={[RACK_W / 2, 0, 0]}>
+                <mesh>
+                    <planeGeometry args={[RACK_W - 0.01, height]} />
+                    <meshStandardMaterial color="#2a2f37" metalness={0.6} roughness={0.4} alphaMap={alpha} alphaTest={0.45} side={THREE.DoubleSide} />
+                </mesh>
+                <mesh>
+                    <planeGeometry args={[RACK_W - 0.01, height]} />
+                    <meshStandardMaterial color="#283943" metalness={0.4} roughness={0.48} transparent opacity={0.21} depthWrite={false} side={THREE.DoubleSide} />
+                </mesh>
+            </Detailed>
             {[-1, 1].map((side) => <mesh key={`v${side}`} position={[RACK_W / 2 + side * (RACK_W / 2 - 0.016), 0, 0]}><boxGeometry args={[0.032, height, 0.018]} /><meshStandardMaterial color="#424b55" metalness={0.4} roughness={0.38} /></mesh>)}
             {[-1, 1].map((side) => <mesh key={`h${side}`} position={[RACK_W / 2, side * (height / 2 - 0.016), 0]}><boxGeometry args={[RACK_W, 0.032, 0.018]} /><meshStandardMaterial color="#424b55" metalness={0.4} roughness={0.38} /></mesh>)}
             {[-0.35, 0.35].map((y) => <mesh key={y} position={[0, y * height, 0]}><cylinderGeometry args={[0.008, 0.008, 0.065, 8]} /><meshStandardMaterial color="#848b93" metalness={0.85} roughness={0.3} /></mesh>)}
-            <mesh position={[RACK_W - 0.04, -0.11, 0.014]} rotation-x={Math.PI / 2}><cylinderGeometry args={[0.008, 0.008, 0.003, 12]} /><meshStandardMaterial color="#bcc1c6" metalness={0.9} roughness={0.25} /></mesh>
-            <mesh position={[RACK_W - 0.04, 0, 0.012]}>
-                <boxGeometry args={[0.018, 0.16, 0.02]} />
-                <meshStandardMaterial color="#b8bec6" metalness={0.9} roughness={0.2} />
-            </mesh>
+            <group position={[RACK_W - 0.038, 0, 0.011]}>
+                <RoundedBox args={[0.038, 0.214, 0.013]} radius={0.006} smoothness={2}>
+                    <meshStandardMaterial color="#1b2429" roughness={0.57} metalness={0.38} />
+                </RoundedBox>
+                <RoundedBox position={[0, 0.022, 0.017]} args={[0.022, 0.145, 0.018]} radius={0.006} smoothness={2}>
+                    <meshStandardMaterial color="#909da3" roughness={0.31} metalness={0.77} />
+                </RoundedBox>
+                <mesh position={[0, -0.077, 0.009]} rotation-x={Math.PI / 2}>
+                    <cylinderGeometry args={[0.009, 0.009, 0.004, 16]} />
+                    <meshStandardMaterial color="#aab3b6" metalness={0.83} roughness={0.29} />
+                </mesh>
+                <mesh position={[0, -0.077, 0.0111]}>
+                    <planeGeometry args={[0.002, 0.01]} /><meshBasicMaterial color="#293034" />
+                </mesh>
+            </group>
         </group>
     );
 }
@@ -85,15 +103,31 @@ function Rails({ totalU, numbered }: { totalU: number; numbered: boolean }) {
     );
 }
 
-function Sign({ name, collision, height }: { name: string; collision: boolean; height: number }) {
+function Sign({ planView, name, collision, height, occupied, total }: { planView: boolean; name: string; collision: boolean; height: number; occupied: number; total: number }) {
     const tex = useLabelTexture(collision ? `! ${name}` : name, collision ? "#b45309" : "#0f172a");
     if (!tex) return null;
     return (
-        <mesh position={[0, height + 0.05, RACK_D / 2 - 0.05]}>
-            <planeGeometry args={[0.5, 0.0625]} />
-            <meshBasicMaterial map={tex} toneMapped={false} />
-        </mesh>
+        <group position={[0, height + 0.05, planView ? 0 : RACK_D / 2 - 0.05]} rotation-x={planView ? -Math.PI / 2 : 0}>
+            <mesh position={[0, -0.004, -0.009]}>
+                <boxGeometry args={[0.55, 0.086, 0.016]} />
+                <meshStandardMaterial color="#27363f" roughness={0.42} metalness={0.62} />
+            </mesh>
+            {occupied > 0 && <mesh position={[-0.25 + 0.25 * occupied / total, -0.036, 0]}>
+                <planeGeometry args={[0.5 * occupied / total, 0.005]} />
+                <meshBasicMaterial color="#85d9cc" />
+            </mesh>}
+            <mesh>
+                <planeGeometry args={[0.5, 0.0625]} />
+                <meshBasicMaterial map={tex} toneMapped={false} />
+            </mesh>
+        </group>
     );
+}
+
+function BlankingFinish({ units }: { units: number }) {
+    const map = useMemo(() => repeated(hardwareTexture("blank"), 1, units), [units]);
+    useEffect(() => () => map.dispose(), [map]);
+    return <meshStandardMaterial map={map} metalness={0.4} roughness={0.52} />;
 }
 
 function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolean; labelled: boolean }) {
@@ -103,7 +137,7 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
         return (
             <mesh position={[0, y, FRONT_Z]}>
                 <boxGeometry args={[FACE_W + 0.04, h - 0.001, 0.002]} />
-                <meshStandardMaterial color="#121418" metalness={0.4} roughness={0.6} />
+                <BlankingFinish units={range.size} />
             </mesh>
         );
     }
@@ -122,7 +156,9 @@ function FreeSpace({ range, ghost, labelled }: { range: FreeRange; ghost: boolea
     );
 }
 
-export function RackCabinet({ placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, peerDeviceId, onFocus, onSelectDevice, floatCard, detailed = true }: {
+export function RackCabinet({ planView = false, tracedPortId, placed, dark, focused, faded, showFree, accent, colorBy, selectedDeviceId, peerDeviceId, onFocus, onSelectDevice, floatCard, detailed = true }: {
+    planView?: boolean;
+    tracedPortId?: number | null;
     placed: PlacedRack<SceneRack>;
     dark: boolean;
     focused: boolean;
@@ -161,6 +197,10 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
             // the click while unfocused so a focused rack's devices get it.
             onClick={focused ? undefined : (e) => { e.stopPropagation(); onFocus(); }}
         >
+            <mesh rotation-x={-Math.PI / 2} position={[0, 0.005, 0]} raycast={() => null}>
+                <planeGeometry args={[RACK_W * 1.65, RACK_D * 1.5]} />
+                <meshBasicMaterial alphaMap={radialTexture()} color="#14202a" transparent opacity={0.55} depthWrite={false} />
+            </mesh>
             <mesh position={[0, PLINTH / 2, 0]} castShadow receiveShadow>
                 <boxGeometry args={[RACK_W, PLINTH, RACK_D]} />
                 {steel}
@@ -174,7 +214,7 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
             {[-1, 1].map((s) => (
                 <mesh key={s} position={[s * (RACK_W / 2 - 0.005), PLINTH + body / 2, 0]} castShadow receiveShadow>
                     <boxGeometry args={[0.01, body, RACK_D - 0.08]} />
-                    {steel}
+                    <meshStandardMaterial map={hardwareTexture("cabinet")} color={steelColor} metalness={0.53} roughness={0.43} />
                 </mesh>
             ))}
             <mesh position={[0, H - 0.01, 0]} castShadow>
@@ -182,6 +222,9 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
                 {steel}
             </mesh>
 
+            <group position={[0, H + 0.001, -RACK_D * 0.12]} rotation-x={-Math.PI / 2}>
+                <HousingGrille width={RACK_W * 0.76} height={RACK_D * 0.34} count={16} opacity={1} />
+            </group>
             {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => <mesh key={`foot${x}${z}`} position={[x * 0.24, 0.015, z * 0.44]}><cylinderGeometry args={[0.03, 0.035, 0.03, 12]} /><meshStandardMaterial color="#8b9197" metalness={0.85} roughness={0.3} /></mesh>)}
             {/* Generic rear power rail decoration, not documented PSU inventory. */}
             <group position={[RACK_W / 2 - 0.07, PLINTH + body / 2, -RACK_D / 2 + 0.1]}>
@@ -189,12 +232,13 @@ export function RackCabinet({ placed, dark, focused, faded, showFree, accent, co
                 {Array.from({ length: 8 }, (_, i) => <mesh key={i} position={[0, (i - 3.5) * body / 10, 0.025]}><boxGeometry args={[0.018, 0.022, 0.003]} /><meshStandardMaterial color="#60666d" metalness={0.3} roughness={0.6} /></mesh>)}
             </group>
             <Rails totalU={totalU} numbered={focused} />
-            <Sign name={rack.name} collision={placed.collision} height={H} />
+            <Sign planView={planView} name={rack.name} collision={placed.collision} height={H} occupied={totalU - free.reduce((slots, range) => slots + range.size, 0)} total={totalU} />
 
             {devices.map((d) => (
                 <RackDevice
                     key={d.id}
                     device={d}
+                    tracedPortId={selectedDeviceId === d.id ? tracedPortId : null}
                     // `selected` stays a single-device flag, so only the clicked
                     // device slides out on its rails; the peer just gets a card.
                     selected={d.id === selectedDeviceId}

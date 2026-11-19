@@ -27,6 +27,7 @@ interface DeviceHologramProps {
     drawerState?: ReturnType<typeof useDeviceDrawer>;
     deviceOptions: HologramDeviceOption[];
     onClose: () => void;
+    onInspectPort?: (port: FloatPort | null) => void;
     /**
      * Clicked a port that already has a peer: the caller decides what to show
      * (second hologram, rack card, or the peer's network docs). Omitted for the
@@ -68,7 +69,7 @@ const slotLabel = (slot: HologramSlot) => (slot.port ? describeSlot(slot) : empt
 // The body is the device's documented faceplate: hovering a slot shows its
 // wiring, clicking an occupied one opens its detail panel, and the peer action
 // is left to the caller through the optional `onPickPort`.
-export function DeviceHologram({ device, ports, loading, error = false, deviceOptions, onClose, onPickPort, onLinked, onOpenPanel, offsetY = 0, drawerState, hoveredSlotKey, selectedSlotKey }: DeviceHologramProps) {
+export function DeviceHologram({ device, ports, loading, error = false, deviceOptions, onClose, onInspectPort, onPickPort, onLinked, onOpenPanel, offsetY = 0, drawerState, hoveredSlotKey, selectedSlotKey }: DeviceHologramProps) {
     // The card floats in screen space over the scene, so a click on its padding
     // would otherwise fall through to the device mesh behind it and select a
     // different device. Holding the event here keeps it on the card.
@@ -102,6 +103,7 @@ export function DeviceHologram({ device, ports, loading, error = false, deviceOp
         // ports stays in the network docs.
         if (!slot.port) return;
         setSelectedKey(slot.key);
+        onInspectPort?.(slot.port);
         if (slot.port.connectedToDeviceId != null) onPickPort?.(slot.port);
     };
 
@@ -249,7 +251,7 @@ export function DeviceHologram({ device, ports, loading, error = false, deviceOp
                 )}
             </div>
 
-            {hoveredSlot && (
+            {hoveredSlot && !selectedSlot && (
                 <div className="border-b border-ops-border bg-ops-bg/60 px-3 py-1.5 text-[11px] text-ops-text">
                     <span className="block truncate">{slotLabel(hoveredSlot)}</span>
                 </div>
@@ -275,7 +277,7 @@ export function DeviceHologram({ device, ports, loading, error = false, deviceOp
                     <div className="flex justify-end gap-2 pt-0.5">
                         <button
                             type="button"
-                            onClick={() => setSelectedKey(null)}
+                            onClick={() => { setSelectedKey(null); onInspectPort?.(null); }}
                             className="rounded-md border border-ops-border px-2 py-1 text-ops-text hover:bg-ops-surface-raised"
                         >
                             Tutup

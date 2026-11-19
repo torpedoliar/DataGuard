@@ -67,8 +67,13 @@ function Preview({ device }: { device: RackDevice }) {
                     <PreviewBoundary>
                         <Canvas frameloop="demand" dpr={1} camera={{ position: [cameraDistance * 0.65, cameraDistance * 0.45, cameraDistance], fov: 40, near: 0.01, far: 10 }} gl={{ antialias: true }}>
                             <color attach="background" args={["#dfe3e7"]} />
-                            <ambientLight intensity={1.2} /><hemisphereLight args={["#ffffff", "#7b838a", 1.4]} /><directionalLight position={[2, 3, 4]} intensity={2} />
-                            <Environment resolution={128} frames={1}><Lightformer position={[0, 2, 1]} rotation-x={Math.PI / 2} scale={[3, 3, 1]} intensity={2} /><Lightformer position={[0, 1, 3]} scale={[3, 2, 1]} intensity={2} /></Environment>
+                            <hemisphereLight args={["#eef4f7", "#536575", 0.8]} />
+                            <directionalLight position={[-2, 3, 4]} color="#fff1dd" intensity={1.65} />
+                            <directionalLight position={[2, 1.5, -2]} color="#c2e1ef" intensity={0.85} />
+                            <Environment resolution={128} frames={1}>
+                                <Lightformer position={[-2, 2, 2]} scale={[3.2, 1.5, 1]} intensity={3} />
+                                <Lightformer position={[2, 1, 1]} scale={[0.5, 3, 1]} color="#d4e9f5" intensity={3.4} />
+                            </Environment>
                             <DeviceModel device={{ ...device, isMuted: false }} animateFans={inspect} cabinetOpen={inspect && cabinetOpen} />
                             {inspect ? <Suspense fallback={null}><InspectControls /></Suspense> : <Snapshot logo={device.brandLogo} onCapture={setImage} />}
                         </Canvas>

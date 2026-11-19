@@ -30,7 +30,7 @@ function rounded(points: Vec3[], radius = 0.025) {
 }
 
 // ponytail: selected and peer ports use plain tubes; instance if dense cabling exceeds the laptop budget.
-export function Cables({ cables }: { cables: CableInfo[] }) {
+export function Cables({ cables, tracedPortId }: { cables: CableInfo[]; tracedPortId?: number | null }) {
     const geos = useMemo(
         () => cables.map((c) => new THREE.TubeGeometry(rounded(c.points), Math.max(24, c.points.length * 12), 0.005, 6, false)),
         [cables],
@@ -42,7 +42,13 @@ export function Cables({ cables }: { cables: CableInfo[] }) {
             {cables.map((c, i) => (
                 <group key={c.key}>
                     <mesh geometry={geos[i]} raycast={() => null}>
-                        <meshStandardMaterial color={c.color} emissive={c.color} emissiveIntensity={0.06} roughness={0.5} />
+                        {tracedPortId == null ? (
+                            <meshStandardMaterial color={c.color} emissive={c.color} emissiveIntensity={0.06} roughness={0.5} />
+                        ) : c.key === String(tracedPortId) ? (
+                            <meshStandardMaterial color="#74ffe2" emissive="#38f2be" emissiveIntensity={1.8} roughness={0.36} />
+                        ) : (
+                            <meshBasicMaterial color={c.color} transparent opacity={0.16} depthWrite={false} />
+                        )}
                     </mesh>
                     {c.label && (
                         <Html position={c.points[c.points.length - 1]} center style={{ pointerEvents: "none" }} zIndexRange={[30, 0]}>
@@ -55,7 +61,7 @@ export function Cables({ cables }: { cables: CableInfo[] }) {
     );
 }
 
-export function AnimatedCables({ placed, selectedDeviceId, peerDeviceId }: { placed: PlacedRack<SceneRack>[]; selectedDeviceId: number | null; peerDeviceId: number | null }) {
+export function AnimatedCables({ tracedPortId, placed, selectedDeviceId, peerDeviceId }: { tracedPortId?: number | null; placed: PlacedRack<SceneRack>[]; selectedDeviceId: number | null; peerDeviceId: number | null }) {
     const slides = useRef(new Map<number, number>());
     const [positions, setPositions] = useState<ReadonlyMap<number, number>>(new Map());
     useFrame((_, dt) => {
@@ -72,5 +78,5 @@ export function AnimatedCables({ placed, selectedDeviceId, peerDeviceId }: { pla
         if (changed) setPositions(new Map(slides.current));
     });
     const cables = useMemo(() => buildCables(placed, [selectedDeviceId, peerDeviceId], selectedDeviceId, 0, positions).cables, [placed, selectedDeviceId, peerDeviceId, positions]);
-    return <Cables cables={cables} />;
+    return <Cables cables={cables} tracedPortId={tracedPortId} />;
 }

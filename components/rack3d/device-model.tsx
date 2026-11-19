@@ -7,7 +7,7 @@ import { FACE_W, U } from "./constants";
 import { deviceKind, type DeviceKind } from "./device-kind";
 import { ledMaterial, portMaterials, sharedMaterials } from "./materials";
 import { portFace, type PortFaceSlot } from "./port-face";
-import { repeated, ventTexture } from "./textures";
+import { hardwareTexture, repeated, ventTexture } from "./textures";
 import { useLabelTexture } from "./use-label-texture";
 import { useImageTexture } from "./use-image-texture";
 import { FacilityModel } from "./facility-model";
@@ -56,7 +56,7 @@ function ServerFace({ uh, h, opacity }: { uh: number; h: number; opacity: number
             <Vent opacity={opacity} x={-0.15} w={0.12} h={h * 0.6} />
             <Instances frustumCulled={false} limit={bays.length}>
                 <boxGeometry args={[bw, bh, 0.003]} />
-                <meshStandardMaterial {...deviceOpacity(opacity)} color="#111316" metalness={0.4} roughness={0.6} />
+                <meshStandardMaterial {...deviceOpacity(opacity)} map={hardwareTexture("carrier")} metalness={0.4} roughness={0.6} />
                 {bays.map((p, i) => <Instance key={i} position={p} />)}
             </Instances>
             <Instances frustumCulled={false} limit={bays.length}>
@@ -78,16 +78,24 @@ function NetworkFace({ h, opacity }: { h: number; opacity: number }) {
         <>
             <Instances frustumCulled={false} limit={ports.length}>
                 <boxGeometry args={[0.011, Math.min(0.0085, h * 0.3), 0.003]} />
-                <meshStandardMaterial {...deviceOpacity(opacity)} color="#0a0b0c" roughness={0.8} />
+                <meshStandardMaterial {...deviceOpacity(opacity)} map={hardwareTexture("copper")} roughness={0.63} />
                 {ports.map((p, i) => <Instance key={i} position={p} />)}
             </Instances>
             <Instances frustumCulled={false} limit={sfp.length}>
                 <boxGeometry args={[0.014, 0.0095, 0.004]} />
-                <meshStandardMaterial {...deviceOpacity(opacity)} color="#9aa0a6" metalness={0.9} roughness={0.25} />
+                <meshStandardMaterial {...deviceOpacity(opacity)} map={hardwareTexture("cage")} metalness={0.68} roughness={0.25} />
                 {sfp.map((p, i) => <Instance key={i} position={p} />)}
             </Instances>
         </>
     );
+}
+
+function SocketFaces({ part, ports, opacity }: { part: "copper" | "cage"; ports: PortFaceSlot[]; opacity: number }) {
+    return <Instances frustumCulled={false} limit={ports.length}>
+        <boxGeometry args={[1, 1, 0.003]} />
+        <meshStandardMaterial {...deviceOpacity(opacity)} map={hardwareTexture(part)} metalness={0.36} roughness={0.54} />
+        {ports.map((p, i) => <Instance key={i} position={[p.x, p.y, 0.0025]} scale={[p.w, p.h, 1]} />)}
+    </Instances>;
 }
 
 // The device's documented ports (network docs): real count and layout, link
@@ -96,6 +104,8 @@ function NetworkFace({ h, opacity }: { h: number; opacity: number }) {
 export function DocumentedPorts({ slots, opacity }: { slots: PortFaceSlot[]; opacity: number }) {
     const groups = useMemo(() => ({
         jacks: slots,
+        copper: slots.filter((p) => !p.uplink),
+        cages: slots.filter((p) => p.uplink),
         lit: [0, 1, 2].map((ph) => slots.filter((p) => p.state === "active" && p.phase === ph)),
         down: slots.filter((p) => p.state === "down"),
     }), [slots]);
@@ -107,13 +117,10 @@ export function DocumentedPorts({ slots, opacity }: { slots: PortFaceSlot[]; opa
                 <meshStandardMaterial {...deviceOpacity(opacity)} color="#929ba3" metalness={0.85} roughness={0.35} />
                 {groups.jacks.map((p, i) => <Instance key={i} position={[p.x, p.y, 0.001]} scale={[p.w + 0.0015, p.h + 0.0015, 1]} />)}
             </Instances>
-            <Instances frustumCulled={false} limit={groups.jacks.length}>
-                <boxGeometry args={[1, 1, 0.003]} />
-                <meshStandardMaterial {...deviceOpacity(opacity)} color="#0a0b0c" roughness={0.8} />
-                {groups.jacks.map((p, i) => (
-                    <Instance key={i} position={[p.x, p.y, 0.0025]} scale={[p.w, p.h, 1]} color={p.uplink ? "#8f969d" : "#ffffff"} />
-                ))}
-            </Instances>
+            {(["copper", "cage"] as const).map((part) => {
+                const ports = part === "cage" ? groups.cages : groups.copper;
+                return ports.length > 0 && <SocketFaces key={part} part={part} ports={ports} opacity={opacity} />;
+            })}
             {groups.lit.map((list, ph) => list.length > 0 && (
                 <Instances key={ph} frustumCulled={false} limit={list.length} material={portMaterials[ph]}>
                     <boxGeometry args={[0.0022, 0.0014, 0.001]} />
@@ -138,7 +145,7 @@ function StorageFace({ uh, h, opacity }: { uh: number; h: number; opacity: numbe
         <>
             <Instances frustumCulled={false} limit={trays.length}>
                 <boxGeometry args={[0.095, th, 0.004]} />
-                <meshStandardMaterial {...deviceOpacity(opacity)} color="#1a1d21" metalness={0.5} roughness={0.45} />
+                <meshStandardMaterial {...deviceOpacity(opacity)} map={hardwareTexture("carrier")} metalness={0.5} roughness={0.45} />
                 {trays.map((p, i) => <Instance key={i} position={p} />)}
             </Instances>
             <Instances frustumCulled={false} limit={trays.length}>

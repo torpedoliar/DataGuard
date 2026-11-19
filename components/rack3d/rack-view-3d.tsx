@@ -13,7 +13,7 @@ import DeviceDetailPanel from "@/components/admin/device-detail-panel";
 import { AppearancePanel } from "./appearance-panel";
 import { CriticalAlert } from "./critical-alert";
 import { DeviceHologram, type FloatPort, type HologramDeviceOption } from "./device-hologram";
-import { hologramStagger } from "./hologram-offset";
+import type { RoomView } from "./room-camera";
 import { PeerRackCard } from "./peer-rack-card";
 import { FacilityHologram } from "./facility-hologram";
 import { getPortsByDevice } from "@/actions/network";
@@ -62,6 +62,8 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
 
     const [roomPick, setRoomPick] = useState<string | null>(null);
     const [focusPick, setFocusPick] = useState<string | null>(null);
+    const [roomView, setRoomView] = useState<RoomView>("aisle");
+    const [tracedPortId, setTracedPortId] = useState<number | null>(null);
     const [showFree, setShowFree] = useState(false);
     const [keyboardHelp, setKeyboardHelp] = useState(false);
     const [colorBy, setColorBy] = useState<ColorBy>("category");
@@ -176,20 +178,13 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
     const [peerBaseId, setPeerBaseId] = useState<number | null>(selectedDeviceId);
     if (peerBaseId !== selectedDeviceId) {
         setPeerBaseId(selectedDeviceId);
+        setTracedPortId(null);
         setPeerDeviceId(null);
     }
     if (peerDeviceId !== null && peerPickedRoom !== room) setPeerDeviceId(null);
     if (peerDeviceId !== null && selectedDeviceId === null) setPeerDeviceId(null);
     if (peerDeviceId !== null && peerDeviceId === selectedDeviceId) setPeerDeviceId(null);
 
-    const stagger = useMemo(() => {
-        if (!peerInRoom || !cardDevice || !peerDevice) return { base: 0, peer: 0 };
-        // Inlined rather than a helper so the dependency array stays honest.
-        return hologramStagger(
-            { locationName: cardDevice.locationName, rackName: cardDevice.rackName, u: cardDevice.rackPosition },
-            { locationName: peerDevice.locationName, rackName: peerDevice.rackName, u: peerDevice.rackPosition },
-        );
-    }, [peerInRoom, cardDevice, peerDevice]);
     useEffect(() => {
         if (cardDeviceId == null) return;
         let alive = true;
@@ -367,6 +362,13 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
                     Show free U
                 </label>
                 <label className="flex items-center gap-2 text-sm text-ops-muted">
+                    Camera
+                    <select aria-label="Room camera" className={selectClass} value={roomView} onChange={(event) => { setRoomView(event.target.value as RoomView); backToRoom(); }}>
+                        <option value="aisle">Aisle view</option>
+                        <option value="plan">3D floor plan</option>
+                    </select>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-ops-muted">
                     Color by
                     <select aria-label="Color by" value={colorBy} onChange={(e) => setColorBy(e.target.value as ColorBy)} className={selectClass}>
                         <option value="category">Category</option>
@@ -420,8 +422,12 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
                 {editingHere && locationId != null && (
                     <AppearancePanel locationId={locationId} value={appearance} onPreview={setPreview} onSaved={onSaved} onClose={closeEditor} shift={panelOpen} />
                 )}
-                <div className="absolute inset-0">
+                <div className={panelOpen ? "absolute inset-0 @[640px]:right-96" : "absolute inset-0"}>
                 <RackScene
+                    roomView={roomView}
+                    dockCards
+                    detailPanelOpen={panelOpen}
+                    tracedPortId={tracedPortId}
                     racks={roomRacks}
                     facilities={facilities.filter((d) => roomKey(d) === room)}
                     roomSettings={settings}
@@ -452,8 +458,8 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
                                 loading={isBase ? cardLoading || cardLoadedId !== cardDeviceId : isPeer ? peerLoading || peerLoadedId !== peerDevice?.id : false}
                                 error={isBase ? cardError && cardLoadedId === cardDeviceId : peerError && peerLoadedId === peerDevice?.id}
                                 deviceOptions={deviceOptions}
-                                offsetY={isPeer ? stagger.peer : stagger.base}
-                                onClose={() => { if (isPeer) setPeerDeviceId(null); else onSelectDevice(null); }}
+                                onInspectPort={isPeer ? undefined : (port) => { setTracedPortId(port?.id ?? null); if (port?.connectedToDeviceId == null) setPeerDeviceId(null); }}
+                                onClose={() => { if (isPeer) { setPeerDeviceId(null); setTracedPortId(null); } else onSelectDevice(null); }}
                                 // Only the base hologram may guide movement, so the
                                 // peer cannot spawn a third card.
                                 onPickPort={isPeer ? undefined : (p) => {
@@ -530,7 +536,7 @@ export default function RackView3D({ racks, facilities = [], locationFilter = nu
                     </button>
                 )}
                 {keyboardHelp && <div className="absolute left-3 top-16 z-30 max-w-[calc(100%-1.5rem)] rounded border border-ops-border bg-ops-surface p-3 text-xs text-ops-text">Klik area 3D atau Tab untuk fokus. WASD gerak, Q/E turun/naik, Shift cepat, Arrow orbit, +/− zoom, Home kamera awal. Esc menutup detail, lalu kembali ruangan. Keyboard tidak aktif pada form/modal.</div>}
-                <p className="pointer-events-none absolute bottom-3 left-3 text-[11px] text-ops-muted">
+                <p className="pointer-events-none absolute bottom-3 left-3 hidden max-w-[calc(100%-1.5rem)] rounded-md bg-slate-950/80 px-3 py-1.5 text-[11px] text-slate-100 shadow-sm @lg:block">
                     Klik scene untuk keyboard · WASD gerak · Q/E naik/turun · Shift cepat · Arrow orbit · +/− zoom · Home reset · Esc tutup detail/kembali
                 </p>
                 {touring && focusRack && (() => {

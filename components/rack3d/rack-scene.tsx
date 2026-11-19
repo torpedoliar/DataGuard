@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree, type RootState } from "@react-three/fiber";
-import { CameraControls, Environment, Lightformer, SoftShadows } from "@react-three/drei";
+import { CameraControls, Edges, Environment, Lightformer, SoftShadows } from "@react-three/drei";
 import { Bloom, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode, type EffectComposer as ComposerImpl } from "postprocessing";
 import type { RackDevice, RoomSettings } from "@/actions/rack-layout";
@@ -13,20 +13,27 @@ import type { SceneRack } from "@/lib/rack-filter";
 import type { ColorBy } from "@/lib/rack-signals";
 import type { RoomAppearance } from "@/lib/room-appearance";
 import { useIsDark } from "@/components/ui/theme-toggle";
-import { FRONT_Z, RACK_D, U, rackHeight, uToY } from "./constants";
+import { FRONT_Z, RACK_D, ROOM_HEIGHT, U, rackHeight, uToY } from "./constants";
 import { inRack } from "./free-slots";
 import { AnimatedCables } from "./cables";
 import { buildCables } from "./cable-route";
-import { bounds, layoutRacks, type Bounds, type PlacedRack } from "./layout";
+import { bounds, layoutRacks, roomRect, type Bounds, type PlacedRack } from "./layout";
 import { tickLeds } from "./materials";
 import { PRESETS, initialQuality, resolveQuality, type Quality, type QualitySetting } from "./quality";
 import { RackCabinet } from "./rack-cabinet";
 import { Room } from "./room";
 import { ScreenHtml } from "./screen-html";
 import { navigationKey, navigationStep } from "./keyboard-navigation";
+import { aisleAngle, type RoomView } from "./room-camera";
+import { radialTexture } from "./textures";
+import { ceilingLights } from "./ceiling-lights";
 import { pointerNdc } from "./pointer-ndc";
 
 export interface RackSceneProps {
+    roomView?: RoomView;
+    dockCards?: boolean;
+    detailPanelOpen?: boolean;
+    tracedPortId?: number | null;
     facilities?: RackDevice[];
     openFacilityId?: number | null;
     roomSettings?: RoomSettings;
@@ -88,55 +95,44 @@ function BlinkClock() {
     return null;
 }
 
-// Ceiling light fixtures over the racks (dark mode): a few lights spread
-// over the room so faceplates read like a real DC with the lights on low.
-// ponytail: capped at 6 unshadowed point lights; a bigger room gets the same 6
-// spread wider, switch to baked lighting if rooms grow past ~40 racks.
-function ceilingSpots(b: Bounds): [number, number][] {
-    const w = b.maxX - b.minX;
-    const d = b.maxZ - b.minZ;
-    const nx = Math.min(3, Math.max(1, Math.round(w / 3)));
-    const nz = Math.min(2, Math.max(1, Math.round(d / 2.5)));
-    const out: [number, number][] = [];
-    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
-        out.push([b.minX + (w * (i + 0.5)) / nx, b.minZ + (d * (j + 0.5)) / nz]);
-    }
-    return out;
-}
-
-function Lighting({ dark, b, preset, appearance }: { dark: boolean; b: Bounds; preset: (typeof PRESETS)[Quality]; appearance: RoomAppearance }) {
-    const span = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 2;
-    const spots = useMemo(() => ceilingSpots(b), [b]);
-    // Room tint + brightness (per location) on top of the theme's base light.
+function Lighting({ dark, b, quality, appearance, height, taskLight }: {
+    dark: boolean; b: Bounds; quality: Quality; appearance: RoomAppearance; height: number;
+    taskLight: [number, number, number] | null;
+}) {
+    const preset = PRESETS[quality];
+    const span = Math.hypot(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + height;
+    const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+    const target = useMemo(() => {
+        const centre = new THREE.Object3D();
+        centre.position.set(cx, height * 0.35, cz);
+        return centre;
+    }, [cx, height, cz]);
+    const fixtures = useMemo(() => ceilingLights(b, quality), [b, quality]);
     const k = appearance.lightBrightness;
     const tint = appearance.lightColor;
+    const ceiling = tint ?? (dark ? "#c9dff2" : "#fff1d9");
     return (
         <>
-            <ambientLight intensity={0.75 * k} />
-            <hemisphereLight args={[tint ?? ("#f4f6f8"), "#77818a", 1.4 * k]} />
-            {/* Aisle fill: soft light down the rows so faceplates read */}
-            <directionalLight position={[b.maxX + 6, 2.5, (b.minZ + b.maxZ) / 2]} intensity={0.9 * k} color={tint ?? "#ffffff"} />
-            <directionalLight position={[b.minX - 6, 2.2, (b.minZ + b.maxZ) / 2]} intensity={0.45 * k} color={tint ?? "#ffffff"} />
-            {dark && spots.map(([x, z]) => (
-                <pointLight key={`${x},${z}`} position={[x, 2.9, z]} intensity={7 * k} distance={8} decay={1.2} color={tint ?? "#e6eefc"} />
+            <primitive object={target} />
+            <hemisphereLight args={[tint ?? "#e4edf5", dark ? "#263947" : "#65757a", (dark ? 0.49 : 0.68) * k]} />
+            <directionalLight target={target} position={[cx - span * 0.48, height + span, cz + span * 0.62]}
+                color={tint ?? "#fff1dc"} intensity={(dark ? 0.82 : 1.25) * k}
+                castShadow={preset.shadows} shadow-mapSize={quality === "high" ? [2048, 2048] : [1024, 1024]}
+                shadow-normalBias={0.007} shadow-bias={-0.0002} shadow-camera-far={span * 4 + height}
+                shadow-camera-left={-span} shadow-camera-right={span} shadow-camera-top={span} shadow-camera-bottom={-span} />
+            <directionalLight target={target} position={[cx + span, height * 0.85, cz - span * 0.6]}
+                color={tint ?? "#b5d8eb"} intensity={0.64 * k} />
+            {fixtures.map(([x, z]) => (
+                <pointLight key={`${x},${z}`} position={[x, height - 0.12, z]} color={ceiling}
+                    intensity={Math.min(26, height * height * 1.45) * k} distance={height * 2.25} decay={2} />
             ))}
-            <directionalLight
-                position={[3, 7, 4]}
-                intensity={1.3 * k}
-                castShadow={preset.shadows}
-                shadow-mapSize={[2048, 2048]}
-                shadow-bias={-0.0004}
-                shadow-camera-left={-span}
-                shadow-camera-right={span}
-                shadow-camera-top={span}
-                shadow-camera-bottom={-span}
-            />
-            {preset.softShadows && <SoftShadows size={18} samples={10} focus={0.6} />}
-            <Environment key={dark ? "dark" : "light"} resolution={256} frames={1} environmentIntensity={1.1 * k}>
-                {[-3, 0, 3].flatMap((x) => [-3, 0, 3].map((z) => (
-                    <Lightformer key={`${x},${z}`} form="rect" intensity={dark ? 1.4 : 2.4} position={[x, 3, z]} rotation-x={Math.PI / 2} scale={[0.8, 1.6, 1]} />
-                )))}
-                <Lightformer form="rect" intensity={dark ? 0.8 : 0.3} color="#ffffff" position={[0, 1, -8]} scale={[20, 2, 1]} />
+            {taskLight && <pointLight position={taskLight} color={tint ?? "#edf5ff"} intensity={3.8 * k} distance={3.2} decay={2} />}
+            {preset.softShadows && <SoftShadows size={16} samples={10} focus={0.55} />}
+            <Environment key={`${dark}-${tint}`} resolution={quality === "low" ? 128 : 256} frames={1} environmentIntensity={(dark ? 0.78 : 1.04) * k}>
+                <Lightformer position={[-2.1, 2.5, 2]} scale={[2.8, 1.2, 1]} color={ceiling} intensity={3.4} />
+                <Lightformer position={[2.4, 1, 1]} scale={[0.48, 3.4, 1]} color={tint ?? "#d0e7f4"} intensity={3.8} />
+                <Lightformer position={[-2.6, 1, -1.8]} scale={[0.6, 2.8, 1]} color={ceiling} intensity={2.2} />
+                <Lightformer position={[0, 3, -1]} scale={[3.8, 0.55, 1]} color={ceiling} intensity={2.5} />
             </Environment>
         </>
     );
@@ -146,7 +142,7 @@ function Effects({ preset, composerRef }: { preset: (typeof PRESETS)[Quality]; c
     if (!preset.bloom) return null; // low: renderer tone mapping, no composer
     return preset.ao ? (
         <EffectComposer ref={composerRef} multisampling={4} frameBufferType={THREE.HalfFloatType}>
-            <N8AO aoRadius={0.4} distanceFalloff={0.5} intensity={2} quality="medium" halfRes />
+            <N8AO aoRadius={0.22} distanceFalloff={0.6} intensity={1.35} quality="medium" halfRes />
             <Bloom mipmapBlur luminanceThreshold={1} intensity={0.25} />
             <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
             <Vignette offset={0.3} darkness={0.12} />
@@ -186,7 +182,8 @@ function Capture({ captureRef, composerRef }: { captureRef: RefObject<(() => str
     return null;
 }
 
-function CameraRig({ placed, b, focusRack, focusDeviceId, facilities = [] }: {
+function CameraRig({ placed, b, roomView, focusRack, focusDeviceId, facilities = [] }: {
+    roomView: RoomView;
     facilities?: { device: RackDevice; x: number; z: number; dimensions: { height: number; width: number; depth: number } }[];
     placed: PlacedRack<SceneRack>[];
     b: Bounds;
@@ -195,27 +192,37 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, facilities = [] }: {
 }) {
     const ref = useRef<CameraControls>(null);
     const keys = useRef(new Set<string>());
-    const { gl, invalidate } = useThree();
-    const cx = (b.minX + b.maxX) / 2;
-    const cz = (b.minZ + b.maxZ) / 2;
-    const span = Math.max(b.maxX - b.minX, b.maxZ - b.minZ, 2);
-    // Rows facing each other form a cold aisle: look down it at eye height.
-    // A single forward row gets a raised front three-quarter view.
-    const aisle = placed.some((p) => p.rotationY !== 0) && placed.some((p) => p.rotationY === 0);
-    const home = useMemo(() => {
-        if (aisle) return [b.maxX + 4.2, 2.3, cz + 1.6, b.minX + 0.3, 0.9, cz] as [number, number, number, number, number, number];
-        const d = Math.max(4.5, span * 1.3);
-        return [cx + d * 0.45, d * 0.5, cz + d, cx, 0.9, cz] as [number, number, number, number, number, number];
-    }, [aisle, b.maxX, b.minX, cx, cz, span]);
-
-    // Intro: drop in from above (<=1.5 s); any drag interrupts it.
-    useEffect(() => {
-        const c = ref.current;
-        if (!c) return;
-        c.setLookAt(cx, span * 2 + 6, cz + 0.01, cx, 0, cz, false);
-        c.smoothTime = 0.45;
-        void c.setLookAt(...home, true);
-    }, [home, cx, cz, span]);
+    const { gl, invalidate, size } = useThree();
+    // Frame the installed equipment, including free-standing assets. Manual
+    // rooms can extend many metres beyond the last populated cabinet.
+    const extents = useMemo(() => [...placed.map((p) => ({
+        x: p.x, z: p.z, radius: RACK_D * 0.58, rotationY: p.rotationY, height: rackHeight(p.rack.totalU || 42),
+    })), ...facilities.map((f) => ({
+        x: f.x, z: f.z, radius: Math.hypot(f.dimensions.width, f.dimensions.depth) / 2, height: f.dimensions.height,
+    }))], [placed, facilities]);
+    const minX = extents.length ? Math.min(...extents.map((e) => e.x - e.radius)) : b.minX;
+    const maxX = extents.length ? Math.max(...extents.map((e) => e.x + e.radius)) : b.maxX;
+    const minZ = extents.length ? Math.min(...extents.map((e) => e.z - e.radius)) : b.minZ;
+    const maxZ = extents.length ? Math.max(...extents.map((e) => e.z + e.radius)) : b.maxZ;
+    const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+    const width = maxX - minX, depth = maxZ - minZ;
+    const height = Math.max(1, ...extents.map((e) => e.height)) + 0.14;
+    const angle = useMemo(() => aisleAngle(extents), [extents]);
+    const aspect = size.width / Math.max(1, size.height);
+    const home = useMemo((): [number, number, number, number, number, number] => {
+        if (roomView === "plan") {
+            const x = (b.maxX + b.minX) / 2, z = (b.maxZ + b.minZ) / 2;
+            const fit = Math.max((b.maxX - b.minX) / Math.max(0.2, aspect), b.maxZ - b.minZ);
+            return [x, height + fit * 1.65, z + 0.001, x, 0, z];
+        }
+        const sin = Math.sin(angle), cos = Math.cos(angle);
+        const across = Math.abs(cos) * width + Math.abs(sin) * depth;
+        const along = Math.abs(sin) * width + Math.abs(cos) * depth;
+        const pitch = 0.17;
+        const fit = Math.max(across / Math.max(0.2, aspect), height + along * pitch);
+        const distance = along / 2 + fit * 0.6 / Math.tan(19 * Math.PI / 180);
+        return [cx + sin * distance, height / 2 + pitch * distance, cz + cos * distance, cx, height / 2, cz];
+    }, [cx, cz, width, depth, height, angle, aspect, roomView, b]);
 
     // Camera target as a string of plain numbers: a filter keystroke rebuilds
     // `placed` but must not re-trigger the fly-to unless the target moved.
@@ -235,7 +242,7 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, facilities = [] }: {
             const y = uToY(hit.d.rackPosition ?? 1) + ((hit.d.uHeight || 1) * U) / 2;
             const sin = Math.sin(p.rotationY), cos = Math.cos(p.rotationY);
             const fx = p.x + sin * FRONT_Z, fz = p.z + cos * FRONT_Z;
-            return [fx + sin * 1.2 + cos * 0.25, y + 0.2, fz + cos * 1.2 - sin * 0.25, fx, y, fz].join(",");
+            return [fx + sin * 1.12 + cos * 0.31, y + 0.2, fz + cos * 1.12 - sin * 0.31, fx + sin * 0.28, y, fz + cos * 0.28].join(",");
         }
         const H = rackHeight(p.rack.totalU || 42);
         const sin = Math.sin(p.rotationY), cos = Math.cos(p.rotationY), distance = RACK_D / 2 + Math.max(2.4, H * 2);
@@ -289,14 +296,14 @@ function CameraRig({ placed, b, focusRack, focusDeviceId, facilities = [] }: {
             ref={ref}
             makeDefault
             minDistance={0.6}
-            maxDistance={30}
+            maxDistance={Math.max(30, Math.hypot(width, depth) * 4, Math.hypot(home[0] - cx, home[1], home[2] - cz) * 1.2)}
             maxPolarAngle={Math.PI / 2 - 0.05}
             dollyToCursor
         />
     );
 }
 
-export default function RackScene({ racks, facilities = [], openFacilityId = null, roomSettings, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, peerDeviceId = null, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, floatCard }: RackSceneProps & { floatCard?: (d: RackDevice) => ReactNode }) {
+export default function RackScene({ racks, roomView = "aisle", dockCards = false, detailPanelOpen = false, tracedPortId = null, facilities = [], openFacilityId = null, roomSettings, floorPlanUrl, qualitySetting, onAutoQuality, focusRack, onFocusRack, showFree, selectedDeviceId, peerDeviceId = null, focusDeviceId, onSelectDevice, temp, colorBy, appearance, captureRef, floatCard }: RackSceneProps & { floatCard?: (d: RackDevice) => ReactNode }) {
     const composerRef = useRef<ComposerImpl>(null);
     const dark = useIsDark();
     const manual = roomSettings?.layoutMode === "manual";
@@ -322,55 +329,108 @@ export default function RackScene({ racks, facilities = [], openFacilityId = nul
         () => buildCables(placed, [selectedDeviceId, peerDeviceId], selectedDeviceId),
         [placed, selectedDeviceId, peerDeviceId],
     );
-    const bg = dark ? "#0b0f15" : "#dfe3e8";
+    const bg = dark ? "#0b0f15" : "#8899a4";
 
+    const planView = roomView === "plan" && !focusRack && focusDeviceId == null;
+    const roomBounds = useMemo(() => {
+        if (manual) return b;
+        const rect = roomRect(b);
+        return { minX: rect.x0, maxX: rect.x1, minZ: rect.z0, maxZ: rect.z1 };
+    }, [manual, b]);
+    const cameraBounds = roomView === "plan" ? roomBounds : b;
+    const taskLight = useMemo((): [number, number, number] | null => {
+        const id = selectedDeviceId ?? focusDeviceId;
+        const asset = floorAssets.find((a) => a.device.id === id);
+        const rack = placed.find((p) => p.rack.name === focusRack);
+        if (!asset && !rack) return null;
+        const device = rack?.rack.devices.find((d) => d.id === id);
+        const faceY = asset ? asset.dimensions.height * 0.55 : device
+            ? uToY(device.rackPosition ?? 1) + (device.uHeight || 1) * U / 2
+            : rackHeight(rack!.rack.totalU || 42) / 2;
+        const angle = asset ? (asset.device.floorRotation ?? 0) * Math.PI / 180 : rack!.rotationY;
+        const distance = (asset?.dimensions.depth ?? RACK_D) / 2 + 0.92;
+        const x = asset?.x ?? rack!.x, z = asset?.z ?? rack!.z;
+        return [x + Math.sin(angle) * distance - Math.cos(angle) * 0.45, faceY + 0.48,
+            z + Math.cos(angle) * distance + Math.sin(angle) * 0.45];
+    }, [selectedDeviceId, focusDeviceId, floorAssets, placed, focusRack]);
+    const roomSpan = Math.hypot(b.maxX - b.minX, b.maxZ - b.minZ);
+    const docked = dockCards && floatCard && !detailPanelOpen ? [selectedDeviceId, peerDeviceId].flatMap((id) => {
+        if (id == null) return [];
+        for (const { rack } of placed) {
+            const hit = rack.devices.find((d) => d.id === id && inRack(d, rack.totalU || 42));
+            if (hit) return [hit];
+        }
+        return [];
+    }) : [];
     return (
-        <Canvas
-            style={{ zIndex: 0 }}
-            key={quality}
-            shadows={preset.shadows}
-            dpr={preset.dpr}
-            frameloop="demand"
-            flat={preset.bloom}
-            gl={{ antialias: !preset.bloom, powerPreference: "high-performance" }}
-            camera={{ position: [0, 12, 12], fov: 38, near: 0.03, far: 120 }}
-            onCreated={(state) => state.setEvents({ compute: pointerFromCanvas })}
-            onPointerMissed={() => onSelectDevice(null)}
-        >
-            <color attach="background" args={[bg]} />
-            <fog attach="fog" args={[bg, 14, 45]} />
-            <Lighting dark={dark} b={b} preset={preset} appearance={appearance} />
-            <Room placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} temp={temp} appearance={appearance} exactBounds={manual} roomHeight={roomSettings?.roomHeightM ?? undefined} />
-            {/* Focus changes camera and fade, never room inventory/placement. */}
-            {placed.map((p) => (
-                <RackCabinet
-                    key={p.rack.name}
-                    placed={p}
-                    dark={dark}
-                    focused={focusRack === p.rack.name}
-                    detailed={quality === "high"}
-                    faded={p.rack.dimmed || (!!focusRack && focusRack !== p.rack.name && !peerRacks.has(p.rack.name))}
-                    showFree={showFree}
-                    accent={accent}
-                    colorBy={colorBy}
-                    selectedDeviceId={selectedDeviceId}
-                    peerDeviceId={peerDeviceId}
-                    onFocus={() => onFocusRack(p.rack.name)}
-                    onSelectDevice={(d) => { onFocusRack(p.rack.name); onSelectDevice(d); }}
-                    floatCard={floatCard}
-                />
-            ))}
-            {floorAssets.map(({ device, x, z, dimensions }) => <group key={device.id} position={[x, dimensions.height / 2 + 0.004, z]} rotation-y={(device.floorRotation ?? 0) * Math.PI / 180} onClick={(event) => { event.stopPropagation(); onFocusRack(null); onSelectDevice(device); }}>
-                <FacilityModel device={device} cabinetOpen={openFacilityId === device.id} animateFans opacity={(device as RackDevice & { isMuted?: boolean }).isMuted ? 0.18 : 1} detailed={quality === "high" || selectedDeviceId === device.id} />
-                <mesh position={[0, -dimensions.height / 2 + 0.045, dimensions.depth / 2 + 0.004]}><boxGeometry args={[dimensions.width * 0.65, 0.025, 0.006]} /><meshBasicMaterial color={colorBy === "audit" ? device.status === "NOT OK" ? "#dc2626" : device.status === "OK" ? "#16a34a" : "#64748b" : device.categoryColor ?? "#64748b"} /></mesh>
-                {selectedDeviceId === device.id && <mesh><boxGeometry args={[dimensions.width + 0.025, dimensions.height + 0.025, dimensions.depth + 0.025]} /><meshBasicMaterial color={accent} wireframe /></mesh>}
-            </group>)}
-            {floatCard && floorAssets.filter(({ device }) => device.id === selectedDeviceId || device.id === peerDeviceId).map(({ device, x, z, dimensions }) => <ScreenHtml key={`facility-card-${device.id}`} position={[x + dimensions.width / 2 + 0.9, dimensions.height * 0.8, z + dimensions.depth / 2]} center zIndexRange={[40, 0]}>{floatCard(device)}</ScreenHtml>)}
-            <AnimatedCables placed={placed} selectedDeviceId={selectedDeviceId} peerDeviceId={peerDeviceId} />
-            <CameraRig facilities={floorAssets} placed={placed} b={b} focusRack={focusRack} focusDeviceId={focusDeviceId} />
-            <BlinkClock />
-            <Effects preset={preset} composerRef={composerRef} />
-            {captureRef && <Capture captureRef={captureRef} composerRef={composerRef} />}
-        </Canvas>
+        <div className="@container h-full w-full">
+            <div className="flex h-full flex-col @[700px]:flex-row">
+                <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+                    <Canvas
+                        style={{ zIndex: 0 }}
+                        key={quality}
+                        shadows={preset.shadows}
+                        dpr={preset.dpr}
+                        frameloop="demand"
+                        flat={preset.bloom}
+                        gl={{ antialias: !preset.bloom, powerPreference: "high-performance" }}
+                        camera={{ position: [0, 12, 12], fov: 38, near: 0.03, far: Math.max(120, roomSpan * 15) }}
+                        onCreated={(state) => state.setEvents({ compute: pointerFromCanvas })}
+                        onPointerMissed={() => onSelectDevice(null)}
+                    >
+                        <color attach="background" args={[bg]} />
+                        <fog attach="fog" args={[bg, planView ? roomSpan * 12 : 14, planView ? roomSpan * 15 + 45 : Math.max(45, roomSpan * 2)]} />
+                        <Lighting dark={dark} b={roomBounds} quality={quality} appearance={appearance} height={roomSettings?.roomHeightM ?? ROOM_HEIGHT} taskLight={taskLight} />
+                        <Room cutaway={planView} placed={placed} b={b} floorPlanUrl={floorPlanUrl} dark={dark} reflections={preset.reflections} temp={temp} appearance={appearance} exactBounds={manual} roomHeight={roomSettings?.roomHeightM ?? undefined} />
+                        {/* Focus changes camera and fade, never room inventory/placement. */}
+                        {placed.map((p) => (
+                            <RackCabinet
+                                key={p.rack.name}
+                                planView={planView}
+                                tracedPortId={tracedPortId}
+                                placed={p}
+                                dark={dark}
+                                focused={focusRack === p.rack.name}
+                                detailed={quality === "high"}
+                                faded={p.rack.dimmed || (!!focusRack && focusRack !== p.rack.name && !peerRacks.has(p.rack.name))}
+                                showFree={showFree}
+                                accent={accent}
+                                colorBy={colorBy}
+                                selectedDeviceId={selectedDeviceId}
+                                peerDeviceId={peerDeviceId}
+                                onFocus={() => onFocusRack(p.rack.name)}
+                                onSelectDevice={(d) => { onFocusRack(p.rack.name); onSelectDevice(d); }}
+                                floatCard={dockCards ? undefined : floatCard}
+                            />
+                        ))}
+                        {floorAssets.map(({ device, x, z, dimensions }) => <group key={device.id} position={[x, dimensions.height / 2 + 0.004, z]} rotation-y={(device.floorRotation ?? 0) * Math.PI / 180} onClick={(event) => { event.stopPropagation(); onFocusRack(null); onSelectDevice(device); }}>
+                            <mesh rotation-x={-Math.PI / 2} position={[0, -dimensions.height / 2 + 0.002, 0]} raycast={() => null}>
+                                <planeGeometry args={[dimensions.width * 1.55, dimensions.depth * 1.55]} />
+                                <meshBasicMaterial alphaMap={radialTexture()} color="#18222b" transparent opacity={0.55} depthWrite={false} />
+                            </mesh>
+                            <FacilityModel device={device} cabinetOpen={openFacilityId === device.id} animateFans opacity={(device as RackDevice & { isMuted?: boolean }).isMuted ? 0.18 : 1} detailed={quality === "high" || selectedDeviceId === device.id} />
+                            <mesh position={[0, -dimensions.height / 2 + 0.045, dimensions.depth / 2 + 0.004]}><boxGeometry args={[dimensions.width * 0.65, 0.025, 0.006]} /><meshBasicMaterial color={colorBy === "audit" ? device.status === "NOT OK" ? "#dc2626" : device.status === "OK" ? "#16a34a" : "#64748b" : device.categoryColor ?? "#64748b"} /></mesh>
+                            {selectedDeviceId === device.id && <mesh><boxGeometry args={[dimensions.width + 0.025, dimensions.height + 0.025, dimensions.depth + 0.025]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} /><Edges color={accent} /></mesh>}
+                        </group>)}
+                        {floatCard && floorAssets.filter(({ device }) => device.id === selectedDeviceId || device.id === peerDeviceId).map(({ device, x, z, dimensions }) => <ScreenHtml key={`facility-card-${device.id}`} position={[x + dimensions.width / 2 + 0.9, dimensions.height * 0.8, z + dimensions.depth / 2]} center zIndexRange={[40, 0]}>{floatCard(device)}</ScreenHtml>)}
+                        <AnimatedCables tracedPortId={tracedPortId} placed={placed} selectedDeviceId={selectedDeviceId} peerDeviceId={peerDeviceId} />
+                        <CameraRig roomView={roomView} facilities={floorAssets} placed={placed} b={cameraBounds} focusRack={focusRack} focusDeviceId={focusDeviceId} />
+                        <BlinkClock />
+                        <Effects preset={preset} composerRef={composerRef} />
+                        {captureRef && <Capture captureRef={captureRef} composerRef={composerRef} />}
+                    </Canvas>
+                </div>
+                {docked.length > 0 && (
+                    <aside aria-label="Rack inspection" className="z-10 flex max-h-[38%] shrink-0 flex-col items-center gap-3 overflow-auto border-ops-border bg-ops-bg p-2 @[700px]:max-h-none @[700px]:w-[19rem] @[700px]:border-l @[700px]:pt-16">
+                        {docked.map((d) => (
+                            <div key={d.id}>
+                                {d.id === peerDeviceId && <button className="mb-1 rounded-md px-2 py-1 text-xs font-semibold text-ops-accent hover:underline" onClick={() => { onFocusRack(d.rackName); onSelectDevice(d); }}>Inspect {d.name} →</button>}
+                                {floatCard?.(d)}
+                            </div>
+                        ))}
+                    </aside>
+                )}
+            </div>
+        </div>
     );
 }

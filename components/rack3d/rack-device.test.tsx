@@ -11,6 +11,7 @@ vi.mock("react", async (original) => ({
     useEffect: () => {},
 }));
 vi.mock("@react-three/fiber", () => ({ useFrame: () => {}, useThree: () => () => {} }));
+vi.mock("./textures", () => ({ chassisCoverTexture: () => null }));
 vi.mock("./materials", () => ({ sharedMaterials: {}, portMaterials: [], ledMaterial: () => null }));
 
 import { RackDevice } from "./rack-device";

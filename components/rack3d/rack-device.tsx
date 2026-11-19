@@ -9,6 +9,8 @@ import { AUDIT_COLOR, SEVERITY_COLOR, type ColorBy, type OpenIncidents } from "@
 import { FACE_W, FRONT_Z, RACK_W, SLIDE, U, uToY } from "./constants";
 import { DeviceModel, CHASSIS_D } from "./device-model";
 import { useLabelTexture } from "./use-label-texture";
+import { chassisCoverTexture } from "./textures";
+import { portFace } from "./port-face";
 import { FADE } from "./use-fade";
 
 // Open-incident count beside the rack at the device's height, coloured by
@@ -24,7 +26,8 @@ function IncidentBadge({ incidents, h }: { incidents: OpenIncidents; h: number }
     );
 }
 
-export function RackDevice({ device, selected, faded, accent, colorBy, onSelect, floatCard, detailed = true }: {
+export function RackDevice({ device, tracedPortId, selected, faded, accent, colorBy, onSelect, floatCard, detailed = true }: {
+    tracedPortId?: number | null;
     device: FilteredDevice;
     selected: boolean;
     faded: boolean;
@@ -38,6 +41,7 @@ export function RackDevice({ device, selected, faded, accent, colorBy, onSelect,
     const h = uh * U - 0.0015;
     const y = uToY(device.rackPosition ?? 1) + (uh * U) / 2;
     const opacity = (device.isMuted ? 0.12 : 1) * (faded ? FADE : 1);
+    const port = tracedPortId == null ? null : portFace(device, h)?.slots.find((s) => s.portId === tracedPortId);
     const earColor = colorBy === "audit" ? AUDIT_COLOR[device.status ?? "Pending"] : device.categoryColor || "#64748b";
     const slider = useRef<THREE.Group>(null);
     const [hovered, setHovered] = useState(false);
@@ -71,6 +75,24 @@ export function RackDevice({ device, selected, faded, accent, colorBy, onSelect,
                     <boxGeometry args={[FACE_W + 0.046, h + 0.0005, CHASSIS_D + 0.025]} />
                     <meshBasicMaterial transparent opacity={0} depthWrite={false} />
                 </mesh>
+                {port && <mesh position={[port.x, port.y, FRONT_Z + 0.008]} raycast={() => null}>
+                    <planeGeometry args={[port.w, port.h]} />
+                    <meshBasicMaterial color="#69ffdd" toneMapped={false} />
+                </mesh>}
+                {selected && device.assetType !== "ups" && device.assetType !== "pac" && (
+                    <group position={[0, h / 2 + 0.0004, FRONT_Z - CHASSIS_D / 2]}>
+                        <mesh rotation-x={-Math.PI / 2}>
+                            <planeGeometry args={[FACE_W - 0.004, CHASSIS_D - 0.004]} />
+                            <meshStandardMaterial map={chassisCoverTexture()} roughness={0.47} metalness={0.52} transparent={opacity < 1} opacity={opacity} userData={{ ownFade: true }} />
+                        </mesh>
+                        {[-1, 1].map((side) => (
+                            <mesh key={side} position={[side * (FACE_W / 2 + 0.003), -h * 0.65, 0]}>
+                                <boxGeometry args={[0.006, Math.min(0.016, h / 3), CHASSIS_D - 0.025]} />
+                                <meshStandardMaterial color="#acb8bd" roughness={0.28} metalness={0.8} transparent={opacity < 1} opacity={opacity} userData={{ ownFade: true }} />
+                            </mesh>
+                        ))}
+                    </group>
+                )}
                 <group position={[0, 0, FRONT_Z - CHASSIS_D / 2]} raycast={() => null}>
                     <DeviceModel device={device} opacity={opacity} marker={earColor} glow={hovered || selected ? accent : null} detailed={detailed || selected || floatCard != null} />
                 </group>

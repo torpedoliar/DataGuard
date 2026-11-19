@@ -8,13 +8,15 @@ import { DEFAULT_APPEARANCE } from "@/lib/room-appearance";
 import DeviceDetailPanel from "@/components/admin/device-detail-panel";
 import type { Quality } from "./quality";
 import { facilityAssetSchema } from "@/lib/facility-asset";
+import type { RoomView } from "./room-camera";
+import { DeviceHologram } from "./device-hologram";
 import { FacilityHologram } from "./facility-hologram";
 const RackScene = dynamic(() => import("./rack-scene"), { ssr: false });
 const devices = ["Server", "Network", "Storage", "UPS", "Cooling"].map((kind, i) => ({
     id: i + 1, name: `Synthetic ${kind}`, brandName: null, brandLogo: null, categoryId: i, categoryName: kind, categoryColor: "#4f859c", locationName: "Synthetic room", photoPath: null, rackName: "Demo rack", rackPosition: 2 + i * 6, uHeight: i === 1 ? 1 : 2, zone: null, status: "OK", faceplatePortCount: i === 1 ? 24 : null, faceplateUplinkCount: i === 1 ? 4 : null, faceplateRows: 2, faceplateNumbering: "sequential", ports: [], isCritical: false, ipAddress: null, assetCode: null, openIncidents: { count: 0, maxSeverity: null }, isMuted: false,
 }) as SceneRack["devices"][number]);
-const peer = { ...devices[1], id: 6, name: "Synthetic peer", rackName: "Peer rack", rackPosition: 8, ports: [{ id: 61, portName: "1", portIndex: 1, mediaType: "Copper", status: "Active", portMode: "Trunk", connectedToDeviceId: 2, connectedToPortId: 21 }] };
-devices[1].ports = [{ id: 21, portName: "1", portIndex: 1, mediaType: "Copper", status: "Active", portMode: "Trunk", connectedToDeviceId: 6, connectedToPortId: 61 }];
+const peer = { ...devices[1], id: 6, name: "Synthetic peer", rackName: "Peer rack", rackPosition: 8, ports: [{ id: 61, portName: "1", portIndex: 1, mediaType: "Copper (RJ45)", status: "Active", portMode: "Trunk", connectedToDeviceId: 2, connectedToPortId: 21 }] };
+devices[1].ports = [{ id: 21, portName: "1", portIndex: 1, mediaType: "Copper (RJ45)", status: "Active", portMode: "Trunk", connectedToDeviceId: 6, connectedToPortId: 61 }];
 const racks: SceneRack[] = [
     { name: "Demo rack", zone: null, totalU: 42, devices, occupiedU: [], locationName: "Synthetic room", locationId: 1, floorRow: "A", floorSlot: 1, facing: "front", hasMatchingDevices: true, dimmed: false },
     { name: "Peer rack", zone: null, totalU: 42, devices: [peer], occupiedU: [], locationName: "Synthetic room", locationId: 1, floorRow: "B", floorSlot: 1, facing: "front", hasMatchingDevices: true, dimmed: false },
@@ -27,6 +29,8 @@ export default function RealismFixture() {
     const [selected, setSelected] = useState<RackDevice | null>(devices[1]);
     const [focus, setFocus] = useState<string | null>("Demo rack");
     const [quality, setQuality] = useState<Quality>("medium");
+    const [roomView, setRoomView] = useState<RoomView>("aisle");
+    const [trace, setTrace] = useState<number | null>(null);
     const [brightness, setBrightness] = useState(1);
     const [fullscreen, setFullscreen] = useState(false);
     const [showFree, setShowFree] = useState(false);
@@ -47,6 +51,9 @@ export default function RealismFixture() {
         <h1 className="mb-3 text-lg font-bold">Synthetic realism fixture — no production data</h1>
         <div className="mb-3 flex flex-wrap gap-4">
             <label>Quality <select aria-label="Fixture quality" value={quality} onChange={(event) => setQuality(event.target.value as Quality)}>{["low", "medium", "high"].map((value) => <option key={value}>{value}</option>)}</select></label>
+            <label>Camera <select aria-label="Room camera" value={roomView} onChange={(event) => { setRoomView(event.target.value as RoomView); setFocus(null); setSelected(null); }}>
+                <option value="aisle">Aisle view</option><option value="plan">3D floor plan</option>
+            </select></label>
             <label>Brightness <input aria-label="Fixture brightness" type="range" min={0} max={2} step={0.1} value={brightness} onChange={(event) => setBrightness(Number(event.target.value))} /></label>
         </div>
         <div aria-label="Fixture scene" className={fullscreen ? "fixed inset-0 z-40" : "relative h-[80vh]"}>
@@ -58,8 +65,10 @@ export default function RealismFixture() {
                 {facilities.map((d) => <button key={d.id} onClick={() => setSelected(d)}>{d.name}</button>)}
                 <button onClick={() => { setDense(!dense); setFocus(null); setSelected(null); }}>{dense ? "Small fixture" : "Dense fixture"}</button>
             </div>
-            <RackScene openFacilityId={openFacilityId === selected?.id ? openFacilityId : null} facilities={facilities} roomSettings={{ layoutMode: "manual", roomWidthM: 10, roomDepthM: 8, roomHeightM: 3.2, floorPlanPath: null, tempC: null, tempThresholdC: null, appearance: DEFAULT_APPEARANCE }} racks={facilityOnly ? [] : sceneRacks.map((r, i) => ({ ...r, layoutMode: "manual", floorX: 1 + i * 0.8, floorZ: 1, floorRotation: 0 }))} floorPlanUrl={null} qualitySetting={quality} focusRack={focus} onFocusRack={setFocus} showFree={showFree} selectedDeviceId={selected?.id ?? null} peerDeviceId={selected?.id === 2 ? peer.id : null} floatCard={(device) => device.assetType === "pac" || device.assetType === "ups" ? <FacilityHologram device={device} drawerState={drawer} onClose={() => setSelected(null)} onOpenPanel={() => setPanelId(device.id)} cabinetOpen={openFacilityId === device.id} onToggleCabinet={device.facilitySpecs?.visualProfile === "leonardo-tuar0611" ? () => setOpenFacilityId(openFacilityId === device.id ? null : device.id) : undefined} /> : device.id === peer.id ? <div className="rounded bg-ops-surface p-2 text-ops-text">Synthetic peer card</div> : null} focusDeviceId={null} onSelectDevice={setSelected} temp={null} colorBy="category" appearance={{ ...DEFAULT_APPEARANCE, lightBrightness: brightness }} />
-            {selected && (selected.assetType == null || panelId === selected.id) && <DeviceDetailPanel key={selected.id} docked device={selected} drawerState={drawer} networkState={{ ports: [], loading: false }} onClose={() => setSelected(null)} />}
+            <RackScene dockCards roomView={roomView} tracedPortId={selected?.id === 2 ? trace : null} detailPanelOpen={selected != null && panelId === selected.id} openFacilityId={openFacilityId === selected?.id ? openFacilityId : null} facilities={facilities} roomSettings={{ layoutMode: "manual", roomWidthM: 10, roomDepthM: 8, roomHeightM: 3.2, floorPlanPath: null, tempC: null, tempThresholdC: null, appearance: DEFAULT_APPEARANCE }} racks={facilityOnly ? [] : sceneRacks.map((r, i) => ({ ...r, layoutMode: "manual", floorX: 1 + i * 0.8, floorZ: 1, floorRotation: 0 }))} floorPlanUrl={null} qualitySetting={quality} focusRack={focus} onFocusRack={setFocus} showFree={showFree} selectedDeviceId={selected?.id ?? null} peerDeviceId={selected?.id === 2 && trace === 21 ? peer.id : null} floatCard={(device) => device.assetType === "pac" || device.assetType === "ups" ? <FacilityHologram device={device} drawerState={drawer} onClose={() => setSelected(null)} onOpenPanel={() => setPanelId(device.id)} cabinetOpen={openFacilityId === device.id} onToggleCabinet={device.facilitySpecs?.visualProfile === "leonardo-tuar0611" ? () => setOpenFacilityId(openFacilityId === device.id ? null : device.id) : undefined} /> : device.id === peer.id ? <div className="rounded bg-ops-surface p-2 text-ops-text">Synthetic peer card</div> : <DeviceHologram device={device} loading={false} ports={device.ports.map((port) => ({
+                ...port, portMode: "Trunk", status: "Active", mediaType: "Copper (RJ45)", deviceId: device.id, macAddress: null, ipAddress: null, vlanId: null, vlanName: null, vlanNumber: null, trunkVlans: null, speed: null, description: null, connectedToDeviceName: peer.name, connectedToPortName: "1",
+            }))} drawerState={drawer} deviceOptions={[]} onClose={() => setSelected(null)} onInspectPort={(port) => setTrace(port?.id ?? null)} onLinked={() => {}} onOpenPanel={() => setPanelId(device.id)} />} focusDeviceId={selected?.id ?? null} onSelectDevice={setSelected} temp={null} colorBy="category" appearance={{ ...DEFAULT_APPEARANCE, lightBrightness: brightness }} />
+            {selected && panelId === selected.id && <DeviceDetailPanel key={selected.id} docked device={selected} drawerState={drawer} networkState={{ ports: [], loading: false }} onClose={() => setSelected(null)} />}
         </div>
     </main>;
 }

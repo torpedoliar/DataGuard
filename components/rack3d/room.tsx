@@ -8,6 +8,7 @@ import { ROOM_HEIGHT, TILE, rackHeight } from "./constants";
 import { coldAisleTiles, floorPlanRect, roomRect, type Bounds, type PlacedRack } from "./layout";
 import { floorBumpTexture, floorTileTexture, perforatedTileTexture, repeated, wallpaperTexture } from "./textures";
 import { useImageTexture } from "./use-image-texture";
+import { ceilingLights } from "./ceiling-lights";
 import { useLabelTexture } from "./use-label-texture";
 
 // Room temperature on the back wall near the ceiling; red when above the
@@ -55,12 +56,26 @@ function Walls({ r, dark, appearance, height = ROOM_HEIGHT }: { r: ReturnType<ty
     return (
         <>
             {walls.map((wall, i) => (
-                <mesh key={i} position={[...wall.pos]} rotation-y={wall.rot}>
-                    <planeGeometry args={[wall.len, height]} />
-                    {/* Keyed: three only compiles the map shader path when the
-                        material is created, so plain <-> textured needs a new one. */}
-                    <meshStandardMaterial key={maps ? "map" : "plain"} color={maps ? tint : plain} map={maps?.[i] ?? null} roughness={0.9} />
-                </mesh>
+                <group key={i} position={[...wall.pos]} rotation-y={wall.rot}>
+                    <mesh receiveShadow>
+                        <planeGeometry args={[wall.len, height]} />
+                        {/* Keyed: three only compiles the map shader path when the
+                            material is created, so plain <-> textured needs a new one. */}
+                        <meshStandardMaterial key={maps ? "map" : "plain"} color={maps ? tint : plain} map={maps?.[i] ?? null} roughness={0.9} />
+                    </mesh>
+                    <mesh position={[0, -height / 2 + 0.095, 0.002]}>
+                        <planeGeometry args={[wall.len, 0.19]} />
+                        <meshStandardMaterial color="#293942" metalness={0.52} roughness={0.46} />
+                    </mesh>
+                    <mesh position={[0, height / 2 - 0.17, 0.002]}>
+                        <planeGeometry args={[wall.len, 0.12]} />
+                        <meshStandardMaterial color="#354751" metalness={0.55} roughness={0.4} />
+                    </mesh>
+                    <mesh position={[0, height / 2 - 0.21, 0.004]}>
+                        <planeGeometry args={[wall.len, 0.018]} />
+                        <meshStandardMaterial color="#769397" emissive={appearance.lightColor ?? "#a2ebe6"} emissiveIntensity={appearance.lightBrightness * 1.7} />
+                    </mesh>
+                </group>
             ))}
             <mesh position={[cx, height, cz]} rotation-x={Math.PI / 2}>
                 <planeGeometry args={[w, d]} />
@@ -119,7 +134,8 @@ function CableTrays({ placed }: { placed: PlacedRack<SceneRack>[] }) {
     );
 }
 
-export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appearance, exactBounds = false, roomHeight = ROOM_HEIGHT }: {
+export function Room({ cutaway = false, placed, b, floorPlanUrl, dark, reflections, temp, appearance, exactBounds = false, roomHeight = ROOM_HEIGHT }: {
+    cutaway?: boolean;
     exactBounds?: boolean;
     roomHeight?: number;
     placed: PlacedRack<SceneRack>[];
@@ -144,11 +160,7 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
     const aspect = planImg ? planImg.width / planImg.height : 1;
     const planRect = planImg ? exactBounds ? { width: Math.min(w, d * aspect), depth: Math.min(d, w / aspect), cx, cz } : floorPlanRect(b, aspect) : null;
     const cold = useMemo(() => [...coldAisleTiles(placed)].map((k) => k.split(",").map(Number) as [number, number]), [placed]);
-    const panels = useMemo(() => {
-        const out: [number, number][] = [];
-        for (let x = r.x0 + 0.9; x < r.x1; x += 1.8) for (let z = r.z0 + 1.2; z < r.z1; z += 2.4) out.push([x, z]);
-        return out;
-    }, [r.x0, r.x1, r.z0, r.z1]);
+    const panels = useMemo(() => ceilingLights({ minX: r.x0, maxX: r.x1, minZ: r.z0, maxZ: r.z1 }), [r.x0, r.x1, r.z0, r.z1]);
 
     return (
         <group>
@@ -162,12 +174,12 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
                         resolution={512}
                         blur={[300, 80]}
                         mixBlur={1}
-                        mixStrength={0.35}
+                        mixStrength={0.19}
                         mirror={0}
                         depthScale={0.6}
                         minDepthThreshold={0.4}
                         maxDepthThreshold={1.2}
-                        roughness={0.75}
+                        roughness={0.84}
                         metalness={0.2}
                     />
                 ) : (
@@ -197,13 +209,19 @@ export function Room({ placed, b, floorPlanUrl, dark, reflections, temp, appeara
 
             <Walls r={r} dark={dark} appearance={appearance} height={roomHeight} />
 
-            {panels.map(([x, z]) => (
-                <group key={`${x},${z}`} position={[x, roomHeight - 0.03, z]}>
-                    <mesh><boxGeometry args={[0.66, 0.05, 1.26]} /><meshStandardMaterial color="#a2a9af" metalness={0.75} roughness={0.4} /></mesh>
-                    <mesh position={[0, -0.026, 0]} rotation-x={Math.PI / 2}><planeGeometry args={[0.6, 1.2]} /><meshStandardMaterial color={appearance.lightBrightness === 0 ? "#626970" : "#f1f2ed"} emissive={appearance.lightColor ?? "#ffffff"} emissiveIntensity={appearance.lightBrightness * 0.6} /></mesh>
-                </group>
-            ))}
+            {!cutaway && <>
+            <Instances limit={Math.max(1, panels.length)} frames={1} key={`housings-${w}-${d}-${cx}-${cz}-${roomHeight}`}>
+                <boxGeometry args={[0.36, 0.055, 1.32]} />
+                <meshStandardMaterial color="#46545c" metalness={0.68} roughness={0.42} />
+                {panels.map(([x, z]) => <Instance key={`${x},${z}`} position={[x, roomHeight - 0.032, z]} />)}
+            </Instances>
+            <Instances limit={Math.max(1, panels.length * 2)} frames={1} key={`diffusers-${w}-${d}-${cx}-${cz}-${roomHeight}`}>
+                <planeGeometry args={[0.105, 1.24]} />
+                <meshStandardMaterial color={appearance.lightBrightness === 0 ? "#626970" : "#edf1ee"} emissive={appearance.lightColor ?? "#fff5df"} emissiveIntensity={appearance.lightBrightness * 1.4} />
+                {panels.flatMap(([x, z]) => [-0.085, 0.085].map((dx) => <Instance key={`${x},${z},${dx}`} position={[x + dx, roomHeight - 0.061, z]} rotation={[Math.PI / 2, 0, 0]} />))}
+            </Instances>
 
+            </>}
             {temp && <TempLabel temp={temp} x={cx} z={r.z0 + 0.02} height={roomHeight} />}
             {!exactBounds && <CableTrays placed={placed} />}
         </group>
