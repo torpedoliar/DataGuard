@@ -97,6 +97,23 @@ These steps describe operator checks after the patch is deployed; local mock tes
 - **approval** creates pending requests; **automatic** requires the site-admin-configured simulation minimum and a different admin's confirmation.
 - Advanced actions (isolate/unisolate/assign_config/ThreatSync commands) are **approval-only** — never automatic.
 
+### Widening the write allowlist
+
+A request needs its action in **both** lists: the deployment ceiling (`watchguard_global_settings.allowed_actions`) and the site list (`epdr_site_settings.allowed_actions`). The site list narrows the ceiling; an empty site list allows nothing.
+
+- Preferred: superadmin opens EPDR → **Approvals** → *Write enablement*, widens the **deployment action ceiling**, then the site admin enables the site gate and checks the site subset. The same global ceiling is editable under EPDR → Settings → *Global safeguards* → *Allowed actions*.
+- Script alternative (same effect, explicit site, dry-run first):
+
+```bash
+npm run epdr:enable-writes -- --list-sites
+npm run epdr:enable-writes -- --site-id=<id>
+npm run epdr:enable-writes -- --site-id=<id> --confirm
+# Optional ThreatSync actions:
+npm run epdr:enable-writes -- --site-id=<id> --actions=scan,isolate,unisolate,reboot,assign_config,ts_quarantine --confirm
+```
+
+The script only widens lists, never removes an action, never touches a kill switch, and writes a system audit row. Writes still require a second administrator's approval, pass cooldowns/hourly caps, and stay blocked by either kill switch. `uninstall_protection`, `repair`, `transact` and `provider_comment` remain unavailable because they have no verified provider contract.
+
 ## 7. Reason codes (policy/decision)
 
 See `lib/epdr/reasons.ts`: `no_match`, `block_kill_switch_global/site`, `block_action_not_allowed`, `block_automation_hold`, `block_endpoint_removed`, `block_endpoint_offline`, `block_data_stale`, `block_cooldown`, `block_exclusion`, `approval_server/critical/no_auto/unknown_type/unresolved_target`, `breaker_paused`, `simulated`.

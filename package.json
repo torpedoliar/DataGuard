@@ -38,6 +38,7 @@
     "watchguard:healthcheck": "tsx scripts/healthcheck-watchguard.ts",
     "epdr:retention": "tsx scripts/epdr-retention-worker.ts",
     "epdr:retention:run-once": "tsx scripts/epdr-retention-worker.ts --run-once",
+    "epdr:enable-writes": "tsx scripts/epdr-enable-writes.ts",
     "backup:scheduler": "tsx scripts/scheduled-backup.ts",
     "backup:restore": "tsx scripts/restore-from-file.ts",
     "reports:scheduler": "tsx scripts/report-scheduler-worker.ts",
