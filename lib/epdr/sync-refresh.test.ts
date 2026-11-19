@@ -26,4 +26,27 @@ describe("local sync snapshot refresh", () => {
     expect(refresh).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it("notifies the caller when the five-minute window ends", () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn();
+    const onStop = vi.fn();
+    const cleanup = scheduleSyncRefresh(refresh, onStop);
+    vi.advanceTimersByTime(15_000 * 19);
+    expect(onStop).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(15_000);
+    expect(onStop).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(15_000);
+    expect(onStop).toHaveBeenCalledOnce();
+    cleanup();
+  });
+
+  it("does not report a stop when polling is cancelled early", () => {
+    vi.useFakeTimers();
+    const onStop = vi.fn();
+    const cleanup = scheduleSyncRefresh(() => undefined, onStop);
+    cleanup();
+    vi.advanceTimersByTime(600_000);
+    expect(onStop).not.toHaveBeenCalled();
+  });
 });

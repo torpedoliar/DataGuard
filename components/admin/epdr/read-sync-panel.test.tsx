@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   pending: Promise.resolve(),
   getStatus: vi.fn(),
   request: vi.fn(),
+  cancel: vi.fn(),
   router: { refresh: vi.fn() },
   observed: { current: null as unknown },
   translate: (key: string, values?: Record<string, string>) => values ? `${key}:${values.time}` : key,
@@ -43,6 +44,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => state.router }));
 vi.mock("@/actions/epdr-read-sync", () => ({
   getEpdrReadSyncStatus: state.getStatus,
   requestEpdrReadSync: state.request,
+  cancelEpdrReadSync: state.cancel,
 }));
 // Spy on scheduling while retaining the real bounded, local-only timer contract.
 vi.mock("@/lib/epdr/sync-refresh", async (original) => {
@@ -69,10 +71,10 @@ function text(node: unknown): string {
   if (typeof node === "object" && "props" in node) return text((node as ReactElement<{ children?: unknown }>).props.children);
   return String(node);
 }
-function button(tree: ReactElement, name: "request" | "refresh") {
+function button(tree: ReactElement, name: "request" | "refresh" | "cancel") {
   return elements(tree).find((node) => node.type === "button" && text(node.props.children) === name)!;
 }
-function click(tree: ReactElement, name: "request" | "refresh") {
+function click(tree: ReactElement, name: "request" | "refresh" | "cancel") {
   const target = button(tree, name);
   if (!target.props.disabled) (target.props.onClick as () => void)();
 }
@@ -80,7 +82,10 @@ function messages(tree: ReactElement) {
   return elements(tree).filter((node) => node.type === "p").map((node) => node.props.children);
 }
 function snapshot(status: ReadSyncStatus["status"] = "idle"): ReadSyncStatus {
-  return { status, requestId: null, requestedAt: null, startedAt: null, finishedAt: null, retryAt: null, error: null };
+  return {
+    status, requestId: null, requestedAt: null, startedAt: null, finishedAt: null, retryAt: null, error: null,
+    leaseExpiresAt: null, workerLastSeenAt: null,
+  };
 }
 async function settle() {
   await Promise.resolve();
@@ -294,5 +299,70 @@ describe("ReadSyncPanel", () => {
     expect(messages(render())).toContain("states.idle");
     expect(messages(render())).not.toContain("states.succeeded");
     expect(state.request).not.toHaveBeenCalled();
+  });
+
+  it("shows start time and an active lease while a request is running", async () => {
+    const startedAt = new Date(Date.now() - 60_000).toISOString();
+    const leaseExpiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
+    state.getStatus.mockResolvedValue({ ...snapshot("running"), requestId: 42, startedAt, leaseExpiresAt });
+    render();
+    await settle();
+    const text = messages(render());
+    expect(text).toContain(`started:${new Date(startedAt).toLocaleString()}`);
+    expect(text).toContain(`leaseActive:${new Date(leaseExpiresAt).toLocaleString()}`);
+  });
+
+  it("warns while a request runs with an expired lease", async () => {
+    const leaseExpiresAt = new Date(Date.now() - 60_000).toISOString();
+    state.getStatus.mockResolvedValue({ ...snapshot("running"), requestId: 42, leaseExpiresAt });
+    render();
+    await settle();
+    expect(messages(render())).toContain("leaseExpired");
+  });
+
+  it("shows the last worker heartbeat while a request is queued", async () => {
+    const workerLastSeenAt = new Date(Date.now() - 30_000).toISOString();
+    state.getStatus.mockResolvedValue({ ...snapshot("queued"), requestId: 42, workerLastSeenAt });
+    render();
+    await settle();
+    expect(messages(render())).toContain(`workerLastSeen:${new Date(workerLastSeenAt).toLocaleString()}`);
+  });
+
+  it("warns that no worker heartbeat exists for a queued request", async () => {
+    state.getStatus.mockResolvedValue({ ...snapshot("queued"), requestId: 42 });
+    render();
+    await settle();
+    expect(messages(render())).toContain("workerMissing");
+  });
+
+  it("explains that polling paused instead of leaving an active request silent", async () => {
+    state.getStatus.mockResolvedValue({ ...snapshot("running"), requestId: 42 });
+    render();
+    await settle();
+    expect(messages(render())).not.toContain("pollingStopped");
+    await vi.advanceTimersByTimeAsync(15_000 * 20);
+    expect(messages(render())).toContain("pollingStopped");
+  });
+
+  it("explains a worker-timeout failure and re-enables the request button", async () => {
+    state.getStatus.mockResolvedValue({ ...snapshot("failed"), requestId: 42, error: "worker_timeout" });
+    render();
+    await settle();
+    const tree = render();
+    expect(messages(tree)).toContain("errors.worker_timeout");
+    expect(button(tree, "request").props.disabled).toBe(false);
+  });
+
+  it("cancels an active request through the server action", async () => {
+    state.getStatus.mockResolvedValue({ ...snapshot("running"), requestId: 42 });
+    state.cancel.mockResolvedValue({ status: "cancelled" });
+    render();
+    await settle();
+    click(render(), "cancel");
+    await settle();
+    await settle();
+    await settle();
+    expect(state.cancel).toHaveBeenCalledOnce();
+    expect(messages(render())).toContain("cancelDone");
   });
 });

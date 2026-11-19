@@ -276,6 +276,11 @@
       "group": "Grup",
       "os": "Sistem operasi",
       "sort": "Urutkan",
+      "sortLabels": {
+        "name": "Nama (A–Z)",
+        "contact": "Koneksi terbaru",
+        "protection": "Status proteksi"
+      },
       "any": "Semua",
       "name": "Nama perangkat",
       "contact": "Kontak terbaru",
@@ -306,6 +311,23 @@
       "cooldown": "Tunggu hingga {time} sebelum meminta pembacaan lagi.",
       "unavailable": "Sinkron baca tidak tersedia. Periksa izin site, pengaturan koneksi, dan migrasi yang diperlukan.",
       "finished": "Percobaan terakhir selesai: {time}",
+      "cancel": "Batalkan permintaan",
+      "cancelDone": "Permintaan dibatalkan.",
+      "pollingStopped": "Pemeriksaan status dihentikan setelah lima menit. Worker belum melaporkan hasil — perbarui untuk memeriksa lagi, atau batalkan lalu coba ulang.",
+      "workerLastSeen": "Worker terakhir terlihat {time}.",
+      "workerMissing": "Belum ada heartbeat worker. Worker WatchGuard mungkin sedang offline.",
+      "started": "Dimulai {time}",
+      "leaseActive": "Worker aktif; lease diperbarui hingga {time}.",
+      "leaseExpired": "Lease worker kedaluwarsa. Permintaan akan direset pada pemeriksaan status berikutnya.",
+      "errors": {
+        "worker_timeout": "Worker mengambil pembacaan ini tetapi tidak menyelesaikannya. Status sudah direset — Anda bisa meminta pembacaan baru.",
+        "endpoint_sync_failed": "Pembacaan ke provider gagal. Data sebelumnya mungkin sudah tidak terbaru.",
+        "endpoint_sync_partial": "Pembacaan provider tidak lengkap. Data sebelumnya mungkin sudah tidak terbaru.",
+        "connection_changed": "Pengaturan koneksi berubah saat permintaan menunggu, sehingga permintaan dibatalkan.",
+        "cancelled": "Permintaan dibatalkan.",
+        "read_sync_actor_unavailable": "Pengguna yang meminta sudah tidak aktif.",
+        "read_sync_membership_revoked": "Pengguna yang meminta bukan lagi admin site."
+      },
       "states": {
         "idle": "Belum ada permintaan baca tercatat.",
         "queued": "Dalam antrean",

@@ -276,6 +276,11 @@
       "group": "Group",
       "os": "Operating system",
       "sort": "Sort",
+      "sortLabels": {
+        "name": "Name (A–Z)",
+        "contact": "Latest connection",
+        "protection": "Protection status"
+      },
       "any": "Any",
       "name": "Device name",
       "contact": "Latest contact",
@@ -306,6 +311,23 @@
       "cooldown": "Please wait until {time} before requesting another read.",
       "unavailable": "Read sync is unavailable. Check site permissions, connection settings and required migrations.",
       "finished": "Latest attempt finished: {time}",
+      "cancel": "Cancel request",
+      "cancelDone": "Request cancelled.",
+      "pollingStopped": "Status checks paused after five minutes. The worker has not reported a result — refresh to check again, or cancel and retry.",
+      "workerLastSeen": "Worker last seen {time}.",
+      "workerMissing": "No worker heartbeat recorded. The WatchGuard worker may be offline.",
+      "started": "Started {time}",
+      "leaseActive": "Worker is active; lease renewed until {time}.",
+      "leaseExpired": "The worker lease expired. The request will be reset on the next status check.",
+      "errors": {
+        "worker_timeout": "The worker claimed this read but never finished. The request was reset — you can start a new read.",
+        "endpoint_sync_failed": "The provider read failed. Previous data may be out of date.",
+        "endpoint_sync_partial": "The provider read was incomplete. Previous data may be out of date.",
+        "connection_changed": "Connection settings changed while this request was queued, so it was cancelled.",
+        "cancelled": "The request was cancelled.",
+        "read_sync_actor_unavailable": "The user who requested this read is no longer active.",
+        "read_sync_membership_revoked": "The user who requested this read is no longer a site admin."
+      },
       "states": {
         "idle": "No read request recorded.",
         "queued": "Queued",

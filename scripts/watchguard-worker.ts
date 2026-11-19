@@ -40,6 +40,11 @@ export async function runWorker(args: string[], dependencies: WorkerDependencies
   };
   do {
     try {
+      // Mark liveness before the read-sync pass: a provider read can take
+      // minutes, and without an early heartbeat the status panel would call an
+      // actively working worker "offline". The end-of-pass write still carries
+      // the real ran/failed outcome.
+      await recordHeartbeat(true, false);
       let auxiliaryFailed = false;
       if (!onlyArg || onlyArg === "--only=endpoints") {
         try {

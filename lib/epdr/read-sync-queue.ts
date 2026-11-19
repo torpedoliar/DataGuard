@@ -9,6 +9,10 @@ export type ReadSyncStatus = {
   finishedAt: string | null;
   retryAt: string | null;
   error: string | null;
+  /** Present only while a worker holds the lease (status = running). */
+  leaseExpiresAt: string | null;
+  /** Last heartbeat from any WatchGuard worker; null when none is recorded. */
+  workerLastSeenAt: string | null;
 };
 export type ReadSyncRequestResult =
   | { status: "queued" | "already_pending"; requestId: number }
@@ -16,11 +20,31 @@ export type ReadSyncRequestResult =
   | { status: "unavailable"; reason: "connection_unavailable" | "forbidden" | "internal_error" };
 export const emptyReadSyncStatus = (status: "idle" | "unavailable"): ReadSyncStatus => ({
   status, requestId: null, requestedAt: null, startedAt: null, finishedAt: null, retryAt: null, error: null,
+  leaseExpiresAt: null, workerLastSeenAt: null,
 });
 export type ReadSyncFence = { requestId: number; leaseToken: string };
 type RequestRow = { id: number; connection_id: number; account_revision: number; lease_token: string };
 
 type QueueTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Settle a claim whose worker disappeared (crash, deploy, OOM) instead of
+ * leaving the row "running" forever. The lease is the only source of truth: a
+ * live worker renews it every minute, so an expired lease means nobody is
+ * publishing. Without this the unique one-pending index also blocks every new
+ * request, which is what made the panel look permanently stuck.
+ */
+const expireStaleReadSyncForConnection = (connectionId: number) => sql`
+  UPDATE epdr_read_sync_requests SET status = 'failed', finished_at = clock_timestamp(),
+    lease_token = NULL, lease_until = NULL, error = 'worker_timeout'
+  WHERE connection_id = ${connectionId} AND status = 'running'
+    AND (lease_until IS NULL OR lease_until < clock_timestamp())`;
+
+const expireStaleReadSyncForSite = (siteId: number) => sql`
+  UPDATE epdr_read_sync_requests SET status = 'failed', finished_at = clock_timestamp(),
+    lease_token = NULL, lease_until = NULL, error = 'worker_timeout'
+  WHERE site_id = ${siteId} AND status = 'running'
+    AND (lease_until IS NULL OR lease_until < clock_timestamp())`;
 
 /** Locks the actor/site and membership rows through publication to serialize revocation. */
 export async function assertReadSyncActor(tx: QueueTransaction, siteId: number, actorId: number): Promise<void> {
@@ -43,6 +67,9 @@ export async function enqueueReadSync(siteId: number, actorId: number): Promise<
     const connection = connections[0];
     if (!connection) return { status: "unavailable", reason: "connection_unavailable" };
     await assertReadSyncActor(tx, siteId, actorId);
+    // A dead worker's claim must not block this insert through the partial
+    // unique index. Only an expired lease is settled; a live claim is kept.
+    await tx.execute(expireStaleReadSyncForConnection(connection.id));
     const { rows: pending } = await tx.execute<{ id: number }>(sql`
       SELECT id FROM epdr_read_sync_requests WHERE connection_id = ${connection.id}
       AND status IN ('queued', 'running') LIMIT 1`);
@@ -60,19 +87,38 @@ export async function enqueueReadSync(siteId: number, actorId: number): Promise<
 }
 
 export async function readSyncStatus(siteId: number): Promise<ReadSyncStatus> {
+  // Best-effort: if the worker that claimed the request is gone, report a
+  // finished failure instead of "running" forever. A live worker keeps
+  // renewing its lease, so this never touches an in-progress read.
+  await db.execute(expireStaleReadSyncForSite(siteId)).catch(() => undefined);
+
   const { rows } = await db.execute<{
     id: number; status: ReadSyncStatus["status"]; requested_at: Date; started_at: Date | null;
-    finished_at: Date | null; retry_at: Date; error: string | null;
-  }>(sql`SELECT r.id, r.status, r.requested_at, r.started_at, r.finished_at, r.error,
+    finished_at: Date | null; retry_at: Date; lease_until: Date | null; error: string | null;
+  }>(sql`SELECT r.id, r.status, r.requested_at, r.started_at, r.finished_at, r.error, r.lease_until,
       r.requested_at + interval '5 minutes' AS retry_at
       FROM epdr_read_sync_requests r JOIN watchguard_connections c
         ON c.id = r.connection_id AND c.site_id = r.site_id AND c.account_revision = r.account_revision
       WHERE r.site_id = ${siteId} ORDER BY r.id DESC LIMIT 1`);
   const row = rows[0];
   if (!row) return emptyReadSyncStatus("idle");
+
+  // Worker liveness is best-effort: older deployments may not have the
+  // heartbeat table yet, and a missing heartbeat must not hide the request.
+  let workerLastSeenAt: string | null = null;
+  try {
+    const { rows: heartbeats } = await db.execute<{ last_pass_at: string | null }>(sql`
+      SELECT max(last_pass_at)::text AS last_pass_at FROM epdr_worker_heartbeats`);
+    const latest = heartbeats[0]?.last_pass_at;
+    workerLastSeenAt = latest ? new Date(latest).toISOString() : null;
+  } catch {
+    workerLastSeenAt = null;
+  }
+
   const iso = (value: Date | null) => value ? new Date(value).toISOString() : null;
   return { status: row.status, requestId: row.id, requestedAt: iso(row.requested_at),
-    startedAt: iso(row.started_at), finishedAt: iso(row.finished_at), retryAt: iso(row.retry_at), error: row.error };
+    startedAt: iso(row.started_at), finishedAt: iso(row.finished_at), retryAt: iso(row.retry_at), error: row.error,
+    leaseExpiresAt: iso(row.lease_until), workerLastSeenAt };
 }
 
 export async function cancelReadSync(siteId: number): Promise<void> {

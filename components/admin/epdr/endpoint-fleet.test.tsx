@@ -186,7 +186,8 @@ describe("EndpointFleet server-side list", () => {
   });
 
   it.each([
-    ["group", "Headquarters"], ["os", "Windows"], ["deviceType", "3"], ["deviceType", ""], ["sort", "contact"], ["search", "needle"],
+    ["group", "Headquarters"], ["os", "Windows"], ["deviceType", "3"], ["deviceType", ""],
+    ["sort", "contact"], ["sort", "protection"], ["search", "needle"],
   ] as const)("resets page on %s changes and forwards the value", async (field, value) => {
     change(await secondPage(), field, value);
     await vi.advanceTimersByTimeAsync(250);

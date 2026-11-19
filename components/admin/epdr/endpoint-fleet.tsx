@@ -364,8 +364,9 @@ export default function EndpointFleet({
             <label className="flex min-w-0 items-center gap-2 text-xs">
               <span className="shrink-0 text-ops-muted">{v("sort")}</span>
               <select value={sort} className="ops-input h-8 min-w-0 flex-1 px-2 text-xs" onChange={(event) => { setLoading(true); setPage(1); setSort(event.target.value as FleetQuery["sort"]); }}>
-                <option value="name">{v("name")}</option>
-                <option value="contact">{v("contact")}</option>
+                <option value="name">{v("sortLabels.name")}</option>
+                <option value="contact">{v("sortLabels.contact")}</option>
+                <option value="protection">{v("sortLabels.protection")}</option>
               </select>
             </label>
           </div>

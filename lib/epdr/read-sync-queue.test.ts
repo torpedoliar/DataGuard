@@ -28,27 +28,41 @@ describe("durable endpoint read queue (mock database only)", () => {
   it("locks the active-site binding before enqueue and persists its revision", async () => {
     mocks.execute.mockResolvedValueOnce({ rows: [{ id: 8, account_revision: 3 }] })
       .mockResolvedValueOnce({ rows: [{ role: "superadmin" }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: 42 }] });
     await expect(enqueueReadSync(4, 9)).resolves.toEqual({ status: "queued", requestId: 42 });
     expect(queries()[0].sql).toContain("FOR UPDATE");
     expect(queries()[0].params).toContain(4);
-    expect(queries()[4].params).toEqual([8, 4, 3, 9]);
-    expect(queries()[3].sql).toContain("clock_timestamp()");
+    expect(queries()[5].params).toEqual([8, 4, 3, 9]);
+    expect(queries()[4].sql).toContain("clock_timestamp()");
+  });
+  it("expires a stale running claim before the pending check so a retry is not blocked", async () => {
+    mocks.execute.mockResolvedValueOnce({ rows: [{ id: 8, account_revision: 3 }] })
+      .mockResolvedValueOnce({ rows: [{ role: "superadmin" }] })
+      .mockResolvedValueOnce({ rows: [{ id: 41 }] })
+      .mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 42 }] });
+    await expect(enqueueReadSync(4, 9)).resolves.toEqual({ status: "queued", requestId: 42 });
+    expect(queries()[2].sql).toContain("status = 'failed'");
+    expect(queries()[2].sql).toContain("lease_until < clock_timestamp()");
+    expect(queries()[2].sql).toContain("error = 'worker_timeout'");
   });
   it("returns existing pending request rather than inserting", async () => {
     mocks.execute.mockResolvedValueOnce({ rows: [{ id: 8, account_revision: 3 }] })
       .mockResolvedValueOnce({ rows: [{ role: "superadmin" }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: 42 }] });
     await expect(enqueueReadSync(4, 9)).resolves.toEqual({ status: "already_pending", requestId: 42 });
-    expect(mocks.execute).toHaveBeenCalledTimes(3);
+    expect(mocks.execute).toHaveBeenCalledTimes(4);
   });
   it("returns database-time cooldown without enqueue", async () => {
     mocks.execute.mockResolvedValueOnce({ rows: [{ id: 8, account_revision: 3 }] })
       .mockResolvedValueOnce({ rows: [{ role: "superadmin" }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ retry_at: "2026-01-01T12:00:00Z" }] });
     await expect(enqueueReadSync(4, 9)).resolves.toEqual({ status: "cooldown", retryAt: "2026-01-01T12:00:00.000Z" });
-    expect(mocks.execute).toHaveBeenCalledTimes(4);
+    expect(mocks.execute).toHaveBeenCalledTimes(5);
   });
   it.each(["inactive", "revoked"])("rejects %s request actors before enqueue", async (kind) => {
     mocks.execute.mockResolvedValueOnce({ rows: [{ id: 8, account_revision: 3 }] })
@@ -120,7 +134,46 @@ describe("durable endpoint read queue (mock database only)", () => {
   });
   it("returns idle rather than inventing a completed run", async () => {
     mocks.execute.mockResolvedValue({ rows: [] });
-    expect((await readSyncStatus(4)).status).toBe("idle");
+    const status = await readSyncStatus(4);
+    expect(status.status).toBe("idle");
+    expect(status.workerLastSeenAt).toBeNull();
+    // The first statement settles an expired claim before reporting.
+    expect(queries()[0].sql).toContain("lease_until < clock_timestamp()");
+  });
+  it("reports the lease and the latest worker heartbeat alongside the request", async () => {
+    mocks.execute.mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{
+        id: 42, status: "running",
+        requested_at: new Date("2026-01-01T09:55:00.000Z"),
+        started_at: new Date("2026-01-01T09:56:00.000Z"),
+        finished_at: null, error: null,
+        lease_until: new Date("2026-01-01T10:06:00.000Z"),
+        retry_at: new Date("2026-01-01T10:00:00.000Z"),
+      }] })
+      .mockResolvedValueOnce({ rows: [{ last_pass_at: "2026-01-01T10:05:00.000Z" }] });
+    await expect(readSyncStatus(4)).resolves.toEqual({
+      status: "running", requestId: 42,
+      requestedAt: "2026-01-01T09:55:00.000Z",
+      startedAt: "2026-01-01T09:56:00.000Z",
+      finishedAt: null, retryAt: "2026-01-01T10:00:00.000Z", error: null,
+      leaseExpiresAt: "2026-01-01T10:06:00.000Z",
+      workerLastSeenAt: "2026-01-01T10:05:00.000Z",
+    });
+  });
+  it("keeps the request status readable when the worker heartbeat table is unavailable", async () => {
+    mocks.execute.mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{
+        id: 43, status: "failed",
+        requested_at: new Date("2026-01-01T09:55:00.000Z"),
+        started_at: null, finished_at: new Date("2026-01-01T09:56:00.000Z"),
+        error: "worker_timeout", lease_until: null,
+        retry_at: new Date("2026-01-01T10:00:00.000Z"),
+      }] })
+      .mockRejectedValueOnce(new Error("42P01"));
+    const status = await readSyncStatus(4);
+    expect(status.status).toBe("failed");
+    expect(status.error).toBe("worker_timeout");
+    expect(status.workerLastSeenAt).toBeNull();
   });
   it("cancels using connection-first lock order and invalidates fencing token", async () => {
     mocks.execute.mockResolvedValue({ rows: [] });

@@ -11,7 +11,8 @@ export const fleetQuerySchema = z.object({
   os: z.string().max(255).default(""),
   /** Empty = every device type; otherwise one of the documented enum values. */
   deviceType: z.union([z.literal(""), z.enum(["1", "2", "3", "4"])]).default(""),
-  sort: z.enum(["name", "contact"]).default("name"),
+  /** name = A–Z, contact = latest connection first, protection = attention first. */
+  sort: z.enum(["name", "contact", "protection"]).default("name"),
 });
 export type FleetQuery = z.infer<typeof fleetQuerySchema>;
 export const FLEET_PAGE_SIZE = 50;

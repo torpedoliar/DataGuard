@@ -5,7 +5,7 @@ vi.mock("@/lib/action-auth", () => ({ requireActiveSiteAdminAction: mocks.guard 
 vi.mock("@/lib/epdr/read-sync-queue", () => ({
   enqueueReadSync: mocks.enqueue, readSyncStatus: mocks.status, cancelReadSync: mocks.cancel,
   emptyReadSyncStatus: (status: string) => ({ status, requestId: null, requestedAt: null, startedAt: null,
-    finishedAt: null, retryAt: null, error: null }),
+    finishedAt: null, retryAt: null, error: null, leaseExpiresAt: null, workerLastSeenAt: null }),
 }));
 import { requestEpdrReadSync, getEpdrReadSyncStatus, cancelEpdrReadSync } from "./epdr-read-sync";
 beforeEach(() => { vi.resetAllMocks(); mocks.guard.mockResolvedValue({ ok: true, activeSiteId: 17, session: { userId: 9 } }); });

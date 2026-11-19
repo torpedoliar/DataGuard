@@ -341,6 +341,17 @@ export async function getEpdrEndpointPage(input: FleetQuery): Promise<EpdrEndpoi
   const [count] = await db.select({ total: sql<number>`count(*)::integer` }).from(epdrEndpoints).where(where);
   const total = Number(count?.total ?? 0);
   const page = Math.min(q.page, Math.max(1, Math.ceil(total / FLEET_PAGE_SIZE)));
+  // Protection sort puts devices an operator must act on first: disabled,
+  // error, install error, then no-license/unknown/outdated, protected last.
+  // Name breaks ties so pagination stays stable.
+  const protectionRank = sql`case ${bucket}
+    when 'disabled' then 0 when 'error' then 1 when 'install_error' then 2
+    when 'no_license' then 3 when 'unknown' then 4 when 'outdated' then 5 else 6 end`;
+  const orderBy = q.sort === "contact"
+    ? sql`${epdrEndpoints.lastConnectionAt} desc nulls last, ${epdrEndpoints.hostName} asc, ${epdrEndpoints.id} asc`
+    : q.sort === "protection"
+      ? sql`${protectionRank} asc, ${epdrEndpoints.hostName} asc, ${epdrEndpoints.id} asc`
+      : sql`${epdrEndpoints.hostName} asc, ${epdrEndpoints.id} asc`;
   const rows = await db.select({
     id: epdrEndpoints.id, hostName: epdrEndpoints.hostName, ipAddress: epdrEndpoints.ipAddress,
     deviceType: epdrEndpoints.deviceType, operatingSystem: epdrEndpoints.operatingSystem,
@@ -354,7 +365,7 @@ export async function getEpdrEndpointPage(input: FleetQuery): Promise<EpdrEndpoi
   }).from(epdrEndpoints)
     .leftJoin(devices, and(eq(devices.id, epdrEndpoints.deviceId), eq(devices.siteId, siteId)))
     .where(where)
-    .orderBy(q.sort === "contact" ? sql`${epdrEndpoints.lastConnectionAt} desc nulls last` : asc(epdrEndpoints.hostName), asc(epdrEndpoints.id))
+    .orderBy(orderBy)
     .limit(FLEET_PAGE_SIZE).offset(fleetOffset({ ...q, page }));
   const nowMs = Date.now();
   return { rows: rows.map((r) => ({ ...r, bucket: bucketForEndpoint(r), offline: isOffline(r.lastConnectionAt, nowMs) })), total, page, pageSize: FLEET_PAGE_SIZE };
