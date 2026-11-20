@@ -64,7 +64,7 @@ describe("EPDR local operations ledger", () => {
   it("projects only safe fields and maps unknown free text to fixed enums", async () => {
     mocks.execute.mockResolvedValue({ rows: [{ id: 5, kind: "action", state: "token=private", action_type: "secret command", created_at: new Date("2026-01-01Z"), total: "1", params: { token: "private" }, error: "secret", raw: "payload" }] });
     expect(await getEpdrOperations()).toEqual({ view: "activity", page: 1, limit: 50, total: 1, providerLocked: true,
-      rows: [{ id: 5, kind: "action", status: "unknown", action: "other", createdAt: "2026-01-01T00:00:00.000Z" }] });
+      rows: [{ id: 5, kind: "action", status: "unknown", action: "other", createdAt: "2026-01-01T00:00:00.000Z", requestedBy: null, approvedBy: null, selfApproved: false }] });
   });
 
   it.each([
@@ -78,6 +78,16 @@ describe("EPDR local operations ledger", () => {
   it("retains totals for an empty out-of-range page without manufacturing a row", async () => {
     mocks.execute.mockResolvedValue({ rows: [{ id: null, kind: null, state: null, action_type: null, created_at: null, total: "12" }] });
     expect(await getEpdrOperations({ page: 4 })).toMatchObject({ page: 4, total: 12, rows: [] });
+  });
+
+  it.each([
+    ["action", "queued", 9, 9, true], ["action", "queued", 8, 9, false],
+    ["approval", "approved", 9, 9, true], ["approval", "rejected", 9, 9, false],
+    ["approval", "pending", 9, null, false],
+  ])("identifies %s %s approval actors without mislabelling rejection", async (kind, state, requestedBy, approvedBy, selfApproved) => {
+    mocks.execute.mockResolvedValue({ rows: [{ id: 5, kind, state, action_type: null, created_at: null, total: 1,
+      requested_by: requestedBy, approved_by: approvedBy, requester_name: "requester", approver_name: approvedBy ? "admin" : null }] });
+    expect(await getEpdrOperations()).toMatchObject({ rows: [{ requestedBy: "requester", approvedBy: approvedBy ? "admin" : null, selfApproved }] });
   });
 
   it("hides database failures", async () => {

@@ -8,7 +8,9 @@
  *
  * The three stages are deliberately separate:
  * - `request`: may this operator ask for this operation on this target now?
- * - `approve`: may this second administrator authorize the frozen snapshot?
+ * - `approve`: may this site administrator authorize the frozen snapshot? A
+ *   single administrator may approve their own request; the approver is
+ *   recorded on the row and in the audit log rather than forced to differ.
  * - `dispatch`: may the worker send it right now, with the same snapshot?
  */
 import {
@@ -33,7 +35,6 @@ export type ExecutionBlockReason =
   | "snapshot_changed"
   | "approval_missing"
   | "approval_expired"
-  | "self_approval"
   | "approver_not_admin"
   | "requester_not_authorized"
   | "endpoint_missing"
@@ -157,7 +158,6 @@ export function evaluateExecutionPolicy(input: ExecutionPolicyInput): ExecutionD
   if (input.stage === "approve") {
     const approval = input.approval;
     if (!approval) return { allowed: false, reason: "approval_missing" };
-    if (approval.approverId === snapshot.requesterId) return { allowed: false, reason: "self_approval" };
     // The approving administrator must still be an active site administrator.
     if (!approval.approverIsCurrentSiteAdmin) return { allowed: false, reason: "approver_not_admin" };
     // A request whose own window lapsed can no longer be approved.
@@ -169,7 +169,6 @@ export function evaluateExecutionPolicy(input: ExecutionPolicyInput): ExecutionD
     if (input.terminal) return { allowed: false, reason: "already_terminal" };
     const approval = input.approval;
     if (!approval) return { allowed: false, reason: "approval_missing" };
-    if (approval.approverId === snapshot.requesterId) return { allowed: false, reason: "self_approval" };
     if (!approval.approverIsCurrentSiteAdmin) return { allowed: false, reason: "approver_not_admin" };
     // An approval that already lapsed cannot authorize a send.
     if (approval.expiresAt <= input.nowMs) return { allowed: false, reason: "approval_expired" };
@@ -186,7 +185,6 @@ export function isHardBlock(reason: ExecutionBlockReason): boolean {
     reason === "write_not_enabled" ||
     reason === "operation_not_verified" ||
     reason === "snapshot_invalid" ||
-    reason === "approver_not_admin" ||
-    reason === "self_approval"
+    reason === "approver_not_admin"
   );
 }

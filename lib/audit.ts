@@ -58,6 +58,7 @@ export type AuditEntity =
     | "ncm_review"
     | "ncm_credential"
     | "epdr_action"
+    | "epdr_local_approval"
     // ThreatSync target confirmation/rejection (operator decisions).
     | "provider_target";
 

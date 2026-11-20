@@ -27,6 +27,7 @@ import { resolveConnectionState } from "./posture";
 import type { IngestSettings } from "./detect-ingest";
 import { assertReadSyncActor, processReadSyncQueue, type ReadSyncFence } from "./read-sync-queue";
 import { buildProviderIncidentDrafts } from "./provider-targets";
+import { describeWorkerError } from "./worker-pass";
 import { processLocalNotificationQueue, scheduleLocalNotifications } from "./local-notification-outbox";
 import { calculateIncidentDueDate } from "@/lib/incidents";
 import {
@@ -34,6 +35,16 @@ import {
   runProviderDispatchPass,
   runProviderObservePass,
 } from "./execution-jobs";
+
+/**
+ * ThreatSync read window. Without `duration` the provider pages through the
+ * account's whole retained history (tens of thousands of incidents on a busy
+ * Firebox account), so a pass never completes inside its interval. Seven days
+ * covers the detection and provider-sync cadence many times over; older
+ * incidents are already stored from earlier passes.
+ */
+export const THREATSYNC_READ_WINDOW = "7D";
+
 
 export async function runPendingReadSyncRequests(): Promise<void> {
   await processReadSyncQueue(runEndpointsJob);
@@ -515,7 +526,7 @@ async function runProviderSyncJob(connectionId: number): Promise<void> {
 
   let failed: string | null = null;
   try {
-    for await (const incident of client.iterateIncidents({ limit: 500 })) {
+    for await (const incident of client.iterateIncidents({ limit: 500, duration: THREATSYNC_READ_WINDOW })) {
       const { drafts } = buildProviderIncidentDrafts([incident]);
       for (const draft of drafts) {
         await db.transaction(async (tx) => {
@@ -554,9 +565,9 @@ async function runProviderSyncJob(connectionId: number): Promise<void> {
         });
       }
     }
-  } catch {
+  } catch (error) {
     failed = "provider_iteration_failed";
-    console.error(`[epdr] provider incident sync failed for connection ${connectionId}`);
+    console.error(`[epdr] provider incident sync failed for connection ${connectionId} (${describeWorkerError(error)})`);
   }
 
   // Completion bookkeeping: the timestamp moves only after a full iteration on
@@ -564,7 +575,7 @@ async function runProviderSyncJob(connectionId: number): Promise<void> {
   await db.execute(sql`
     UPDATE watchguard_connections SET
       last_provider_sync_error = ${failed},
-      last_provider_sync_at = CASE WHEN ${failed} IS NULL THEN clock_timestamp() ELSE last_provider_sync_at END
+      last_provider_sync_at = CASE WHEN ${failed}::text IS NULL THEN clock_timestamp() ELSE last_provider_sync_at END
     WHERE id = ${connectionId} AND account_revision = ${conn.accountRevision}`);
 }
 
@@ -615,18 +626,18 @@ async function runDetectionsJob(connectionId: number): Promise<void> {
     let received = 0;
     let status: DetectionReadEvidence["status"] = "failed";
     try {
-      for await (const inc of client.iterateIncidents({ limit: 500 })) {
+      for await (const inc of client.iterateIncidents({ limit: 500, duration: THREATSYNC_READ_WINDOW })) {
         received++;
         const r = buildThreatSyncDetections(inc, settings);
         drafts.push(...r.detections);
         extra.push(...r.unmatched);
       }
       status = "completed"; // Only reached after full iterator exhaustion.
-    } catch {
+    } catch (error) {
       status = received > 0 ? "partial" : "failed";
-      console.error(`[epdr] threatsync ingest failed for connection ${connectionId}`);
+      console.error(`[epdr] threatsync ingest failed for connection ${connectionId} after ${received} incidents (${describeWorkerError(error)})`);
     }
-    readEvidence.push({ ...binding, source: "threatsync", status, window: "provider_default", startedAt, finishedAt: new Date(), eventTypes: [], completedEventTypes: [] });
+    readEvidence.push({ ...binding, source: "threatsync", status, window: "threatsync_7d", startedAt, finishedAt: new Date(), eventTypes: [], completedEventTypes: [] });
   }
 
   if (settingsRow?.ingestEnabled ?? false) {
@@ -642,8 +653,8 @@ async function runDetectionsJob(connectionId: number): Promise<void> {
           extra.push(...r.ignored, ...r.unmatched);
         }
         completedEventTypes.push(type);
-      } catch {
-        console.error(`[epdr] security-event ingest failed (type ${type}) for connection ${connectionId}`);
+      } catch (error) {
+        console.error(`[epdr] security-event ingest failed (type ${type}) for connection ${connectionId} (${describeWorkerError(error)})`);
       }
     }
     const status = eventExportReadStatus(settings.eventTypes, completedEventTypes);

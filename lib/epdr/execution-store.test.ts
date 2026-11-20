@@ -82,6 +82,42 @@ describe("cooldown and hourly-count helpers", () => {
   });
 });
 
+describe("0086 single-admin approval migration contract", () => {
+  const migration = readFileSync("drizzle/0086_epdr_single_admin_approval.sql", "utf8");
+
+  it("removes provider self-approval restriction without weakening snapshot integrity", () => {
+    expect(migration).toMatch(/ALTER TABLE epdr_actions\s+DROP CONSTRAINT IF EXISTS epdr_actions_no_self_approval_check;/);
+    expect(migration).not.toContain("DROP CONSTRAINT epdr_actions_approved_snapshot_check");
+    expect(migration).not.toMatch(/DROP TABLE|DROP COLUMN/);
+  });
+
+  it("discovers the unnamed local self-decision check by its definition", () => {
+    expect(migration).toContain("DO $$");
+    expect(migration).toContain("FROM pg_constraint");
+    expect(migration).toContain("conrelid = 'epdr_local_approvals'::regclass");
+    expect(migration).toContain("contype = 'c'");
+    expect(migration).toContain("pg_get_constraintdef(oid) ~ 'decided_by[[:space:]]*<>[[:space:]]*requested_by'");
+    expect(migration).toContain("format('ALTER TABLE epdr_local_approvals DROP CONSTRAINT %I', constraint_name)");
+  });
+
+  it("retains decider and timestamp requirements for every nonpending local decision", () => {
+    expect(migration).toContain("ADD CONSTRAINT epdr_local_approvals_decision_check");
+    expect(migration).toContain("CHECK (status = 'pending' OR (decided_by IS NOT NULL AND decided_at IS NOT NULL))");
+  });
+
+  it("registers handwritten migration 86 directly after 85", () => {
+    const journal = JSON.parse(readFileSync("drizzle/meta/_journal.json", "utf8")) as {
+      entries: { idx: number; tag: string; when: number; breakpoints: boolean }[];
+    };
+    const index = journal.entries.findIndex((entry) => entry.idx === 86);
+    expect(index).toBeGreaterThan(0);
+    expect(journal.entries.filter((entry) => entry.idx === 86)).toHaveLength(1);
+    expect(journal.entries[index - 1]).toMatchObject({ idx: 85, tag: "0085_epdr_provider_writes_hardening" });
+    expect(journal.entries[index]).toMatchObject({ idx: 86, tag: "0086_epdr_single_admin_approval", breakpoints: true });
+    expect(journal.entries[index].when).toBeGreaterThan(journal.entries[index - 1].when);
+  });
+});
+
 describe("0085 schema and migration parity", () => {
   it("declares the per-site limit columns, attempt events and worker heartbeats", () => {
     const settings = getTableConfig(epdrSiteSettings);
@@ -119,6 +155,6 @@ describe("0085 schema and migration parity", () => {
     const journal = JSON.parse(readFileSync("drizzle/meta/_journal.json", "utf8")) as {
       entries: { idx: number; tag: string }[];
     };
-    expect(journal.entries.at(-1)).toMatchObject({ idx: 85, tag: "0085_epdr_provider_writes_hardening" });
+    expect(journal.entries.find((entry) => entry.idx === 85)).toMatchObject({ idx: 85, tag: "0085_epdr_provider_writes_hardening" });
   });
 });

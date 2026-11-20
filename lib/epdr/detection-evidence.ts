@@ -16,7 +16,7 @@ export const DETECTION_SOURCE_READ_CAPABILITIES = {
     status: "documented", method: "GET",
     route: "/rest/threatsync/management/v1/{accountId}/incidents",
     proof: "docs/superpowers/plans/2026-11-09-watchguard-epdr/T01-api-client.md#client-methods",
-    window: "provider_default",
+    window: "threatsync_7d",
   },
 } as const;
 export function detectionSourceReadSupported(source: string): boolean {
@@ -69,7 +69,7 @@ export function detectionCompleteness(evidence: DetectionReadEvidence | null | u
   if ((evidence.settingsUpdatedAt?.getTime() ?? null) !== (context.settingsUpdatedAt?.getTime() ?? null)) return unknown;
   const start = evidence.startedAt.getTime();
   const finish = evidence.finishedAt.getTime();
-  const expectedWindow = context.source === "event_export" ? "event_export_period_1" : "provider_default";
+  const expectedWindow = DETECTION_SOURCE_READ_CAPABILITIES[context.source].window;
   if (!Number.isFinite(context.now) || !Number.isFinite(context.maxAgeMs) || context.maxAgeMs <= 0 ||
       !Number.isFinite(start) || !Number.isFinite(finish) || finish < start || finish > context.now ||
       context.now - start > context.maxAgeMs || evidence.window !== expectedWindow) return unknown;

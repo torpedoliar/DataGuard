@@ -4,7 +4,8 @@
  *
  * This is a *configuration* tool, not a new capability: actions must already
  * exist in `EXECUTABLE_ACTION_TYPES` with a verified provider contract. Every
- * execution still needs a second administrator's approval, passes the policy,
+ * execution still needs site-admin approval (the requester may approve), recorded
+ * in the activity log, passes the policy,
  * cooldown and hourly caps, and remains blocked by either kill switch.
  *
  * The tool only widens lists (it never removes an existing action), never
@@ -147,7 +148,7 @@ async function main(): Promise<void> {
       detail,
     });
   });
-  console.log("Applied. Every write request still requires a second administrator's approval.");
+  console.log("Applied. Every write request still requires site-admin approval (the requester may approve), recorded in the activity log.");
 }
 
 if (require.main === module) {

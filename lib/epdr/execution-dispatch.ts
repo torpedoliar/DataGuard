@@ -193,16 +193,17 @@ export function aggregateScanJobStatuses(raw: unknown): ScanJobAggregate {
       ? ((raw as { data: unknown[] }).data)
       : null;
   if (!array || array.length === 0) return "unreadable";
-  let sawCompleted = false;
+  let sawPending = false;
   for (const item of array) {
     if (typeof item !== "object" || item === null) return "unreadable";
     const status = (item as { status?: unknown }).status;
     if (typeof status !== "number" || !Number.isInteger(status)) return "unreadable";
-    if (status === 2) { sawCompleted = true; continue; }
+    if (status === 2) continue;
     if (status === 3 || status === 4 || status === 5 || status === 7) return "failed";
-    if (status === 0 || status === 1 || status === 6) continue;
+    if (status === 0 || status === 1 || status === 6) { sawPending = true; continue; }
     // An undocumented status is not progress we can trust.
     return "unreadable";
   }
-  return sawCompleted ? "completed" : "pending";
+  // Completed only when every reported device job completed.
+  return sawPending ? "pending" : "completed";
 }

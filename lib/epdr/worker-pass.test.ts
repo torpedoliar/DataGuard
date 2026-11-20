@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveJobIntervalMinutes, runWorkerPass, shouldRunJob } from "@/lib/epdr/worker-pass";
+import { describeWorkerError, resolveJobIntervalMinutes, runWorkerPass, shouldRunJob } from "@/lib/epdr/worker-pass";
 
 const conn = { id: 1, endpointSyncMinutes: 15, detectionSyncMinutes: 5 };
 
@@ -39,5 +39,17 @@ describe("runWorkerPass", () => {
     const result = await runWorkerPass([conn], [{ name: "endpoints" }], lastRun, runJob, 14 * 60 * 1000);
     expect(runJob).not.toHaveBeenCalled();
     expect(result).toEqual({ ran: 0, failed: 0 });
+  });
+});
+
+describe("safe worker diagnostics", () => {
+  it("finds SQLSTATE through a Drizzle cause without logging SQL or secrets", () => {
+    const error = new Error("query failed: password=private", { cause: { code: "42P18", message: "private" } });
+    expect(describeWorkerError(error)).toBe("sqlstate=42P18");
+  });
+  it("only emits allowlisted provider kinds and bounded HTTP status", () => {
+    expect(describeWorkerError({ kind: "auth", status: 401 })).toBe("kind=auth status=401");
+    expect(describeWorkerError({ kind: "private", status: 401 })).toBe("error=unknown");
+    expect(describeWorkerError(new Error("private_secret"))).toBe("error=unknown");
   });
 });

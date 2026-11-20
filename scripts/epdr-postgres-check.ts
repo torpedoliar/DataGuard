@@ -174,7 +174,7 @@ async function main(): Promise<number> {
     } catch { immutable = true; }
     check("local playbook evidence is trigger-immutable", immutable);
 
-    // Durable local approval: unique per run+intent and second-decider CHECK.
+    // Durable local approval: unique per run+intent; self-decisions retain audit fields.
     const approval = await client.query<{ id: number }>(`INSERT INTO epdr_local_approvals
       (site_id, detection_id, local_run_id, endpoint_id, connection_id, account_revision, action_intent, snapshot, requested_by, expires_at)
       VALUES ($1, $2, $3, $4, $5, 1, 'scan', '{"providerLocked":true}'::jsonb, $6,
@@ -189,12 +189,25 @@ async function main(): Promise<number> {
         [siteId, detectionId, run.rows[0].id, endpoint.rows[0].id, connId, userId]);
     } catch { approvalDupRejected = true; }
     check("local approval is unique per run and intent", approvalDupRejected);
-    let selfApprovalRejected = false;
-    try {
-      await client.query(`UPDATE epdr_local_approvals SET status = 'approved', decided_by = $2,
-        decided_at = clock_timestamp() WHERE id = $1`, [approval.rows[0].id, userId]);
-    } catch { selfApprovalRejected = true; }
-    check("local approval requires a different decider", selfApprovalRejected);
+    for (const status of ["approved", "rejected"]) {
+      let selfDecisionPermitted = false;
+      try {
+        const decision = await client.query(`UPDATE epdr_local_approvals SET status = $3, decided_by = $2,
+          decided_at = clock_timestamp() WHERE id = $1 RETURNING id`, [approval.rows[0].id, userId, status]);
+        selfDecisionPermitted = decision.rowCount === 1;
+      } catch { /* Report a failed check and continue with the remaining constraints. */ }
+      check(`local ${status} self-decision is permitted`, selfDecisionPermitted);
+      for (const field of ["decided_by", "decided_at"] as const) {
+        let missingDecisionFieldRejected = false;
+        try {
+          await client.query(`UPDATE epdr_local_approvals SET status = $2, ${field} = NULL WHERE id = $1`,
+            [approval.rows[0].id, status]);
+        } catch (error) { missingDecisionFieldRejected = (error as { code?: string }).code === "23514"; }
+        check(`local ${status} decision rejects missing ${field}`, missingDecisionFieldRejected);
+      }
+    }
+    await client.query(`UPDATE epdr_local_approvals SET status = 'approved', decided_by = $2,
+      decided_at = clock_timestamp() WHERE id = $1`, [approval.rows[0].id, userId]);
     let approvalCrossSiteRejected = false;
     try {
       await client.query(`INSERT INTO epdr_local_approvals
@@ -319,6 +332,21 @@ async function main(): Promise<number> {
       "SELECT max_actions_per_hour, execution_cooldown_minutes FROM epdr_site_settings WHERE site_id = $1", [siteId]);
     check("per-site cap NULL follows the global ceiling and cooldown defaults to 10",
       siteSettings.rows[0]?.max_actions_per_hour === null && siteSettings.rows[0]?.execution_cooldown_minutes === 10);
+
+    // 0086: provider approvals may record the requester as approver, without
+    // bypassing the existing snapshot-hash integrity constraint. This terminal
+    // fixture also gives the append-only event checks a real action row.
+    const selfApprovedAction = await client.query<{ requested_by: number; approved_by: number }>(`
+      INSERT INTO epdr_actions (site_id, connection_id, endpoint_id, action_type, params, mode, state,
+        idempotency_key, requested_by, approved_by, approved_at, approved_snapshot_hash, snapshot, snapshot_hash,
+        approval_expires_at, account_revision, credential_revision, namespace, device_id)
+      VALUES ($1, $2, $3, 'scan', '{}'::jsonb, 'approval', 'cancelled', 'verify-key-self-approved', $4, $4,
+        clock_timestamp(), 'verify-hash', '{}'::jsonb, 'verify-hash',
+        clock_timestamp() + interval '30 minutes', 1, 0, 'endpoint_security', 'verify-device')
+      RETURNING requested_by, approved_by`, [siteId, connId, endpoint.rows[0].id, userId]);
+    check("provider self-approval is permitted and records the administrator",
+      selfApprovedAction.rowCount === 1 && selfApprovedAction.rows[0].requested_by === userId
+      && selfApprovedAction.rows[0].approved_by === userId);
 
     // Attempt events: the append-only trigger blocks UPDATE and DELETE on a
     // real row (a zero-row UPDATE never fires a row trigger).

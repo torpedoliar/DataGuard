@@ -105,6 +105,11 @@ function normalizePage<T>(raw: unknown, itemSchema: z.ZodType<T>, context: strin
   return { data: envelope.data.map((item) => parseItem(itemSchema, item, context)), totalItems };
 }
 
+function isErrorEnvelope(raw: unknown): raw is { status: "error"; errors?: { code?: unknown; message?: unknown }[] } {
+  return raw !== null && typeof raw === "object" && !Array.isArray(raw)
+    && (raw as { status?: unknown }).status === "error";
+}
+
 function parseItem<T>(schema: z.ZodType<T>, item: unknown, context: string): T {
   const parsed = schema.safeParse(item);
   if (!parsed.success) {
@@ -178,7 +183,7 @@ export function createWatchGuardClient(creds: WatchGuardCredentials, options: Wa
     if (!response.ok) {
       const snippet = redactWatchGuard(text, secrets).slice(0, 200);
       throw new WatchGuardError(
-        mapHttpStatusToKind(response.status),
+        mapHttpStatusToKind(response.status, "rest"),
         `WatchGuard API responded ${response.status}: ${snippet}`,
         { status: response.status, retryAfterMs },
       );
@@ -189,11 +194,24 @@ export function createWatchGuardClient(creds: WatchGuardCredentials, options: Wa
     }
 
     if (!text.trim()) return null;
+    let parsed: unknown;
     try {
-      return JSON.parse(text);
+      parsed = JSON.parse(text);
     } catch {
       throw new WatchGuardError("invalid_response", "WatchGuard returned non-JSON for a JSON endpoint");
     }
+    // The API gateway answers some failures (e.g. an unknown path) with HTTP
+    // 200 and `{"status":"error","errors":[...]}`. That is never data.
+    if (isErrorEnvelope(parsed)) {
+      const code = parsed.errors?.[0]?.code;
+      const snippet = redactWatchGuard(String(parsed.errors?.[0]?.message ?? ""), secrets).slice(0, 200);
+      throw new WatchGuardError(
+        /not found/i.test(snippet) ? "not_found" : "invalid_response",
+        `WatchGuard API returned an error envelope${code !== undefined ? ` (${code})` : ""}: ${snippet}`,
+        { status: response.status },
+      );
+    }
+    return parsed;
   }
 
   // ---- Read GET with retry + one-token-refresh ----------------------------
@@ -299,11 +317,9 @@ export function createWatchGuardClient(creds: WatchGuardCredentials, options: Wa
         normalizePage(raw, unmanagedDeviceSchema, "unmanaged devices"));
     },
 
-    listManagedConfigurations(params: { type?: number } = {}) {
-      const path =
-        params.type !== undefined
-          ? `${endpointBase}/managedconfigurations/${encode(String(params.type))}`
-          : `${endpointBase}/managedconfigurations`;
+    /** `type` is required: the provider has no untyped managedconfigurations list. */
+    listManagedConfigurations(params: { type: number }) {
+      const path = `${endpointBase}/managedconfigurations/${encode(String(params.type))}`;
       return performGet(path, {}, (raw) => normalizePage(raw, managedConfigurationSchema, "managed configurations"));
     },
 
@@ -476,13 +492,26 @@ export function createWatchGuardClient(creds: WatchGuardCredentials, options: Wa
       query?: string;
     } = {}): AsyncGenerator<ThreatSyncIncidentRecord, void, unknown> {
       const limit = params.limit ?? 500;
+      // The provider rejects `startAfter` (HTTP 400) unless the list is sorted
+      // by the same key the cursor names. Page by id, ascending, so the last
+      // id of one page is a valid cursor for the next.
+      const sortBy = params.sortBy ?? "id";
+      const sortOrder = params.sortOrder ?? "asc";
       let startAfter: string | undefined;
-      for (;;) {
-        const page = await this.listIncidents({ ...params, limit, startAfter });
+      const seenCursors = new Set<string>();
+      for (let pageNumber = 0; ; pageNumber++) {
+        // Bound a pass without claiming a truncated stream is complete.
+        if (pageNumber >= 200) throw new WatchGuardError("invalid_response", "WatchGuard incidents: page limit exceeded");
+        const page = await this.listIncidents({ ...params, sortBy, sortOrder, limit, startAfter });
         for (const item of page.data) yield item;
         if (page.data.length < limit) break;
-        if (!page.startAfter || page.startAfter === startAfter) break;
-        startAfter = page.startAfter;
+        const lastItem = page.data[page.data.length - 1] as Record<string, unknown> | undefined;
+        const cursor = lastItem?.[sortBy];
+        if (typeof cursor !== "string" || !cursor || seenCursors.has(cursor)) {
+          throw new WatchGuardError("invalid_response", "WatchGuard incidents: missing or repeated pagination cursor");
+        }
+        seenCursors.add(cursor);
+        startAfter = cursor;
       }
     },
 

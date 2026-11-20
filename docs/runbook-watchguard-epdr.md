@@ -4,7 +4,8 @@ Status: **read-only ingestion plus opt-in, gated provider writes**. Inventory an
 evidence are always read through the read-only transport
 (`WATCHGUARD_READ_ONLY_LOCK = true`). Provider writes exist only through the
 separate execution pipeline documented in §11: both enablement gates default off,
-a different site administrator must approve an immutable target snapshot, and the
+a site administrator must approve an immutable target snapshot (the requester may approve),
+with approval recorded in the activity log, and the
 worker re-validates every gate immediately before one single send. There is no
 arbitrary HTTP path, no bulk execution and no automatic (approval-free) write.
 
@@ -24,6 +25,16 @@ arbitrary HTTP path, no bulk execution and no automatic (approval-free) write.
 - **Site staff**: read-only Endpoint Security + Threats.
 
 ## 3. Setup sequence (pilot)
+
+### Credential and access model
+
+- **API key**: one shared REST header, `WatchGuard-API-Key`, used with both RO and RW credentials. It is not an OAuth Access ID or password and is not sent to the token endpoint.
+- **Access ID + matching password**: one OAuth credential pair per access level (RO or RW). OAuth uses Basic authentication at the regional `/oauth/token` endpoint with `grant_type=client_credentials` and `scope=api-access`. Never mix fields from different pairs.
+- **Region**: select the account's hosting region. Japan (`jpn`) maps to the fixed host `api.jpn.cloud.watchguard.com` for OAuth and REST; no custom host is accepted. Other supported regions keep their own fixed mappings.
+- **Reads**: prefer a complete RO pair. Use the complete RW pair as read fallback only when both RO fields are absent from the saved connection. Blank form fields preserve saved credentials; they do not remove RO. Incomplete, undecryptable, invalid or rejected RO is an error to resolve, never permission to silently fall back to RW.
+- **RW connection test**: obtains a fresh OAuth token and performs GET probes only. Success proves authentication and the tested read access, not mutation permissions. It sends no provider action and does not authorize writes.
+- **Provider writes**: storing RW credentials or activating reads does not enable writes. Both global and site write gates, both action allowlists, approval by a currently-authorized site administrator (the requester may approve), and a running dispatch worker are required; approval is recorded in the activity log; kill switches and other execution checks still apply (§11).
+- **Local review**: reviewing evidence, recording local outcomes and closing a local review never sends provider actions. Provider execution is a separate explicit request/approval/worker flow; a local review is not its approval.
 
 1. Rotate WatchGuard credentials in Console; enter them in `/admin/settings` (write-only fields).
 2. Save connection as **disabled draft**, then **Test connection** — verify Auth, Account, Endpoint Security, ThreatSync separately.
@@ -77,7 +88,7 @@ errors into logs, tickets or chat.
 ## 5. Secret rotation / account change
 
 - Blank secret fields preserve stored values; non-blank = rotate (bumps `credential_revision`, invalidates tokens/tests). Replacing an Access ID requires its matching password in the same save. Explicit clear removes both RO/RW pairs and the API key, pauses the connection, and invalidates its test result.
-- Read resolution uses one complete credential pair: prefer RO, or use RW only when both RO fields are absent. A partial RO pair is a configuration error, not permission to mix credentials or silently retry with RW.
+- Read resolution uses one complete credential pair: prefer RO, or use RW only when both saved RO fields are absent. A partial, undecryptable, invalid or rejected RO pair is an error, not permission to mix credentials or silently retry with RW.
 
 ### Connection troubleshooting after deployment
 
@@ -112,7 +123,7 @@ npm run epdr:enable-writes -- --site-id=<id> --confirm
 npm run epdr:enable-writes -- --site-id=<id> --actions=scan,isolate,unisolate,reboot,assign_config,ts_quarantine --confirm
 ```
 
-The script only widens lists, never removes an action, never touches a kill switch, and writes a system audit row. Writes still require a second administrator's approval, pass cooldowns/hourly caps, and stay blocked by either kill switch. `uninstall_protection`, `repair`, `transact` and `provider_comment` remain unavailable because they have no verified provider contract.
+The script only widens lists, never removes an action, never touches a kill switch, and writes a system audit row. Writes still require site-admin approval (the requester may approve), recorded in the activity log, pass cooldowns/hourly caps, and stay blocked by either kill switch. `uninstall_protection`, `repair`, `transact` and `provider_comment` remain unavailable because they have no verified provider contract.
 
 ## 7. Reason codes (policy/decision)
 
@@ -174,9 +185,11 @@ pending_approval | queued → cancelled
 ```
 
 - A request is created by one site admin and shows **nothing sent**.
-- Approval requires a **different** currently-authorized site admin and re-validates every gate
+- Approval requires a currently-authorized **site admin** (the requester may approve) and re-validates every gate
   against fresh state, including a rebuilt snapshot of the exact target. The approver's snapshot
-  hash must equal the stored snapshot hash; the database enforces `approved_by <> requested_by`.
+  hash must equal the stored snapshot hash. Approval is recorded in the activity log, including
+  the requester and approver; requester approval is identified as self-approved. Local rejected
+  decisions are not labelled self-approved.
 - The approval UI requires opening the request, reviewing the frozen target, parameters and
   revision values, and ticking an explicit confirmation. There is no one-click approval from the
   list.
@@ -205,7 +218,7 @@ Known limits of this release:
 - Scan completion aggregates the first page of task jobs. A task with more jobs than that page can
   be under-observed; it is never treated as clean.
 - `needs_review` is closed by one administrator with a note, after which a new request may be made.
-  The new request still requires a fresh second-admin approval, but the closure itself does not
+  The new request still requires a fresh site-admin approval (the requester may approve), recorded in the activity log, but the closure itself does not
   prove the earlier operation was not performed.
 
 ### 11.5 Observation
@@ -252,7 +265,7 @@ Nothing below is executed by tests or by the application on its own.
 
 - [ ] Rotate the exposed RW/RO credentials and store the new values through the encrypted
       connection fields. Never place them in code, docs, tickets or chat.
-- [ ] Apply migrations up to `0084_epdr_provider_writes` on the target database.
+- [ ] Apply migrations up to `0086_epdr_single_admin_approval` on the target database.
 - [ ] Run `npm run watchguard:worker -- --only=dispatch --run-once` and confirm the log shows
       `pass complete: N ran, 0 failed`, **no new `epdr_attempts` rows**, and every request still
       `pending_approval`/`queued` while both gates are off.
@@ -260,8 +273,9 @@ Nothing below is executed by tests or by the application on its own.
       (start with `scan` only).
 - [ ] Create one request on one endpoint and confirm it stays `pending_approval` with no attempt
       row.
-- [ ] Inspect the request, confirm the approved device id and revisions, then approve from a
-      different admin account and confirm exactly one `epdr_attempts` row.
+- [ ] Inspect the request, confirm the approved device id and revisions, then approve as a
+      site admin (the requester may approve), verify the approval in the activity log, and confirm
+      exactly one `epdr_attempts` row.
 - [ ] Observe the outcome and confirm a completed scan is not presented as a clean endpoint.
 - [ ] Rehearse the kill switch: new sends stop, observation continues.
 - [ ] Only then widen the action list, one action at a time.
@@ -311,6 +325,12 @@ Nothing below is executed by tests or by the application on its own.
   execution_attempt_retention_days (default 90); result/response payloads are redacted after
   execution_result_retention_days (default 180). Requests, snapshots and approval records are permanent.
 
+### ThreatSync read window and sync bookkeeping
+
+- The worker explicitly reads ThreatSync with `duration=7D` and `sortBy=id asc`, using the sorted key as the pagination cursor. Older stored records are retained under the existing retention policy, but are not re-read outside this seven-day provider window. A successful sync is not evidence of a full-history refresh.
+- Fresh ThreatSync sync evidence records the window as `threatsync_7d`. Historical `provider_default` evidence has an unknown window until a fresh sync publishes explicit window evidence; do not reinterpret old evidence as seven-day coverage.
+- Provider sync SQL bookkeeping now explicitly casts null values to the expected SQL types, fixing the null-cast failure. This is a bookkeeping fix, not a change to the read window, retention policy or write authorization.
+
 ### 12.3 ThreatSync observation
 
 - Command actions read GET /actions/{actionId}; only inProgress and performed are recognized. performed
@@ -322,7 +342,7 @@ Nothing below is executed by tests or by the application on its own.
 
 - Closing a needs_review request remains a single-admin decision. It records a note and releases the
   active-intent lock; it does not prove the earlier operation did not run. Retry still requires a fresh
-  approval from a different administrator.
+  site-admin approval (the requester may approve), recorded in the activity log.
 - The retention worker deletes technical evidence (attempts, receipts) after the configured windows; the
   decision records remain but the raw evidence does not. Export what you need before the window closes.
 - The expired-approval sweep cancels lapsed approvals automatically; a request that was genuinely still

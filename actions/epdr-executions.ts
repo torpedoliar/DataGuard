@@ -4,10 +4,10 @@
  * Provider write execution requests.
  *
  * A request is a durable, immutable intent. Creating one never contacts the
- * provider: it records the frozen snapshot and waits for a *different* site
- * administrator to approve it. Approval moves the request into `queued`; only
- * the worker dispatcher can then send it, and only after re-validating every
- * gate against fresh trusted state.
+ * provider: it records the frozen snapshot and waits for a site administrator
+ * to approve it, including the requester. Approval is audited and moves the
+ * request into `queued`; only the worker dispatcher can then send it, after
+ * re-validating every gate against fresh trusted state.
  *
  * Historical local approvals (`epdr_local_approvals`) remain decision records
  * and are never read as execution authorization here.
@@ -23,6 +23,7 @@ import { EXECUTABLE_ACTION_TYPES } from "@/lib/epdr/capabilities";
 import { evaluateExecutionPolicy } from "@/lib/epdr/execution-policy";
 import { buildExecutionSnapshot } from "@/lib/epdr/execution-snapshot";
 import { OFFLINE_FREEZE_DAYS } from "@/lib/epdr/health";
+import { describeWorkerError } from "@/lib/epdr/worker-pass";
 import {
   executionIntentKey,
   executionSnapshotHash,
@@ -184,7 +185,8 @@ export async function getEpdrExecutionOptions(): Promise<ExecutionOptions | Exec
         dataFresh: row.fresh === true,
       })),
     };
-  } catch {
+  } catch (cause) {
+    console.error(`[epdr-executions] options failed (${describeWorkerError(cause)})`);
     return error("service_unavailable");
   }
 }
@@ -317,9 +319,9 @@ type ActionRow = {
 };
 
 /**
- * Approve a request. The approver must be a *different* currently-authorized
- * site administrator, the snapshot must still match fresh state exactly, and
- * every gate is re-evaluated. Approval records a decision; it does not send.
+ * Approve a request. The approver must be a currently-authorized site
+ * administrator (the requester is allowed). The snapshot must still match fresh
+ * state exactly, and every gate is re-evaluated. Approval records a decision; it does not send.
  */
 export async function approveEpdrExecutionRequest(input: unknown): Promise<{ state: "queued" } | ExecutionError> {
   const guard = await requireActiveSiteAdminAction();
@@ -337,7 +339,6 @@ export async function approveEpdrExecutionRequest(input: unknown): Promise<{ sta
       const row = rows[0];
       if (!row) return error("not_found");
       if (row.state !== "pending_approval") return error("state_conflict");
-      if (row.requested_by === guard.session.userId) return error("blocked", "self_approval");
 
       await assertReadSyncActor(tx, guard.activeSiteId, guard.session.userId);
 
@@ -418,6 +419,8 @@ export async function approveEpdrExecutionRequest(input: unknown): Promise<{ sta
       if ((updated.rowCount ?? 0) !== 1) return error("state_conflict");
       auditExecution("approve", row.id, {
         actionType: row.action_type, snapshotHash: row.snapshot_hash,
+        requestedBy: row.requested_by, approvedBy: guard.session.userId,
+        selfApproved: row.requested_by === guard.session.userId,
       });
       return { state: "queued" as const };
     });

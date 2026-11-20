@@ -38,9 +38,14 @@ describe("pure approval snapshot policy (not execution authorization)", () => {
     expect(validateApprovalSnapshot(s, { ...s, [key]: changes[key] }, context())).toEqual({ eligible: false, reason: "snapshot_changed" });
   });
 
-  it("rejects self approval", () => {
+  it("accepts self approval by a current authorized site admin", () => {
     const s = snapshot();
-    expect(validateApprovalSnapshot(s, s, { ...context(), approverId: 5 })).toEqual({ eligible: false, reason: "self_approval" });
+    expect(validateApprovalSnapshot(s, s, { ...context(), approverId: 5 })).toEqual({ eligible: true });
+  });
+
+  it.each(["approverIsCurrentSiteAdmin", "requesterIsCurrentlyAuthorized"] as const)("still rechecks %s for self approval", (gate) => {
+    const s = snapshot();
+    expect(validateApprovalSnapshot(s, s, { ...context(), approverId: 5, [gate]: false })).toEqual({ eligible: false, reason: "authorization" });
   });
 
   it.each(["approverIsCurrentSiteAdmin", "requesterIsCurrentlyAuthorized", "targetEligible", "actionAllowed", "capabilitySupported", "connectionEnabled", "dataFresh"] as const)("rechecks %s at dispatch", (gate) => {

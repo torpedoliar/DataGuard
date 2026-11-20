@@ -6,7 +6,7 @@ import { WATCHGUARD_REGIONS } from "@/lib/watchguard/regions";
 import { detectionCompleteness, eventExportReadStatus, detectionSourceReadSupported, DETECTION_SOURCE_READ_CAPABILITIES, REQUIRED_EVENT_EXPORT_TYPES, type DetectionReadEvidence } from "./detection-evidence";
 
 const context = { settingsUpdatedAt: new Date(100), connectionId: 1, accountRevision: 2, credentialRevision: 3, source: "threatsync" as const, enabled: true, supportVerified: true, now: 1000, maxAgeMs: 500 };
-const evidence: DetectionReadEvidence = { settingsUpdatedAt: new Date(100), connectionId: 1, accountRevision: 2, credentialRevision: 3, source: "threatsync", status: "completed", window: "provider_default", startedAt: new Date(600), finishedAt: new Date(900), eventTypes: [], completedEventTypes: [] };
+const evidence: DetectionReadEvidence = { settingsUpdatedAt: new Date(100), connectionId: 1, accountRevision: 2, credentialRevision: 3, source: "threatsync", status: "completed", window: "threatsync_7d", startedAt: new Date(600), finishedAt: new Date(900), eventTypes: [], completedEventTypes: [] };
 const status = (row = evidence, ctx = context) => detectionCompleteness(row, ctx).completeness.status;
 describe("source detection read provenance", () => {
   it("uses only documented source read capabilities, without caller verification", () => {
@@ -26,6 +26,10 @@ describe("source detection read provenance", () => {
       expect(classifyOutbound("GET", `https://${WATCHGUARD_REGIONS.usa}${path}`).allowed).toBe(true);
       expect(classifyOutbound("POST", `https://${WATCHGUARD_REGIONS.usa}${path}`).allowed).toBe(false);
     }
+  });
+  it("does not relabel older default-window reads as seven-day coverage", () => {
+    expect(status({ ...evidence, window: "provider_default" })).toBe("unknown");
+    expect(DETECTION_SOURCE_READ_CAPABILITIES.threatsync.window).toBe("threatsync_7d");
   });
   it("revokes old evidence after settings save/off-on even when currently enabled", () => {
     expect(status(evidence, { ...context, settingsUpdatedAt: new Date(200) })).toBe("unknown");

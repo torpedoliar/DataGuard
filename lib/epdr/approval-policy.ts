@@ -55,7 +55,7 @@ const contextSchema = z.strictObject({
 export type ApprovalContext = z.infer<typeof contextSchema>;
 export type ApprovalValidation =
   | { eligible: true }
-  | { eligible: false; reason: "invalid_input" | "snapshot_changed" | "self_approval" | "authorization" | "expired" | "ineligible" };
+  | { eligible: false; reason: "invalid_input" | "snapshot_changed" | "authorization" | "expired" | "ineligible" };
 
 // JSON object order is immaterial, but array order, null, type, and every key
 // (including scan exclusions/options) are material. No lossy JSON coercion.
@@ -80,7 +80,7 @@ export function validateApprovalSnapshot(
   const s = frozen.data;
   const c = checks.data;
   if (canonical(s) !== canonical(latest.data)) return { eligible: false, reason: "snapshot_changed" };
-  if (s.requesterId === c.approverId) return { eligible: false, reason: "self_approval" };
+  // The requester may approve their own request; who decided is recorded, not forbidden.
   if (!c.approverIsCurrentSiteAdmin || !c.requesterIsCurrentlyAuthorized) return { eligible: false, reason: "authorization" };
   if (s.expiresAt <= c.nowMs || s.expiresAt - c.nowMs > c.maxValidityMs) return { eligible: false, reason: "expired" };
   if (!c.targetEligible || !c.actionAllowed || !c.capabilitySupported || !c.connectionEnabled || !c.dataFresh || c.killSwitch || c.hold) {

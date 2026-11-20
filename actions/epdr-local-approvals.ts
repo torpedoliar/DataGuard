@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { requireActiveSiteAdminAction } from "@/lib/action-auth";
+import { logAudit } from "@/lib/audit";
 import { assertReadSyncActor } from "@/lib/epdr/read-sync-queue";
 
 export type LocalApprovalIntent = "scan" | "isolate";
@@ -141,9 +142,9 @@ export async function getEpdrLocalApprovals(): Promise<LocalApprovalPage | { mes
 }
 
 /**
- * Approve/reject a local request. The approver must be a different current site
- * admin, the approval must be unexpired and bound to the current account
- * revision. Approval records `blocked_read_only`; it never queues or sends a
+ * Approve/reject a local request. A current site admin, including the requester,
+ * may decide; the decision is audited and must be unexpired and bound to the
+ * current account revision. Approval records `blocked_read_only`; it never queues or sends a
  * provider command.
  */
 export async function decideEpdrLocalApproval(input: unknown): Promise<LocalApprovalDecision | { message: string }> {
@@ -169,7 +170,6 @@ export async function decideEpdrLocalApproval(input: unknown): Promise<LocalAppr
       if (!approval) throw new Error("approval_unavailable");
       if (approval.status !== "pending") throw new Error("approval_already_decided");
       if (new Date(approval.expires_at).getTime() <= Date.now()) return { message: "Approval expired." };
-      if (approval.requested_by === guard.session.userId) throw new Error("requester_cannot_decide");
       if (approval.connection_id !== binding.id || approval.account_revision !== binding.account_revision) {
         throw new Error("account_revision_changed");
       }
@@ -186,6 +186,14 @@ export async function decideEpdrLocalApproval(input: unknown): Promise<LocalAppr
         WHERE id = ${approvalId} AND site_id = ${guard.activeSiteId} AND status = 'pending'
         RETURNING id`);
       if (!updated[0]) throw new Error("approval_already_decided");
+      void logAudit({
+        action: "UPDATE", entity: "epdr_local_approval", entityId: approvalId,
+        detail: JSON.stringify({
+          event: decision, requestedBy: approval.requested_by, decidedBy: guard.session.userId,
+          selfApproved: decision === "approve" && approval.requested_by === guard.session.userId,
+          providerExecution: "blocked_read_only",
+        }),
+      });
       return { approvalId, status: status as "approved" | "rejected", providerExecution: "blocked_read_only" as const };
     });
   } catch { return unavailable; }

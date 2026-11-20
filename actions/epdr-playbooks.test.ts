@@ -68,7 +68,7 @@ describe("stored site playbook preview", () => {
     const sample = { id: 1, source: "threatsync", category: "ioa", score: 8, detectedAt: now,
       endpointId: 2, providerId: "test", removedAt: null, connectionId: 9, accountRevision: 3, credentialRevision: 4 };
     const attempt = { connectionId: 9, accountRevision: 3, credentialRevision: 4, source: "threatsync",
-      status: "completed", window: "provider_default", startedAt: now, finishedAt: now,
+      status: "completed", window: "threatsync_7d", startedAt: now, finishedAt: now,
       eventTypes: [], completedEventTypes: [], enabled: true, settingsUpdatedAt: settingsAt, settingsChangedAt: settingsAt };
     for (const changed of [false, true]) {
       mocks.select.mockReturnValueOnce(query([{ name: "Site A" }])).mockReturnValueOnce(query([sample]));

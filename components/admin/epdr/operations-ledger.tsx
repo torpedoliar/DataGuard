@@ -33,11 +33,17 @@ export default function OperationsLedgerPanel({ view }: { view: OperationsView }
     {!loading && data && <>
       <p className="text-sm text-ops-muted">{t("summary", { total: data.total, page: data.page, limit: data.limit })}</p>
       {data.rows.length === 0 ? <p>{t("empty")}</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-        <thead><tr>{["time", "kind", "reference", "status", "intention"].map((key) => <th key={key} scope="col" className="p-2">{t(key)}</th>)}</tr></thead>
+        <thead><tr>{["time", "kind", "reference", "status", "intention", "actors"].map((key) => <th key={key} scope="col" className="p-2">{t(key)}</th>)}</tr></thead>
         <tbody>{data.rows.map((row) => <tr key={`${row.kind}-${row.id}`} className="border-t border-ops-border">
           <td className="p-2">{row.createdAt ? <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString(locale)}</time> : t("unknownTime")}</td>
           <td className="p-2">{t(`kinds.${row.kind}`)}</td><td className="p-2">#{row.id}</td>
           <td className="p-2">{t(`statuses.${row.status}`)}</td><td className="p-2">{row.action ? t(`actions.${row.action}`) : t("notApplicable")}</td>
+          <td className="p-2">
+            {row.requestedBy && <p>{t("requestedBy", { name: row.requestedBy })}</p>}
+            {row.approvedBy && <p>{t("approvedBy", { name: row.approvedBy })}</p>}
+            {row.selfApproved && <span className="rounded border border-ops-border px-2 py-1 text-xs">{t("selfApproved")}</span>}
+            {!row.requestedBy && !row.approvedBy && t("notApplicable")}
+          </td>
         </tr>)}</tbody>
       </table></div>}
       <div className="flex items-center gap-4">

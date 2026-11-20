@@ -25,6 +25,31 @@ export function shouldRunJob(
   return nowMs - lastRunMs >= intervalMs;
 }
 
+/**
+ * A bounded, credential-free description of a job failure for operator logs.
+ * Raw messages may carry provider payloads, URLs or credentials, so only typed
+ * fields are emitted: a WatchGuard error kind/status, a Postgres SQLSTATE, or
+ * one of our own snake_case reason codes.
+ */
+export function describeWorkerError(error: unknown): string {
+  const kinds = new Set(["auth", "forbidden", "not_found", "rate_limited", "server", "network",
+    "timeout", "invalid_response", "bad_request", "read_only_blocked"]);
+  // Drizzle wraps the driver's error in `cause`. Only inspect bounded typed
+  // metadata, never the wrapper's SQL text, parameters or arbitrary message.
+  let current = error;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth++) {
+    const { kind, status, code, cause } = current as {
+      kind?: unknown; status?: unknown; code?: unknown; cause?: unknown;
+    };
+    if (typeof kind === "string" && kinds.has(kind)) {
+      return `kind=${kind}${typeof status === "number" && Number.isInteger(status) && status >= 100 && status <= 599 ? ` status=${status}` : ""}`;
+    }
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return `sqlstate=${code}`;
+    current = cause;
+  }
+  return "error=unknown";
+}
+
 export type WorkerPassResult = { ran: number; failed: number };
 
 export async function runWorkerPass(
@@ -44,10 +69,10 @@ export async function runWorkerPass(
         await runJob(job.name, connection.id);
         lastRun.set(key, nowMs);
         ran++;
-      } catch {
+      } catch (error) {
         failed++;
         // Raw errors may contain provider payloads, URLs or credentials.
-        console.error(`[watchguard-worker] job "${job.name}" failed for connection ${connection.id}`);
+        console.error(`[watchguard-worker] job "${job.name}" failed for connection ${connection.id} (${describeWorkerError(error)})`);
       }
     }
   }

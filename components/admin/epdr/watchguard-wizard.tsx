@@ -318,8 +318,9 @@ function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () =
             <h3 className="text-[13px] font-semibold text-ops-text">{t("settings.credentialsTitle")}</h3>
             <p className="mt-0.5 text-[12px] text-ops-muted">{t("settings.credentialsBody")}</p>
           </div>
-          <Field label={t("settings.apiKeyLabel")} hint={site.apiKeyConfigured ? t("settings.stored") : t("settings.apiKeyHint")}>
+          <Field label={t("settings.apiKeyLabel")} hint={t("settings.apiKeyHint")}>
             <input name="watchguardApiKey" type="password" autoComplete="off" placeholder="••••••••" className="ops-input h-9 w-full px-3 font-mono text-sm" />
+            {site.apiKeyConfigured && <span className="mt-1 block text-[12px] text-ops-muted">{t("settings.stored")}</span>}
           </Field>
           <fieldset className="rounded-md border border-ops-border p-3.5">
             <legend className="px-1 text-[12.5px] font-medium text-ops-text">{t("settings.roTitle")}</legend>

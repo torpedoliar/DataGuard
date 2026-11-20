@@ -93,15 +93,28 @@ export const securityEventSchema = z
   })
   .passthrough();
 
+/**
+ * The live tasks list returns `id`, `name` and an object `status`
+ * (`{ enabled, delivery_state, last_job_date }`); older documentation shows
+ * `task_id`, `task_name` and a numeric status. Both are accepted and
+ * normalized to `task_id`/`task_name` so callers read one shape.
+ */
 export const taskSchema = z
   .object({
-    task_id: z.string().optional(),
+    id: z.union([z.string(), z.number()]).optional(),
+    task_id: z.union([z.string(), z.number()]).optional(),
     type: z.number().int().optional(),
+    name: z.string().optional(),
     task_name: z.string().optional(),
-    status: z.number().int().optional(),
+    status: z.union([z.number().int(), z.object({}).passthrough()]).nullable().optional(),
     created_at: z.string().optional(),
   })
-  .passthrough();
+  .passthrough()
+  .transform((task) => ({
+    ...task,
+    task_id: task.task_id ?? task.id,
+    task_name: task.task_name ?? task.name,
+  }));
 
 export const taskJobStatusSchema = z
   .object({

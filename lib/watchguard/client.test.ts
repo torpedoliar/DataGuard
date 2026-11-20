@@ -263,7 +263,7 @@ describe("client retry + refresh", () => {
 
 describe("client error mapping + redaction", () => {
   it.each([
-    [400, "Invalid Username/Password", "auth"],
+    [400, "Bad request", "bad_request"],
     [401, "Undefined", "auth"],
     [403, "11002", "forbidden"],
     [404, "not found", "not_found"],
@@ -388,5 +388,74 @@ describe("ThreatSync action reads", () => {
       url.pathname === TOKEN_PATH ? tokenResponse() : json({ groups: {} }));
     const client = createWatchGuardClient(creds, { fetch: fetchImpl, sleep: vi.fn().mockResolvedValue(undefined) });
     await expect(client.listIncidentActions("ts-1")).rejects.toMatchObject({ kind: "invalid_response" });
+  });
+});
+
+
+describe("live-contract regressions", () => {
+  it("pages ThreatSync with an explicit id sort matching its cursor", async () => {
+    const { fetchImpl, calls } = routedFetch((url) => {
+      if (url.pathname === TOKEN_PATH) return tokenResponse();
+      expect(url.searchParams.get("sortBy")).toBe("id");
+      expect(url.searchParams.get("sortOrder")).toBe("asc");
+      expect(url.searchParams.get("duration")).toBe("7D");
+      const cursor = url.searchParams.get("startAfter");
+      return json({ items: cursor ? [{ id: "c" }] : [{ id: "a" }, { id: "b" }] });
+    });
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl });
+    const ids: unknown[] = [];
+    for await (const item of client.iterateIncidents({ limit: 2, duration: "7D" })) ids.push(item.id);
+    expect(ids).toEqual(["a", "b", "c"]);
+    expect(apiCalls(calls)[1].url.searchParams.get("startAfter")).toBe("b");
+  });
+
+  it("does not refresh valid credentials for a REST bad query", async () => {
+    const { fetchImpl, calls } = routedFetch((url) => url.pathname === TOKEN_PATH
+      ? tokenResponse() : json({ message: "Bad request" }, 400));
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl });
+    await expect(client.listIncidents()).rejects.toMatchObject({ kind: "bad_request", status: 400 });
+    expect(calls.filter((call) => call.url.pathname === TOKEN_PATH)).toHaveLength(1);
+    expect(apiCalls(calls)).toHaveLength(1);
+  });
+
+  it("rejects HTTP 200 gateway error envelopes even for unvalidated reads", async () => {
+    const { fetchImpl } = routedFetch((url) => url.pathname === TOKEN_PATH
+      ? tokenResponse() : json({ status: "error", errors: [{ code: 5671, message: "path not found" }] }));
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl });
+    await expect(client.getLicenses()).rejects.toMatchObject({ kind: "not_found", status: 200 });
+  });
+
+  it("normalizes live task identity and accepts structured delivery status", async () => {
+    const { fetchImpl } = routedFetch((url) => url.pathname === TOKEN_PATH
+      ? tokenResponse() : json({ data: [{ id: "task-1", name: "DG scan", type: 1,
+        status: { enabled: true, delivery_state: 4 } }] }));
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl });
+    expect((await client.listTasks()).data[0]).toMatchObject({ task_id: "task-1", task_name: "DG scan",
+      status: { delivery_state: 4 } });
+  });
+});
+
+
+describe("ThreatSync stream completeness", () => {
+  it("uses the selected sort field for a non-id cursor", async () => {
+    const { fetchImpl } = routedFetch((url) => {
+      if (url.pathname === TOKEN_PATH) return tokenResponse();
+      if (!url.searchParams.has("startAfter")) return json({ items: [{ id: "a", lastUpdateTime: "2026-11-01T00:00:00Z" }] });
+      expect(url.searchParams.get("startAfter")).toBe("2026-11-01T00:00:00Z");
+      return json({ items: [] });
+    });
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl });
+    const items = [];
+    for await (const item of client.iterateIncidents({ limit: 1, sortBy: "lastUpdateTime" })) items.push(item);
+    expect(items).toHaveLength(1);
+  });
+  it("fails repeated full pages rather than claiming successful exhaustion", async () => {
+    const { fetchImpl } = routedFetch((url) => url.pathname === TOKEN_PATH
+      ? tokenResponse() : json({ items: [{ id: "a" }] }));
+    const client = createWatchGuardClient(creds, { fetch: fetchImpl });
+    const consume = async () => {
+      for await (const item of client.iterateIncidents({ limit: 1 })) void item;
+    };
+    await expect(consume()).rejects.toMatchObject({ kind: "invalid_response" });
   });
 });

@@ -59,10 +59,13 @@ const ENTITY_LABELS: Record<string, string> = {
     settings: "Settings",
     site: "Site",
     session: "Session",
+    epdr_action: "EPDR execution",
+    epdr_local_approval: "EPDR local decision",
+    provider_target: "EPDR provider target",
 };
 
 const ALL_ENTITIES = Object.keys(ENTITY_LABELS);
-const ALL_ACTIONS = ["CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT", "TOGGLE", "UPLOAD", "SCHEMA_PUSH", "EXPORT"];
+const ALL_ACTIONS = ["CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT", "TOGGLE", "UPLOAD", "SCHEMA_PUSH", "EXPORT", "EPDR_EXECUTION"];
 
 function formatDate(date: Date | null) {
     if (!date) return "-";

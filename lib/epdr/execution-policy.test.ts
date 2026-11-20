@@ -137,10 +137,20 @@ describe("execution policy — approval", () => {
   const approval = { approverId: 9, approverIsCurrentSiteAdmin: true, expiresAt: 1_900_000_000_000 };
   const current = { currentSnapshot: snapshot() };
 
-  it("rejects self approval", () => {
-    expect(
-      evaluateExecutionPolicy(input({ stage: "approve", ...current, approval: { ...approval, approverId: 7 } })),
-    ).toEqual({ allowed: false, reason: "self_approval" });
+  it.each(["approve", "dispatch"] as const)("allows self approval at %s for a current site admin", (stage) => {
+    const decision = evaluateExecutionPolicy(input({ stage, ...current, approval: { ...approval, approverId: 7 } }));
+    expect(decision.allowed).toBe(true);
+    if (decision.allowed) expect(decision.snapshotHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it.each(["approve", "dispatch"] as const)("still requires current authorization for self approval at %s", (stage) => {
+    const selfApproval = { ...approval, approverId: 7 };
+    expect(evaluateExecutionPolicy(input({
+      stage, ...current, approval: { ...selfApproval, approverIsCurrentSiteAdmin: false },
+    }))).toEqual({ allowed: false, reason: "approver_not_admin" });
+    expect(evaluateExecutionPolicy(input({
+      stage, ...current, approval: selfApproval, requesterIsCurrentlyAuthorized: false,
+    }))).toEqual({ allowed: false, reason: "requester_not_authorized" });
   });
 
   it("requires a currently authorized requester", () => {

@@ -197,7 +197,7 @@ describe("detection publication revisions (mock DB only)", () => {
       if (outcome !== "completed") throw new Error("mock read failed");
     } });
     await detect();
-    expect(values).toHaveBeenCalledWith(expect.objectContaining({ source: "threatsync", status: outcome, accountRevision: 1, credentialRevision: 1, window: "provider_default" }));
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({ source: "threatsync", status: outcome, accountRevision: 1, credentialRevision: 1, window: "threatsync_7d" }));
   });
 
   it("registers migration 0080 without manufacturing legacy completeness", () => {

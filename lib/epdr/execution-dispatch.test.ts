@@ -138,6 +138,10 @@ describe("scan job aggregation", () => {
     expect(aggregateScanJobStatuses({ data: [{ status: 2 }, { status: 2 }] })).toBe("completed");
     expect(aggregateScanJobStatuses({ data: [{ status: 2 }, { status: 3 }] })).toBe("failed");
     expect(aggregateScanJobStatuses({ data: [{ status: 0 }] })).toBe("pending");
+    // A mixed task is not complete until every device job is.
+    expect(aggregateScanJobStatuses({ data: [{ status: 2 }, { status: 1 }] })).toBe("pending");
+    expect(aggregateScanJobStatuses([{ status: 6 }, { status: 2 }])).toBe("pending");
+    expect(aggregateScanJobStatuses([{ status: 1 }, { status: 7 }])).toBe("failed");
     expect(aggregateScanJobStatuses({ data: [] })).toBe("unreadable");
     expect(aggregateScanJobStatuses({ data: [{ status: 99 }] })).toBe("unreadable");
     expect(aggregateScanJobStatuses(null)).toBe("unreadable");

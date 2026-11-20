@@ -1,10 +1,12 @@
 import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), actor: vi.fn(), execute: vi.fn(), transaction: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), actor: vi.fn(), execute: vi.fn(), transaction: vi.fn(), audit: vi.fn() }));
 vi.mock("@/db", () => ({ db: { transaction: mocks.transaction } }));
 vi.mock("@/lib/action-auth", () => ({ requireActiveSiteAdminAction: mocks.guard }));
 vi.mock("@/lib/epdr/read-sync-queue", () => ({ assertReadSyncActor: mocks.actor }));
+
+vi.mock("@/lib/audit", () => ({ logAudit: mocks.audit }));
 
 import { decideEpdrLocalApproval, getEpdrLocalApprovals, requestEpdrLocalApproval } from "./epdr-local-approvals";
 
@@ -93,7 +95,7 @@ describe("durable local approvals", () => {
 
   it("approves locally with a blocked_read_only decision and no dispatch", async () => {
     mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 3 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 11, requested_by: 8, status: "pending", expires_at: new Date(Date.now() + 60_000), account_revision: 3, connection_id: 2 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 11, requested_by: 9, status: "pending", expires_at: new Date(Date.now() + 60_000), account_revision: 3, connection_id: 2 }] })
       .mockResolvedValueOnce({ rows: [{ id: 11 }] });
     expect(await decideEpdrLocalApproval({ approvalId: 11, decision: "approve", note: "checked" })).toEqual({
       approvalId: 11, status: "approved", providerExecution: "blocked_read_only",
@@ -102,6 +104,7 @@ describe("durable local approvals", () => {
     const record = JSON.parse(update.params.find((value) => typeof value === "string" && value.startsWith("{")) as string);
     expect(record).toEqual({ schemaVersion: 1, decision: "approved", providerExecution: "blocked_read_only", reason: "read_only_lock" });
     expect(update.sql).toContain("status = 'pending'");
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ entity: "epdr_local_approval", detail: expect.stringContaining('"selfApproved":true') }));
   });
 
   it("rejects locally without any provider side effect", async () => {
@@ -112,10 +115,8 @@ describe("durable local approvals", () => {
     expect(queries().some((query) => /UPDATE (epdr_actions|incidents)|INSERT INTO epdr_/i.test(query.sql))).toBe(false);
   });
 
-  it("refuses a decision by the requester, an expired row or a changed account revision", async () => {
+  it("refuses an expired row or a changed account revision", async () => {
     const row = { id: 11, requested_by: 8, status: "pending", expires_at: new Date(Date.now() + 60_000), account_revision: 3, connection_id: 2 };
-    mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 3 }] }).mockResolvedValueOnce({ rows: [{ ...row, requested_by: 9 }] });
-    expect(await decideEpdrLocalApproval({ approvalId: 11, decision: "approve" })).toHaveProperty("message");
     mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 3 }] }).mockResolvedValueOnce({ rows: [{ ...row, expires_at: new Date(Date.now() - 1_000) }] });
     expect(await decideEpdrLocalApproval({ approvalId: 11, decision: "approve" })).toEqual({ message: "Approval expired." });
     mocks.execute.mockResolvedValueOnce({ rows: [{ id: 2, account_revision: 4 }] }).mockResolvedValueOnce({ rows: [row] });

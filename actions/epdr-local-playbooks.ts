@@ -12,6 +12,7 @@ import { PLAYBOOK_FRESHNESS_MS } from "@/lib/epdr/playbooks";
 import { evaluatePlaybook } from "@/lib/epdr/playbooks";
 import { playbookConfigMatches, type PlaybookConfig } from "@/lib/epdr/playbook-config";
 import { classifyPlaybookVersion } from "@/lib/epdr/playbook-version";
+import { describeWorkerError } from "@/lib/epdr/worker-pass";
 
 export type LocalPlaybookReviewEvidence = {
   mode: "local"; requestedBy: number; siteId: number; versionId: number; detectionId: number;
@@ -195,7 +196,7 @@ export async function getEpdrLocalPlaybookOptions(input: unknown = {}): Promise<
               incompatibilityReason: classified.reason, filters: null };
       });
 
-      const detectionFields = sql`d.id, coalesce(e.host_name, devices.hostname) AS host_name, d.category,
+      const detectionFields = sql`d.id, coalesce(e.host_name, devices.name) AS host_name, d.category,
         d.threat_name, d.threat_score AS score, d.detected_at`;
       const currentDetectionScope = sql`d.site_id = ${guard.activeSiteId} AND d.connection_id = ${binding.id}
         AND d.account_revision = ${binding.account_revision} AND d.ignored_reason IS NULL`;
@@ -270,7 +271,10 @@ export async function getEpdrLocalPlaybookOptions(input: unknown = {}): Promise<
         requestedDetectionUnavailable: requested !== undefined && !requestedRow,
         eligibility };
     });
-  } catch { return localPlaybookError("service_unavailable"); }
+  } catch (error) {
+    console.error(`[epdr-local-playbooks] options failed (${describeWorkerError(error)})`);
+    return localPlaybookError("service_unavailable");
+  }
 }
 
 /** No activation: append a distinct local review, never mutate a saved simulation or its runs. */

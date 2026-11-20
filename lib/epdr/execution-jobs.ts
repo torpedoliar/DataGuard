@@ -687,7 +687,8 @@ async function observeScan(
   row: ObserveRow,
 ) {
   const page = await client.listTasks({ top: TASK_LOOKBACK });
-  const tasks = page.data as unknown as { task_id?: unknown; task_name?: unknown; type?: unknown }[];
+  // The schema normalizes the live `id`/`name` fields to `task_id`/`task_name`.
+  const tasks: { task_id?: unknown; task_name?: unknown; type?: unknown }[] = page.data;
   const exact = tasks.filter(
     (task) => typeof task.task_name === "string" && matchesScanTaskMarker(task.task_name, row.id),
   );
@@ -706,8 +707,36 @@ async function observeScan(
   // A guessed task type would read the wrong status endpoint.
   if (typeof task.type !== "number" || !Number.isInteger(task.type)) return { kind: "unreadable" as const };
 
+  // The jobs list carries only `{ id, date, affected_items }`; per-device
+  // status lives under `/jobs/{jobId}/status`. No job yet means the task has
+  // not been picked up, which is progress-pending, not unreadable.
   const jobs = (await client.listTaskJobs(task.type, taskId)) as unknown;
-  const aggregate = aggregateScanJobStatuses(jobs);
+  const jobList = Array.isArray(jobs)
+    ? jobs
+    : typeof jobs === "object" && jobs !== null && Array.isArray((jobs as { data?: unknown }).data)
+      ? (jobs as { data: unknown[] }).data
+      : null;
+  if (!jobList) return { kind: "unreadable" as const };
+  if (jobList.length === 0) return { kind: "still_running" as const };
+  if (jobList.length > 10) return { kind: "unreadable" as const };
+  const statuses: unknown[] = [];
+  for (const job of jobList) {
+    const jobId = asProviderId((job as { id?: unknown } | null)?.id);
+    if (!jobId) return { kind: "unreadable" as const };
+    let complete = false;
+    for (let skip = 0; skip < 1000; skip += 100) {
+      const page = await client.getTaskJobStatus(task.type, taskId, jobId, { top: 100, skip });
+      statuses.push(...page.data);
+      if (page.data.length < 100 || (page.totalItems !== null && skip + page.data.length >= page.totalItems)) {
+        complete = true;
+        break;
+      }
+    }
+    // A bounded/truncated read must never verify completion.
+    if (!complete) return { kind: "unreadable" as const };
+  }
+  if (statuses.length === 0) return { kind: "still_running" as const };
+  const aggregate = aggregateScanJobStatuses(statuses);
   if (aggregate === "unreadable") return { kind: "unreadable" as const };
   if (aggregate === "failed") return { kind: "finished" as const, outcome: "failed" as const, resultsComplete: false };
   if (aggregate === "completed") return { kind: "finished" as const, outcome: "completed" as const, resultsComplete: false };

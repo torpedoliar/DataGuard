@@ -596,6 +596,13 @@
       "when": 1791435600000,
       "tag": "0085_epdr_provider_writes_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1791439200000,
+      "tag": "0086_epdr_single_admin_approval",
+      "breakpoints": true
     }
   ]
 }

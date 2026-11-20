@@ -16,6 +16,7 @@ export type WatchGuardErrorKind =
   | "network"
   | "timeout"
   | "invalid_response"
+  | "bad_request"
   | "read_only_blocked";
 
 /** Secrets that must never appear in a returned message. All optional. */
@@ -85,11 +86,17 @@ export function redactWatchGuard(text: string, secrets: WatchGuardSecrets): stri
   return out;
 }
 
-/** Map a provider HTTP status to a typed `WatchGuardErrorKind`. */
-export function mapHttpStatusToKind(status: number): WatchGuardErrorKind {
-  // WatchGuard reports invalid credentials as both 400 and 401; treat both as
-  // auth so the client refreshes/invalidates appropriately.
-  if (status === 400 || status === 401) return "auth";
+/**
+ * Map a provider HTTP status to a typed `WatchGuardErrorKind`.
+ *
+ * `context: "token"` is the OAuth exchange, where WatchGuard reports invalid
+ * credentials as 400 as well as 401. On a REST call a 400 is a rejected query
+ * (bad parameter or cursor), not a credential problem: reporting it as `auth`
+ * sent operators to re-enter valid credentials and burned a token refresh.
+ */
+export function mapHttpStatusToKind(status: number, context: "token" | "rest" = "token"): WatchGuardErrorKind {
+  if (status === 400) return context === "token" ? "auth" : "bad_request";
+  if (status === 401) return "auth";
   if (status === 403) return "forbidden";
   if (status === 404) return "not_found";
   if (status === 429) return "rate_limited";

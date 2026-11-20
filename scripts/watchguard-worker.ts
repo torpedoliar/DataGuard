@@ -1,4 +1,4 @@
-import { runWorkerPass, type WorkerConnection, type WorkerPassResult } from "@/lib/epdr/worker-pass";
+import { describeWorkerError, runWorkerPass, type WorkerConnection, type WorkerPassResult } from "@/lib/epdr/worker-pass";
 
 // Importing orchestration must not load credentials, DB connections or live jobs.
 type WorkerJob = { name: string; run: (connectionId: number) => Promise<void> };
@@ -49,27 +49,27 @@ export async function runWorker(args: string[], dependencies: WorkerDependencies
       if (!onlyArg || onlyArg === "--only=endpoints") {
         try {
           await dependencies.processReadSyncRequests?.();
-        } catch {
+        } catch (error) {
           auxiliaryFailed = true;
-          console.error("[watchguard-worker] read-sync queue pass failed");
+          console.error(`[watchguard-worker] read-sync queue pass failed (${describeWorkerError(error)})`);
         }
       }
       if (!onlyArg) {
         try {
           await dependencies.processNotifications?.();
-        } catch {
+        } catch (error) {
           // Local notifications must not starve scheduled provider reads.
           auxiliaryFailed = true;
-          console.error("[watchguard-worker] notification pass failed");
+          console.error(`[watchguard-worker] notification pass failed (${describeWorkerError(error)})`);
         }
       }
       const result = await runPass();
       console.log(`[watchguard-worker] pass complete: ${result.ran} ran, ${result.failed} failed`);
       await recordHeartbeat(true, result.failed > 0 || auxiliaryFailed);
       if (runOnce) return result.failed > 0 || auxiliaryFailed ? 1 : 0;
-    } catch {
+    } catch (error) {
       // Never emit raw provider/DB errors: they may contain credentials or URLs.
-      console.error("[watchguard-worker] pass failed");
+      console.error(`[watchguard-worker] pass failed (${describeWorkerError(error)})`);
       await recordHeartbeat(false, true);
       if (runOnce) return 1;
     }

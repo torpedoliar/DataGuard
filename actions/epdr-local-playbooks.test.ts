@@ -134,6 +134,11 @@ describe("local playbook options", () => {
     expect(compiled[3].sql).toContain("AND d.id = $4 LIMIT 1");
     expect(compiled[3].sql).toContain("d.ignored_reason IS NULL");
     expect(compiled[3].params).toEqual([17, 2, 3, 31]);
+    // Both discovery and the out-of-window lookup must use the actual asset column.
+    for (const query of [compiled[2], compiled[3]]) {
+      expect(query.sql).toContain("coalesce(e.host_name, devices.name) AS host_name");
+      expect(query.sql).not.toContain("devices.hostname");
+    }
   });
 
   it("finds a requested recent detection without issuing an additional read", async () => {
@@ -171,6 +176,21 @@ describe("local playbook options", () => {
     mocks.execute.mockRejectedValue(new Error("database credentials and incident details"));
     expect(await getEpdrLocalPlaybookOptions()).toMatchObject({ code: "service_unavailable" });
     expect(queries().every((query) => !/\b(INSERT|UPDATE|DELETE)\b/.test(query.sql))).toBe(true);
+  });
+
+  it("logs only bounded nested SQLSTATE metadata for an options failure", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mocks.execute.mockRejectedValue(new Error("private SQL and credentials", {
+        cause: Object.assign(new Error("private driver details"), { code: "42703" }),
+      }));
+      expect(await getEpdrLocalPlaybookOptions()).toEqual({
+        code: "service_unavailable", message: "Local playbook unavailable.",
+      });
+      expect(log).toHaveBeenCalledExactlyOnceWith("[epdr-local-playbooks] options failed (sqlstate=42703)");
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it("fails closed when the current actor is revoked", async () => {
@@ -221,7 +241,7 @@ describe("explicit local playbooks", () => {
       .mockResolvedValueOnce({ rows: [{ source: "threatsync", category: "malware", score: 8, detected_at: now, identity_known: true }] })
       .mockResolvedValueOnce({ rows: [{ updated_at: settingsUpdatedAt, threatsync_enabled: true, ingest_enabled: false }] })
       .mockResolvedValueOnce({ rows: [{ connectionId: 2, accountRevision: 3, credentialRevision: 4, source: "threatsync",
-        settingsUpdatedAt: new Date(settingsUpdatedAt.getTime() + offset), status: "completed", window: "provider_default",
+        settingsUpdatedAt: new Date(settingsUpdatedAt.getTime() + offset), status: "completed", window: "threatsync_7d",
         startedAt: now, finishedAt: now, eventTypes: [], completedEventTypes: [] }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: 7 }] });
@@ -252,7 +272,7 @@ describe("explicit local playbooks", () => {
         identity_known: flags.identityKnown, automation_hold: flags.hold, is_critical: flags.critical, no_auto: flags.noAuto }] })
       .mockResolvedValueOnce({ rows: [{ updated_at: now, threatsync_enabled: true, ingest_enabled: false }] })
       .mockResolvedValueOnce({ rows: [{ connectionId: 2, accountRevision: 3, credentialRevision: 4, source: "threatsync",
-        settingsUpdatedAt: now, status: "completed", window: "provider_default", startedAt: now, finishedAt: now,
+        settingsUpdatedAt: now, status: "completed", window: "threatsync_7d", startedAt: now, finishedAt: now,
         eventTypes: [], completedEventTypes: [] }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: 7 }] });
