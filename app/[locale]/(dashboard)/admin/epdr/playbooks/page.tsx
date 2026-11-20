@@ -23,7 +23,7 @@ export default async function EpdrPlaybooksPage({ searchParams }: { searchParams
   const requested = typeof params.detection === "string" && /^[1-9]\d*$/.test(params.detection) ? Number(params.detection) : null;
   const initialDetectionId = requested !== null && Number.isSafeInteger(requested) ? requested : undefined;
   return <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 lg:px-8">
-    <PageHeader eyebrow={t("eyebrow")} title={t("title")} description={t("description")} actions={<ActionButton variant="secondary" href={`/${locale}/admin/epdr`}>{t("back")}</ActionButton>} />
+    <PageHeader eyebrow={t("eyebrow")} title={t("title")} description={t("description")} actions={<ActionButton variant="secondary" href={`/${locale}/admin/epdr/threats`}>{t("back")}</ActionButton>} />
     <EpdrNav isAdmin />
     <LocalPlaybookRunner key={`local-${guard.activeSiteId}`} initialDetectionId={initialDetectionId} locale={locale} />
     <details className="ops-panel p-5">

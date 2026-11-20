@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import {
   approveEpdrExecutionRequest,
   createEpdrExecutionRequest,
@@ -15,7 +16,6 @@ import {
   type ExecutionRequestDetail,
   type ExecutionRequestSummary,
 } from "@/actions/epdr-executions";
-import { getEpdrWriteSettings, saveEpdrWriteSettings, type WriteSettings } from "@/actions/epdr-write-settings";
 
 type RequestPage = { rows: ExecutionRequestSummary[]; page: number; pages: number; total: number };
 type Params = Record<string, string>;
@@ -43,10 +43,15 @@ function buildParameters(actionType: string, params: Params): Record<string, unk
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-export default function ExecutionCenter({ locale = "en" }: { locale?: string } = {}) {
+type Prefill = { endpointId?: number; actionType?: string };
+
+/**
+ * Request → approve → worker result. Write gates live in EPDR settings; a
+ * prefill only preselects the form and still needs the explicit confirmation.
+ */
+export default function ExecutionCenter({ locale = "en", prefill = {} }: { locale?: string; prefill?: Prefill } = {}) {
   const t = useTranslations("Epdr.execution");
   const [options, setOptions] = useState<ExecutionOptions | null>(null);
-  const [settings, setSettings] = useState<WriteSettings | null>(null);
   const [page, setPage] = useState<RequestPage | null>(null);
   const [detail, setDetail] = useState<ExecutionRequestDetail | null>(null);
   const [error, setError] = useState<ExecutionErrorCode | null>(null);
@@ -63,16 +68,12 @@ export default function ExecutionCenter({ locale = "en" }: { locale?: string } =
   const [approveConfirm, setApproveConfirm] = useState(false);
   const [resolveNote, setResolveNote] = useState("");
 
-  const [enableSite, setEnableSite] = useState(false);
-  const [enableGlobal, setEnableGlobal] = useState(false);
-  const [selectedActions, setSelectedActions] = useState<string[]>([]);
-  const [globalActions, setGlobalActions] = useState<string[]>([]);
-  const [siteCap, setSiteCap] = useState("");
-  const [cooldownMinutes, setCooldownMinutes] = useState("");
-  const [settingsConfirmed, setSettingsConfirmed] = useState(false);
+  const [prefillApplied, setPrefillApplied] = useState(false);
 
   const mounted = useRef(true);
   const detailRequest = useRef(0);
+  // Consumed (set to null) the first time options load, so polling never re-applies it.
+  const pendingPrefill = useRef<Prefill | null>(prefill.endpointId !== undefined || prefill.actionType !== undefined ? prefill : null);
 
   // StrictMode replays setup → cleanup → setup. The ref must be restored on
   // every setup or the component ignores results after the replay.
@@ -89,20 +90,20 @@ export default function ExecutionCenter({ locale = "en" }: { locale?: string } =
     getEpdrExecutionOptions().then((result) => {
       if (!active) return;
       if ("code" in result) { setError(result.code); setErrorReason(result.reason ?? null); }
-      else setOptions(result);
-    }).catch(() => { if (active) setError("service_unavailable"); });
-    getEpdrWriteSettings().then((result) => {
-      if (!active) return;
-      if (!("code" in result)) {
-        setSettings(result);
-        setEnableSite(result.siteEnabled);
-        setEnableGlobal(result.globalEnabled);
-        setSelectedActions(result.siteAllowedActions);
-        setGlobalActions(result.globalAllowedActions);
-        setSiteCap(result.siteMaxActionsPerHour === null ? "" : String(result.siteMaxActionsPerHour));
-        setCooldownMinutes(String(result.executionCooldownMinutes));
+      else {
+        setOptions(result);
+        // Apply a prefill once, and only for values the loaded options offer.
+        const wanted = pendingPrefill.current;
+        if (wanted) {
+          pendingPrefill.current = null;
+          const endpoint = wanted.endpointId !== undefined && result.endpoints.some((entry) => entry.id === wanted.endpointId);
+          const action = wanted.actionType !== undefined && result.actions.some((entry) => entry.actionType === wanted.actionType);
+          if (endpoint) setEndpointId(String(wanted.endpointId));
+          if (action) setActionType(wanted.actionType!);
+          setPrefillApplied(endpoint || action);
+        }
       }
-    }).catch(() => undefined);
+    }).catch(() => { if (active) setError("service_unavailable"); });
     return () => { active = false; };
   }, [revision]);
 
@@ -146,11 +147,7 @@ export default function ExecutionCenter({ locale = "en" }: { locale?: string } =
   const selectedAction = options?.actions.find((entry) => entry.actionType === actionType);
   const paramKeys = HIGH_IMPACT_PARAMS[actionType] ?? [];
   const canSubmit = Boolean(options?.writeEnabled && endpointId && actionType && confirmed);
-  const createsText = settings?.availableActions ?? [];
-
-  function toggleAction(list: string[], action: string, checked: boolean): string[] {
-    return checked ? [...list, action] : list.filter((value) => value !== action);
-  }
+  const prefilled = prefillApplied && (endpointId !== "" || actionType !== "");
 
   return <section className="ops-panel space-y-5 p-5">
     <div>
@@ -165,6 +162,7 @@ export default function ExecutionCenter({ locale = "en" }: { locale?: string } =
       {options.disabledReasons.length > 0 && <ul className="mt-2 list-inside list-disc text-xs text-ops-muted">
         {options.disabledReasons.map((reason) => <li key={reason}>{t(`reasons.${reason}` as never)}</li>)}
       </ul>}
+      {!options.writeEnabled && <Link href={`/${locale}/admin/epdr/settings#provider-execution`} className="mt-2 inline-block text-xs text-ops-accent underline">{t("settingsLink")}</Link>}
       <p className="mt-2 text-xs text-ops-muted">{t("approvalWindow", { minutes: options.approvalExpiryMinutes })}</p>
       <p className="mt-1 text-xs text-ops-muted">
         {t("effectiveLimits", { cap: options.limits.maxActionsPerHour, minutes: options.limits.cooldownMinutes })}
@@ -176,77 +174,7 @@ export default function ExecutionCenter({ locale = "en" }: { locale?: string } =
       {errorReason && <span className="ml-2 text-xs text-ops-muted">({t("reason", { reason: errorReason })})</span>}
     </p>}
     {feedback && <p role="status" className="text-sm text-ops-text">{feedback}</p>}
-
-    {settings && <details className="rounded-md border border-ops-border p-3 text-sm">
-      <summary className="cursor-pointer font-medium text-ops-text">{t("settings.title")}</summary>
-      <p className="mt-2 text-xs text-ops-muted">{t("settings.hint")}</p>
-      <div className="mt-3 space-y-3">
-        {settings.isSuperadmin && <label className="flex items-start gap-2 text-xs text-ops-muted">
-          <input type="checkbox" checked={enableGlobal} onChange={(event) => setEnableGlobal(event.target.checked)} className="mt-0.5" />
-          {t("settings.globalToggle")}
-        </label>}
-        <label className="flex items-start gap-2 text-xs text-ops-muted">
-          <input type="checkbox" checked={enableSite} onChange={(event) => setEnableSite(event.target.checked)} className="mt-0.5" />
-          {t("settings.siteToggle")}
-        </label>
-        {settings.isSuperadmin && <fieldset className="space-y-1">
-          <legend className="text-xs font-medium text-ops-text">{t("settings.globalActions")}</legend>
-          {createsText.map((action) => <label key={action} className="flex items-center gap-2 text-xs text-ops-muted">
-            <input type="checkbox" checked={globalActions.includes(action)} onChange={(event) => {
-              setGlobalActions((current) => toggleAction(current, action, event.target.checked));
-            }} />
-            {t(`actions.${action}` as never)}
-          </label>)}
-        </fieldset>}
-        <fieldset className="space-y-1">
-          <legend className="text-xs font-medium text-ops-text">{t("settings.actions")}</legend>
-          {createsText.map((action) => <label key={action} className="flex items-center gap-2 text-xs text-ops-muted">
-            <input type="checkbox" checked={selectedActions.includes(action)} onChange={(event) => {
-              setSelectedActions((current) => toggleAction(current, action, event.target.checked));
-            }} />
-            {t(`actions.${action}` as never)}
-          </label>)}
-        </fieldset>
-        <label className="flex items-start gap-2 text-xs text-ops-muted">
-          {t("settings.siteCap")}
-          <input type="number" min={1} max={10000} value={siteCap} placeholder={t("settings.followGlobal")}
-            onChange={(event) => setSiteCap(event.target.value)}
-            className="w-24 rounded border border-ops-border bg-transparent px-2 py-1 text-xs text-ops-text" />
-        </label>
-        <label className="flex items-start gap-2 text-xs text-ops-muted">
-          {t("settings.cooldown")}
-          <input type="number" min={0} max={1440} value={cooldownMinutes}
-            onChange={(event) => setCooldownMinutes(event.target.value)}
-            className="w-24 rounded border border-ops-border bg-transparent px-2 py-1 text-xs text-ops-text" />
-        </label>
-        <label className="flex items-start gap-2 text-xs text-ops-muted">
-          <input type="checkbox" checked={settingsConfirmed} onChange={(event) => setSettingsConfirmed(event.target.checked)} className="mt-0.5" />
-          {t("settings.confirm")}
-        </label>
-        <button type="button" disabled={pending || !settingsConfirmed} onClick={() => perform(async () => {
-          const parsedCap = siteCap.trim() === "" ? null : Number(siteCap);
-          const parsedCooldown = Number(cooldownMinutes);
-          if ((siteCap.trim() !== "" && (!Number.isInteger(parsedCap) || (parsedCap ?? 0) < 1))
-            || !Number.isInteger(parsedCooldown) || parsedCooldown < 0 || parsedCooldown > 1440) {
-            setError("invalid_input");
-            return;
-          }
-          const result = await saveEpdrWriteSettings({
-            ...(settings.isSuperadmin ? { globalEnabled: enableGlobal, globalAllowedActions: globalActions } : {}),
-            siteEnabled: enableSite,
-            siteAllowedActions: selectedActions,
-            siteMaxActionsPerHour: parsedCap,
-            executionCooldownMinutes: parsedCooldown,
-            confirmWriteEnablement: true,
-          });
-          if (!mounted.current) return;
-          if ("code" in result) { setError(result.code); return; }
-          setFeedback(t("settings.saved"));
-          setSettingsConfirmed(false);
-          setRevision((value) => value + 1);
-        })} className="rounded-md border border-ops-border px-3 py-2 text-sm text-ops-text disabled:opacity-50">{t("settings.save")}</button>
-      </div>
-    </details>}
+    {prefilled && <p role="status" className="text-xs text-ops-muted">{t("prefilled")}</p>}
 
     <form className="grid gap-3 rounded-md border border-ops-border p-4 lg:grid-cols-2" onSubmit={(event) => {
       event.preventDefault();
@@ -314,7 +242,6 @@ export default function ExecutionCenter({ locale = "en" }: { locale?: string } =
       </label>
       <div className="lg:col-span-2">
         <button disabled={pending || !canSubmit} className="rounded-md bg-ops-accent px-3 py-2 text-sm font-medium text-ops-bg disabled:opacity-50">{t("request")}</button>
-        <p className="mt-2 text-xs text-ops-muted">{t("noSendNote")}</p>
       </div>
     </form>
 

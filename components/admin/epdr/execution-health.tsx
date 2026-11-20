@@ -1,15 +1,13 @@
 "use client";
 
 /**
- * Execution health panel for /admin/epdr/activity.
+ * Execution health panel at the top of /admin/epdr/approvals (Actions).
  *
- * Refreshes every 20 seconds (statuses change in the worker, not in this tab)
- * and links to the approvals view where stuck requests can be resolved. It
- * shows counters and the oldest non-terminal requests only — no payloads.
+ * Refreshes every 20 seconds (statuses change in the worker, not in this tab).
+ * It shows counters and the oldest non-terminal requests only — no payloads.
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { getEpdrExecutionHealth, type ExecutionHealthData } from "@/actions/epdr-execution-health";
 
 const REFRESH_MS = 20_000;
@@ -43,12 +41,7 @@ export default function ExecutionHealth() {
   }, []);
 
   return <section className="ops-panel flex flex-col gap-3 p-4">
-    <div className="flex items-center justify-between gap-2">
-      <h2 className="text-sm font-medium text-ops-text">{t("title")}</h2>
-      <Link href="/admin/epdr/approvals" className="text-xs text-ops-muted underline">
-        {t("approvalsLink")}
-      </Link>
-    </div>
+    <h2 className="text-sm font-medium text-ops-text">{t("title")}</h2>
     <p className="text-xs text-ops-muted">{t("hint")}</p>
     {failed && <p role="alert" className="text-sm text-ops-danger">{t("unavailable")}</p>}
     {!data && !failed && <p className="text-xs text-ops-muted">{t("loading")}</p>}

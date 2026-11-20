@@ -9,6 +9,7 @@ import { devices, epdrEndpoints, sites, watchguardConnections } from "@/db/schem
 import { requireActiveSiteAction, requireActiveSiteAdminAction } from "@/lib/action-auth";
 import { logAudit } from "@/lib/audit";
 import { hasAdminAccess, requireSiteAccess } from "@/lib/site-access";
+import { loadExecutionSettings } from "@/lib/epdr/execution-store";
 import {
   bucketForEndpoint,
   OFFLINE_DAYS,
@@ -53,12 +54,25 @@ export type EpdrSecurityContext = {
   isSuperadmin: boolean;
   /** Current account generation; null when no connection is configured. */
   accountRevision: number | null;
+  /** Display only: deployment and site write gates are open. Never authorizes a write. */
+  writeEnabled: boolean;
 };
 
 export type EpdrEndpointsData = EpdrSecurityContext & {
   posture: FleetPosture;
   endpoints: EpdrEndpointRow[];
 };
+
+/** Header badge only: true when every write gate is open. Any failure reads as off. */
+async function loadWriteMode(siteId: number): Promise<boolean> {
+  try {
+    const settings = await loadExecutionSettings(siteId);
+    return settings.globalWritesEnabled && settings.siteWritesEnabled && !settings.globalKillSwitch
+      && !settings.siteKillSwitch && !settings.automationPaused;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Site name, connection lifecycle and the viewer's role — shared by the
@@ -85,6 +99,7 @@ export async function loadSecurityContext(siteId: number, role: string): Promise
       .limit(1),
     hasAdminAccess(),
   ]);
+  const writeEnabled = await loadWriteMode(siteId);
 
   return {
     siteName: site?.name ?? "",
@@ -101,6 +116,7 @@ export async function loadSecurityContext(siteId: number, role: string): Promise
     isAdmin,
     isSuperadmin: guard.session.role === "superadmin",
     accountRevision: conn?.accountId ? conn.accountRevision ?? null : null,
+    writeEnabled: writeEnabled && conn?.enabled === true,
   };
 }
 

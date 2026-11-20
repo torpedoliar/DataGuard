@@ -50,11 +50,10 @@ describe("read-only operations UI", () => {
     expect(JSON.stringify(render())).toContain("readOnly");
   });
 
-  it("shows honest local intentions and blockers with no approval or dispatch controls", async () => {
+  it("shows recorded intentions with no approval or dispatch controls", async () => {
     render("approvals"); await settle(); const tree = render("approvals");
     expect(state.load).toHaveBeenCalledWith({ view: "approvals", page: 1 });
-    expect(JSON.stringify(tree)).toContain("approvalsHint");
-    expect(JSON.stringify(tree)).toContain("blocker");
+    expect(JSON.stringify(tree)).toContain("activityHint");
     expect(JSON.stringify(tree)).toContain("actions.scan");
     expect(elements(tree).filter((item) => item.type === "button").map((item) => item.props.children)).toEqual(["refresh", "previous", "next"]);
   });

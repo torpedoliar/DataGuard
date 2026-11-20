@@ -40,13 +40,9 @@ export default function LocalApprovals({ locale }: { locale: string }) {
     });
   }
 
-  return <section className="ops-panel space-y-4 p-5">
-    <h2 className="font-semibold text-ops-text">{t("title")}</h2>
-    <p className="text-sm text-ops-muted">{t("hint")}</p>
-    <div role="note" className="space-y-2 rounded-md border border-ops-border p-3 text-sm text-ops-text">
-      <p>{t("readOnly")}</p>
-      <p className="text-ops-muted">{t("decisionOnly")}</p>
-    </div>
+  // Rendered inside the "Local decision records" disclosure on the Actions page.
+  return <section className="space-y-4">
+    <p role="note" className="text-sm text-ops-muted">{t("hint")}</p>
     <div className="flex flex-wrap items-center gap-3">
       <button type="button" disabled={pending} onClick={() => setRevision((value) => value + 1)} className="text-sm text-ops-accent disabled:opacity-50">{t("retry")}</button>
       {data && <span className="text-sm text-ops-muted">{t("pendingCount", { count: data.pending })}</span>}
@@ -66,7 +62,11 @@ export default function LocalApprovals({ locale }: { locale: string }) {
             <span className="text-xs text-ops-subtle">{t("expires", { time: row.expiresAt })}</span>
             <Link href={`/${locale}/admin/epdr/playbooks?detection=${row.detectionId}`} className="text-ops-accent">{t("review")}</Link>
           </div>
-          {row.status === "approved" && <p className="text-xs text-ops-warning">{t("approvedNote")}</p>}
+          {row.status === "approved" && <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="text-ops-muted">{t("approvedNote")}</span>
+            {/* Only preselects the execution form; the gated request/approve flow still applies. */}
+            <Link href={`/${locale}/admin/epdr/approvals?endpoint=${row.endpointId}&action=${row.actionIntent}`} className="text-ops-accent underline">{t("createRequest")}</Link>
+          </div>}
           {row.status === "rejected" && <p className="text-xs text-ops-muted">{t("rejectedNote")}</p>}
           {open && <div className="flex flex-wrap items-center gap-2">
             <input maxLength={500} value={notes[row.id] ?? ""} onChange={(event) => setNotes((old) => ({ ...old, [row.id]: event.target.value }))}

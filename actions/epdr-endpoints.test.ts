@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   logAudit: vi.fn(async (): Promise<unknown> => undefined),
   revalidatePath: vi.fn(() => undefined),
   selectQueue: [] as unknown[][],
+  executionSettings: vi.fn(),
   binding: { id: 12, accountRevision: 3, enabled: true, accountId: "account" } as { id: number; accountRevision: number; enabled: boolean; accountId: string } | null,
   updates: [] as Array<Record<string, unknown>>,
   limits: [] as number[],
@@ -24,6 +25,7 @@ vi.mock("@/lib/action-auth", () => ({
 vi.mock("@/lib/audit", () => ({ logAudit: () => mocks.logAudit() }));
 vi.mock("@/lib/site-access", () => ({ hasAdminAccess: async () => true, requireSiteAccess: (...args: unknown[]) => { void args; return mocks.requireSiteAccess(); } }));
 vi.mock("next/cache", () => ({ revalidatePath: () => mocks.revalidatePath() }));
+vi.mock("@/lib/epdr/execution-store", () => ({ loadExecutionSettings: (...args: unknown[]) => mocks.executionSettings(...args) }));
 
 vi.mock("@/db", () => {
   function thenable(value: () => unknown[]) {
@@ -123,6 +125,20 @@ describe("fleet paging and context guards", () => {
 
   it("does not trust a caller-supplied site or role", async () => {
     await expect(loadSecurityContext(99, "superadmin")).rejects.toThrow("Unauthorized");
+  });
+
+  it("reports write mode for the header badge only when every gate is open, failing closed", async () => {
+    const open = { globalWritesEnabled: true, siteWritesEnabled: true, globalKillSwitch: false, siteKillSwitch: false, automationPaused: false };
+    const connection = { enabled: true, accountId: "account", accountRevision: 3, lastEndpointSyncAt: null, endpointSyncMinutes: 15, lastSyncError: null };
+    mocks.selectQueue = [[{ name: "Site" }], [connection]];
+    mocks.executionSettings.mockResolvedValueOnce(open);
+    expect((await loadSecurityContext(7, "admin")).writeEnabled).toBe(true);
+    mocks.selectQueue = [[{ name: "Site" }], [connection]];
+    mocks.executionSettings.mockResolvedValueOnce({ ...open, siteKillSwitch: true });
+    expect((await loadSecurityContext(7, "admin")).writeEnabled).toBe(false);
+    mocks.selectQueue = [[{ name: "Site" }], [connection]];
+    mocks.executionSettings.mockRejectedValueOnce(new Error("relation missing"));
+    expect((await loadSecurityContext(7, "admin")).writeEnabled).toBe(false);
   });
 
   it("rejects unbounded or invalid paging inputs", async () => {

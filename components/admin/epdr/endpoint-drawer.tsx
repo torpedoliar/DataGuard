@@ -296,6 +296,12 @@ export default function EndpointDrawer({
 
           <h3 className="mt-5 text-[13px] font-semibold uppercase tracking-wide text-ops-muted">{t("drawer.whatToDo")}</h3>
           <p className="mt-1.5 text-[13px] leading-relaxed text-ops-text">{t(`drawer.nextStep.${endpoint.bucket}`)}</p>
+          {/* Opens the gated execution form with this endpoint preselected; nothing is sent from here. */}
+          {isAdmin && (
+            <ActionButton variant="secondary" size="sm" className="mt-3" href={`/${locale}/admin/epdr/approvals?endpoint=${endpoint.id}`}>
+              {t("drawer.requestAction")}
+            </ActionButton>
+          )}
 
           {!(endpoint.deviceType === SERVER_DEVICE_TYPE || endpoint.isCritical) && endpoint.rebootRequested && (
             <p className="mt-3 flex items-start gap-2 rounded-md border border-ops-warning/25 bg-ops-warning-soft px-3 py-2.5 text-[13px] text-ops-warning">

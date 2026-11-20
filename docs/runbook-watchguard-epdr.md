@@ -14,9 +14,14 @@ arbitrary HTTP path, no bulk execution and no automatic (approval-free) write.
 | Route | Page | Access |
 |---|---|---|
 | `/admin/settings` (WatchGuard card) | Per-site connection + superadmin global controls | superadmin |
-| `/admin/epdr` | Monitor › Endpoint Security | site staff (read) / admin (act) |
-| `/admin/epdr/threats` | Threats + detection list | site staff / admin |
-| `/admin/epdr/settings` | Site rules, detection, safeguards | site admin |
+| `/admin/epdr` | **Fleet** — endpoint inventory; the drawer links to *Request scan or isolate* | site staff (read) / admin (act) |
+| `/admin/epdr/threats` | **Threats** — detection list | site staff / admin |
+| `/admin/epdr/playbooks` | **Review** — local threat review, Incident handoff, proposed actions | site admin |
+| `/admin/epdr/approvals` | **Actions** — execution health, provider execution requests (request → approve → worker), and the collapsed *local decision records* (send nothing; an approved record links to a prefilled execution request) | site admin |
+| `/admin/epdr/activity` | **History** — read-only ledger of everything recorded | site admin |
+| `/admin/epdr/settings` | **Settings** — *Provider execution* (site/deployment write gates), notifications, detection, safeguards, site kill switch | site admin |
+
+The header badge on Fleet and Threats reads "Monitoring · read-only" while any write gate is closed and "Actions need approval" when every gate is open. It is display-only and never authorizes a write.
 
 ## 2. Role model
 
@@ -112,7 +117,7 @@ These steps describe operator checks after the patch is deployed; local mock tes
 
 A request needs its action in **both** lists: the deployment ceiling (`watchguard_global_settings.allowed_actions`) and the site list (`epdr_site_settings.allowed_actions`). The site list narrows the ceiling; an empty site list allows nothing.
 
-- Preferred: superadmin opens EPDR → **Approvals** → *Write enablement*, widens the **deployment action ceiling**, then the site admin enables the site gate and checks the site subset. The same global ceiling is editable under EPDR → Settings → *Global safeguards* → *Allowed actions*.
+- Preferred: superadmin opens EPDR → **Settings** → *Provider execution*, widens the **deployment action ceiling**, then the site admin enables the site gate and checks the site subset. The same global ceiling is editable under EPDR → Settings → *Global safeguards* → *Allowed actions*.
 - Script alternative (same effect, explicit site, dry-run first):
 
 ```bash
@@ -308,7 +313,7 @@ Nothing below is executed by tests or by the application on its own.
 - An aborted claim (gate flipped, snapshot changed before send) returns the request to queued or needs_review,
   marks the attempt aborted and clears dispatched_at: no cooldown attaches to an endpoint that was never
   contacted.
-- Ops: watch /api/metrics (epdr block) and /admin/epdr/activity (execution health panel). The worker compose
+- Ops: watch /api/metrics (epdr block) and /admin/epdr/approvals (execution health panel). The worker compose
   service now has a real healthcheck (scripts/healthcheck-watchguard.ts, exit 1 on a stale heartbeat or stuck
   thresholds; thresholds env-tunable via EPDR_* variables).
 

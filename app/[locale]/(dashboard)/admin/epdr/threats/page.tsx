@@ -32,7 +32,7 @@ export default async function EpdrThreatsPage() {
   return (
     <main className="mx-auto flex w-full max-w-[1600px] animate-enter flex-col gap-6 px-4 py-6 lg:px-8">
       <PageHeader
-        eyebrow={`Security / ${t("threats.title")}`}
+        eyebrow={t("eyebrow")}
         title={data.siteName || t("threats.title")}
         description={t("threats.description")}
         actions={<SecurityStatusPills context={data} locale={locale} />}

@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { AlertTriangle, Eye, PauseCircle, PlugZap, RefreshCw } from "lucide-react";
+import { AlertTriangle, Eye, PauseCircle, PlugZap, RefreshCw, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 import ActionButton from "@/components/ui/action-button";
 import type { EpdrSecurityContext } from "@/actions/epdr-endpoints";
@@ -26,7 +26,7 @@ function relativeTime(date: Date, locale: string): string {
   return rtf.format(Math.round(diffSec / 86400), "day");
 }
 
-/** Live/stale pill + read-only badge shown in every Security page header. */
+/** Live/stale pill + write-mode badge shown in the Fleet and Threats headers. */
 export async function SecurityStatusPills({ context, locale }: { context: EpdrSecurityContext; locale: string }) {
   const t = await getTranslations("Epdr");
   const live = context.connection === "live";
@@ -42,13 +42,23 @@ export async function SecurityStatusPills({ context, locale }: { context: EpdrSe
           <span className="font-normal text-ops-muted">· {t("updated", { time: relativeTime(context.lastSyncAt, locale) })}</span>
         )}
       </span>
-      <span
-        title={t("readOnlyHint")}
-        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-ops-info/25 bg-ops-info-soft px-2.5 text-[12px] font-medium text-ops-info"
-      >
-        <Eye className="size-3.5" aria-hidden />
-        {t("readOnly")}
-      </span>
+      {context.writeEnabled ? (
+        <span
+          title={t("writeEnabledHint")}
+          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-ops-warning/25 bg-ops-warning-soft px-2.5 text-[12px] font-medium text-ops-warning"
+        >
+          <ShieldCheck className="size-3.5" aria-hidden />
+          {t("writeEnabledBadge")}
+        </span>
+      ) : (
+        <span
+          title={t("readOnlyHint")}
+          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-ops-info/25 bg-ops-info-soft px-2.5 text-[12px] font-medium text-ops-info"
+        >
+          <Eye className="size-3.5" aria-hidden />
+          {t("readOnly")}
+        </span>
+      )}
     </div>
   );
 }

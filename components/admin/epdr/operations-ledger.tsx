@@ -24,9 +24,7 @@ export default function OperationsLedgerPanel({ view }: { view: OperationsView }
   }, [view, page, revision]);
   function changePage(next: number) { setLoading(true); setData(null); setPage(next); }
   return <section className="ops-panel space-y-4 p-5" aria-busy={loading}>
-    <p role="note" className="rounded-md border border-ops-border p-3 text-sm text-ops-text">{t("readOnly")}</p>
-    <p className="text-sm text-ops-muted">{t(view === "approvals" ? "approvalsHint" : "activityHint")}</p>
-    {view === "approvals" && <p className="text-sm text-ops-muted">{t("blocker")}</p>}
+    <p role="note" className="text-sm text-ops-muted">{t("readOnly")} {t("activityHint")}</p>
     <button type="button" disabled={loading} className="text-sm text-ops-accent disabled:opacity-50" onClick={() => { setLoading(true); setData(null); setRevision((value) => value + 1); }}>{t("refresh")}</button>
     {loading && <p role="status">{t("loading")}</p>}
     {!loading && error && <p role="alert">{t("error")}</p>}

@@ -61,15 +61,15 @@ beforeEach(() => {
 afterEach(() => state.cleanup?.());
 
 describe("local approvals panel", () => {
-  it("loads requests on mount and states that approval never dispatches", async () => {
+  it("loads requests on mount and states once that approval never dispatches", async () => {
     render("en"); await settle();
     const nodes = elements(render("en"));
     expect(state.list).toHaveBeenCalledOnce();
     expect(state.decide).not.toHaveBeenCalled();
     const note = nodes.find((node) => node.props.role === "note");
     expect(note).toBeDefined();
-    expect(nodes.some((node) => node.type === "p" && node.props.children === "readOnly")).toBe(true);
-    expect(nodes.some((node) => node.type === "p" && node.props.children === "decisionOnly")).toBe(true);
+    expect(note!.props.children).toBe("hint");
+    expect(nodes.some((node) => node.type === "a" && node.props.children === "createRequest")).toBe(false);
     expect(nodes.some((node) => node.props.children === "row")).toBe(true);
     expect(nodes.some((node) => node.props.children === "status.pending")).toBe(true);
   });
@@ -114,5 +114,10 @@ describe("local approvals panel", () => {
     expect(nodes.filter((node) => node.type === "input")).toHaveLength(0);
     expect(nodes.filter((node) => node.type === "button" && (node.props.children === "approve" || node.props.children === "reject"))).toHaveLength(0);
     expect(nodes.some((node) => node.props.children === "approvedNote")).toBe(true);
+    // An approved decision offers only a prefill link into the gated execution form.
+    const links = nodes.filter((node) => node.type === "a" && node.props.children === "createRequest");
+    expect(links).toHaveLength(1);
+    expect(links[0].props.href).toBe("/en/admin/epdr/approvals?endpoint=5&action=scan");
+    expect(state.decide).not.toHaveBeenCalled();
   });
 });

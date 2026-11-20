@@ -24,6 +24,10 @@ vi.mock("@/db", () => {
   }
   return { db: { select, execute: mocks.execute } };
 });
+// The header write-mode badge reads gate settings; keep it off the fleet query count.
+vi.mock("@/lib/epdr/execution-store", () => ({
+  loadExecutionSettings: async () => ({ globalWritesEnabled: false, siteWritesEnabled: false }),
+}));
 
 import { getEpdrFleetOverview } from "./epdr-endpoints";
 

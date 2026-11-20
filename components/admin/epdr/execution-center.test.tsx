@@ -56,12 +56,14 @@ vi.mock("@/actions/epdr-write-settings", () => ({
   getEpdrWriteSettings: state.settings,
   saveEpdrWriteSettings: state.saveSettings,
 }));
+vi.mock("next/link", () => ({ default: "a" }));
 
 import ExecutionCenter from "./execution-center";
 
+let prefill: { endpointId?: number; actionType?: string } = {};
 function render() {
   state.cursor = 0;
-  return ExecutionCenter({ locale: "en" });
+  return ExecutionCenter({ locale: "en", prefill });
 }
 function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
@@ -98,7 +100,7 @@ const detailPending = {
 beforeEach(() => {
   vi.resetAllMocks();
   state.values = []; state.cursor = 0; state.cleanups = []; state.dependencies = [];
-  state.pending = Promise.resolve(); state.mounted.current = true; state.detailRequest.current = 0;
+  state.pending = Promise.resolve(); state.mounted.current = true; state.detailRequest.current = 0; prefill = {};
   vi.stubGlobal("setInterval", () => 0);
   vi.stubGlobal("clearInterval", () => undefined);
   state.options.mockResolvedValue({
@@ -179,6 +181,48 @@ describe("execution center safety", () => {
     // A stale mount ref would drop the follow-up detail refresh.
     expect(state.detail).toHaveBeenCalled();
     expect(text(render())).not.toContain("errors.forbidden");
+  });
+
+  it("leaves write enablement to the settings page", async () => {
+    render();
+    await settle();
+    expect(state.settings).not.toHaveBeenCalled();
+    expect(text(render())).not.toContain("settings.title");
+  });
+
+  it("links to execution settings when writes are disabled", async () => {
+    state.options.mockResolvedValue({ ...(await state.options()), writeEnabled: false, disabledReasons: ["site_writes_disabled"], actions: [] });
+    state.options.mockClear();
+    render();
+    await settle();
+    const link = elements(render()).find((node) => node.type === "a" && node.props.children === "settingsLink");
+    expect(link?.props.href).toBe("/en/admin/epdr/settings#provider-execution");
+  });
+
+  it("prefills only offered values and never submits on its own", async () => {
+    prefill = { endpointId: 2, actionType: "scan" };
+    render();
+    await settle();
+    render();
+    const tree = render();
+    const selects = elements(tree).filter((node) => node.type === "select");
+    expect(selects[0].props.value).toBe("2");
+    expect(selects[1].props.value).toBe("scan");
+    expect(text(tree)).toContain("prefilled");
+    const confirm = elements(tree).filter((node) => node.type === "input" && node.props.type === "checkbox").pop()!;
+    expect(confirm.props.checked).toBe(false);
+    expect(state.create).not.toHaveBeenCalled();
+  });
+
+  it("ignores a prefill for an endpoint or action not offered", async () => {
+    prefill = { endpointId: 999, actionType: "reboot" };
+    render();
+    await settle();
+    render();
+    const selects = elements(render()).filter((node) => node.type === "select");
+    expect(selects[0].props.value).toBe("");
+    expect(selects[1].props.value).toBe("");
+    expect(text(render())).not.toContain("prefilled");
   });
 
   it("resets request confirmation when a parameter changes", async () => {

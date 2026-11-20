@@ -182,7 +182,6 @@ export default function LocalPlaybookRunner({ initialDetectionId, locale = "en" 
         {options?.requestedDetectionUnavailable && <p className="text-ops-warning">{t("requestedUnavailable")}</p>}
         {options?.detectionTruncated && <p>{t("detectionsLimited")}</p>}
         {selectedDetection && <p>{t("selectedDetection", { category: selectedDetection.category, score: selectedDetection.score ?? t("missingScore"), time: new Date(selectedDetection.detectedAt).toLocaleString(locale) })}</p>}
-        <p>{t("selectorNote")}</p>
       </div>
       {/* Pre-create eligibility: what a start would evaluate, shown before the create step. */}
       {eligibility && <div aria-live="polite" className="rounded-md border border-ops-border bg-ops-surface-raised p-3 text-xs lg:col-span-2">

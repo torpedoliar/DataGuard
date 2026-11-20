@@ -159,7 +159,6 @@
       "result": "Opened local Incident #{id}",
       "error": "Handoff unavailable. Check current site permissions, target, assignee/PIC and required migrations.",
       "existingResult": "Linked existing local Incident #{id} (this detection was already handed off)",
-      "boundary": "This creates or links a DC Incident for the analyst workflow only. It does not change the endpoint, the provider, or any WatchGuard state.",
       "openIncident": "Open Incident #{id}"
     },
     "threatV2": {
@@ -188,15 +187,13 @@
       "historical": "Observed under a previous account revision; host identity is not re-verified. Local handoff is disabled for this row."
     },
     "operationsV2": {
-      "eyebrow": "Security / Operations",
-      "activityTitle": "Activity",
-      "approvalsTitle": "Approvals",
-      "activityDescription": "Recorded local actions, evaluations, handoffs, simulations and read-sync requests.",
-      "approvalsDescription": "Local approval-mode intentions and provider execution requests. Local decisions never authorize a provider write; enabled execution uses its own gated section below.",
-      "readOnly": "This ledger is read-only. It does not send commands or change provider status.",
-      "activityHint": "This ledger records local actions, evaluations, local handoffs, simulation samples and read-sync requests. It is not live provider task execution.",
-      "approvalsHint": "Local approval-mode intentions and evaluations only; this is not an actionable live approval queue.",
-      "blocker": "Provider execution is blocked by the read-only policy. Approval cannot unlock it; historical states do not prove provider execution.",
+      "eyebrow": "Security / Endpoint",
+      "activityTitle": "History",
+      "approvalsTitle": "Actions & approvals",
+      "activityDescription": "Everything recorded for this site: reviews, handoffs, decisions, sync requests and provider actions.",
+      "approvalsDescription": "Request a scan or isolate, approve it, and follow the worker result. One admin may request and approve; every decision is in the audit log.",
+      "readOnly": "History only. Nothing here sends a command.",
+      "activityHint": "Newest first, 50 per page.",
       "refresh": "Refresh",
       "loading": "Loading records…",
       "error": "Records could not be loaded.",
@@ -364,16 +361,16 @@
         "label": "Security sections",
         "fleet": "Fleet",
         "threats": "Threats",
-        "playbooks": "Threat review",
-        "approvals": "Local decisions",
+        "playbooks": "Review",
+        "approvals": "Actions",
         "activity": "History",
         "settings": "Settings"
       },
       "title": "Threat review",
-      "eyebrow": "Security / Threat review",
-      "description": "Review stored evidence, record local outcomes, then explicitly hand off an Incident or request a local decision. WatchGuard remains read-only.",
+      "eyebrow": "Security / Endpoint",
+      "description": "Pick a detection, record the local review, then hand off to an Incident or propose an action.",
       "back": "Threats",
-      "advancedTitle": "Advanced · templates, simulations and technical evidence",
+      "advancedTitle": "Advanced: versions, simulations and catalog",
       "advancedDescription": "Admin-only preparation and inspection tools. These sections are not part of recording a threat review.",
       "simulationTitle": "Saved versions and bounded simulations",
       "simulationHint": "Save reusable review versions and record bounded simulations only. A new valid version appears in the review selector after refreshing its choices.",
@@ -463,7 +460,7 @@
       "stepSuppressed": "suppressed by contract (provider execution disabled)"
     },
     "readOnly": "Monitoring · read-only",
-    "readOnlyHint": "Endpoint Security inventory and evidence are read-only. Provider writes, when an administrator enables them, use a separate site-admin approval pipeline. The requester may approve; approval is recorded in the activity log.",
+    "readOnlyHint": "Provider writes are off. Inventory and evidence are read-only.",
     "updated": "Updated {time}",
     "never": "never",
     "connection": {
@@ -587,7 +584,8 @@
       "assetSearch": "Search asset name, IP or code",
       "link": "Link",
       "unlink": "Unlink",
-      "readOnlyNote": "Only site admins can change these settings."
+      "readOnlyNote": "Only site admins can change these settings.",
+      "requestAction": "Request scan or isolate"
     },
     "threats": {
       "title": "Threats",
@@ -595,7 +593,7 @@
       "clear": "No active threats",
       "clearBody": "Nothing that needs handling in the last 30 days.",
       "active": "{count, plural, one {# threat needs handling} other {# threats need handling}}",
-      "activeBody": "Each one is tracked as an Incident. Open it to follow up.",
+      "activeBody": "Review each one and hand it off to an Incident when it needs follow-up.",
       "last24h": "24 h",
       "last7d": "7 days",
       "trend": "Last 30 days",
@@ -762,8 +760,8 @@
       "saved": "Safeguards saved."
     },
     "detection": {
-      "title": "Detection & safeguards",
-      "description": "What WatchGuard signals become incidents at this site, and how aggressively dc-check may act.",
+      "title": "EPDR settings",
+      "description": "Provider execution, notifications, which signals become incidents, and safeguards for this site.",
       "signals": "Read from WatchGuard",
       "events": "Endpoint activity",
       "eventsHint": "Which findings become incidents. Malware, unwanted programs and exploits are the usual ones.",
@@ -803,7 +801,9 @@
         "automatic": "Restart automatically"
       },
       "save": "Save",
-      "healthRebootCountdown": "Restart countdown"
+      "healthRebootCountdown": "Restart countdown",
+      "executionTitle": "Provider execution",
+      "executionHint": "Controls whether this site may send scan/isolate commands. Both the deployment and site gates must be on."
     },
     "localRunV2": {
       "title": "Threat review",
@@ -824,7 +824,6 @@
       "unknownHost": "Unknown host",
       "missingScore": "no score",
       "selectedDetection": "Category: {category} · Score: {score} · Detected: {time}",
-      "selectorNote": "These choices identify stored evidence only; they do not establish eligibility or authorize execution. The saved review records the final policy and its reasons.",
       "noVersions": "No usable saved review version is available. Author one below, then refresh these choices.",
       "noDetections": "No current threat is available for this account. Return to Threats when new evidence has been stored.",
       "requestedUnavailable": "The linked threat is not current for this account or is no longer available. Return to Threats and select an active detection.",
@@ -1024,10 +1023,8 @@
       }
     },
     "approvalsV2": {
-      "title": "Local approvals",
-      "hint": "Local approval requests for provider-action intentions from a playbook review. Approval is recorded as a local decision and never sends a command.",
-      "readOnly": "Approving here records a local decision only. Provider execution uses a separate, gated request pipeline.",
-      "decisionOnly": "Approvals only record local admin decisions. They never scan or isolate endpoints.",
+      "title": "Local decision records (send nothing)",
+      "hint": "Proposals from a threat review. Approving here only records the decision; use \"Create execution request\" to actually act.",
       "review": "Back to threat review",
       "pendingCount": "{count} awaiting a decision",
       "loading": "Loading approvals…",
@@ -1039,8 +1036,8 @@
       "notePlaceholder": "Decision note (optional, max 500)",
       "approve": "Approve (local)",
       "reject": "Reject",
-      "approvedNote": "Approval recorded locally. This note is a decision record; provider execution still requires its own gated request, approval and dispatch pipeline.",
-      "rejectedNote": "Rejected locally. No provider action was sent.",
+      "approvedNote": "Decision recorded. Nothing was sent.",
+      "rejectedNote": "Rejected. Nothing was sent.",
       "feedback": {
         "approved": "Local approval recorded; no provider command was sent.",
         "rejected": "Local rejection recorded."
@@ -1054,13 +1051,14 @@
         "approved": "Approved (local)",
         "rejected": "Rejected",
         "expired": "Expired"
-      }
+      },
+      "createRequest": "Create execution request"
     },
     "execution": {
-      "title": "Provider execution",
-      "hint": "Request a single provider operation on one endpoint, have it approved by a site administrator (the requester may approve), then let the worker send it. Approval is recorded in the activity log. A request never contacts WatchGuard on its own.",
+      "title": "Provider execution requests",
+      "hint": "1. Request → 2. Approve (the requester may approve) → 3. The worker sends it and records the result.",
       "enabled": "Provider writes are enabled for this site.",
-      "disabled": "Provider writes are disabled. Nothing can be sent until both the deployment and this site enable them.",
+      "disabled": "Provider writes are off. Requests cannot be created until they are enabled.",
       "reasons": {
         "global_writes_disabled": "The deployment-wide write gate is off.",
         "site_writes_disabled": "This site's write gate is off.",
@@ -1143,7 +1141,6 @@
       },
       "confirmRequest": "I understand this records a request that a site administrator must approve before anything is sent. I may approve my own request; approval is recorded in the activity log.",
       "request": "Create execution request",
-      "noSendNote": "Creating a request sends nothing. The worker can only send it after a site administrator approves the exact target and parameters. The requester may approve; approval is recorded in the activity log.",
       "listTitle": "Execution requests",
       "pageSummary": "Page {page} of {pages} · {total} requests",
       "row": "Request #{id}",
@@ -1208,7 +1205,9 @@
         "new": "New",
         "read": "Read",
         "closed": "Closed"
-      }
+      },
+      "settingsLink": "Open execution settings",
+      "prefilled": "Prefilled from a previous step. Review and confirm."
     },
     "providerTargets": {
       "title": "ThreatSync targets",
@@ -1246,7 +1245,6 @@
     "executionHealth": {
       "title": "Execution health",
       "hint": "Live counters for the provider-write pipeline and the oldest requests that have not reached a terminal state yet.",
-      "approvalsLink": "Open approvals",
       "loading": "Loading health…",
       "unavailable": "Execution health is unavailable. Check access and migrations.",
       "counts": {
@@ -1266,6 +1264,9 @@
       "age": "Age",
       "ageMinutes": "{minutes} min",
       "reason": "Reason"
-    }
+    },
+    "eyebrow": "Security / Endpoint",
+    "writeEnabledBadge": "Actions need approval",
+    "writeEnabledHint": "Provider writes are on. Each action needs a site-admin approval before the worker sends it."
   }
 }

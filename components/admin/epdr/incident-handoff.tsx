@@ -35,7 +35,6 @@ export default function IncidentHandoff({ detectionId, locale }: { detectionId: 
   if (!expanded) return <button type="button" onClick={open} className="text-xs font-medium text-ops-accent">{t("open")}</button>;
   return <div className="w-full space-y-3 rounded-md border border-ops-border bg-ops-surface-sunken p-3">
     <p className="text-sm text-ops-text">{t("hint")}</p>
-    <p className="text-xs text-ops-muted">{t("boundary")}</p>
     {incidentId !== null && <p role="status" className="text-sm text-ops-text">
       {lastWasExisting ? t("existingResult", { id: incidentId }) : t("result", { id: incidentId })}
     </p>}
