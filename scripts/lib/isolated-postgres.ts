@@ -32,13 +32,32 @@ async function freePort(): Promise<number> {
   });
 }
 
-async function waitReady(container: string, deadlineMs: number): Promise<void> {
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The image's init phase runs a temporary socket-only server and then
+ * restarts it, so a socket `pg_isready` can pass before the final server is
+ * up (clients then fail with ECONNRESET). Require TCP readiness inside the
+ * container, then consecutive successful queries over the published port.
+ */
+async function waitReady(container: string, connect: () => Client, deadlineMs: number): Promise<void> {
+  let consecutive = 0;
   while (Date.now() < deadlineMs) {
     try {
-      docker(["exec", container, "pg_isready", "-U", "postgres"]);
-      return;
+      docker(["exec", container, "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]);
+      const client = connect();
+      try {
+        await client.connect();
+        await client.query("SELECT 1");
+      } finally {
+        await client.end().catch(() => undefined);
+      }
+      consecutive += 1;
+      if (consecutive >= 2) return;
+      await pause(500);
     } catch {
-      await new Promise((resolve) => setTimeout(resolve, 750));
+      consecutive = 0;
+      await pause(750);
     }
   }
   throw new Error("isolated PostgreSQL did not become ready");
@@ -91,7 +110,7 @@ export async function startIsolatedPostgres(namePrefix: string): Promise<Isolate
       }
     },
     createClient() {
-      return new Client({ host: "127.0.0.1", port, user: "postgres", password, database: "postgres" });
+      return new Client({ host: "127.0.0.1", port, user: "postgres", password, database: "postgres", connectionTimeoutMillis: 5_000 });
     },
     createDrizzle(client) {
       return drizzle(client) as NodePgDatabase<Record<string, never>>;
@@ -112,6 +131,11 @@ export async function startIsolatedPostgres(namePrefix: string): Promise<Isolate
     "-p", `127.0.0.1:${port}:5432`,
     IMAGE, "postgres", "-c", "fsync=off", "-c", "full_page_writes=off",
   ]);
-  await waitReady(container, Date.now() + 60_000);
+  try {
+    await waitReady(container, () => instance.createClient(), Date.now() + 60_000);
+  } catch (error) {
+    instance.cleanup();
+    throw error;
+  }
   return instance;
 }
