@@ -342,6 +342,10 @@ export async function getEpdrEndpointPage(input: FleetQuery): Promise<EpdrEndpoi
   const predicates = [eq(epdrEndpoints.siteId, siteId), isNull(epdrEndpoints.removedAt),
     eq(epdrEndpoints.connectionId, binding.id), eq(epdrEndpoints.accountRevision, binding.accountRevision)];
   if (q.filter === "attention") predicates.push(sql`${bucket} in ('disabled', 'error', 'install_error', 'unknown')`);
+  if (q.filter === "protected" || q.filter === "disabled" || q.filter === "error"
+    || q.filter === "install_error" || q.filter === "no_license" || q.filter === "unknown") {
+    predicates.push(sql`${bucket} = ${q.filter}`);
+  }
   if (q.filter === "outdated") predicates.push(sql`${bucket} = 'outdated'`);
   if (q.filter === "offline") predicates.push(sql`${epdrEndpoints.lastConnectionAt} < ${new Date(Date.now() - OFFLINE_DAYS * 86400000)}`);
   if (q.filter === "unknown_contact") predicates.push(isNull(epdrEndpoints.lastConnectionAt));

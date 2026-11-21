@@ -24,7 +24,8 @@ vi.mock("react", async (original) => ({
     state.busy = true; state.pending = run().finally(() => { state.busy = false; });
   }],
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("./time-zone-provider", () => ({ useEpdrTimeZone: () => ({ timeZone: "Asia/Jayapura" }) }));
+vi.mock("next-intl", () => ({ useLocale: () => "en", useTranslations: () => (key: string) => key }));
 vi.mock("next/link", () => ({ default: "a" }));
 vi.mock("@/actions/epdr-local-approvals", () => ({ getEpdrLocalApprovals: state.list, decideEpdrLocalApproval: state.decide }));
 

@@ -1,5 +1,6 @@
 "use server";
 
+import { isValidEpdrTimeZone } from "@/lib/epdr/time-zone";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -10,6 +11,7 @@ import type { LocalNotificationKind, LocalNotificationPolicy } from "@/lib/epdr/
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const policyInput = z.object({
+  timeZone: z.string().refine(isValidEpdrTimeZone).default("UTC"),
   enabled: z.boolean(), notifyHeld: z.boolean(),
   quietStart: z.number().int().min(0).max(23).nullable(),
   quietEnd: z.number().int().min(0).max(23).nullable(),
@@ -44,10 +46,10 @@ function notificationVisibility(userId: number, isAdmin: boolean) {
 async function policy(tx: Transaction, siteId: number): Promise<LocalNotificationPolicy> {
   const { rows } = await tx.execute<{ enabled: boolean; notify_held: boolean; quiet_start: number | null;
     quiet_end: number | null; escalate_overdue_to_admins: boolean; digest_enabled: boolean;
-    digest_hour_utc: number | null; updated_at: Date; updated_by: number }>(sql`
-    SELECT enabled, notify_held, quiet_start, quiet_end, escalate_overdue_to_admins, digest_enabled, digest_hour_utc,
+    digest_hour_utc: number | null; time_zone: string; updated_at: Date; updated_by: number }>(sql`
+    SELECT enabled, notify_held, quiet_start, quiet_end, escalate_overdue_to_admins, digest_enabled, digest_hour_utc, time_zone,
       updated_at, updated_by FROM epdr_local_notification_policies WHERE site_id = ${siteId}`);
-  return { enabled: rows[0]?.enabled ?? false, notifyHeld: rows[0]?.notify_held ?? false,
+  return { timeZone: rows[0]?.time_zone ?? "UTC", enabled: rows[0]?.enabled ?? false, notifyHeld: rows[0]?.notify_held ?? false,
     quietStart: rows[0]?.quiet_start ?? null, quietEnd: rows[0]?.quiet_end ?? null,
     escalateOverdueToAdmins: rows[0]?.escalate_overdue_to_admins ?? false,
     digestEnabled: rows[0]?.digest_enabled ?? false, digestHourUtc: rows[0]?.digest_hour_utc ?? null,
@@ -76,14 +78,15 @@ export async function setEpdrNotificationPolicy(input: unknown): Promise<LocalNo
       await assertReadSyncActor(tx, guard.activeSiteId, guard.session.userId);
       await tx.execute(sql`INSERT INTO epdr_local_notification_policies
         (site_id, enabled, notify_held, quiet_start, quiet_end, escalate_overdue_to_admins,
-         digest_enabled, digest_hour_utc, updated_by)
+         digest_enabled, digest_hour_utc, time_zone, updated_by)
         VALUES (${guard.activeSiteId}, ${parsed.data.enabled}, ${parsed.data.notifyHeld}, ${parsed.data.quietStart},
           ${parsed.data.quietEnd}, ${parsed.data.escalateOverdueToAdmins}, ${parsed.data.digestEnabled},
-          ${parsed.data.digestHourUtc}, ${guard.session.userId})
+          ${parsed.data.digestHourUtc}, ${parsed.data.timeZone}, ${guard.session.userId})
         ON CONFLICT (site_id) DO UPDATE SET enabled = EXCLUDED.enabled, notify_held = EXCLUDED.notify_held,
           quiet_start = EXCLUDED.quiet_start, quiet_end = EXCLUDED.quiet_end,
           escalate_overdue_to_admins = EXCLUDED.escalate_overdue_to_admins,
           digest_enabled = EXCLUDED.digest_enabled, digest_hour_utc = EXCLUDED.digest_hour_utc,
+          time_zone = EXCLUDED.time_zone,
           updated_by = EXCLUDED.updated_by, updated_at = clock_timestamp()`);
       await tx.execute(sql`INSERT INTO epdr_local_notification_audit (site_id, actor_id, event)
         VALUES (${guard.activeSiteId}, ${guard.session.userId}, 'policy_changed')`);

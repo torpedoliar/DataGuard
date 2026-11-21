@@ -1,8 +1,10 @@
+import { epdrLocalClock } from "./time-zone";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { nextLocalNotificationDelivery } from "./local-notification-schedule";
 
 export type LocalNotificationPolicy = {
+  timeZone: string;
   enabled: boolean; notifyHeld: boolean; quietStart: number | null; quietEnd: number | null;
   escalateOverdueToAdmins: boolean;
   digestEnabled: boolean; digestHourUtc: number | null;
@@ -11,7 +13,7 @@ export type LocalNotificationPolicy = {
 };
 export type LocalNotificationKind = "assigned" | "overdue" | "sla_escalation" | "digest";
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-type Claim = { id: number; site_id: number; incident_id: number | null; recipient_id: number; kind: LocalNotificationKind; lease_token: string };
+type Claim = { id: number; site_id: number; incident_id: number | null; recipient_id: number; kind: LocalNotificationKind; lease_token: string; digest_day: string | Date | null };
 
 /** No guessed PIC recipients: only the current assignee with an active same-site membership. */
 export async function scheduleLocalNotifications(siteId: number): Promise<void> {
@@ -55,20 +57,20 @@ export async function scheduleLocalNotifications(siteId: number): Promise<void> 
         ON CONFLICT (incident_id, recipient_id, kind) DO NOTHING`);
     }
     if (rows[0].digest_enabled && rows[0].digest_hour_utc !== null) {
-      // One digest per recipient per UTC day, at or after the configured hour.
+      // One digest per site/recipient per policy-local day, at or after the configured hour.
       // The day key makes a missed worker pass safe to retry later the same day.
       await tx.execute(sql`INSERT INTO epdr_local_notification_outbox
         (site_id, incident_id, recipient_id, kind, available_at, digest_day)
         SELECT ${siteId}, NULL, n.recipient_id, 'digest', clock_timestamp(),
-          (clock_timestamp() AT TIME ZONE 'UTC')::date
+          (clock_timestamp() AT TIME ZONE p.time_zone)::date
         FROM epdr_local_notifications n
         JOIN users u ON u.id = n.recipient_id AND u.is_active = true
         JOIN user_sites m ON m.user_id = u.id AND m.site_id = n.site_id
         JOIN epdr_local_notification_policies p ON p.site_id = n.site_id
         WHERE n.site_id = ${siteId} AND n.read_at IS NULL AND n.kind <> 'digest'
           AND p.enabled = true AND p.digest_enabled = true AND p.digest_hour_utc IS NOT NULL
-          AND extract(hour FROM clock_timestamp() AT TIME ZONE 'UTC') >= p.digest_hour_utc
-        GROUP BY n.recipient_id
+          AND extract(hour FROM clock_timestamp() AT TIME ZONE p.time_zone) >= p.digest_hour_utc
+        GROUP BY n.recipient_id, p.time_zone
         ON CONFLICT DO NOTHING`);
     }
   });
@@ -103,8 +105,9 @@ export async function processLocalNotificationQueue(): Promise<void> {
     await db.transaction(async (tx) => {
       // Locks serialize disabling policy, closing/reassigning incidents and membership revocation.
       const { rows: policies } = await tx.execute<{
-        notify_held: boolean; quiet_start: number | null; quiet_end: number | null; digest_enabled: boolean;
-      }>(sql`SELECT p.notify_held, p.quiet_start, p.quiet_end, p.digest_enabled
+        notify_held: boolean; quiet_start: number | null; quiet_end: number | null; digest_enabled: boolean; time_zone: string; digest_hour_utc: number | null;
+        escalate_overdue_to_admins: boolean;
+      }>(sql`SELECT p.notify_held, p.quiet_start, p.quiet_end, p.digest_enabled, p.time_zone, p.digest_hour_utc, p.escalate_overdue_to_admins
         FROM epdr_local_notification_policies p JOIN sites s ON s.id = p.site_id
         WHERE p.site_id = ${row.site_id} AND p.enabled = true AND s.is_active = true FOR SHARE OF p, s`);
       const { rows: recipients } = await tx.execute<{ id: number; role_in_site: string }>(sql`SELECT u.id, m.role_in_site FROM users u
@@ -127,7 +130,21 @@ export async function processLocalNotificationQueue(): Promise<void> {
         const now = new Date(clocks[0].now);
         const availableAt = nextLocalNotificationDelivery(now, {
           quietStart: policies[0]?.quiet_start ?? null, quietEnd: policies[0]?.quiet_end ?? null,
+          timeZone: policies[0]?.time_zone ?? "UTC",
         });
+        if (row.kind === "digest") {
+          const clock = epdrLocalClock(now, policies[0].time_zone ?? "UTC");
+          const day = row.digest_day instanceof Date ? row.digest_day.toISOString().slice(0, 10) : row.digest_day;
+          if (day !== clock.day) { await cancel(); return false; }
+          // A changed digest hour must not publish an already queued row early.
+          if (policies[0].digest_hour_utc === null) { await cancel(); return false; }
+          if (clock.hour < policies[0].digest_hour_utc) {
+            const retry = new Date(Math.floor(now.getTime() / 60000) * 60000 + 60000);
+            await tx.execute(sql`UPDATE epdr_local_notification_outbox SET status = 'queued', available_at = ${retry},
+              attempts = attempts - 1, lease_token = NULL, lease_until = NULL WHERE id = ${row.id}`);
+            return false;
+          }
+        }
         if (availableAt > now) {
           await tx.execute(sql`UPDATE epdr_local_notification_outbox SET status = 'queued', available_at = ${availableAt},
             attempts = attempts - 1, lease_token = NULL, lease_until = NULL WHERE id = ${row.id}`);
@@ -166,6 +183,7 @@ export async function processLocalNotificationQueue(): Promise<void> {
       const recipientEligible = Boolean(recipient) &&
         (row.kind === "sla_escalation" ? recipient.role_in_site === "admin" : incident?.assigned_to_id === row.recipient_id);
       if (!policies[0] || !incident || !recipientEligible ||
+          (row.kind === "sla_escalation" && !policies[0].escalate_overdue_to_admins) ||
           (incident.automation_hold && !policies[0].notify_held) || (deadlineKind && !incident.due_date)) {
         await cancel();
         return;

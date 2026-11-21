@@ -6,7 +6,8 @@ import SubNav from "@/components/ui/sub-nav";
 export default function EpdrNav({ isAdmin = false }: { isAdmin?: boolean } = {}) {
   const t = useTranslations("Epdr.playbooksV2.nav");
   return <SubNav label={t("label")} items={[
-    { href: "/admin/epdr", label: t("fleet"), exact: true },
+    { href: "/admin/epdr", label: t("summary"), exact: true },
+    { href: "/admin/epdr/endpoints", label: t("endpoints") },
     { href: "/admin/epdr/threats", label: t("threats") },
     ...(isAdmin ? [
       { href: "/admin/epdr/playbooks", label: t("playbooks") },

@@ -57,6 +57,7 @@ vi.mock("@/actions/epdr-write-settings", () => ({
   saveEpdrWriteSettings: state.saveSettings,
 }));
 vi.mock("next/link", () => ({ default: "a" }));
+vi.mock("./time-zone-provider", () => ({ useEpdrTimeZone: () => ({ timeZone: "Asia/Jakarta" }) }));
 
 import ExecutionCenter from "./execution-center";
 
@@ -127,6 +128,21 @@ afterEach(() => {
 });
 
 describe("execution center safety", () => {
+  it("prioritizes the queue, discloses manual requests and filters current-page statuses", async () => {
+    state.list.mockResolvedValue({ rows: [pendingRequest, { ...pendingRequest, id: 6, state: "dispatching" }, { ...pendingRequest, id: 7, state: "in_progress" }], page: 1, pages: 2, total: 30 });
+    render(); await settle();
+    const tree = render();
+    expect(text(tree).indexOf("listTitle")).toBeLessThan(text(tree).indexOf("manualRequest"));
+    const disclosure = elements(tree).find((node) => node.type === "details" && text(node).includes("manualRequest"));
+    expect(disclosure?.props.open).toBeUndefined();
+    click(tree, "queue.active");
+    const filtered = render();
+    expect(text(filtered)).not.toContain('row:{"id":5}');
+    expect(text(filtered)).toContain('row:{"id":6}');
+    expect(text(filtered)).toContain('row:{"id":7}');
+    expect(text(filtered)).toContain("pageFilterHint");
+    expect(state.list).toHaveBeenCalledExactlyOnceWith({ page: 1 });
+  });
   it("loads data only, without creating or approving on mount", async () => {
     render();
     await settle();

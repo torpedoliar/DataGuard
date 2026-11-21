@@ -3,6 +3,7 @@ import PlaybookCatalog from "@/components/admin/epdr/playbook-catalog";
 import PlaybookHistory from "@/components/admin/epdr/playbook-history";
 import LocalPlaybookRunner from "@/components/admin/epdr/local-playbook-runner";
 import OperationalPlaybooks from "@/components/admin/epdr/operational-playbooks";
+import ResponseLibrary from "@/components/admin/epdr/response-library";
 import PageHeader from "@/components/ui/page-header";
 import ActionButton from "@/components/ui/action-button";
 import { requireActiveSiteAction } from "@/lib/action-auth";
@@ -25,6 +26,7 @@ export default async function EpdrPlaybooksPage({ searchParams }: { searchParams
   return <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 lg:px-8">
     <PageHeader eyebrow={t("eyebrow")} title={t("title")} description={t("description")} actions={<ActionButton variant="secondary" href={`/${locale}/admin/epdr/threats`}>{t("back")}</ActionButton>} />
     <EpdrNav isAdmin />
+    <ResponseLibrary key={`responses-${guard.activeSiteId}`} />
     <LocalPlaybookRunner key={`local-${guard.activeSiteId}`} initialDetectionId={initialDetectionId} locale={locale} />
     <details className="ops-panel p-5">
       <summary className="cursor-pointer text-sm font-semibold text-ops-text">{t("advancedTitle")}</summary>

@@ -1,5 +1,8 @@
 "use client";
 
+import { useEpdrTimeZone } from "./time-zone-provider";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
+
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -9,6 +12,7 @@ type Inbox = Exclude<Awaited<ReturnType<typeof getEpdrNotificationInbox>>, { mes
 
 export default function NotificationInbox({ locale }: { locale: string }) {
   const t = useTranslations("Epdr.notifyV2");
+  const { timeZone } = useEpdrTimeZone();
   const [inbox, setInbox] = useState<Inbox | null>(null);
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -46,7 +50,7 @@ export default function NotificationInbox({ locale }: { locale: string }) {
           : <Link href={`/${locale}/admin/incidents/${item.incidentId}`} className="text-ops-accent">
               {t(`kind.${item.kind}`, { id: item.incidentId })}
             </Link>}
-        <span className="text-xs text-ops-subtle">{new Date(item.createdAt).toLocaleString(locale)}</span>
+        <span className="text-xs text-ops-subtle">{formatEpdrDateTime(item.createdAt, timeZone, locale)}</span>
         {item.readAt
           ? <span className="text-xs text-ops-subtle">{t("read")}</span>
           : <button type="button" disabled={pending} onClick={() => startTransition(async () => {

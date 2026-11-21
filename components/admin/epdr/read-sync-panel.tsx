@@ -1,7 +1,10 @@
 "use client";
 
+import { useEpdrTimeZone } from "./time-zone-provider";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
+
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock3, CloudDownload, LoaderCircle, RefreshCw, RotateCw, TriangleAlert, XCircle } from "lucide-react";
 import { cancelEpdrReadSync, getEpdrReadSyncStatus, requestEpdrReadSync } from "@/actions/epdr-read-sync";
@@ -24,9 +27,12 @@ const WORKER_STALE_MS = 5 * 60_000;
 
 export default function ReadSyncPanel({ enabled }: { enabled: boolean }) {
   const t = useTranslations("Epdr.syncV2");
+  const { timeZone } = useEpdrTimeZone();
+  const locale = useLocale();
   const router = useRouter();
   const [status, setStatus] = useState<ReadSyncStatus | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [retryAt, setRetryAt] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [watch, setWatch] = useState(0);
   const [pollingDone, setPollingDone] = useState(false);
@@ -60,13 +66,14 @@ export default function ReadSyncPanel({ enabled }: { enabled: boolean }) {
 
   function request() {
     setFeedback(null);
+    setRetryAt(null);
     startTransition(async () => {
       try {
         const result = await requestEpdrReadSync();
         if (result.status === "queued" || result.status === "already_pending") {
           setFeedback(t(result.status));
         } else if (result.status === "cooldown") {
-          setFeedback(t("cooldown", { time: new Date(result.retryAt).toLocaleTimeString() }));
+          setRetryAt(result.retryAt);
         } else setFeedback(t("unavailable"));
         setWatch((value) => value + 1);
       } catch { setFeedback(t("unavailable")); }
@@ -75,6 +82,7 @@ export default function ReadSyncPanel({ enabled }: { enabled: boolean }) {
 
   function cancel() {
     setFeedback(null);
+    setRetryAt(null);
     setCancelling(true);
     void (async () => {
       try {
@@ -114,13 +122,13 @@ export default function ReadSyncPanel({ enabled }: { enabled: boolean }) {
           {safeStatus === "queued" && <p className="text-xs text-ops-warning">{t("waiting")}</p>}
           {safeStatus === "queued" && (
             <p className={workerStale ? "text-xs text-ops-warning" : "text-xs text-ops-subtle"}>
-              {workerSeenAt ? t("workerLastSeen", { time: workerSeenAt.toLocaleString() }) : t("workerMissing")}
+              {workerSeenAt ? t("workerLastSeen", { time: formatEpdrDateTime(workerSeenAt, timeZone, locale) }) : t("workerMissing")}
             </p>
           )}
-          {safeStatus === "running" && startedAt && <p className="text-xs text-ops-subtle">{t("started", { time: startedAt.toLocaleString() })}</p>}
+          {safeStatus === "running" && startedAt && <p className="text-xs text-ops-subtle">{t("started", { time: formatEpdrDateTime(startedAt, timeZone, locale) })}</p>}
           {safeStatus === "running" && leaseUntil && (
             <p className={leaseActive ? "text-xs text-ops-subtle" : "text-xs text-ops-warning"}>
-              {leaseActive ? t("leaseActive", { time: leaseUntil.toLocaleString() }) : t("leaseExpired")}
+              {leaseActive ? t("leaseActive", { time: formatEpdrDateTime(leaseUntil, timeZone, locale) }) : t("leaseExpired")}
             </p>
           )}
           {pollingDone && activeRequest && <p className="text-xs text-ops-warning">{t("pollingStopped")}</p>}
@@ -129,8 +137,8 @@ export default function ReadSyncPanel({ enabled }: { enabled: boolean }) {
               {EXPLAINED_ERRORS.has(status.error) ? t(`errors.${status.error}`) : status.error}
             </p>
           )}
-          {feedback && <p role="status" className="text-xs font-medium text-ops-text">{feedback}</p>}
-          {status?.finishedAt && <p className="text-xs text-ops-subtle">{t("finished", { time: new Date(status.finishedAt).toLocaleString() })}</p>}
+          {(feedback || retryAt) && <p role="status" className="text-xs font-medium text-ops-text">{feedback ?? t("cooldown", { time: formatEpdrDateTime(retryAt!, timeZone, locale) })}</p>}
+          {status?.finishedAt && <p className="text-xs text-ops-subtle">{t("finished", { time: formatEpdrDateTime(status.finishedAt, timeZone, locale) })}</p>}
         </div>
       </div>
     </div>

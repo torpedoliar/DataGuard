@@ -21,6 +21,7 @@ import { attachDetectionOnce } from "./detection-attachment";
 import { epdrDetectionReadEvidence } from "@/db/schema";
 import { eventExportReadStatus, type DetectionReadEvidence } from "./detection-evidence";
 import { correlate } from "./correlation";
+import { evaluateEpdrResponses } from "./response-store";
 import { evaluate as evaluatePolicy, type EndpointInput as PolicyEndpoint, type RuleInput as PolicyRule, type SiteControls, type GlobalControls } from "./policy";
 import { classifyHealth, advanceHealthStage, type HealthSettings } from "./health";
 import { resolveConnectionState } from "./posture";
@@ -730,6 +731,15 @@ async function runDetectionsJob(connectionId: number): Promise<void> {
       }
       await tx.insert(epdrDetectionReadEvidence).values(evidence);
     });
+  }
+
+  // Completed, published reads only. Recommendation failures never trigger provider writes.
+  if (readEvidence.some((evidence) => evidence.status === "completed")) {
+    try {
+      await evaluateEpdrResponses(connectionId);
+    } catch (cause) {
+      console.error(`[epdr-responses] recommendation evaluation failed (${describeWorkerError(cause)})`);
+    }
   }
 
   // Recovery: a crash between the committed detection insert and its Incident

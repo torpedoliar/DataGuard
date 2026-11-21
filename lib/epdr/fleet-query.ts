@@ -6,7 +6,7 @@ export const FLEET_DEVICE_TYPES = [1, 2, 3, 4] as const;
 export const fleetQuerySchema = z.object({
   page: z.number().int().min(1).max(100000).default(1),
   query: z.string().trim().max(80).default(""),
-  filter: z.enum(["all", "attention", "offline", "outdated", "unlinked", "unknown_contact"]).default("all"),
+  filter: z.enum(["all", "attention", "protected", "disabled", "error", "install_error", "no_license", "unknown", "offline", "outdated", "unlinked", "unknown_contact"]).default("all"),
   group: z.string().max(255).default(""),
   os: z.string().max(255).default(""),
   /** Empty = every device type; otherwise one of the documented enum values. */

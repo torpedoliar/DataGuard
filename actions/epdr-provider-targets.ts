@@ -53,7 +53,7 @@ function error(code: ProviderTargetError["code"]): ProviderTargetError {
 }
 
 /** Entity id from a threatsync source key (`ts:<incidentId>:<entityId>`). */
-const ENTITY_FROM_SOURCE_KEY = sql`substring(substring(d.source_key from 4) from position(':', substring(d.source_key from 4)) + 1)`;
+const ENTITY_FROM_SOURCE_KEY = sql`substring(substring(d.source_key from 4) from position(':' in substring(d.source_key from 4)) + 1)`;
 
 export async function getEpdrProviderTargets(): Promise<ProviderTargetsData | ProviderTargetError> {
   const guard = await requireActiveSiteAdminAction();
@@ -155,9 +155,9 @@ export async function confirmEpdrProviderTarget(input: unknown): Promise<{ ok: t
   try {
     const outcome = await db.transaction(async (tx) => {
       const { rows } = await tx.execute<{
-        entity_id: string; review_state: string; ts_incident_id: string; connection_id: number;
+        entity_id: string; review_state: string; ts_incident_id: string; connection_id: number; account_revision: number;
       }>(sql`
-        SELECT t.entity_id, t.review_state, p.ts_incident_id, p.connection_id
+        SELECT t.entity_id, t.review_state, p.ts_incident_id, p.connection_id, p.account_revision
         FROM epdr_provider_incident_targets t
         JOIN epdr_provider_incidents p ON p.id = t.provider_incident_id
         JOIN watchguard_connections c ON c.id = p.connection_id AND c.site_id = ${guard.activeSiteId}
@@ -174,7 +174,7 @@ export async function confirmEpdrProviderTarget(input: unknown): Promise<{ ok: t
         SELECT e.id FROM epdr_endpoints e
         WHERE e.id = ${parsed.data.endpointId} AND e.site_id = ${guard.activeSiteId}
           AND e.connection_id = ${row.connection_id}
-          AND e.account_revision = (SELECT p.account_revision FROM epdr_provider_incidents p WHERE p.id = t.provider_incident_id)
+          AND e.account_revision = ${row.account_revision}
           AND e.removed_at IS NULL LIMIT 1`);
       if (!endpoints[0]) return "endpoint_unavailable" as const;
 

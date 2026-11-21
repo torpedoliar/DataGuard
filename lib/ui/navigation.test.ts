@@ -8,7 +8,7 @@ describe("app navigation", () => {
     const hrefs = groups.flatMap((group) => group.items.map((item) => item.href));
     expect(hrefs).toContain("/audit/new");
     expect(hrefs).toContain("/admin/epdr");
-    expect(hrefs).toContain("/admin/epdr/threats");
+    expect(hrefs).not.toContain("/admin/epdr/threats");
     expect(hrefs).not.toContain("/admin/users");
     expect(hrefs).not.toContain("/admin/siem"); // SIEM stays admin-only
   });

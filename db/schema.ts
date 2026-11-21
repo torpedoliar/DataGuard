@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, foreignKey, jsonb, index, real, uuid, date } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, serial, boolean, timestamp, pgEnum, uniqueIndex, foreignKey, jsonb, index, real, uuid, date, check, unique } from "drizzle-orm/pg-core";
 import { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { AssetType, FacilitySpecs } from "@/lib/facility-asset";
 
@@ -97,6 +97,7 @@ export const users = pgTable("users", {
   // (login flow falls back to the existing /select-site experience, except for
   // users with exactly 1 accessible site, who auto-pick).
   defaultSiteId: integer("default_site_id").references(() => sites.id),
+  epdrTimeZone: text("epdr_time_zone"),
   lastLogin: timestamp("last_login"),
   failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
   lockoutUntil: timestamp("lockout_until"),
@@ -1715,6 +1716,7 @@ export const epdrLocalNotificationPolicies = pgTable("epdr_local_notification_po
   escalateOverdueToAdmins: boolean("escalate_overdue_to_admins").notNull().default(false),
   digestEnabled: boolean("digest_enabled").notNull().default(false),
   digestHourUtc: integer("digest_hour_utc"),
+  timeZone: text("time_zone").notNull().default("UTC"),
   updatedBy: integer("updated_by").notNull().references(() => users.id),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1736,6 +1738,7 @@ export const epdrLocalNotificationOutbox = pgTable("epdr_local_notification_outb
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 }, (table) => ({
   dedupIdx: uniqueIndex("epdr_local_notification_outbox_dedup").on(table.incidentId, table.recipientId, table.kind),
+  digestDayIdx: uniqueIndex("epdr_local_outbox_digest_day_unique").on(table.siteId, table.recipientId, table.digestDay).where(sql`${table.kind} = 'digest'`),
 }));
 
 export const epdrLocalNotifications = pgTable("epdr_local_notifications", {
@@ -2062,6 +2065,63 @@ export const epdrProviderSyncOutbox = pgTable("epdr_provider_sync_outbox", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Operational response opt-in is separate from immutable simulation versions (0088).
+export const epdrResponseBindings = pgTable("epdr_response_bindings", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  versionId: integer("version_id").notNull(),
+  connectionId: integer("connection_id").notNull(),
+  accountRevision: integer("account_revision").notNull(),
+  response: text("response").notNull(),
+  mode: text("mode").notNull().default("recommendation_only"),
+  state: text("state").notNull().default("active"),
+  activatedAt: timestamp("activated_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+  evaluationAfter: timestamp("evaluation_after", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+}, (table) => ({
+  idSiteUnique: unique("epdr_response_bindings_id_site_id_key").on(table.id, table.siteId),
+  versionSiteFk: foreignKey({ name: "epdr_response_bindings_version_id_site_id_fkey", columns: [table.versionId, table.siteId], foreignColumns: [epdrPlaybookVersions.id, epdrPlaybookVersions.siteId] }),
+  connectionSiteFk: foreignKey({ name: "epdr_response_bindings_connection_id_site_id_fkey", columns: [table.connectionId, table.siteId], foreignColumns: [watchguardConnections.id, watchguardConnections.siteId] }),
+  activeIdx: index("epdr_response_bindings_active").on(table.connectionId, table.id).where(sql`${table.state} = 'active'`),
+  accountRevisionCheck: check("epdr_response_bindings_account_revision_check", sql`${table.accountRevision} >= 0`),
+  responseCheck: check("epdr_response_bindings_response_check", sql`${table.response} IN ('scan', 'isolate')`),
+  modeCheck: check("epdr_response_bindings_mode_check", sql`${table.mode} = 'recommendation_only'`),
+  stateCheck: check("epdr_response_bindings_state_check", sql`${table.state} IN ('active', 'paused')`),
+}));
+
+// Append-only snapshots, deduplicated by exact completed read revision (0088).
+export const epdrResponseRecommendations = pgTable("epdr_response_recommendations", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  bindingId: integer("binding_id").notNull(),
+  detectionId: integer("detection_id").notNull().references(() => epdrDetections.id),
+  readEvidenceId: integer("read_evidence_id").notNull().references(() => epdrDetectionReadEvidence.id),
+  endpointId: integer("endpoint_id").references(() => epdrEndpoints.id),
+  response: text("response").notNull(),
+  status: text("status").notNull(),
+  evidence: jsonb("evidence").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+}, (table) => ({
+  revisionUnique: unique("epdr_response_recommendations_binding_detection_read_key").on(table.bindingId, table.detectionId, table.readEvidenceId),
+  idSiteUnique: unique("epdr_response_recommendations_id_site_id_key").on(table.id, table.siteId),
+  bindingSiteFk: foreignKey({ name: "epdr_response_recommendations_binding_id_site_id_fkey", columns: [table.bindingId, table.siteId], foreignColumns: [epdrResponseBindings.id, epdrResponseBindings.siteId] }),
+  detectionSiteFk: foreignKey({ name: "epdr_response_recommendations_detection_id_site_id_fkey", columns: [table.detectionId, table.siteId], foreignColumns: [epdrDetections.id, epdrDetections.siteId] }),
+  endpointSiteFk: foreignKey({ name: "epdr_response_recommendations_endpoint_id_site_id_fkey", columns: [table.endpointId, table.siteId], foreignColumns: [epdrEndpoints.id, epdrEndpoints.siteId] }),
+  historyIdx: index("epdr_response_recommendations_history").on(table.siteId, table.id.desc()),
+  fairQueueIdx: index("epdr_response_recommendations_fair_queue").on(table.bindingId, table.detectionId, table.createdAt.desc()),
+  responseCheck: check("epdr_response_recommendations_response_check", sql`${table.response} IN ('scan', 'isolate')`),
+  statusCheck: check("epdr_response_recommendations_status_check", sql`${table.status} IN ('matched', 'blocked')`),
+}));
+
+export const epdrResponseRequestLinks = pgTable("epdr_response_request_links", {
+  recommendationId: integer("recommendation_id").primaryKey(),
+  siteId: integer("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  requestId: integer("request_id").notNull().unique("epdr_response_request_links_request_id_key").references(() => epdrActions.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+}, (table) => ({
+  recommendationSiteFk: foreignKey({ name: "epdr_response_request_links_recommendation_id_site_id_fkey", columns: [table.recommendationId, table.siteId], foreignColumns: [epdrResponseRecommendations.id, epdrResponseRecommendations.siteId] }),
+}));
 
 // ==================== WATCHGUARD EPDR VERIFICATION / HEALTH (T08/T09) ==========
 export const epdrExclusions = pgTable(

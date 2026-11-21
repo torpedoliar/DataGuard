@@ -1,7 +1,10 @@
 "use client";
 
+import { useEpdrTimeZone } from "./time-zone-provider";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
+
 import { useEffect, useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { getEpdrPlaybookHistory, recordEpdrPlaybookSimulation } from "@/actions/epdr-playbook-history";
 import PlaybookVersionForm from "./playbook-version-form";
 
@@ -9,6 +12,8 @@ type History = Exclude<Awaited<ReturnType<typeof getEpdrPlaybookHistory>>, { mes
 
 export default function PlaybookHistory() {
   const t = useTranslations("Epdr.historyV2");
+  const { timeZone } = useEpdrTimeZone();
+  const locale = useLocale();
   const [history, setHistory] = useState<History | null>(null);
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -63,7 +68,7 @@ export default function PlaybookHistory() {
         <button type="button" className="text-ops-accent disabled:opacity-50" disabled={pending || versionsCurrent >= versionsPages} onClick={() => setVersionsPage(versionsCurrent + 1)}>{t("next")}</button>
       </div>
       <h3 className="font-medium">{t("runs")}</h3>
-      <ul className="space-y-3">{history.runs.map((item) => <li key={item.id} className="text-sm text-ops-muted"><details><summary className="cursor-pointer">{t("run", { id: item.id, version: item.versionId })} · {item.createdAt}</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-ops-surface-sunken p-3 text-xs">{JSON.stringify(item.evidence, null, 2)}</pre></details></li>)}</ul>
+      <ul className="space-y-3">{history.runs.map((item) => <li key={item.id} className="text-sm text-ops-muted"><details><summary className="cursor-pointer">{t("run", { id: item.id, version: item.versionId })} · {formatEpdrDateTime(item.createdAt, timeZone, locale)}</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-ops-surface-sunken p-3 text-xs">{JSON.stringify(item.evidence, null, 2)}</pre></details></li>)}</ul>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="text-ops-muted">{t("pageSummaryRuns", { page: runsCurrent, pages: runsPages, total: history.runsTotal ?? history.runs.length })}</span>
         <button type="button" className="text-ops-accent disabled:opacity-50" disabled={pending || runsCurrent <= 1} onClick={() => setRunsPage(runsCurrent - 1)}>{t("previous")}</button>

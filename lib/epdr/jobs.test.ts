@@ -21,6 +21,7 @@ vi.mock("@/lib/watchguard/connection", () => ({ resolveWatchGuardConnection: moc
 vi.mock("@/lib/watchguard/client", () => ({ createWatchGuardClient: mocks.client }));
 vi.mock("./detect-ingest", () => ({ buildThreatSyncDetections: mocks.build, buildSecurityEventDetections: vi.fn(), threatKeyFor: vi.fn() }));
 vi.mock("./sync", () => ({ syncEndpoints: mocks.sync }));
+vi.mock("./response-store", () => ({ evaluateEpdrResponses: vi.fn(async () => 0) }));
 import { EPDR_JOBS, runEndpointsJob, runPendingReadSyncRequests } from "./jobs";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import { readFileSync } from "node:fs";

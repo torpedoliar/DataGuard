@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
 import type { ReactElement } from "react";
 import type { ReadSyncStatus } from "@/lib/epdr/read-sync-queue";
 
@@ -39,7 +40,8 @@ vi.mock("react", async (original) => ({
     state.pending = run().finally(() => { state.busy = false; });
   }],
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => state.translate }));
+vi.mock("./time-zone-provider", () => ({ useEpdrTimeZone: () => ({ timeZone: "Asia/Jayapura" }) }));
+vi.mock("next-intl", () => ({ useLocale: () => "en", useTranslations: () => state.translate }));
 vi.mock("next/navigation", () => ({ useRouter: () => state.router }));
 vi.mock("@/actions/epdr-read-sync", () => ({
   getEpdrReadSyncStatus: state.getStatus,
@@ -143,7 +145,7 @@ describe("ReadSyncPanel", () => {
     click(render(), "request");
     await state.pending;
     const text = messages(render());
-    expect(text).toContain(`cooldown:${new Date(retryAt).toLocaleTimeString()}`);
+    expect(text).toContain(`cooldown:${formatEpdrDateTime(retryAt, "Asia/Jayapura", "en")}`);
     expect(text).not.toContain("queued");
     expect(text).not.toContain("states.succeeded");
   });
@@ -287,7 +289,7 @@ describe("ReadSyncPanel", () => {
     await settle();
     const text = messages(render());
     expect(text).toContain("states.failed");
-    expect(text).toContain(`finished:${new Date(finishedAt).toLocaleString()}`);
+    expect(text).toContain(`finished:${formatEpdrDateTime(finishedAt, "Asia/Jayapura", "en")}`);
     expect(text).not.toContain("states.succeeded");
     expect(text).not.toContain("waiting");
   });
@@ -308,8 +310,8 @@ describe("ReadSyncPanel", () => {
     render();
     await settle();
     const text = messages(render());
-    expect(text).toContain(`started:${new Date(startedAt).toLocaleString()}`);
-    expect(text).toContain(`leaseActive:${new Date(leaseExpiresAt).toLocaleString()}`);
+    expect(text).toContain(`started:${formatEpdrDateTime(startedAt, "Asia/Jayapura", "en")}`);
+    expect(text).toContain(`leaseActive:${formatEpdrDateTime(leaseExpiresAt, "Asia/Jayapura", "en")}`);
   });
 
   it("warns while a request runs with an expired lease", async () => {
@@ -325,7 +327,7 @@ describe("ReadSyncPanel", () => {
     state.getStatus.mockResolvedValue({ ...snapshot("queued"), requestId: 42, workerLastSeenAt });
     render();
     await settle();
-    expect(messages(render())).toContain(`workerLastSeen:${new Date(workerLastSeenAt).toLocaleString()}`);
+    expect(messages(render())).toContain(`workerLastSeen:${formatEpdrDateTime(workerLastSeenAt, "Asia/Jayapura", "en")}`);
   });
 
   it("warns that no worker heartbeat exists for a queued request", async () => {

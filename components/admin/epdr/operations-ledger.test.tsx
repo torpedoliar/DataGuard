@@ -16,6 +16,7 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("next-intl", () => ({ useLocale: () => "id", useTranslations: () => (key: string) => key }));
 vi.mock("@/actions/epdr-operations", () => ({ getEpdrOperations: state.load }));
+vi.mock("./time-zone-provider", () => ({ useEpdrTimeZone: () => ({ timeZone: "Asia/Jakarta" }) }));
 import OperationsLedgerPanel from "./operations-ledger";
 function render(view: "activity" | "approvals" = "activity") { state.cursor = 0; return OperationsLedgerPanel({ view }); }
 function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
@@ -23,6 +24,13 @@ function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
   if (!node || typeof node !== "object" || !("props" in node)) return [];
   const item = node as ReactElement<Record<string, unknown>>;
   return [item, ...elements(item.props.children)];
+}
+/** Link is a client reference proxy; serializing the tree itself would recurse. */
+function strings(node: unknown): string[] {
+  if (typeof node === "string") return [node];
+  if (Array.isArray(node)) return node.flatMap(strings);
+  if (!node || typeof node !== "object" || !("props" in node)) return [];
+  return strings((node as ReactElement<Record<string, unknown>>).props.children);
 }
 function click(tree: ReactElement, name: string) {
   const target = elements(tree).find((item) => item.type === "button" && item.props.children === name)!;
@@ -55,7 +63,7 @@ describe("read-only operations UI", () => {
     expect(state.load).toHaveBeenCalledWith({ view: "approvals", page: 1 });
     expect(JSON.stringify(tree)).toContain("activityHint");
     expect(JSON.stringify(tree)).toContain("actions.scan");
-    expect(elements(tree).filter((item) => item.type === "button").map((item) => item.props.children)).toEqual(["refresh", "previous", "next"]);
+    expect(elements(tree).filter((item) => item.type === "button").map((item) => item.props.children)).toEqual(["apply", "refresh", "previous", "next"]);
   });
 
   it("pages in bounded requests, suppressing stale rows during navigation", async () => {
@@ -65,6 +73,39 @@ describe("read-only operations UI", () => {
     expect(JSON.stringify(render())).not.toContain("actions.scan");
     expect(state.load).toHaveBeenLastCalledWith({ view: "activity", page: 2 });
     await settle(); render();
+  });
+
+  it("applies server filters and resets pagination without browser filtering", async () => {
+    render(); await settle(); let tree = render();
+    click(tree, "next"); render(); await settle(); tree = render();
+    const kind = elements(tree).find((item) => item.type === "select")!;
+    (kind.props.onChange as (event: unknown) => void)({ target: { value: "localRun" } });
+    tree = render();
+    const form = elements(tree).find((item) => item.type === "form")!;
+    (form.props.onSubmit as (event: unknown) => void)({ preventDefault() {} });
+    render();
+    expect(state.load).toHaveBeenLastCalledWith({ view: "activity", page: 1, kind: "localRun" });
+  });
+
+  it("marks retained records stale after a refresh error", async () => {
+    render(); await settle(); const tree = render();
+    state.load.mockRejectedValue(new Error("secret"));
+    click(tree, "refresh");
+    expect(JSON.stringify(render())).toContain("loading");
+    await settle();
+    const failed = JSON.stringify(render());
+    expect(failed).toContain("stale"); expect(failed).toContain("actions.scan");
+    expect(failed).not.toContain("secret");
+  });
+
+  it("shows supported context links and accurate completed-record language", async () => {
+    state.load.mockResolvedValue({ ...ledger, rows: [{ ...ledger.rows[0], status: "succeeded", context: { incidentId: 7, detectionId: 8, actionId: 1 } }] });
+    render(); await settle(); const tree = render();
+    expect(strings(tree)).toContain("completedRecord");
+    expect(strings(tree)).toContain("outcomeNotice");
+    expect(elements(tree).filter((item) => item.props.href).map((item) => item.props.href)).toEqual(["/id/admin/incidents/7", "/id/admin/epdr/playbooks?detection=8"]);
+    const time = elements(tree).find((item) => item.type === "time")!;
+    expect(time.props.children).toBe(new Date("2026-01-01T00:00:00Z").toLocaleString("id", { timeZone: "Asia/Jakarta" }));
   });
 
   it("ignores an old response after switching the view", async () => {

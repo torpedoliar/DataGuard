@@ -78,6 +78,6 @@ export default function PlaybookVersionForm({ onSaved }: { onSaved?: (saved: { i
     </>}
     <button disabled={pending || minimum > maximum || !name.trim()} className="rounded-md bg-ops-accent px-3 py-2 text-sm text-ops-bg disabled:opacity-50">{t("save")}</button>
     {error ? <span role="alert" className="text-xs text-ops-danger">{t("error")}</span>
-      : minimum > maximum ? <span aria-live="polite" className="text-xs text-ops-danger">{t("invalidRange")}</span> : null}
+      : minimum > maximum ? <span aria-live="polite" className="text-xs text-ops-danger">{catalog("invalidRange")}</span> : null}
   </form>;
 }

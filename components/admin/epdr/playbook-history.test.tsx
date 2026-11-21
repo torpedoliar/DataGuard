@@ -29,7 +29,8 @@ vi.mock("react", async (original) => ({
     state.pending = run().finally(() => { state.busy = false; });
   }],
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string, values?: Record<string, unknown>) => values ? `${key}:${JSON.stringify(values)}` : key }));
+vi.mock("./time-zone-provider", () => ({ useEpdrTimeZone: () => ({ timeZone: "Asia/Jayapura" }) }));
+vi.mock("next-intl", () => ({ useLocale: () => "en", useTranslations: () => (key: string, values?: Record<string, unknown>) => values ? `${key}:${JSON.stringify(values)}` : key }));
 vi.mock("@/actions/epdr-playbook-history", () => ({
   getEpdrPlaybookHistory: state.history,
   saveEpdrPlaybookVersion: state.save,

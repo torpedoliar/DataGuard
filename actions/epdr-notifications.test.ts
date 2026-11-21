@@ -32,7 +32,7 @@ beforeEach(() => {
 
 describe("local notification actions", () => {
   it("requires explicit admin policy, default disabled and honest local-only scope", async () => {
-    expect(await getEpdrNotificationPolicy()).toEqual({ enabled: false, notifyHeld: false, escalateOverdueToAdmins: false, digestEnabled: false, digestHourUtc: null, quietStart: null, quietEnd: null, updatedAt: null, updatedBy: null, channel: "local", recipientScope: "assignee" });
+    expect(await getEpdrNotificationPolicy()).toEqual({ timeZone: "UTC", enabled: false, notifyHeld: false, escalateOverdueToAdmins: false, digestEnabled: false, digestHourUtc: null, quietStart: null, quietEnd: null, updatedAt: null, updatedBy: null, channel: "local", recipientScope: "assignee" });
   });
   it("fails closed before storage on authorization failure", async () => {
     mocks.guard.mockResolvedValue({ ok: false, message: "Denied" });
@@ -47,10 +47,21 @@ describe("local notification actions", () => {
     expect(await setEpdrNotificationPolicy(input)).toEqual({ message: "Invalid local notification policy." });
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
+  it.each(["Asia/Jakarta", "America/New_York"])("persists scheduling IANA zone %s without shifting hours", async (timeZone) => {
+    await setEpdrNotificationPolicy({ enabled: true, notifyHeld: false, timeZone, escalateOverdueToAdmins: false,
+      digestEnabled: true, digestHourUtc: 8, quietStart: 22, quietEnd: 7 });
+    const write = mocks.execute.mock.calls.find(([q]) => text(q).startsWith("INSERT INTO epdr_local_notification_policies"))![0];
+    expect(compile(write).params).toEqual([2, true, false, 22, 7, false, true, 8, timeZone, 4]);
+  });
+  it.each(["UTC+7", "WIB", "Asia/Invalid", " UTC", null])("rejects invalid scheduling timezone %s", async (timeZone) => {
+    expect(await setEpdrNotificationPolicy({ enabled: true, notifyHeld: false, timeZone, escalateOverdueToAdmins: false,
+      digestEnabled: false, digestHourUtc: null, quietStart: null, quietEnd: null })).toHaveProperty("message");
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
   it("records current actor on both policy and policy audit in one transaction", async () => {
     await setEpdrNotificationPolicy({ enabled: true, notifyHeld: false, escalateOverdueToAdmins: false, digestEnabled: false, digestHourUtc: null, quietStart: null, quietEnd: null });
     const writes = mocks.execute.mock.calls.filter(([q]) => text(q).startsWith("INSERT"));
-    expect(compile(writes[0][0]).params).toEqual([2, true, false, null, null, false, false, null, 4]);
+    expect(compile(writes[0][0]).params).toEqual([2, true, false, null, null, false, false, null, "UTC", 4]);
     expect(compile(writes[1][0]).params).toEqual([2, 4]);
     expect(text(writes[1][0])).toContain("'policy_changed'");
   });
@@ -66,7 +77,7 @@ describe("local notification actions", () => {
   it.each([[22, 7], [0, 23]])("persists explicit quiet hours %s/%s atomically", async (quietStart, quietEnd) => {
     await setEpdrNotificationPolicy({ enabled: true, notifyHeld: false, escalateOverdueToAdmins: false, digestEnabled: false, digestHourUtc: null, quietStart, quietEnd });
     const write = mocks.execute.mock.calls.find(([q]) => text(q).startsWith("INSERT INTO epdr_local_notification_policies"))![0];
-    expect(compile(write).params).toEqual([2, true, false, quietStart, quietEnd, false, false, null, 4]);
+    expect(compile(write).params).toEqual([2, true, false, quietStart, quietEnd, false, false, null, "UTC", 4]);
     expect(text(write)).toContain("quiet_start = EXCLUDED.quiet_start");
     expect(queries().some((s) => s.includes("'policy_changed'"))).toBe(true);
   });
@@ -81,7 +92,7 @@ describe("local notification actions", () => {
     await setEpdrNotificationPolicy({ enabled: true, notifyHeld: false, escalateOverdueToAdmins: false,
       digestEnabled: true, digestHourUtc: 8, quietStart: null, quietEnd: null });
     const write = mocks.execute.mock.calls.find(([q]) => text(q).startsWith("INSERT INTO epdr_local_notification_policies"))![0];
-    expect(compile(write).params).toEqual([2, true, false, null, null, false, true, 8, 4]);
+    expect(compile(write).params).toEqual([2, true, false, null, null, false, true, 8, "UTC", 4]);
     expect(text(write)).toContain("digest_enabled = EXCLUDED.digest_enabled");
   });
   it("rolls policy back when audit fails", async () => {

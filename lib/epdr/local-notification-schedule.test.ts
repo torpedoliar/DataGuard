@@ -28,6 +28,15 @@ describe("UTC local quiet windows", () => {
     const next = nextLocalNotificationDelivery(now, { quietStart: null, quietEnd: null });
     expect(next).toEqual(now); expect(next).not.toBe(now);
   });
+  it.each([
+    ["2030-01-01T16:30:00Z", "Asia/Jakarta", 22, 7, "2030-01-02T00:00:00.000Z"],
+    // Spring-forward: nonexistent 02:00 ends quiet time at the first real 03:00.
+    ["2026-03-08T06:30:00Z", "America/New_York", 22, 2, "2026-03-08T07:00:00.000Z"],
+    // Fall-back: both occurrences of the repeated hour remain quiet.
+    ["2026-11-01T05:30:00Z", "America/New_York", 22, 2, "2026-11-01T07:00:00.000Z"],
+  ])("handles local overnight and DST %s", (date, timeZone, quietStart, quietEnd, expected) => {
+    expect(nextLocalNotificationDelivery(new Date(date), { timeZone, quietStart, quietEnd }).toISOString()).toBe(expected);
+  });
   it("fails closed on invalid date/window", () => {
     expect(() => nextLocalNotificationDelivery(new Date(), { quietStart: 7, quietEnd: 7 })).toThrow();
     expect(() => nextLocalNotificationDelivery(new Date(NaN), { quietStart: null, quietEnd: null })).toThrow();

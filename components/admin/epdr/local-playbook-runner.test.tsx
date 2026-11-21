@@ -34,7 +34,8 @@ vi.mock("react", async (original) => ({
     state.pending = operation.catch(() => undefined).finally(() => { state.busy = false; });
   }],
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => state.translate }));
+vi.mock("./time-zone-provider", () => ({ useEpdrTimeZone: () => ({ timeZone: "Asia/Jayapura" }) }));
+vi.mock("next-intl", () => ({ useLocale: () => "en", useTranslations: () => state.translate }));
 vi.mock("@/actions/epdr-local-playbooks", () => ({
   getEpdrLocalPlaybookRuns: state.list, getEpdrLocalPlaybookRun: state.detail,
   getEpdrLocalPlaybookOptions: state.options, startEpdrLocalPlaybook: state.start, resumeEpdrLocalPlaybook: state.resume,

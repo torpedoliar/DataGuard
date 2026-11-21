@@ -7,6 +7,7 @@ import { requireSiteAccess } from "@/lib/site-access";
 import { requireActiveSiteAction } from "@/lib/action-auth";
 import { loadSecurityContext, type EpdrSecurityContext } from "./epdr-endpoints";
 import { buildThreatTrend, THREAT_CATEGORIES, type ThreatCategory, type TrendDay } from "@/lib/epdr/posture";
+import { loadEpdrDisplayTimeZone } from "@/lib/epdr/display-time-zone";
 import { THREAT_DAY_MS, THREAT_PAGE_SIZE, threatEndpointJoin, threatOffset, threatOrder, threatQuerySchema, threatWhere, type ThreatQuery } from "@/lib/epdr/threat-query";
 
 export type EpdrDetectionRow = {
@@ -31,6 +32,7 @@ export type EpdrThreatsData = EpdrSecurityContext & {
   activeCount: number;
   categoryTotals: Record<ThreatCategory, { last24h: number; last7d: number }>;
   trend: TrendDay[];
+  trendTimeZone?: string;
   detections: EpdrDetectionRow[];
   ignored: EpdrDetectionRow[];
   detectionPage: EpdrThreatPage;
@@ -93,7 +95,9 @@ export async function getEpdrThreats(): Promise<EpdrThreatsData | { message: str
   ]);
   const where = and(eq(epdrDetections.siteId, siteId), isNull(epdrDetections.ignoredReason),
     gte(epdrDetections.detectedAt, new Date(now.getTime() - 30 * THREAT_DAY_MS)), lte(epdrDetections.detectedAt, now));
-  const day = sql<string>`to_char(${epdrDetections.detectedAt} at time zone 'UTC', 'YYYY-MM-DD')`;
+  const { timeZone } = await loadEpdrDisplayTimeZone(guard.session.userId, siteId);
+  // detected_at is a legacy UTC timestamp without time zone, not a session-local instant.
+  const day = sql<string>`to_char((${epdrDetections.detectedAt} at time zone 'UTC') at time zone ${timeZone}, 'YYYY-MM-DD')`;
   const [detectionPage, ignoredPage, categories, daily, active] = await Promise.all([
     readPage(siteId, threatQuerySchema.parse({}), now, revision),
     context.isAdmin ? readPage(siteId, threatQuerySchema.parse({ ignored: true }), now, revision) : Promise.resolve({ rows: [], total: 0, page: 1, pageSize: THREAT_PAGE_SIZE }),
@@ -110,7 +114,7 @@ export async function getEpdrThreats(): Promise<EpdrThreatsData | { message: str
   for (const row of categories) {
     if (THREAT_CATEGORIES.includes(row.category as ThreatCategory)) categoryTotals[row.category as ThreatCategory] = { last24h: Number(row.last24h), last7d: Number(row.last7d) };
   }
-  const trend = buildThreatTrend([], now.getTime(), 30);
+  const trend = buildThreatTrend([], now.getTime(), 30, timeZone);
   for (const row of daily) {
     const bucket = trend.find((d) => d.date === row.date);
     if (bucket && THREAT_CATEGORIES.includes(row.category as ThreatCategory)) {
@@ -118,6 +122,6 @@ export async function getEpdrThreats(): Promise<EpdrThreatsData | { message: str
       bucket.total += Number(row.total);
     }
   }
-  return { ...context, activeCount: Number(active[0]?.total ?? 0), categoryTotals, trend,
+  return { ...context, activeCount: Number(active[0]?.total ?? 0), categoryTotals, trend, trendTimeZone: timeZone,
     detections: detectionPage.rows, ignored: ignoredPage.rows, detectionPage, ignoredPage };
 }

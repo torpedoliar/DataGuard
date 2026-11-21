@@ -10,7 +10,7 @@ export const metadata = { title: "History | DataGuard" };
 export default async function EpdrActivityPage() {
   const guard = await requireActiveSiteAdminAction();
   if (!guard.ok) redirect("/select-site");
-  const t = await getTranslations("Epdr.operationsV2");
+  const t = await getTranslations("Epdr.historyUx");
   return <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 lg:px-8">
     <PageHeader eyebrow={t("eyebrow")} title={t("activityTitle")} description={t("activityDescription")} />
     <EpdrNav isAdmin />

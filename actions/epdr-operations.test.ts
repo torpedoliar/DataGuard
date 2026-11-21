@@ -40,7 +40,7 @@ describe("EPDR local operations ledger", () => {
     expect(mocks.actor.mock.invocationCallOrder[0]).toBeLessThan(mocks.execute.mock.invocationCallOrder[0]);
     expect(mocks.execute).toHaveBeenCalledTimes(1);
     const query = dialect.sqlToQuery(mocks.execute.mock.calls[0][0]);
-    expect(query.params).toEqual([17, 17, 17, 17, 17, 17, 17, 17, 100]);
+    expect(query.params).toEqual([17, 17, 17, 17, 17, 17, 17, 17, 100, 17]);
     for (const table of ["epdr_actions", "epdr_rule_evaluations", "epdr_incident_handoffs", "epdr_playbook_runs", "epdr_read_sync_requests", "epdr_local_playbook_runs", "epdr_local_notification_outbox", "epdr_local_approvals"]) {
       expect(query.sql).toMatch(new RegExp(`FROM ${table} WHERE site_id = \\$\\d+`));
     }
@@ -48,14 +48,14 @@ describe("EPDR local operations ledger", () => {
     expect(query.sql).toContain("FROM ledger");
     expect(query.sql).toContain("ORDER BY created_at DESC NULLS LAST, kind ASC, id DESC LIMIT 50 OFFSET");
     expect(query.sql).toContain("LEFT JOIN page_rows ON true");
-    expect(query.sql).not.toMatch(/SELECT\s+\*|\b(params|raw|evidence|note|error|result|provider_ref|request|response)\b/i);
+    expect(query.sql).not.toMatch(/\b(params|raw|evidence|note|error|result|provider_ref|request|response)\b/i);
     expect(query.sql).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/);
   });
 
   it("approvals only includes local approval intentions and unlinked evaluations, never local history", async () => {
     await getEpdrOperations({ view: "approvals" });
     const query = dialect.sqlToQuery(mocks.execute.mock.calls[0][0]);
-    expect(query.params).toEqual([17, 17, 0]);
+    expect(query.params).toEqual([17, 17, 0, 17]);
     expect(query.sql).toContain("mode = 'approval' OR state = 'pending_approval'");
     expect(query.sql).toContain("effective_mode = 'approval' AND action_id IS NULL");
     expect(query.sql).not.toMatch(/epdr_(playbook_runs|incident_handoffs|read_sync_requests)/);
@@ -88,6 +88,27 @@ describe("EPDR local operations ledger", () => {
     mocks.execute.mockResolvedValue({ rows: [{ id: 5, kind, state, action_type: null, created_at: null, total: 1,
       requested_by: requestedBy, approved_by: approvedBy, requester_name: "requester", approver_name: approvedBy ? "admin" : null }] });
     expect(await getEpdrOperations()).toMatchObject({ rows: [{ requestedBy: "requester", approvedBy: approvedBy ? "admin" : null, selfApproved }] });
+  });
+
+  it.each([{ kind: "secret" }, { status: "completed" }, { from: "2026-02-30" }, { to: "2026-01-01T00:00:00Z" }, { from: "2026-02-02", to: "2026-02-01" }, { from: null }, { to: "9999-12-31" }])("rejects invalid filters %j", async (input) => {
+    expect(await getEpdrOperations(input)).toEqual({ message: "Invalid ledger request." });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("filters normalized statuses and UTC dates in the same ledger used by count and page", async () => {
+    await getEpdrOperations({ kind: "localRun", status: "recorded", from: "2024-02-29", to: "2024-02-29" });
+    const query = dialect.sqlToQuery(mocks.execute.mock.calls[0][0]);
+    expect(query.params).toContain("localRun"); expect(query.params).toContain("recorded");
+    expect(query.params).toContain("2024-02-29T00:00:00.000Z");
+    expect(query.params).toContain("2024-03-01T00:00:00.000Z");
+    expect(query.sql).toContain("AND created_at >="); expect(query.sql).toContain("AND created_at <");
+    expect(query.sql).toContain("count(*) AS total FROM ledger");
+    expect(query.sql).toContain("scoped_incident.site_id =");
+  });
+
+  it("returns only stored provenance references", async () => {
+    mocks.execute.mockResolvedValue({ rows: [{ id: 5, kind: "localRun", state: "finished", total: 1, detection_id: 7, version_id: 8, local_run_id: 5 }] });
+    expect(await getEpdrOperations()).toMatchObject({ rows: [{ context: { detectionId: 7, versionId: 8, localRunId: 5 } }] });
   });
 
   it("hides database failures", async () => {

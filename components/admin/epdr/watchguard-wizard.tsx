@@ -2,13 +2,15 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Check, ChevronLeft, ChevronRight, CircleAlert, PlugZap, ShieldAlert } from "lucide-react";
 import clsx from "clsx";
 import ActionButton from "@/components/ui/action-button";
 import { saveWatchGuardConnection, saveWatchGuardGlobal, testWatchGuardConnection, clearWatchGuardSecrets } from "@/actions/watchguard-settings";
 import type { WatchGuardGlobalConfig, WatchGuardSettingsData, WatchGuardSiteConfig } from "@/actions/watchguard-settings";
 import { EPDR_ACTION_TYPES } from "@/lib/epdr/action-types";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
+import { useEpdrTimeZone } from "./time-zone-provider";
 
 type ServiceTest = { ok: boolean; status: number | null; kind: string | null; message: string; stage?: string; skipped?: boolean };
 type Checks = { auth: ServiceTest; account: ServiceTest; endpointSecurity: ServiceTest; threatSync: ServiceTest };
@@ -123,6 +125,8 @@ function Checklist({ checks }: { checks: Checks }) {
 
 function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () => void }) {
   const t = useTranslations("Epdr");
+  const locale = useLocale();
+  const { timeZone } = useEpdrTimeZone();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [step, setStep] = useState(1);
@@ -360,7 +364,7 @@ function SiteWizard({ site, onBack }: { site: WatchGuardSiteConfig; onBack: () =
             <h3 className="text-[13px] font-semibold text-ops-text">{t("settings.testHint")}</h3>
             {site.lastTestAt && (
               <p className="mt-0.5 text-[12px] text-ops-muted">
-                {t("settings.lastTest")}: {new Date(site.lastTestAt).toLocaleString()}
+                {t("settings.lastTest")}: {formatEpdrDateTime(site.lastTestAt, timeZone, locale)}
               </p>
             )}
           </div>
@@ -550,6 +554,8 @@ function GlobalSafeguards({ global }: { global: WatchGuardGlobalConfig }) {
 
 export default function WatchGuardWizard({ initialData }: { initialData: WatchGuardSettingsData }) {
   const t = useTranslations("Epdr");
+  const locale = useLocale();
+  const { timeZone } = useEpdrTimeZone();
   const [siteId, setSiteId] = useState<number | null>(null);
   const selected = siteId !== null ? initialData.sites.find((s) => s.siteId === siteId) ?? null : null;
 
@@ -582,7 +588,7 @@ export default function WatchGuardWizard({ initialData }: { initialData: WatchGu
                   <p className="mt-0.5 text-[12px] text-ops-muted">
                     {site.accountId ? <span className="font-mono">{site.accountId}</span> : t("settings.accountPlaceholder")}
                     {" · "}
-                    {t("settings.lastTest")}: {site.lastTestAt ? new Date(site.lastTestAt).toLocaleString() : t("settings.never")}
+                    {t("settings.lastTest")}: {site.lastTestAt ? formatEpdrDateTime(site.lastTestAt, timeZone, locale) : t("settings.never")}
                   </p>
                 </div>
                 <ActionButton variant={site.configured ? "secondary" : "primary"} onClick={() => setSiteId(site.siteId)}>

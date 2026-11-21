@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
+import { useEpdrTimeZone } from "./time-zone-provider";
 import {
   approveEpdrExecutionRequest,
   createEpdrExecutionRequest,
@@ -49,8 +51,12 @@ type Prefill = { endpointId?: number; actionType?: string };
  * Request → approve → worker result. Write gates live in EPDR settings; a
  * prefill only preselects the form and still needs the explicit confirmation.
  */
-export default function ExecutionCenter({ locale = "en", prefill = {} }: { locale?: string; prefill?: Prefill } = {}) {
+export default function ExecutionCenter({ locale = "en", prefill = {}, initialGroup = "all" }: { locale?: string; prefill?: Prefill; initialGroup?: string } = {}) {
   const t = useTranslations("Epdr.execution");
+  const ux = useTranslations("Epdr.settingsUx");
+  const { timeZone } = useEpdrTimeZone();
+  const when = (value: string | Date) => formatEpdrDateTime(value, timeZone, locale);
+  const [statusGroup, setStatusGroup] = useState(["all", "approval", "active", "review", "finished"].includes(initialGroup) ? initialGroup : "all");
   const [options, setOptions] = useState<ExecutionOptions | null>(null);
   const [page, setPage] = useState<RequestPage | null>(null);
   const [detail, setDetail] = useState<ExecutionRequestDetail | null>(null);
@@ -147,6 +153,13 @@ export default function ExecutionCenter({ locale = "en", prefill = {} }: { local
   const selectedAction = options?.actions.find((entry) => entry.actionType === actionType);
   const paramKeys = HIGH_IMPACT_PARAMS[actionType] ?? [];
   const canSubmit = Boolean(options?.writeEnabled && endpointId && actionType && confirmed);
+  const visibleRows = (page?.rows ?? []).filter((row) => {
+    if (statusGroup === "all") return true;
+    if (statusGroup === "approval") return row.state === "pending_approval";
+    if (statusGroup === "active") return ["queued", "dispatching", "in_progress"].includes(row.state);
+    if (statusGroup === "review") return ["needs_review", "outcome_unknown", "failed", "partial"].includes(row.state);
+    return ["succeeded", "completed", "rejected", "expired", "cancelled"].includes(row.state);
+  });
   const prefilled = prefillApplied && (endpointId !== "" || actionType !== "");
 
   return <section className="ops-panel space-y-5 p-5">
@@ -176,7 +189,41 @@ export default function ExecutionCenter({ locale = "en", prefill = {} }: { local
     {feedback && <p role="status" className="text-sm text-ops-text">{feedback}</p>}
     {prefilled && <p role="status" className="text-xs text-ops-muted">{t("prefilled")}</p>}
 
-    <form className="grid gap-3 rounded-md border border-ops-border p-4 lg:grid-cols-2" onSubmit={(event) => {
+
+    <div className="border-t border-ops-border pt-3">
+      <h3 className="text-sm font-medium text-ops-text">{t("listTitle")}</h3>
+      <div className="my-3 flex flex-wrap gap-2" role="group" aria-label={ux("queueFilters")}>
+        {["all", "approval", "active", "review", "finished"].map((group) => <button key={group} type="button" aria-pressed={statusGroup === group} onClick={() => setStatusGroup(group)} className={`rounded-md border px-3 py-2 text-xs ${statusGroup === group ? "border-ops-accent text-ops-accent" : "border-ops-border text-ops-muted"}`}>{ux(`queue.${group}` as never)}</button>)}
+      </div>
+      <p className="text-xs text-ops-muted">{ux("pageFilterHint")}</p>
+      {!page ? !error && <p className="mt-2 text-sm text-ops-muted">{t("loading")}</p> : <>
+        <p className="mt-2 text-sm text-ops-muted">{t("pageSummary", { page: page.page, pages: page.pages, total: page.total })}</p>
+        <ul className="divide-y divide-ops-border">
+          {visibleRows.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+            <span className="min-w-0"><span className="block font-medium">{t("row", { id: row.id })} · {t(`actions.${row.actionType}` as never)}</span><span className="mt-1 block text-xs text-ops-muted">{t("endpointOption", { id: row.endpointId, host: options?.endpoints.find((entry) => entry.id === row.endpointId)?.hostName ?? t("unknownHost") })}</span></span>
+            <span className="text-ops-muted">{t(`state.${row.state}` as never)}</span>
+            {row.state === "pending_approval" && <button type="button" disabled={pending} onClick={() => perform(async () => {
+              const result = await rejectEpdrExecutionRequest({ requestId: row.id });
+              if (!mounted.current) return;
+              if ("code" in result) { setError(result.code); setErrorReason(result.reason ?? null); return; }
+              setFeedback(t("rejected", { id: row.id }));
+              setRevision((value) => value + 1);
+            })} className="text-ops-muted disabled:opacity-50">{t("reject")}</button>}
+            <button type="button" disabled={pending} onClick={() => perform(() => loadDetail(row.id))} className="text-ops-accent">{t("inspect")}</button>
+          </li>)}
+        </ul>
+        {visibleRows.length === 0 && <p className="text-sm text-ops-muted">{t("empty")}</p>}
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <button type="button" className="text-ops-accent disabled:opacity-50" disabled={pending || page.page <= 1} onClick={() => setListPage(page.page - 1)}>{t("previous")}</button>
+          <button type="button" className="text-ops-accent disabled:opacity-50" disabled={pending || page.page >= page.pages} onClick={() => setListPage(page.page + 1)}>{t("next")}</button>
+          <button type="button" className="text-ops-accent disabled:opacity-50" disabled={pending} onClick={() => setRevision((value) => value + 1)}>{t("refresh")}</button>
+        </div>
+      </>}
+    </div>
+
+    <details key={prefilled ? "prefilled" : "manual"} open={prefilled || undefined} className="rounded-md border border-ops-border p-4">
+      <summary className="cursor-pointer text-sm font-medium text-ops-text">{ux("manualRequest")}</summary>
+    <form className="mt-4 grid gap-3 lg:grid-cols-2" onSubmit={(event) => {
       event.preventDefault();
       perform(async () => {
         const result = await createEpdrExecutionRequest({
@@ -245,36 +292,11 @@ export default function ExecutionCenter({ locale = "en", prefill = {} }: { local
       </div>
     </form>
 
-    <div className="border-t border-ops-border pt-3">
-      <h3 className="text-sm font-medium text-ops-text">{t("listTitle")}</h3>
-      {!page ? !error && <p className="mt-2 text-sm text-ops-muted">{t("loading")}</p> : <>
-        <p className="mt-2 text-sm text-ops-muted">{t("pageSummary", { page: page.page, pages: page.pages, total: page.total })}</p>
-        <ul className="divide-y divide-ops-border">
-          {page.rows.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
-            <span>{t("row", { id: row.id })} · {t(`actions.${row.actionType}` as never)}</span>
-            <span className="text-ops-muted">{t(`state.${row.state}` as never)}</span>
-            {row.state === "pending_approval" && <button type="button" disabled={pending} onClick={() => perform(async () => {
-              const result = await rejectEpdrExecutionRequest({ requestId: row.id });
-              if (!mounted.current) return;
-              if ("code" in result) { setError(result.code); setErrorReason(result.reason ?? null); return; }
-              setFeedback(t("rejected", { id: row.id }));
-              setRevision((value) => value + 1);
-            })} className="text-ops-muted disabled:opacity-50">{t("reject")}</button>}
-            <button type="button" disabled={pending} onClick={() => perform(() => loadDetail(row.id))} className="text-ops-accent">{t("inspect")}</button>
-          </li>)}
-        </ul>
-        {page.rows.length === 0 && <p className="text-sm text-ops-muted">{t("empty")}</p>}
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <button type="button" className="text-ops-accent disabled:opacity-50" disabled={pending || page.page <= 1} onClick={() => setListPage(page.page - 1)}>{t("previous")}</button>
-          <button type="button" className="text-ops-accent disabled:opacity-50" disabled={pending || page.page >= page.pages} onClick={() => setListPage(page.page + 1)}>{t("next")}</button>
-          <button type="button" className="text-ops-accent disabled:opacity-50" disabled={pending} onClick={() => setRevision((value) => value + 1)}>{t("refresh")}</button>
-        </div>
-      </>}
-    </div>
+    </details>
 
     {detail && <div className="space-y-3 rounded-md border border-ops-border p-4">
       <p className="text-sm font-medium text-ops-text">{t("detail", { id: detail.id })} · {t(`state.${detail.state}` as never)}</p>
-      <p className="text-sm text-ops-muted">{t(`stateHint.${detail.state}` as never)}</p>
+      <p className="text-sm text-ops-muted"><span className="font-medium">{ux("result")}: </span>{t(`stateHint.${detail.state}` as never)}</p>
       {detail.outcomeUnknownReason && <p className="text-sm text-ops-warning">{t("outcomeUnknown", { reason: detail.outcomeUnknownReason })}</p>}
       {detail.reviewReason && <p className="text-sm text-ops-warning">{t("reviewReason", { reason: detail.reviewReason })}</p>}
 
@@ -288,7 +310,7 @@ export default function ExecutionCenter({ locale = "en", prefill = {} }: { local
           account: detail.accountRevision ?? "—", credential: detail.credentialRevision ?? "—", evidence: detail.evidenceGeneration ?? "—",
         })}</dd></div>
         <div><dt className="font-medium text-ops-text">{t("parameters")}</dt><dd className="break-all">{JSON.stringify(detail.parameters ?? {})}</dd></div>
-        <div><dt className="font-medium text-ops-text">{t("expires")}</dt><dd>{detail.expiresAt ? new Date(detail.expiresAt).toLocaleString(locale) : "—"}</dd></div>
+        <div><dt className="font-medium text-ops-text">{t("expires")}</dt><dd>{detail.expiresAt ? when(detail.expiresAt) : "—"}</dd></div>
       </dl>
 
       {detail.state === "pending_approval" && <div className="space-y-2 border-t border-ops-border pt-3">
@@ -325,9 +347,9 @@ export default function ExecutionCenter({ locale = "en", prefill = {} }: { local
       <p className="text-xs text-ops-muted">{t("detailMeta", {
         requestedBy: detail.requestedBy ?? "-",
         approvedBy: detail.approvedBy ?? "-",
-        created: new Date(detail.createdAt).toLocaleString(locale),
+        created: when(detail.createdAt),
       })}</p>
-      {detail.approvalExpiresAt && <p className="text-xs text-ops-muted">{t("expires", { time: new Date(detail.approvalExpiresAt).toLocaleString(locale) })}</p>}
+      {detail.approvalExpiresAt && <p className="text-xs text-ops-muted">{t("expires", { time: when(detail.approvalExpiresAt) })}</p>}
       <details className="rounded-md border border-ops-border p-3 text-sm">
         <summary className="cursor-pointer font-medium text-ops-text">{t("technical")}</summary>
         <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-md bg-ops-surface-raised p-3 text-[11px] text-ops-muted">{JSON.stringify({

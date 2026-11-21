@@ -10,6 +10,25 @@ import {
 
 const NOW = Date.UTC(2026, 10, 10, 12, 0, 0);
 
+describe("zoned threat trend", () => {
+  it("groups detections and zero-filled dates by the same local day", () => {
+    const trend = buildThreatTrend([
+      { category: "malware", detectedAt: new Date("2026-01-01T18:00:00Z") },
+    ], Date.parse("2026-01-01T19:00:00Z"), 2, "Asia/Jakarta");
+    expect(trend.map((day) => day.date)).toEqual(["2026-01-01", "2026-01-02"]);
+    expect(trend.map((day) => day.total)).toEqual([0, 1]);
+  });
+
+  it("keeps calendar days consecutive across daylight-saving transitions", () => {
+    const trend = buildThreatTrend([
+      { category: "ioa", detectedAt: new Date("2026-03-08T06:30:00Z") },
+      { category: "ioa", detectedAt: new Date("2026-03-08T07:30:00Z") },
+    ], Date.parse("2026-03-09T05:00:00Z"), 3, "America/New_York");
+    expect(trend.map((day) => day.date)).toEqual(["2026-03-07", "2026-03-08", "2026-03-09"]);
+    expect(trend.map((day) => day.total)).toEqual([0, 2, 0]);
+  });
+});
+
 describe("resolveConnectionState", () => {
   const base = { configured: true, enabled: true, lastSyncAt: new Date(NOW - 60_000), lastSyncError: null, syncIntervalMinutes: 15, nowMs: NOW };
 

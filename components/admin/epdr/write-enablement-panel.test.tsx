@@ -90,6 +90,34 @@ describe("write enablement panel", () => {
     });
   });
 
+  it("shows global permissions to site admins without enabling gates when actions change", async () => {
+    render(); await settle();
+    const tree = render();
+    expect(elements(tree).some((node) => node.type === "table")).toBe(true);
+    expect(elements(tree).some((node) => node.type === "p" && node.props.children === "globalCap")).toBe(true);
+    const [site, scan, , confirm] = checkboxes(tree);
+    (confirm.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    (scan.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    expect(checkboxes(render())[0].props.checked).toBe(site.props.checked);
+    expect(checkboxes(render()).at(-1)?.props.checked).toBe(false);
+    expect(saveButton(render()).props.disabled).toBe(true);
+    expect(state.save).not.toHaveBeenCalled();
+  });
+
+  it("reports cap and cooldown errors next to their fields without saving", async () => {
+    render(); await settle();
+    const fields = elements(render()).filter((node) => node.type === "input" && node.props.type === "number");
+    (fields[0].props.onChange as (event: unknown) => void)({ target: { value: "31" } });
+    (fields[1].props.onChange as (event: unknown) => void)({ target: { value: "" } });
+    (checkboxes(render()).at(-1)!.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    (saveButton(render()).props.onClick as () => void)();
+    await state.pending;
+    const invalid = elements(render()).filter((node) => node.type === "input" && node.props["aria-invalid"]);
+    expect(invalid).toHaveLength(2);
+    expect(invalid.map((node) => node.props["aria-describedby"])).toEqual(["epdr-cap-error", "epdr-cooldown-error"]);
+    expect(state.save).not.toHaveBeenCalled();
+  });
+
   it("shows a bounded error when settings cannot be loaded", async () => {
     state.load.mockResolvedValue({ code: "forbidden" });
     render(); await settle();

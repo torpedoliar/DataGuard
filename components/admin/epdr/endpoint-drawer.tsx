@@ -1,5 +1,8 @@
 "use client";
 
+import { useEpdrTimeZone } from "./time-zone-provider";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
+
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -218,6 +221,7 @@ export default function EndpointDrawer({
   onClose: () => void;
 }) {
   const t = useTranslations("Epdr");
+  const { timeZone } = useEpdrTimeZone();
   useModalDismiss(() => onClose(), endpoint !== null);
   const dialogRef = useRef<HTMLElement>(null);
   const isOpen = endpoint !== null;
@@ -316,8 +320,8 @@ export default function EndpointDrawer({
             <Row label={t("drawer.os")}>{endpoint.operatingSystem ?? "—"}</Row>
             <Row label={t("drawer.group")}>{endpoint.groupPath ?? "—"}</Row>
             <Row label={t("drawer.agent")}>{endpoint.agentVersion ?? "—"}</Row>
-            <Row label={t("drawer.lastSeen")}>{relative(endpoint.lastConnectionAt, locale)}</Row>
-            <Row label={t("drawer.lastSync")}>{relative(endpoint.lastSyncedAt, locale)}</Row>
+            <Row label={t("drawer.lastSeen")}>{endpoint.lastConnectionAt ? <span title={formatEpdrDateTime(endpoint.lastConnectionAt, timeZone, locale)}>{relative(endpoint.lastConnectionAt, locale)}</span> : "—"}</Row>
+            <Row label={t("drawer.lastSync")}>{endpoint.lastSyncedAt ? <span title={formatEpdrDateTime(endpoint.lastSyncedAt, timeZone, locale)}>{relative(endpoint.lastSyncedAt, locale)}</span> : "—"}</Row>
             <Row label={t("drawer.restart")}>{endpoint.rebootRequested ? t("drawer.yes") : t("drawer.no")}</Row>
             <Row label={t("drawer.rawStatus")}>
               <span className="font-mono">{endpoint.accumulatedProtectionStatus ?? "—"}</span>

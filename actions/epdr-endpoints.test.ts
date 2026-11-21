@@ -146,7 +146,7 @@ describe("fleet paging and context guards", () => {
     expect(await getEpdrEndpointPage({ ...input, query: "x".repeat(81) })).toEqual({ message: "Invalid fleet filters." });
   });
 
-  it.each(["attention", "offline", "outdated", "unlinked", "unknown_contact"] as const)("uses identical site-scoped count/table predicates for %s", async (filter) => {
+  it.each(["attention", "protected", "disabled", "error", "install_error", "no_license", "unknown", "offline", "outdated", "unlinked", "unknown_contact"] as const)("uses identical site-scoped count/table predicates for %s", async (filter) => {
     mocks.selectQueue = [[{ total: 0 }], []];
     await getEpdrEndpointPage({ ...input, filter, query: "host%_", group: "Production", os: "Linux" });
     const dialect = new PgDialect();

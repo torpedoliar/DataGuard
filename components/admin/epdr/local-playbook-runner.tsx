@@ -1,5 +1,8 @@
 "use client";
 
+import { useEpdrTimeZone } from "./time-zone-provider";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
+
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import {
@@ -39,6 +42,7 @@ const STAGE_KEYS = ["chooseDetection", "chooseVersion", "createReview", "recordR
 
 export default function LocalPlaybookRunner({ initialDetectionId, locale = "en" }: { initialDetectionId?: number; locale?: string } = {}) {
   const t = useTranslations("Epdr.localRunV2");
+  const { timeZone } = useEpdrTimeZone();
   const [runs, setRuns] = useState<RunList | null>(null);
   const [options, setOptions] = useState<LocalPlaybookOptions | null>(null);
   const [detail, setDetail] = useState<LocalPlaybookRunDetail | null>(null);
@@ -181,7 +185,7 @@ export default function LocalPlaybookRunner({ initialDetectionId, locale = "en" 
         {options && !options.detections.length && !options.requestedDetection && <p>{t("noDetections")}</p>}
         {options?.requestedDetectionUnavailable && <p className="text-ops-warning">{t("requestedUnavailable")}</p>}
         {options?.detectionTruncated && <p>{t("detectionsLimited")}</p>}
-        {selectedDetection && <p>{t("selectedDetection", { category: selectedDetection.category, score: selectedDetection.score ?? t("missingScore"), time: new Date(selectedDetection.detectedAt).toLocaleString(locale) })}</p>}
+        {selectedDetection && <p>{t("selectedDetection", { category: selectedDetection.category, score: selectedDetection.score ?? t("missingScore"), time: formatEpdrDateTime(selectedDetection.detectedAt, timeZone, locale) })}</p>}
       </div>
       {/* Pre-create eligibility: what a start would evaluate, shown before the create step. */}
       {eligibility && <div aria-live="polite" className="rounded-md border border-ops-border bg-ops-surface-raised p-3 text-xs lg:col-span-2">

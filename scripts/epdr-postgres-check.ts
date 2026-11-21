@@ -11,6 +11,8 @@
  */
 import { Client } from "pg";
 import { startIsolatedPostgres, verifyIsolatedInvocation } from "./lib/isolated-postgres";
+import { PgDialect } from "drizzle-orm/pg-core";
+import { overviewCountsQuery } from "../lib/epdr/overview-query";
 
 async function main(): Promise<number> {
   const refused = verifyIsolatedInvocation(process.argv);
@@ -168,6 +170,32 @@ async function main(): Promise<number> {
       `INSERT INTO epdr_local_playbook_runs (site_id, version_id, detection_id, connection_id, account_revision, requested_by, evidence)
        VALUES ($1, $2, $3, $4, 1, $5, '{"verify":true}'::jsonb) RETURNING id`,
       [siteId, version.rows[0].id, detectionId, connId, userId]);
+    // Action SQL regressions: local runs intentionally have no endpoint_id.
+    const approvalRun = await client.query(`SELECT id, status, evidence, detection_id
+      FROM epdr_local_playbook_runs WHERE id = $1 AND site_id = $2
+        AND connection_id = $3 AND account_revision = 1 FOR SHARE`, [run.rows[0].id, siteId, connId]);
+    check("local approval reads run without nonexistent endpoint column", approvalRun.rowCount === 1);
+    const resolveEndpoint = async (capturedId: number | null, revision = 1, scopedSite = siteId) => client!.query<{ id: number }>(`
+      SELECT e.id FROM epdr_detections d
+      JOIN epdr_endpoints e ON e.id = d.endpoint_id AND e.site_id = d.site_id
+        AND e.connection_id = d.connection_id AND e.account_revision = d.account_revision
+      WHERE d.id = $1 AND d.site_id = $2 AND d.connection_id = $3 AND d.account_revision = $4
+        AND ($5::integer IS NULL OR e.id = $5) AND e.removed_at IS NULL FOR SHARE OF d, e`,
+    [detectionId, scopedSite, connId, revision, capturedId]);
+    check("legacy local approval resolves a current detection endpoint", (await resolveEndpoint(null)).rows[0]?.id === endpoint.rows[0].id);
+    check("captured local approval endpoint remains bound", (await resolveEndpoint(endpoint.rows[0].id)).rowCount === 1);
+    check("local approval refuses a changed captured endpoint", (await resolveEndpoint(endpoint.rows[0].id + 999)).rowCount === 0);
+    check("local approval refuses a different account revision", (await resolveEndpoint(null, 999)).rowCount === 0);
+    check("local approval refuses a different site", (await resolveEndpoint(null, 1, siteId + 999)).rowCount === 0);
+    const extracted = await client.query<{ entity_id: string }>(`
+      SELECT substring(substring(d.source_key from 4) from position(':' in substring(d.source_key from 4)) + 1) AS entity_id
+      FROM (VALUES ('ts:incident:entity:with:colons')) AS d(source_key)`);
+    check("provider target PostgreSQL POSITION IN preserves entity suffix", extracted.rows[0]?.entity_id === "entity:with:colons");
+    const targetEndpoint = await client.query(`SELECT e.id FROM epdr_endpoints e
+      WHERE e.id = $1 AND e.site_id = $2 AND e.connection_id = $3
+        AND e.account_revision = $4 AND e.removed_at IS NULL LIMIT 1`, [endpoint.rows[0].id, siteId, connId, 1]);
+    check("provider target endpoint revision query has no out-of-scope alias", targetEndpoint.rowCount === 1);
+
     let immutable = false;
     try {
       await client.query(`UPDATE epdr_local_playbook_runs SET evidence = '{"changed":true}'::jsonb WHERE id = $1`, [run.rows[0].id]);
@@ -467,6 +495,106 @@ async function main(): Promise<number> {
       (await client!.query<{ total: string }>("SELECT count(*)::text AS total FROM epdr_attempts WHERE action_id = $1", [actionRowId])).rows[0]!.total;
     check("retention deletes only terminal-action attempts past the window",
       (await attemptFor(terminalAction)) === "0" && (await attemptFor(pendingAction)) === "1" && retentionDelete.rowCount === 1);
+
+    // ---- 0087: explicit time zones -----------------------------------------
+    await client.query(`INSERT INTO epdr_local_notification_policies (site_id, enabled, updated_by, time_zone)
+      VALUES ($1, true, $2, 'Asia/Jakarta') ON CONFLICT (site_id) DO UPDATE SET time_zone = 'Asia/Jakarta'`,
+    [siteId, userId]);
+    let invalidUserZoneRejected = false;
+    try { await client.query(`UPDATE users SET epdr_time_zone = 'WIB' WHERE id = $1`, [userId]); } catch { invalidUserZoneRejected = true; }
+    check("0087 user timezone trigger rejects non-IANA abbreviations", invalidUserZoneRejected);
+    await client.query(`UPDATE users SET epdr_time_zone = 'Asia/Makassar' WHERE id = $1`, [userId]);
+    const savedUserZone = await client.query<{ epdr_time_zone: string }>(
+      "SELECT epdr_time_zone FROM users WHERE id = $1", [userId]);
+    check("0087 user timezone accepts named IANA zones", savedUserZone.rows[0]?.epdr_time_zone === "Asia/Makassar");
+    let invalidPolicyZoneRejected = false;
+    try { await client.query(`UPDATE epdr_local_notification_policies SET time_zone = '+07:00' WHERE site_id = $1`, [siteId]); } catch { invalidPolicyZoneRejected = true; }
+    check("0087 policy timezone trigger rejects numeric offsets", invalidPolicyZoneRejected);
+
+    const secondSite = await client.query<{ id: number }>(
+      `INSERT INTO sites (name, code) VALUES ('EPDR verify 2', 'EPDRV2') RETURNING id`);
+    const secondSiteId = secondSite.rows[0].id;
+    await client.query(`INSERT INTO epdr_local_notification_outbox (site_id, recipient_id, kind, status, available_at, digest_day)
+      VALUES ($1, $2, 'digest', 'queued', clock_timestamp(), '2026-02-02')`, [siteId, userId]);
+    const crossSiteDigest = await client.query(`INSERT INTO epdr_local_notification_outbox (site_id, recipient_id, kind, status, available_at, digest_day)
+      VALUES ($1, $2, 'digest', 'queued', clock_timestamp(), '2026-02-02')`, [secondSiteId, userId]);
+    check("0087 digest dedup key includes the site", crossSiteDigest.rowCount === 1);
+    let sameSiteDigestRejected = false;
+    try {
+      await client.query(`INSERT INTO epdr_local_notification_outbox (site_id, recipient_id, kind, status, available_at, digest_day)
+        VALUES ($1, $2, 'digest', 'queued', clock_timestamp(), '2026-02-02')`, [siteId, userId]);
+    } catch { sameSiteDigestRejected = true; }
+    check("0087 digest remains unique per site, recipient and local day", sameSiteDigestRejected);
+
+    // Zoned calendar grouping must not depend on the session time zone.
+    await client.query("SET TimeZone = 'America/New_York'");
+    const zonedDay = await client.query<{ day: string }>(`
+      SELECT to_char((timestamp '2026-01-01 18:00:00' at time zone 'UTC') at time zone 'Asia/Jakarta', 'YYYY-MM-DD') AS day`);
+    await client.query("SET TimeZone = 'UTC'");
+    check("0087 local-calendar grouping is session-zone independent", zonedDay.rows[0]?.day === "2026-01-02");
+
+    // ---- 0088: recommendation-only operational bindings --------------------
+    const binding = await client.query<{ id: number }>(`
+      INSERT INTO epdr_response_bindings (site_id, version_id, connection_id, account_revision, response, created_by)
+      VALUES ($1, $2, $3, 1, 'scan', $4) RETURNING id`, [siteId, version.rows[0].id, connId, userId]);
+    const bindingId = binding.rows[0].id;
+    await client.query(`UPDATE epdr_response_bindings SET state = 'paused' WHERE id = $1`, [bindingId]);
+    const pausedBinding = await client.query<{ state: string }>(
+      "SELECT state FROM epdr_response_bindings WHERE id = $1", [bindingId]);
+    check("0088 binding state is mutable without touching its pinned version", pausedBinding.rows[0]?.state === "paused");
+    let bindingContentRejected = false;
+    try { await client.query(`UPDATE epdr_response_bindings SET response = 'isolate' WHERE id = $1`, [bindingId]); } catch { bindingContentRejected = true; }
+    check("0088 immutable binding content rejects response changes", bindingContentRejected);
+    let evaluationRewindRejected = false;
+    try {
+      await client.query(`UPDATE epdr_response_bindings SET evaluation_after = evaluation_after - interval '1 hour' WHERE id = $1`, [bindingId]);
+    } catch { evaluationRewindRejected = true; }
+    check("0088 resume cutoff cannot move backwards", evaluationRewindRejected);
+
+    const readIds = await client.query<{ id: number }>(
+      `SELECT id FROM epdr_detection_read_evidence WHERE connection_id = $1 ORDER BY id LIMIT 2`, [connId]);
+    const insertRecommendation = async (readEvidenceId: number, scopedSite = siteId): Promise<number> => {
+      const { rows } = await client!.query<{ id: number }>(`
+        INSERT INTO epdr_response_recommendations
+          (site_id, binding_id, detection_id, read_evidence_id, endpoint_id, response, status, evidence)
+        VALUES ($1, $2, $3, $4, $5, 'scan', 'blocked', '{"reasons":["hold"]}'::jsonb) RETURNING id`,
+      [scopedSite, bindingId, detectionId, readEvidenceId, endpoint.rows[0].id]);
+      return rows[0]!.id;
+    };
+    const firstRecommendation = await insertRecommendation(readIds.rows[0]!.id);
+    const revisedRecommendation = await insertRecommendation(readIds.rows[1]!.id);
+    check("0088 a later source read may append fresh immutable evidence", revisedRecommendation !== firstRecommendation);
+    let duplicateRevisionRejected = false;
+    try { await insertRecommendation(readIds.rows[0]!.id); } catch { duplicateRevisionRejected = true; }
+    check("0088 the same binding, detection and read stays unique", duplicateRevisionRejected);
+    let recommendationRewriteRejected = false;
+    try {
+      await client.query(`UPDATE epdr_response_recommendations SET status = 'matched' WHERE id = $1`, [firstRecommendation]);
+    } catch { recommendationRewriteRejected = true; }
+    check("0088 published recommendation evidence is immutable", recommendationRewriteRejected);
+    let crossSiteRecommendationRejected = false;
+    try { await insertRecommendation(readIds.rows[0]!.id, secondSiteId); } catch { crossSiteRecommendationRejected = true; }
+    check("0088 composite tenancy rejects cross-site recommendations", crossSiteRecommendationRejected);
+
+    const requestForLink = await client.query<{ id: number }>("SELECT id FROM epdr_actions ORDER BY id LIMIT 1");
+    await client.query(`INSERT INTO epdr_response_request_links (recommendation_id, site_id, request_id)
+      VALUES ($1, $2, $3)`, [firstRecommendation, siteId, requestForLink.rows[0]!.id]);
+    let duplicateLinkRejected = false;
+    try {
+      await client.query(`INSERT INTO epdr_response_request_links (recommendation_id, site_id, request_id)
+        VALUES ($1, $2, $3)`, [firstRecommendation, siteId, requestForLink.rows[0]!.id]);
+    } catch { duplicateLinkRejected = true; }
+    check("0088 a recommendation links to exactly one request", duplicateLinkRejected);
+
+    // Overview aggregate: run the exact statement the dashboard uses against real columns.
+    const overview = new PgDialect().sqlToQuery(overviewCountsQuery(siteId, { id: connId, accountRevision: 1 }, new Date()));
+    const overviewRows = await client.query<{ total: number; threats: number; pending: number; review: number }>(overview.sql, overview.params);
+    const fleetCount = await client.query<{ total: string }>(
+      `SELECT count(*)::text AS total FROM epdr_endpoints WHERE site_id = $1 AND connection_id = $2
+        AND account_revision = 1 AND removed_at IS NULL`, [siteId, connId]);
+    check("overview aggregate runs on real columns and counts the full fleet",
+      overviewRows.rowCount === 1 && String(overviewRows.rows[0]!.total) === fleetCount.rows[0]!.total,
+      `${overviewRows.rows[0]?.total} vs ${fleetCount.rows[0]?.total}`);
   } catch (error) {
     checks.push({ name: "verification run", ok: false, detail: error instanceof Error ? error.message.slice(0, 300) : "unknown" });
   } finally {

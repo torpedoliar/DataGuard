@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement, ReactNode } from "react";
 import type { EpdrEndpointPage, EpdrEndpointRow } from "@/actions/epdr-endpoints";
 import { summarizeFleet } from "@/lib/epdr/posture";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
 
 const state = vi.hoisted(() => ({
   values: [] as unknown[],
@@ -36,7 +37,8 @@ vi.mock("react", async (original) => ({
     }
   },
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => state.translate }));
+vi.mock("./time-zone-provider", () => ({ useEpdrTimeZone: () => ({ timeZone: "Asia/Jayapura" }) }));
+vi.mock("next-intl", () => ({ useLocale: () => "en", useTranslations: () => state.translate }));
 vi.mock("@/actions/epdr-endpoints", () => ({ getEpdrEndpointPage: state.getPage }));
 vi.mock("./endpoint-drawer", () => ({ default: (props: { endpoint: EpdrEndpointRow | null }) => { state.drawer(props); return null; } }));
 vi.mock("@/components/ui/status-badge", () => ({ default: ({ children }: { children: unknown }) => <span>{children as string}</span> }));
@@ -143,6 +145,17 @@ afterEach(() => {
 });
 
 describe("EndpointFleet server-side list", () => {
+  it("keeps relative last-seen labels with selected-zone tooltips and null placeholders", async () => {
+    const seenAt = new Date("2026-01-01T00:00:00Z");
+    const seen = { ...endpoint(1), lastConnectionAt: seenAt };
+    state.getPage.mockResolvedValue({ ...page(), rows: [seen, endpoint(2)] });
+    const tree = await load({ endpoints: [seen] });
+    const expected = formatEpdrDateTime(seenAt, "Asia/Jayapura", "en");
+    expect(elements(tree).filter((node) => node.props.title === expected)).toHaveLength(1);
+    const cells = elements(tree).filter((node) => node.type === "td");
+    expect(cells.some((node) => node.props.children === "—" && node.props.title === undefined)).toBe(true);
+    expect(text(tree)).not.toContain(expected);
+  });
   it("loads action rows in pages of 50 and navigates using the server total, not the initial snapshot", async () => {
     expect(loading(render())).toBe(true);
     expect(state.getPage).not.toHaveBeenCalled();
@@ -339,5 +352,23 @@ describe("EndpointFleet server-side list", () => {
     const opened = render(overrides);
     elements(opened);
     expect(state.drawer).toHaveBeenLastCalledWith(expect.objectContaining({ endpoint: expect.objectContaining({ id: 902, bucket: "disabled" }) }));
+  });
+  it("opens a dashboard deep link with the bucket already applied", async () => {
+    state.getPage.mockImplementation(async ({ page: number }: { page: number }) => page(number));
+    const tree = await load({ initialFilter: "no_license" });
+    expect(state.getPage).toHaveBeenCalledWith(expect.objectContaining({ filter: "no_license", page: 1 }));
+    // The bucket has a visible pressed chip that clears back to all.
+    const pressed = elements(tree).filter((node) => node.type === "button" && node.props["aria-pressed"] === true);
+    expect(pressed.map((node) => text(node.props.children))).toEqual(expect.arrayContaining([expect.stringContaining("filters.no_license")]));
+    (pressed.find((node) => text(node.props.children).includes("filters.no_license"))!.props.onClick as () => void)();
+    render({ initialFilter: "no_license" });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(state.getPage).toHaveBeenLastCalledWith(expect.objectContaining({ filter: "all", page: 1 }));
+  });
+
+  it("opens a contextual search from another page", async () => {
+    state.getPage.mockImplementation(async ({ page: number }: { page: number }) => page(number));
+    await load({ initialQuery: "host-7" });
+    expect(state.getPage).toHaveBeenCalledWith(expect.objectContaining({ query: "host-7", page: 1 }));
   });
 });

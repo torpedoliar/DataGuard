@@ -1,5 +1,8 @@
 "use client";
 
+import { useEpdrTimeZone } from "./time-zone-provider";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
+
 import { useEffect, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -9,6 +12,7 @@ import {
 
 export default function LocalApprovals({ locale }: { locale: string }) {
   const t = useTranslations("Epdr.approvalsV2");
+  const { timeZone } = useEpdrTimeZone();
   const [data, setData] = useState<LocalApprovalPage | null>(null);
   const [error, setError] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -59,7 +63,7 @@ export default function LocalApprovals({ locale }: { locale: string }) {
             <span>{t("row", { run: row.localRunId, detection: row.detectionId })}</span>
             <span className="text-ops-muted">{t(`intent.${row.actionIntent}`)}</span>
             <span className="text-ops-muted">{t(`status.${row.status}`)}</span>
-            <span className="text-xs text-ops-subtle">{t("expires", { time: row.expiresAt })}</span>
+            <span className="text-xs text-ops-subtle">{t("expires", { time: formatEpdrDateTime(row.expiresAt, timeZone, locale) })}</span>
             <Link href={`/${locale}/admin/epdr/playbooks?detection=${row.detectionId}`} className="text-ops-accent">{t("review")}</Link>
           </div>
           {row.status === "approved" && <div className="flex flex-wrap items-center gap-3 text-xs">

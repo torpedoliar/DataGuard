@@ -1,5 +1,8 @@
 "use client";
 
+import { useEpdrTimeZone } from "./time-zone-provider";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
+
 import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, CircleAlert, Clock3, LayoutGrid, LoaderCircle, RefreshCw, Search, ShieldCheck, Star, TriangleAlert } from "lucide-react";
@@ -184,6 +187,8 @@ export default function EndpointFleet({
   summary,
   isAdmin,
   locale,
+  initialFilter = "all",
+  initialQuery = "",
 }: {
   posture: FleetPosture;
   /** Bounded map sample; table rows are fetched separately per page. */
@@ -191,11 +196,16 @@ export default function EndpointFleet({
   summary?: EpdrFleetSummary;
   isAdmin: boolean;
   locale: string;
+  /** Dashboard queue links land here with a server-side filter already applied. */
+  initialFilter?: Filter;
+  /** Contextual links (for example a detection host) open already searched. */
+  initialQuery?: string;
 }) {
   const t = useTranslations("Epdr");
+  const { timeZone } = useEpdrTimeZone();
   const relative = useRelative(locale);
-  const [filter, setFilter] = useState<Filter>("all");
-  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>(initialFilter);
+  const [query, setQuery] = useState(initialQuery);
   const v = useTranslations("Epdr.fleetV2");
   const [openId, setOpenId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
@@ -312,7 +322,7 @@ export default function EndpointFleet({
                         <span className="flex items-center gap-1.5"><span className="truncate text-[13px] font-medium text-ops-text">{endpoint.hostName}</span>{(endpoint.deviceType === SERVER_DEVICE_TYPE || endpoint.isCritical) && <span className="shrink-0 rounded-sm border border-ops-border-strong px-1 text-[10px] font-medium text-ops-muted">{endpoint.isCritical ? t("endpoints.critical") : t("endpoints.server")}</span>}</span>
                         <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-ops-muted"><span className={clsx("size-1.5 shrink-0 rounded-full", bucketFill[endpoint.bucket])} aria-hidden /><span className="truncate">{t(`bucket.${endpoint.bucket}`)}</span>{endpoint.offline && <span className="shrink-0 text-ops-warning">· {t("endpoints.offlineFor")}</span>}</span>
                       </span>
-                      <span className="shrink-0 text-right text-[11px] tabular-nums text-ops-subtle">{relative(endpoint.lastConnectionAt)}</span>
+                      <span title={endpoint.lastConnectionAt ? formatEpdrDateTime(endpoint.lastConnectionAt, timeZone, locale) : undefined} className="shrink-0 text-right text-[11px] tabular-nums text-ops-subtle">{relative(endpoint.lastConnectionAt)}</span>
                       <ChevronRight className="size-4 shrink-0 text-ops-subtle transition-transform group-hover:translate-x-0.5" aria-hidden />
                     </button>
                   </li>
@@ -338,6 +348,12 @@ export default function EndpointFleet({
                 {v(`filters.${item.key}`)}<span className="tabular-nums opacity-75">{item.count}</span>
               </button>
             ))}
+            {/* A dashboard deep link may select a protection bucket that has no chip. */}
+            {!filters.some((item) => item.key === filter) && (
+              <button type="button" aria-pressed onClick={() => changeFilter("all")} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-ops-accent/30 bg-ops-accent-soft px-2.5 text-xs font-medium text-ops-accent">
+                {v(`filters.${filter}`)}<span aria-hidden>×</span>
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:max-w-4xl">
             <label className="flex min-w-0 items-center gap-2 text-xs">
@@ -380,7 +396,7 @@ export default function EndpointFleet({
                   <td className="max-w-72 px-5 py-3"><div className="flex items-center gap-3"><DeviceIcon type={endpoint.deviceType} className="size-5 shrink-0 text-ops-subtle transition-colors group-hover:text-ops-accent" /><div className="min-w-0"><div className="flex items-center gap-1.5"><span className="truncate font-medium text-ops-text">{endpoint.hostName}</span>{endpoint.isCritical && <Star className="size-3 shrink-0 fill-ops-orange-soft text-ops-orange" aria-label={t("endpoints.critical")} />}</div><p className="mt-0.5 truncate text-xs text-ops-subtle">{[endpoint.ipAddress, endpoint.groupPath].filter(Boolean).join(" · ") || endpoint.operatingSystem || "—"}</p></div></div></td>
                   <td className="whitespace-nowrap px-3 py-3"><StatusBadge tone={bucketTone[endpoint.bucket]} dot>{t(`bucket.${endpoint.bucket}`)}</StatusBadge></td>
                   <td className="px-3 py-3 text-ops-muted">{t(`deviceType.${endpoint.deviceType && [1, 2, 3, 4].includes(endpoint.deviceType) ? endpoint.deviceType : "unknown"}`)}</td>
-                  <td className={clsx("whitespace-nowrap px-3 py-3 tabular-nums", endpoint.offline ? "text-ops-warning" : "text-ops-muted")}>{relative(endpoint.lastConnectionAt)}</td>
+                  <td title={endpoint.lastConnectionAt ? formatEpdrDateTime(endpoint.lastConnectionAt, timeZone, locale) : undefined} className={clsx("whitespace-nowrap px-3 py-3 tabular-nums", endpoint.offline ? "text-ops-warning" : "text-ops-muted")}>{relative(endpoint.lastConnectionAt)}</td>
                   <td className="max-w-48 truncate px-3 py-3 text-ops-muted">{endpoint.assetName ?? <span className="text-ops-subtle">{t("endpoints.unlinked")}</span>}</td>
                   <td className="px-3 py-3"><button type="button" aria-label={`${t("drawer.details")}: ${endpoint.hostName}`} onClick={(event: MouseEvent) => { event.stopPropagation(); setOpenId(endpoint.id); }} className="flex size-7 items-center justify-center rounded-md text-ops-subtle transition-colors hover:bg-ops-surface-raised hover:text-ops-text"><ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden /></button></td>
                 </tr>

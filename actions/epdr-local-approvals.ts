@@ -32,7 +32,7 @@ const unavailable = { message: "Local approval unavailable. No provider action w
 const APPROVAL_LIMIT = 50;
 const APPROVAL_WINDOW_HOURS = 24;
 
-type EvidenceSummary = { templateId: string; steps: string[]; route: string };
+type EvidenceSummary = { templateId: string; steps: string[]; route: string; endpointId?: number };
 /** Strict, minimal read of the immutable local-run evidence. Unknown shapes fail closed. */
 function readRunEvidence(value: unknown): EvidenceSummary | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -45,7 +45,11 @@ function readRunEvidence(value: unknown): EvidenceSummary | null {
       typeof policy.route !== "string" || policy.route.length === 0) return null;
   const steps = template.steps.filter((step): step is string => typeof step === "string");
   if (!steps.includes("scan") && !steps.includes("isolate")) return null;
-  return { templateId: template.id, steps, route: policy.route };
+  // Older runs did not capture an endpoint id. Never substitute a different
+  // current endpoint when a newer evidence snapshot explicitly captured one.
+  const endpointId = evidence.endpointId;
+  if (endpointId !== undefined && (!Number.isSafeInteger(endpointId) || Number(endpointId) <= 0)) return null;
+  return { templateId: template.id, steps, route: policy.route, endpointId: endpointId as number | undefined };
 }
 
 const iso = (value: unknown) => value ? new Date(value as string | Date).toISOString() : null;
@@ -70,8 +74,8 @@ export async function requestEpdrLocalApproval(input: unknown): Promise<{ approv
       if (!binding) throw new Error("binding_unavailable");
       await assertReadSyncActor(tx, guard.activeSiteId, guard.session.userId);
       const { rows: runs } = await tx.execute<{
-        id: number; status: string; evidence: unknown; detection_id: number; endpoint_id: number;
-      }>(sql`SELECT id, status, evidence, detection_id, endpoint_id FROM epdr_local_playbook_runs
+        id: number; status: string; evidence: unknown; detection_id: number;
+      }>(sql`SELECT id, status, evidence, detection_id FROM epdr_local_playbook_runs
         WHERE id = ${runId} AND site_id = ${guard.activeSiteId} AND connection_id = ${binding.id}
           AND account_revision = ${binding.account_revision} FOR SHARE`);
       const run = runs[0];
@@ -79,17 +83,22 @@ export async function requestEpdrLocalApproval(input: unknown): Promise<{ approv
       const evidence = readRunEvidence(run.evidence);
       if (!evidence || !evidence.steps.includes(actionIntent)) throw new Error("intent_not_proposed");
       const { rows: endpoints } = await tx.execute<{ id: number }>(sql`
-        SELECT id FROM epdr_endpoints
-        WHERE id = ${run.endpoint_id} AND site_id = ${guard.activeSiteId} AND connection_id = ${binding.id}
-          AND account_revision = ${binding.account_revision} AND removed_at IS NULL FOR SHARE`);
-      if (!endpoints[0]) throw new Error("endpoint_unavailable");
+        SELECT e.id FROM epdr_detections d
+        JOIN epdr_endpoints e ON e.id = d.endpoint_id AND e.site_id = d.site_id
+          AND e.connection_id = d.connection_id AND e.account_revision = d.account_revision
+        WHERE d.id = ${run.detection_id} AND d.site_id = ${guard.activeSiteId}
+          AND d.connection_id = ${binding.id} AND d.account_revision = ${binding.account_revision}
+          AND (${evidence.endpointId ?? null}::integer IS NULL OR e.id = ${evidence.endpointId ?? null})
+          AND e.removed_at IS NULL FOR SHARE OF d, e`);
+      const endpointId = endpoints[0]?.id;
+      if (!endpointId) throw new Error("endpoint_unavailable");
       const { rows: existing } = await tx.execute<{ id: number }>(sql`
         SELECT id FROM epdr_local_approvals
         WHERE site_id = ${guard.activeSiteId} AND local_run_id = ${runId} AND action_intent = ${actionIntent}`);
       if (existing[0]) return { approvalId: existing[0].id, existing: true };
       const snapshot = {
         schemaVersion: 1, actionIntent, templateId: evidence.templateId, responsePolicyRoute: evidence.route,
-        localRunId: runId, detectionId: run.detection_id, endpointId: run.endpoint_id,
+        localRunId: runId, detectionId: run.detection_id, endpointId: endpointId,
         connectionId: binding.id, accountRevision: binding.account_revision,
         providerLocked: true, capturedAt: new Date().toISOString(),
       };
@@ -97,7 +106,7 @@ export async function requestEpdrLocalApproval(input: unknown): Promise<{ approv
         INSERT INTO epdr_local_approvals
           (site_id, detection_id, local_run_id, endpoint_id, connection_id, account_revision,
            action_intent, snapshot, requested_by, expires_at)
-        VALUES (${guard.activeSiteId}, ${run.detection_id}, ${runId}, ${run.endpoint_id}, ${binding.id},
+        VALUES (${guard.activeSiteId}, ${run.detection_id}, ${runId}, ${endpointId}, ${binding.id},
           ${binding.account_revision}, ${actionIntent}, ${JSON.stringify(snapshot)}::jsonb, ${guard.session.userId},
           clock_timestamp() + interval '${sql.raw(String(APPROVAL_WINDOW_HOURS))} hours')
         RETURNING id`);

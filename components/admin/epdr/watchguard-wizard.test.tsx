@@ -17,7 +17,8 @@ vi.mock("react", async (original) => ({
   },
   useTransition: () => [false, (run: () => Promise<unknown>) => { state.tasks.push(run()); }],
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", () => ({ useLocale: () => "en", useTranslations: () => (key: string) => key }));
+vi.mock("./time-zone-provider", () => ({ useEpdrTimeZone: () => ({ timeZone: "UTC" }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: state.refresh }) }));
 vi.mock("@/actions/watchguard-settings", () => ({ saveWatchGuardConnection: state.save, testWatchGuardConnection: state.test, clearWatchGuardSecrets: state.clear, saveWatchGuardGlobal: vi.fn() }));
 vi.mock("@/components/ui/action-button", () => ({ default: ({ children, ...props }: Record<string, unknown>) => <button {...props}>{children as ReactNode}</button> }));

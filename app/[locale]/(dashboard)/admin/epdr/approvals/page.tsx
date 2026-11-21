@@ -21,12 +21,15 @@ export default async function EpdrApprovalsPage({ searchParams }: { searchParams
   if (!guard.ok) redirect("/select-site");
   const locale = await getLocale();
   const t = await getTranslations("Epdr");
-  const prefill = readPrefill(await searchParams);
+  const params = await searchParams;
+  const prefill = readPrefill(params);
+  const group = typeof params.group === "string" && ["approval", "active", "review", "finished"].includes(params.group)
+    ? params.group : "all";
   return <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 lg:px-8">
     <PageHeader eyebrow={t("operationsV2.eyebrow")} title={t("operationsV2.approvalsTitle")} description={t("operationsV2.approvalsDescription")} />
     <EpdrNav isAdmin />
+    <ExecutionCenter key={`execution-${guard.activeSiteId}`} locale={locale} prefill={prefill} initialGroup={group} />
     <ExecutionHealth />
-    <ExecutionCenter key={`execution-${guard.activeSiteId}`} locale={locale} prefill={prefill} />
     <details className="ops-panel p-5">
       <summary className="cursor-pointer text-sm font-semibold text-ops-text">{t("approvalsV2.title")}</summary>
       <div className="mt-4"><LocalApprovals key={`local-approvals-${guard.activeSiteId}`} locale={locale} /></div>

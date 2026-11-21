@@ -14,14 +14,29 @@ arbitrary HTTP path, no bulk execution and no automatic (approval-free) write.
 | Route | Page | Access |
 |---|---|---|
 | `/admin/settings` (WatchGuard card) | Per-site connection + superadmin global controls | superadmin |
-| `/admin/epdr` | **Fleet** — endpoint inventory; the drawer links to *Request scan or isolate* | site staff (read) / admin (act) |
+| `/admin/epdr` | **Summary** — current-account metrics, independent source freshness, and prioritized daily work | site staff (read) / admin (act) |
+| `/admin/epdr/endpoints` | **Endpoints** — complete endpoint inventory; the drawer links to *Request scan or isolate* | site staff (read) / admin (act) |
 | `/admin/epdr/threats` | **Threats** — detection list | site staff / admin |
-| `/admin/epdr/playbooks` | **Review** — local threat review, Incident handoff, proposed actions | site admin |
+| `/admin/epdr/playbooks` | **Playbooks** — saved versions, recommendation-only operational bindings, local threat review and Incident handoff | site admin |
 | `/admin/epdr/approvals` | **Actions** — execution health, provider execution requests (request → approve → worker), and the collapsed *local decision records* (send nothing; an approved record links to a prefilled execution request) | site admin |
 | `/admin/epdr/activity` | **History** — read-only ledger of everything recorded | site admin |
 | `/admin/epdr/settings` | **Settings** — *Provider execution* (site/deployment write gates), notifications, detection, safeguards, site kill switch | site admin |
 
-The header badge on Fleet and Threats reads "Monitoring · read-only" while any write gate is closed and "Actions need approval" when every gate is open. It is display-only and never authorizes a write.
+The header badge reads "Monitoring · read-only" while either write gate is closed and "Actions need approval" when the configured gate mode permits requests. It is display-only: credentials, allowlists, target freshness, safeguards and runtime checks can still block execution. A recently synchronized source or an empty priority queue never establishes that a site is safe; inventory, detections and provider target evidence refresh independently.
+
+### Display and scheduling time zones
+
+Personal EPDR display preferences use a named IANA time zone (including UTC, WIB, WITA and WIT). An unset preference inherits the site's notification scheduling zone, falling back to UTC. Stored event timestamps remain UTC instants. Daily threat trends must aggregate and zero-fill using that same effective display zone, not merely relabel UTC midnight.
+
+Notification quiet hours and digest hours use the separate site scheduling zone. Existing policies retain UTC until explicitly changed. The legacy database field `digest_hour_utc` retains its name for compatibility; its hour is interpreted in the policy's explicit `time_zone`. Digest deduplication includes the site, recipient and local calendar date, so a recipient in multiple sites does not lose another site's digest.
+
+### Operational playbooks and simulation history
+
+A saved simulation version remains immutable simulation history. An operational binding pins one saved version to the current site, connection and account revision, with a supported response recommendation (`scan` or `isolate`). Activating a binding enables recommendation evaluation only; it neither opens execution gates nor grants approval.
+
+The operational flow is: newly ingested cloud detection → current source evidence and binding filters → persisted recommendation → explicit operator request → audited administrator approval → existing dispatch worker → observed result or review. A local review decision is not provider approval. Older account revisions, missing target identity, incomplete or stale read evidence, endpoint safeguards and ignored detections must never silently become executable requests. A paused binding stops new evaluations; historical recommendation evidence remains available for audit.
+
+Bindings and their newest recommendations appear in the **Operational playbooks** library at the top of `/admin/epdr/playbooks`; the existing simulation authoring and local review stay available below it. Requesting an action from a recommendation is a second explicit confirmation. The request re-checks that the binding is still active for the current connection/account revision, that the recommendation still matches the requested endpoint and action, and that its read evidence is the latest source read. The request and its immutable provenance link are recorded in one transaction as `pending_approval`; a superseded recommendation is rejected rather than silently reused.
 
 ## 2. Role model
 

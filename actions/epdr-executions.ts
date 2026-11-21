@@ -90,6 +90,9 @@ const createSchema = z.object({
   actionType: z.string().min(1).max(64),
   parameters: z.record(z.string(), z.unknown()).optional(),
   confirmExecutionRequest: z.literal(true),
+  // Optional provenance: an operator may request the action recommended by an
+  // operational playbook binding. Validation happens in the insert transaction.
+  recommendationId: z.number().int().positive().optional(),
 }).strict();
 
 const approveSchema = z.object({
@@ -277,25 +280,69 @@ export async function createEpdrExecutionRequest(input: unknown): Promise<{ requ
 
     const intentKey = `${snapshot.namespace}:${executionIntentKey(snapshot)}`;
     try {
-      const { rows } = await db.execute<{ id: number }>(sql`
-        INSERT INTO epdr_actions
-          (site_id, connection_id, endpoint_id, action_type, params, mode, state, idempotency_key,
-           requested_by, snapshot, snapshot_hash, account_revision, credential_revision, evidence_generation,
-           namespace, device_id, entity_id, provider_incident_id, approval_expires_at)
-        VALUES (${guard.activeSiteId}, ${binding.connectionId}, ${parsed.data.endpointId}, ${actionType},
-          ${JSON.stringify(snapshot.parameters)}::jsonb, 'approval', 'pending_approval', ${intentKey},
-          ${guard.session.userId}, ${JSON.stringify(snapshot)}::jsonb, ${executionSnapshotHash(snapshot)},
-          ${binding.accountRevision}, ${binding.credentialRevision}, ${state.evidenceGeneration},
-          ${snapshot.namespace}, ${snapshot.target.deviceId}, ${snapshot.target.entityId},
-          ${snapshot.target.providerIncidentId}, ${new Date(expiresAt)})
-        RETURNING id`);
-      const id = rows[0]?.id;
-      if (!id) return error("service_unavailable");
-      auditExecution("request", id, {
+      const result = await db.transaction(async (tx) => {
+        if (parsed.data.recommendationId !== undefined) {
+          // The recommendation must still describe this site's current binding,
+          // endpoint and action, and its source read must be the latest one.
+          const { rows: recommendations } = await tx.execute<{
+            id: number; site_id: number; status: string; endpoint_id: number | null; response: string;
+            read_evidence_id: number; connection_id: number; account_revision: number; binding_state: string;
+            detection_source: string;
+          }>(sql`
+            SELECT r.id, r.site_id, r.status, r.endpoint_id, r.response, r.read_evidence_id,
+              b.connection_id, b.account_revision, b.state AS binding_state, d.source AS detection_source
+            FROM epdr_response_recommendations r
+            JOIN epdr_response_bindings b ON b.id = r.binding_id AND b.site_id = r.site_id
+            JOIN epdr_detections d ON d.id = r.detection_id AND d.site_id = r.site_id
+            WHERE r.id = ${parsed.data.recommendationId} AND r.site_id = ${guard.activeSiteId}
+            FOR UPDATE OF r, b`);
+          const recommendation = recommendations[0];
+          if (!recommendation || recommendation.status !== "matched"
+            || recommendation.endpoint_id !== parsed.data.endpointId
+            || recommendation.response !== actionType
+            || recommendation.connection_id !== binding.connectionId
+            || recommendation.account_revision !== binding.accountRevision
+            || recommendation.binding_state !== "active") return error("state_conflict");
+          const { rows: latestReads } = await tx.execute<{ id: number }>(sql`
+            SELECT id FROM epdr_detection_read_evidence
+            WHERE connection_id = ${binding.connectionId} AND account_revision = ${recommendation.account_revision}
+              AND credential_revision = ${binding.credentialRevision} AND source = ${recommendation.detection_source}
+            ORDER BY started_at DESC, id DESC LIMIT 1`);
+          if (latestReads[0]?.id !== recommendation.read_evidence_id) return error("state_conflict");
+          const { rows: existingLinks } = await tx.execute<{ recommendation_id: number }>(sql`
+            SELECT recommendation_id FROM epdr_response_request_links
+            WHERE recommendation_id = ${parsed.data.recommendationId} FOR SHARE`);
+          if (existingLinks[0]) return error("duplicate_active_request");
+        }
+        const { rows } = await tx.execute<{ id: number }>(sql`
+          INSERT INTO epdr_actions
+            (site_id, connection_id, endpoint_id, action_type, params, mode, state, idempotency_key,
+             requested_by, snapshot, snapshot_hash, account_revision, credential_revision, evidence_generation,
+             namespace, device_id, entity_id, provider_incident_id, approval_expires_at)
+          VALUES (${guard.activeSiteId}, ${binding.connectionId}, ${parsed.data.endpointId}, ${actionType},
+            ${JSON.stringify(snapshot.parameters)}::jsonb, 'approval', 'pending_approval', ${intentKey},
+            ${guard.session.userId}, ${JSON.stringify(snapshot)}::jsonb, ${executionSnapshotHash(snapshot)},
+            ${binding.accountRevision}, ${binding.credentialRevision}, ${state.evidenceGeneration},
+            ${snapshot.namespace}, ${snapshot.target.deviceId}, ${snapshot.target.entityId},
+            ${snapshot.target.providerIncidentId}, ${new Date(expiresAt)})
+          RETURNING id`);
+        const id = rows[0]?.id;
+        if (!id) return error("service_unavailable");
+        if (parsed.data.recommendationId !== undefined) {
+          // Same transaction as pending_approval: provenance cannot be absent or
+          // attached to a request that was never recorded.
+          await tx.execute(sql`INSERT INTO epdr_response_request_links (recommendation_id, site_id, request_id)
+            VALUES (${parsed.data.recommendationId}, ${guard.activeSiteId}, ${id})`);
+        }
+        return { id };
+      });
+      if ("code" in result) return result;
+      auditExecution("request", result.id, {
         actionType: snapshot.actionType, namespace: snapshot.namespace,
         endpointId: snapshot.target.endpointId, snapshotHash: executionSnapshotHash(snapshot),
+        ...(parsed.data.recommendationId !== undefined ? { recommendationId: parsed.data.recommendationId } : {}),
       });
-      return { requestId: id };
+      return { requestId: result.id };
     } catch (insertError) {
       if ((insertError as { code?: string }).code === "23505") return error("duplicate_active_request");
       throw insertError;

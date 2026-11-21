@@ -18,18 +18,20 @@ let escalate: boolean;
 let digest: boolean;
 let digestHour: number | null;
 let unread: number;
+let timeZone: string;
+let digestDay: string;
 beforeEach(() => {
-  vi.resetAllMocks(); revoked = null; overdue = true; quietStart = null; quietEnd = null; escalate = false; digest = false; digestHour = null; unread = 2;
+  vi.resetAllMocks(); timeZone = "UTC"; digestDay = "2030-01-01"; revoked = null; overdue = true; quietStart = null; quietEnd = null; escalate = false; digest = false; digestHour = null; unread = 2;
   mocks.transaction.mockImplementation(async (callback) => {
     try { return await callback({ execute: mocks.tx }); }
     catch (error) { mocks.rollback(); throw error; }
   });
-  mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [claim] : [] }));
+  mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [{ ...claim, digest_day: digestDay }] : [] }));
   mocks.tx.mockImplementation(async (q: SQL) => {
     const s = text(q);
     if (revoked && s.includes(revoked)) return { rows: [] };
     if (s.includes("SELECT p.site_id")) return { rows: [{ site_id: 2, escalate_overdue_to_admins: escalate, digest_enabled: digest, digest_hour_utc: digestHour }] };
-    if (s.includes("SELECT p.notify_held")) return { rows: [{ notify_held: false, quiet_start: quietStart, quiet_end: quietEnd, digest_enabled: digest }] };
+    if (s.includes("SELECT p.notify_held")) return { rows: [{ notify_held: false, quiet_start: quietStart, quiet_end: quietEnd, digest_enabled: digest, time_zone: timeZone, digest_hour_utc: digestHour ?? 0, escalate_overdue_to_admins: true }] };
     if (s.includes("SELECT clock_timestamp() AS now")) return { rows: [{ now: new Date("2030-01-01T23:30:00Z") }] };
     if (s.includes("SELECT automation_hold")) return { rows: [{ automation_hold: false, due_date: new Date("2030-01-01"), overdue, assigned_to_id: 4 }] };
     if (s.includes("SELECT u.id")) return { rows: [{ id: 4, role_in_site: "admin" }] };
@@ -55,12 +57,12 @@ describe("local notification scheduling", () => {
     expect(escalation).toContain("m.user_id <> coalesce(i.assigned_to_id, -1)");
     expect(escalation).toContain("ON CONFLICT (incident_id, recipient_id, kind) DO NOTHING");
   });
-  it("queues one digest per recipient per UTC day when the digest hour has passed", async () => {
+  it("queues one digest per recipient per policy-local day when the digest hour has passed", async () => {
     digest = true; digestHour = 0;
     await scheduleLocalNotifications(2);
     const insert = queries().find((s) => s.includes("'digest'") && s.includes("digest_day"))!;
-    expect(insert).toContain("(clock_timestamp() AT TIME ZONE 'UTC')::date");
-    expect(insert).toContain("extract(hour FROM clock_timestamp() AT TIME ZONE 'UTC') >= p.digest_hour_utc");
+    expect(insert).toContain("(clock_timestamp() AT TIME ZONE p.time_zone)::date");
+    expect(insert).toContain("extract(hour FROM clock_timestamp() AT TIME ZONE p.time_zone) >= p.digest_hour_utc");
     expect(insert).toContain("n.kind <> 'digest'");
     expect(insert).toContain("GROUP BY n.recipient_id");
     expect(insert).toContain("ON CONFLICT DO NOTHING");
@@ -86,6 +88,27 @@ describe("local notification scheduling", () => {
 });
 
 describe("leased local publication", () => {
+  it("revalidates the current scheduling zone for queued notices", async () => {
+    timeZone = "America/New_York"; quietStart = 18; quietEnd = 20;
+    await processLocalNotificationQueue();
+    const update = mocks.tx.mock.calls.find(([q]) => text(q).startsWith("UPDATE epdr_local_notification_outbox"))![0];
+    expect(compile(update).params).toContainEqual(new Date("2030-01-02T01:00:00Z"));
+    expect(queries().some((s) => s.includes("INSERT INTO epdr_local_notifications"))).toBe(false);
+  });
+  it("cancels a stale digest local date after a policy zone change", async () => {
+    digest = true; timeZone = "Asia/Jakarta";
+    mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [{ ...claim, kind: "digest", incident_id: null, digest_day: "2030-01-01" }] : [] }));
+    await processLocalNotificationQueue();
+    expect(queries().some((s) => s.includes("eligibility_revoked"))).toBe(true);
+    expect(queries().some((s) => s.includes("INSERT INTO epdr_local_notifications"))).toBe(false);
+  });
+  it("does not publish a queued digest before the changed digest hour", async () => {
+    digest = true; digestHour = 23; timeZone = "America/New_York";
+    mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [{ ...claim, kind: "digest", incident_id: null, digest_day: "2030-01-01" }] : [] }));
+    await processLocalNotificationQueue();
+    expect(queries().some((s) => s.includes("attempts = attempts - 1"))).toBe(true);
+    expect(queries().some((s) => s.includes("INSERT INTO epdr_local_notifications"))).toBe(false);
+  });
   it("claims with SKIP LOCKED, expiry fencing and bounded attempts", async () => {
     await processLocalNotificationQueue();
     const claimSql = text(mocks.execute.mock.calls[1][0]);
@@ -146,7 +169,7 @@ describe("leased local publication", () => {
   });
   it("delivers a digest only while unread notices remain and the policy is enabled", async () => {
     digest = true; unread = 2;
-    mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [{ ...claim, kind: "digest", incident_id: null }] : [] }));
+    mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [{ ...claim, kind: "digest", incident_id: null, digest_day: digestDay }] : [] }));
     await processLocalNotificationQueue();
     expect(queries().some((s) => s.includes("kind <> 'digest'"))).toBe(true);
     const insert = mocks.tx.mock.calls.find(([q]) => text(q).includes("INSERT INTO epdr_local_notifications"))![0];
@@ -155,7 +178,7 @@ describe("leased local publication", () => {
   });
   it("cancels an empty or disabled digest without publishing", async () => {
     digest = true; unread = 0;
-    mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [{ ...claim, kind: "digest", incident_id: null }] : [] }));
+    mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [{ ...claim, kind: "digest", incident_id: null, digest_day: digestDay }] : [] }));
     await processLocalNotificationQueue();
     expect(queries().some((s) => s.includes("eligibility_revoked"))).toBe(true);
     expect(queries().some((s) => s.includes("INSERT INTO epdr_local_notifications"))).toBe(false);
@@ -165,7 +188,7 @@ describe("leased local publication", () => {
   });
   it("requeues a digest during quiet hours without spending an attempt", async () => {
     digest = true; unread = 1; quietStart = 22; quietEnd = 7;
-    mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [{ ...claim, kind: "digest", incident_id: null }] : [] }));
+    mocks.execute.mockImplementation(async (q: SQL) => ({ rows: text(q).includes("RETURNING o.*") ? [{ ...claim, kind: "digest", incident_id: null, digest_day: digestDay }] : [] }));
     await processLocalNotificationQueue();
     expect(queries().some((s) => s.includes("INSERT INTO epdr_local_notifications"))).toBe(false);
     const requeue = mocks.tx.mock.calls.find(([q]) => text(q).startsWith("UPDATE epdr_local_notification_outbox"))![0];

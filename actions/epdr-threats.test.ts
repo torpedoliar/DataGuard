@@ -3,11 +3,16 @@ const mocks = vi.hoisted(() => ({ guard: vi.fn(), access: vi.fn(), context: vi.f
 vi.mock("@/lib/action-auth", () => ({ requireActiveSiteAction: mocks.guard }));
 vi.mock("@/lib/site-access", () => ({ requireSiteAccess: mocks.access }));
 vi.mock("./epdr-endpoints", () => ({ loadSecurityContext: mocks.context }));
+vi.mock("@/lib/epdr/display-time-zone", () => ({ loadEpdrDisplayTimeZone: vi.fn(async () => ({ timeZone: "UTC" })) }));
 vi.mock("@/db", () => ({ db: { select: mocks.select } }));
 import { getEpdrThreats, getEpdrThreatTable } from "./epdr-threats";
+import { loadEpdrDisplayTimeZone } from "@/lib/epdr/display-time-zone";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
-beforeEach(() => { vi.resetAllMocks(); });
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(loadEpdrDisplayTimeZone).mockResolvedValue({ personalTimeZone: null, siteTimeZone: "UTC", timeZone: "UTC" });
+});
 describe("threat inventory membership", () => {
   it("rejects absent active site before context/database reads", async () => {
     mocks.guard.mockResolvedValue({ ok: false, message: "No site" });
@@ -68,7 +73,8 @@ describe("threat inventory membership", () => {
     mocks.guard.mockResolvedValue({ ok: true, activeSiteId: 7, session: { role: "user" } });
     mocks.access.mockResolvedValue(true);
     mocks.context.mockResolvedValue({ isAdmin: false });
-    const results = [[{ accountRevision: 0 }], [], [{ total: 800 }], [{ category: "malware", last24h: 700, last7d: 800 }], [{ date: new Date().toISOString().slice(0, 10), category: "malware", total: 800 }], [{ total: 2 }]];
+    vi.mocked(loadEpdrDisplayTimeZone).mockResolvedValue({ personalTimeZone: "Asia/Jakarta", siteTimeZone: "UTC", timeZone: "Asia/Jakarta" });
+    const results = [[{ accountRevision: 0 }], [], [{ total: 800 }], [{ category: "malware", last24h: 700, last7d: 800 }], [{ date: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()), category: "malware", total: 800 }], [{ total: 2 }]];
     const selections: Record<string, SQL>[] = [];
     mocks.select.mockImplementation((selection) => {
       selections.push(selection);
@@ -83,6 +89,10 @@ describe("threat inventory membership", () => {
     const result = await getEpdrThreats();
     expect(result).toMatchObject({ activeCount: 2, categoryTotals: { malware: { last24h: 700, last7d: 800 } }, detectionPage: { total: 800 } });
     if (!("message" in result)) expect(result.trend.reduce((n, d) => n + d.total, 0)).toBe(800);
+    const dayQuery = new PgDialect().sqlToQuery(selections[4].date);
+    expect(dayQuery.sql).toContain("at time zone 'UTC') at time zone");
+    expect(dayQuery.params).toEqual(["Asia/Jakarta"]);
+    expect(result).toMatchObject({ trendTimeZone: "Asia/Jakarta" });
     const activeSql = new PgDialect().sqlToQuery(selections[5].total).sql;
     expect(activeSql).toContain("count(distinct");
     expect(activeSql).toContain("'Open', 'In Progress'");

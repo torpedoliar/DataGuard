@@ -17,7 +17,7 @@ const evidence = {
   definition: { template: { id: "malware-virus", steps: ["review", "incident", "scan"] } },
   responsePolicy: { status: "proposed", route: "operator_incident_pic_review" },
 };
-const run = { id: 7, status: "finished", evidence, detection_id: 31, endpoint_id: 5 };
+const run = { id: 7, status: "finished", evidence, detection_id: 31 };
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -65,6 +65,32 @@ describe("durable local approvals", () => {
     expect(insert.params.slice(0, 7)).toEqual([17, 31, 7, 5, 2, 3, "scan"]);
     expect(insert.sql).toContain("interval '24 hours'");
     expect(queries().some((query) => /INSERT INTO (incidents|epdr_local_notifications)|UPDATE epdr_detections/.test(query.sql))).toBe(false);
+  });
+
+  it("resolves legacy runs through the current scoped detection, not a nonexistent run column", async () => {
+    requestRows();
+    await requestEpdrLocalApproval({ runId: 7, actionIntent: "scan", confirmLocalApproval: true });
+    expect(queries()[1].sql).not.toContain("endpoint_id");
+    const endpoint = queries()[2];
+    expect(endpoint.sql).toContain("e.id = d.endpoint_id");
+    expect(endpoint.sql).toContain("e.site_id = d.site_id");
+    expect(endpoint.sql).toContain("e.connection_id = d.connection_id");
+    expect(endpoint.sql).toContain("e.account_revision = d.account_revision");
+    expect(endpoint.sql).toContain("FOR SHARE OF d, e");
+    expect(endpoint.params).toEqual([31, 17, 2, 3, null, null]);
+  });
+
+  it("requires a captured endpoint to still match rather than silently retargeting", async () => {
+    requestRows({ evidenceValue: { ...evidence, endpointId: 6 } });
+    await requestEpdrLocalApproval({ runId: 7, actionIntent: "scan", confirmLocalApproval: true });
+    expect(queries()[2].params).toEqual([31, 17, 2, 3, 6, 6]);
+    expect(queries()[2].sql).toContain("OR e.id =");
+  });
+
+  it.each([null, 0, -1, "5", 1.5])("rejects malformed captured endpoint %j", async (endpointId) => {
+    requestRows({ evidenceValue: { ...evidence, endpointId } });
+    expect(await requestEpdrLocalApproval({ runId: 7, actionIntent: "scan", confirmLocalApproval: true })).toHaveProperty("message");
+    expect(queries()).toHaveLength(2);
   });
 
   it("returns an existing approval without appending a duplicate", async () => {

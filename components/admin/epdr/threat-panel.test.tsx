@@ -43,6 +43,7 @@ vi.mock("next-intl", () => ({ useTranslations: () => state.translate }));
 vi.mock("next/link", () => ({ default: (props: Record<string, unknown>) => ({ type: "a", key: null, props }) }));
 vi.mock("@/actions/epdr-threats", () => ({ getEpdrThreatTable: state.getPage }));
 vi.mock("./incident-handoff", () => ({ default: () => null }));
+vi.mock("./time-zone-provider", () => ({ useEpdrTimeZone: () => ({ timeZone: "Asia/Jakarta" }) }));
 
 import { ThreatTable } from "./threat-panel";
 
@@ -286,5 +287,30 @@ describe("ThreatTable request lifecycle", () => {
     expect(text(render())).toContain("host-999");
     expect(text(render())).not.toContain("host-888");
     expect(busy(render())).toBe(false);
+  });
+});
+
+describe("detection context detail", () => {
+  // Expand function components (DetectionRow) before reading their text.
+  const deepText = (tree: ReactElement) => elements(tree).map((node) => typeof node.props.children === "string" || typeof node.props.children === "number" ? String(node.props.children) : Array.isArray(node.props.children) ? node.props.children.filter((c) => typeof c === "string").join("") : "").join(" ");
+  it("shows stored context in the selected zone without raw provider payloads", () => {
+    initial = { rows: [{ ...detection(5), threatName: "Trojan.X", endpointId: 9, incidentId: 3, incidentStatus: "Open",
+      detectedAt: new Date("2026-01-01T18:00:00Z") }], total: 1, page: 1, pageSize: 50 };
+    const tree = render({ ignored: false });
+    const rendered = deepText(tree);
+    expect(rendered).toContain("show");
+    expect(rendered).toContain("Trojan.X");
+    expect(rendered).toContain("providerNote");
+    const time = elements(tree).find((node) => node.type === "time")!;
+    expect(time.props.dateTime).toBe("2026-01-01T18:00:00.000Z");
+    expect(text(time.props.children)).toContain("02");
+    expect(rendered).not.toContain("raw");
+  });
+
+  it("does not present a historical identity as a current endpoint", () => {
+    initial = { rows: [{ ...detection(6), endpointId: 9, historical: true }], total: 1, page: 1, pageSize: 50 };
+    const tree = render({ ignored: false });
+    expect(deepText(tree)).toContain("historicalIdentity");
+    expect(elements(tree).some((node) => node.props.href === "/en/admin/epdr/endpoints")).toBe(false);
   });
 });

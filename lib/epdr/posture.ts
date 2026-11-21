@@ -5,6 +5,8 @@
  * "needs attention" means.
  */
 
+import { epdrLocalClock } from "@/lib/epdr/time-zone";
+
 export type ConnectionState = "not_configured" | "disabled" | "syncing_first" | "stale" | "error" | "live";
 
 export function resolveConnectionState(input: {
@@ -138,14 +140,15 @@ function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Daily stacked counts for the last `days` days (UTC), oldest first, zero-filled. */
+/** Daily calendar buckets in the chosen zone, oldest first and zero-filled. */
 export function buildThreatTrend(
   detections: { category: string; detectedAt: Date }[],
   nowMs: number,
   days = 30,
+  timeZone = "UTC",
 ): TrendDay[] {
-  const today = new Date(nowMs);
-  today.setUTCHours(0, 0, 0, 0);
+  // Step through calendar labels, not zoned instants: DST days may be 23 or 25 hours.
+  const today = new Date(`${epdrLocalClock(new Date(nowMs), timeZone).day}T00:00:00.000Z`);
   const out: TrendDay[] = [];
   const index = new Map<string, TrendDay>();
   for (let i = days - 1; i >= 0; i--) {
@@ -155,7 +158,7 @@ export function buildThreatTrend(
     index.set(day.date, day);
   }
   for (const det of detections) {
-    const day = index.get(isoDay(det.detectedAt));
+    const day = index.get(epdrLocalClock(det.detectedAt, timeZone).day);
     if (!day) continue;
     if (!(THREAT_CATEGORIES as readonly string[]).includes(det.category)) continue;
     day.counts[det.category as ThreatCategory]++;

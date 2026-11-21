@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import IncidentHandoff from "./incident-handoff";
+import { useEpdrTimeZone } from "./time-zone-provider";
+import { formatEpdrDateTime } from "@/lib/epdr/time-zone";
 import { getEpdrThreatTable, type EpdrThreatPage, type EpdrDetectionRow, type EpdrThreatsData } from "@/actions/epdr-threats";
 import type { ThreatQuery } from "@/lib/epdr/threat-query";
 import { THREAT_CATEGORIES, type ThreatCategory, type TrendDay } from "@/lib/epdr/posture";
@@ -100,6 +102,8 @@ function Trend({ trend, locale }: { trend: TrendDay[]; locale: string }) {
 
 function DetectionRow({ d, locale, isAdmin }: { d: EpdrDetectionRow; locale: string; isAdmin: boolean }) {
   const t = useTranslations("Epdr");
+  const detail = useTranslations("Epdr.threatDetail");
+  const { timeZone } = useEpdrTimeZone();
   const active = d.incidentStatus === "Open" || d.incidentStatus === "In Progress";
   return (
     <li className="flex flex-wrap items-center gap-3 px-5 py-3">
@@ -130,23 +134,45 @@ function DetectionRow({ d, locale, isAdmin }: { d: EpdrDetectionRow; locale: str
         {t("threats.review")}
       </Link>}
       {isAdmin && !d.incidentId && !d.historical && <IncidentHandoff detectionId={d.id} locale={locale} />}
+      {/* Context from the stored, site-scoped row only; raw provider payloads are never shown. */}
+      <details className="basis-full text-[12px] text-ops-muted">
+        <summary className="cursor-pointer select-none text-ops-accent">{detail("show")}</summary>
+        <dl className="mt-2 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+          <div><dt className="font-medium text-ops-text">{detail("threatName")}</dt><dd className="break-all">{d.threatName ?? detail("notReported")}</dd></div>
+          <div><dt className="font-medium text-ops-text">{detail("detectedAt")}</dt><dd><time dateTime={new Date(d.detectedAt).toISOString()}>{formatEpdrDateTime(d.detectedAt, timeZone, locale)}</time></dd></div>
+          <div><dt className="font-medium text-ops-text">{detail("source")}</dt><dd>{t(`threats.source.${d.source}`)}</dd></div>
+          <div><dt className="font-medium text-ops-text">{detail("score")}</dt><dd>{d.threatScore === null ? detail("scoreMissing") : detail("scoreValue", { score: d.threatScore })}</dd></div>
+          <div><dt className="font-medium text-ops-text">{detail("severity")}</dt><dd>{t(`severity.${d.severity}`)} · {detail("severityHint")}</dd></div>
+          <div><dt className="font-medium text-ops-text">{detail("endpoint")}</dt><dd>{d.endpointId && !d.historical
+            ? <Link href={`/${locale}/admin/epdr/endpoints?query=${encodeURIComponent(d.hostName ?? "")}`} className="text-ops-accent underline-offset-4 hover:underline">{d.hostName ?? `#${d.endpointId}`}</Link>
+            : d.historical ? detail("historicalIdentity") : detail("unmapped")}</dd></div>
+          <div><dt className="font-medium text-ops-text">{detail("incident")}</dt><dd>{d.incidentId ? detail("incidentValue", { id: d.incidentId, status: d.incidentStatus ?? "—" }) : detail("noIncident")}</dd></div>
+          {d.ignoredReason && <div><dt className="font-medium text-ops-text">{detail("ignoredReason")}</dt><dd className="break-all">{d.ignoredReason}</dd></div>}
+        </dl>
+        <p className="mt-2">{detail("providerNote")}</p>
+      </details>
     </li>
   );
 }
 
-export function ThreatTable({ initial, ignored = false, locale, isAdmin }: { initial: EpdrThreatPage; ignored?: boolean; locale: string; isAdmin: boolean }) {
+export function ThreatTable({ initial, ignored = false, locale, isAdmin, initialQuery }: {
+  initial: EpdrThreatPage; ignored?: boolean; locale: string; isAdmin: boolean;
+  /** Dashboard queue links land here with a bounded server-side query. */
+  initialQuery?: Partial<Pick<ThreatQuery, "scoreMode" | "minScore" | "maxScore" | "sort">>;
+}) {
   const t = useTranslations("Epdr.threatV2");
   const epdr = useTranslations("Epdr");
-  const [query, setQuery] = useState<ThreatQuery>({ page: 1, query: "", category: "all", source: "all", scoreMode: "any", minScore: 0, maxScore: 10, sort: "newest", ignored });
+  const [query, setQuery] = useState<ThreatQuery>({ page: 1, query: "", category: "all", source: "all", scoreMode: "any", minScore: 0, maxScore: 10, sort: "newest", ignored, ...initialQuery });
   const [result, setResult] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const first = useRef(true);
+  const hasInitialQuery = useRef(Boolean(initialQuery && Object.keys(initialQuery).length));
   const initialSnapshot = useRef(initial);
   const [retry, setRetry] = useState(0);
   const invalid = query.scoreMode === "range" && (!Number.isInteger(query.minScore) || !Number.isInteger(query.maxScore) || query.minScore < 0 || query.maxScore > 10 || query.minScore > query.maxScore);
   useEffect(() => {
-    if (first.current) { first.current = false; return; }
+    if (first.current) { first.current = false; if (!hasInitialQuery.current) return; }
     let cancelled = false;
     if (invalid) return;
     if (initialSnapshot.current !== initial) {
@@ -222,7 +248,10 @@ export function ThreatTable({ initial, ignored = false, locale, isAdmin }: { ini
   );
 }
 
-export default function ThreatPanel({ data, locale }: { data: EpdrThreatsData; locale: string }) {
+export default function ThreatPanel({ data, locale, initialQuery }: {
+  data: EpdrThreatsData; locale: string;
+  initialQuery?: Partial<Pick<ThreatQuery, "scoreMode" | "minScore" | "maxScore" | "sort">>;
+}) {
   const t = useTranslations("Epdr");
   const [showIgnored, setShowIgnored] = useState(false);
   const h = useTranslations("Epdr.handoffV2");
@@ -281,7 +310,7 @@ export default function ThreatPanel({ data, locale }: { data: EpdrThreatsData; l
           <div className="border-b border-ops-border px-5 py-4">
             <h2 id="recent-heading" className="text-[15px] font-semibold text-ops-text">{t("threats.recent")}</h2>
           </div>
-          <ThreatTable initial={data.detectionPage} locale={locale} isAdmin={data.isAdmin} />
+          <ThreatTable initial={data.detectionPage} locale={locale} isAdmin={data.isAdmin} initialQuery={initialQuery} />
         </section>
 
         <section aria-labelledby="trend-heading" className="ops-panel p-5">
@@ -289,6 +318,7 @@ export default function ThreatPanel({ data, locale }: { data: EpdrThreatsData; l
           <div className="mt-4">
             <Trend trend={data.trend} locale={locale} />
           </div>
+          <p className="mt-2 text-[11.5px] text-ops-subtle">{t("threatDetail.trendZone", { zone: data.trendTimeZone ?? "UTC" })}</p>
           <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px]">
             {THREAT_CATEGORIES.map((c) => (
               <li key={c} className="flex items-center gap-1.5">
