@@ -49,6 +49,8 @@ const saveSchema = z.object({
   confirmWriteEnablement: z.literal(true),
 }).strict();
 
+// Bind sanitized arrays with sql.param below: direct interpolation expands an
+// array into a SQL tuple, which PostgreSQL cannot cast to text[].
 function sanitizeActions(values: string[]): string[] {
   const allowed = new Set<string>(EXECUTABLE_ACTION_TYPES);
   return [...new Set(values.filter((value) => allowed.has(value)))].sort();
@@ -121,7 +123,7 @@ export async function saveEpdrWriteSettings(input: unknown): Promise<{ ok: true 
               ? sql`provider_writes_enabled`
               : sql`${parsed.data.globalEnabled}`},
             allowed_actions = ${parsed.data.globalAllowedActions
-              ? sql`${sanitizeActions(parsed.data.globalAllowedActions)}::text[]`
+              ? sql`${sql.param(sanitizeActions(parsed.data.globalAllowedActions))}::text[]`
               : sql`allowed_actions`},
             updated_by = ${guard.session.userId}, updated_at = clock_timestamp()
           WHERE id = 1`);
@@ -147,14 +149,14 @@ export async function saveEpdrWriteSettings(input: unknown): Promise<{ ok: true 
           INSERT INTO epdr_site_settings (site_id, provider_writes_enabled, allowed_actions,
             max_actions_per_hour, execution_cooldown_minutes, updated_by, updated_at)
           VALUES (${guard.activeSiteId}, ${parsed.data.siteEnabled ?? false},
-            ${sql`${actions}::text[]`},
+            ${sql`${sql.param(actions)}::text[]`},
             ${capProvided ? parsed.data.siteMaxActionsPerHour : null},
             ${parsed.data.executionCooldownMinutes ?? DEFAULT_EXECUTION_COOLDOWN_MINUTES},
             ${guard.session.userId}, clock_timestamp())
           ON CONFLICT (site_id) DO UPDATE SET
             provider_writes_enabled = coalesce(${parsed.data.siteEnabled ?? null}, epdr_site_settings.provider_writes_enabled),
             allowed_actions = ${parsed.data.siteAllowedActions
-              ? sql`${actions}::text[]`
+              ? sql`${sql.param(actions)}::text[]`
               : sql`epdr_site_settings.allowed_actions`},
             max_actions_per_hour = ${capProvided
               ? sql`${parsed.data.siteMaxActionsPerHour}`
